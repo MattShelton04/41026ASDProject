@@ -3,6 +3,34 @@ import { formatAssistantDate, humaniseAssistantValue } from "./formats.js";
 import { toolSourceCard } from "./activity.js";
 
 const CONFIDENCE = new Set(["high", "moderate", "low", "insufficient"]);
+const CONFIDENCE_TONE = Object.freeze({ high: "confirmed", moderate: "info", low: "partial", insufficient: "partial" });
+
+const CODE_SPAN = /`([^`\n]{1,120})`/;
+
+/** Model text can contain `code` spans; show them as code without interpreting any markup. */
+export function inlineText(tag, text, className = "") {
+  const parts = String(text).split(CODE_SPAN);
+  if (parts.length === 1) return el(tag, className, parts[0]);
+  const node = el(tag, className);
+  parts.forEach((part, index) => { if (part) node.append(el(index % 2 ? "code" : "span", "", part)); });
+  return node;
+}
+
+function supportLine(result, citations) {
+  const line = el("div", "ps-ai-chat__support");
+  const known = CONFIDENCE.has(result.confidence);
+  append(line, el("span", `ps-badge ps-badge--${known ? CONFIDENCE_TONE[result.confidence] : "unknown"}`, known ? `Confidence: ${humaniseAssistantValue(result.confidence)}` : "Confidence not recorded"));
+  const documents = new Set(citations.map((citation) => citation.document_id || citation.citation_id)).size;
+  const cited = new Set((Array.isArray(result.findings) ? result.findings : []).flatMap((finding) => (Array.isArray(finding?.tool_call_ids) ? finding.tool_call_ids : [])));
+  const checks = cited.size;
+  const counts = [
+    documents ? `${documents} guidance source${documents === 1 ? "" : "s"}` : "",
+    checks ? `${checks} record check${checks === 1 ? "" : "s"}` : "",
+  ].filter(Boolean).join(" · ");
+  if (counts) append(line, el("span", "ps-ai-chat__support-counts", counts));
+  if (typeof result.confidence_reason === "string" && result.confidence_reason.trim()) append(line, el("p", "", result.confidence_reason));
+  return line;
+}
 const STATES = Object.freeze({
   ready: "Document context retrieved",
   no_match: "Insufficient context · no matching guidance",
@@ -82,18 +110,19 @@ function citationCard(citation) {
 
 export function renderGroundedAnswer(result, { inActivityHistory = false, toolChecks = [], inspection = null } = {}) {
   const host = el("div", "ps-ai-chat__answer ps-ai-chat__answer--grounded");
-  append(host, paragraphSection("summary", "Answer", [result.summary]));
+  const citations = Array.isArray(result.citations) ? result.citations.filter((item) => item && typeof item === "object" && typeof item.citation_id === "string").slice(0, 10) : [];
+  const summary = el("section", "ps-ai-chat__answer-section ps-ai-chat__answer-section--summary");
+  append(summary, el("h3", "", "Answer"), inlineText("p", result.summary || ""), supportLine(result, citations));
+  append(host, summary);
   const state = groundingState(result);
-  const confidence = paragraphSection("confidence", "Evidence support", [result.confidence_reason]);
+  const confidence = paragraphSection("confidence", "Evidence support", []);
   const labels = el("div", "ps-ai-chat__grounding-labels");
   append(labels, el("span", `ps-badge ps-badge--${state.tone}`, state.label));
-  append(labels, el("span", "ps-badge ps-badge--unknown", CONFIDENCE.has(result.confidence) ? `Confidence: ${humaniseAssistantValue(result.confidence)}` : "Confidence not recorded"));
-  append(confidence, labels, el("p", "ps-ai-chat__grounding-note", "Confidence describes recorded evidence support, not a probability of correctness. Retrieval is recorded for this answer; current service health is checked separately."));
+  append(confidence, labels, el("p", "ps-ai-chat__grounding-note", "Confidence describes how well the cited evidence supports the answer, not the probability that it is correct. High needs at least two closely matching sources and no gaps."));
   const qualifications = el("details", "ps-ai-chat__qualifications");
   qualifications.dataset.disclosure = "qualifications";
   append(qualifications, el("summary", "", "Scope and evidence support"), confidence);
 
-  const citations = Array.isArray(result.citations) ? result.citations.filter((item) => item && typeof item === "object" && typeof item.citation_id === "string").slice(0, 10) : [];
   const sourceCards = new Map(citations.map((citation) => [citation.citation_id, citationCard(citation)]));
   const toolCards = new Map(toolChecks.filter((check) => check.status === "succeeded" && !check.result?.retrieval).map((check) => [check.id, toolSourceCard(check)]));
   const findings = Array.isArray(result.findings) ? result.findings.filter((item) => item && typeof item.text === "string").slice(0, 10) : [];
@@ -102,7 +131,7 @@ export function renderGroundedAnswer(result, { inActivityHistory = false, toolCh
     const list = el("ol", "ps-ai-chat__findings");
     for (const [index, finding] of findings.entries()) {
       const item = el("li");
-      append(item, el("p", "", finding.text), el("span", "ps-ai-chat__finding-kind", finding.kind === "tool_fact" ? "Recorded tool fact" : finding.kind === "guidance" ? "Document guidance" : "Support kind not recorded"));
+      append(item, inlineText("p", finding.text), el("span", "ps-ai-chat__finding-kind", finding.kind === "tool_fact" ? "Current record" : finding.kind === "guidance" ? "Guidance" : "Support kind not recorded"));
       for (const id of (Array.isArray(finding.citation_ids) ? finding.citation_ids : []).slice(0, 5)) {
         const target = sourceCards.get(id);
         if (!target) { append(item, el("p", "", `Source ${String(id)} was not included in this answer.`)); continue; }

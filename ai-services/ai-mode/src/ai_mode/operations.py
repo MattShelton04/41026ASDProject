@@ -185,6 +185,7 @@ class OperationsService:
         return AgentRunSummary(
             id=run.id,
             feature_key=run.feature_key,
+            title=_safe_text(run.title) if run.title and self._policy.show_objectives else None,
             objective_preview=preview,
             status=run.status,
             latest_phase=snapshot.latest_phase,

@@ -142,6 +142,13 @@ def create_app(
             return problem(404, "corpus_empty", "The registered corpus has not been ingested")
         return jsonify(version.model_dump(mode="json"))
 
+    @app.get("/api/v1/corpora/<feature>/<corpus>/chunks")
+    def chunks(feature: str, corpus: str) -> Response | tuple[Response, int]:
+        contents = index.contents(feature, corpus)
+        if contents is None:
+            return problem(404, "corpus_empty", "The registered corpus has not been ingested")
+        return jsonify(contents.model_dump(mode="json"))
+
     @app.errorhandler(CorpusScopeDeniedError)
     def denied(error: CorpusScopeDeniedError) -> tuple[Response, int]:
         return problem(403, "scope_denied", str(error))

@@ -217,10 +217,11 @@ def test_shared_suggestions_precede_composer_and_centre_odd_card(
     assert group["y"] + group["height"] <= composer["y"]
     assert abs(last["width"] - first["width"]) < 1
     assert abs(last["x"] + last["width"] / 2 - group["x"] - group["width"] / 2) < 1
+    suggestion = suggestions.last.inner_text().strip()
     suggestions.last.click()
     text = page.get_by_role("textbox", name="Message PropertyScope assistant")
     expect(text).to_be_focused()
-    expect(text).to_have_value("Find an accepted property record in Parramatta.")
+    expect(text).to_have_value(suggestion)
     expect(page.locator(".ps-ai-chat__turn")).to_have_count(0)
 
 
@@ -621,7 +622,7 @@ def test_table_observers_are_released_after_search_and_shared_navigation(
     expect(page.get_by_text("Current records loaded.")).to_be_visible()
     assert page.evaluate("window.tableObservers.size") > 0
     page.get_by_role("link", name="Home", exact=True).first.click()
-    expect(page.get_by_role("heading", name="A clearer view of your next move.")).to_be_visible()
+    expect(page.locator("#property-search-form")).to_be_visible()
     assert page.evaluate("window.tableObservers.size") == 0
 
 

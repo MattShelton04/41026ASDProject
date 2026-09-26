@@ -400,3 +400,9 @@ summary { min-height: var(--ps-control-height-compact); align-content: center; }
   .run-list { flex: 1 0 auto; overflow-y: visible; }
   .run-detail { padding-bottom: max(var(--ps-space-8), env(safe-area-inset-bottom)); }
 }
+
+/* Grounded answers reuse design-system badges; this page does not load components.css. */
+.ps-badge { display: inline-flex; align-items: center; gap: var(--ps-space-2); padding: var(--ps-space-1) var(--ps-space-2); border-radius: var(--ps-radius-pill); background: var(--ps-unknown-bg); color: var(--ps-unknown); font-size: .6875rem; font-weight: 650; }
+.ps-badge--confirmed { background: var(--ps-confirmed-bg); color: var(--ps-confirmed); }
+.ps-badge--partial { background: var(--ps-partial-bg); color: var(--ps-partial); }
+.ps-badge--info { background: var(--ps-info-bg); color: var(--ps-info); }

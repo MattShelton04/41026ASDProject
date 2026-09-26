@@ -94,7 +94,7 @@ export function createStatusRoute({
   return async function renderStatus(root) {
     const refresh = el("button", "ps-button ps-button--primary", "Refresh status");
     refresh.type = "button";
-    append(root, pageHeader("Live service availability", "Data status", "A clear view of what is responding, what needs attention and what has not been checked. Service availability is separate from evidence coverage.", [refresh]));
+    append(root, pageHeader("Live service availability", "Data status", "Which services are responding right now. This checks that services run, not how much data they hold.", [refresh]));
     const summary = el("section", "status-summary");
     const cards = el("div", "health-grid");
     cards.setAttribute("aria-label", "Live service checks");

@@ -23,7 +23,7 @@ from shared_contracts.retrieval import CorpusDocument, CorpusIngestRequest, Retr
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "student-1/config/rag/corpus.json"
-CASES = ROOT / "student-1/config/rag/evaluation-v1.json"
+CASES = ROOT / "student-1/config/rag/evaluation-v2.json"
 
 
 def evaluate(
@@ -72,6 +72,13 @@ def evaluate(
             )
         answerable = [row for row in results if row["category"] == "supported"]
         recall = sum(row["expected_source_recall"] for row in answerable) / len(answerable)
+        absent = [row for row in results if row["category"] == "absent"]
+        expected_scores = [
+            citation["score"]
+            for row in answerable
+            for citation in row["retrieval"]["citations"]
+            if citation["document_id"] in row["expected_document_ids"]
+        ]
         return {
             "schema_version": "1.0",
             "evaluation_id": cases["evaluation_id"],
@@ -85,6 +92,11 @@ def evaluate(
             "expected_source_recall_at_5": recall,
             "retrieval_target_met": recall >= cases["target_expected_source_recall"],
             "negative_case_count": len(results) - len(answerable),
+            "absent_cases_without_context": sum(
+                row["retrieval"]["status"] == "no_match" for row in absent
+            ),
+            "absent_case_count": len(absent),
+            "lowest_expected_passage_score": min(expected_scores, default=None),
             "answer_model": None,
             "prompt_version": None,
             "answer_tokens": None,
@@ -125,6 +137,10 @@ def main() -> None:
                 "report": str(args.output),
                 "expected_source_recall_at_5": report["expected_source_recall_at_5"],
                 "retrieval_target_met": report["retrieval_target_met"],
+                "absent_cases_without_context": (
+                    f"{report['absent_cases_without_context']}/{report['absent_case_count']}"
+                ),
+                "lowest_expected_passage_score": report["lowest_expected_passage_score"],
                 "embedding_model": report["corpus"]["embedding_model"],
                 "answer_claim_validation": "not_executed_no_answer_model",
             }

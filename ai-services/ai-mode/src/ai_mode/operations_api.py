@@ -35,7 +35,17 @@ from shared_contracts import (
 from shared_contracts.agent import Identifier
 
 ALLOWED_QUERY_PARAMETERS = frozenset({"status", "feature_key", "model_profile", "cursor", "limit"})
-ALLOWED_ASSETS = frozenset({"app.js", "contexts.js", "polling.js", "styles.css"})
+ALLOWED_ASSETS = frozenset(
+    {
+        "app.js",
+        "contexts.js",
+        "polling.js",
+        "styles.css",
+        "knowledge.js",
+        "knowledge-model.js",
+        "knowledge.css",
+    }
+)
 ALLOWED_DESIGN_SYSTEM_ASSETS = frozenset({"tokens.css"})
 ALLOWED_SHARED_ASSETS = frozenset(
     {
@@ -132,6 +142,12 @@ def create_operations_blueprint(assets_path: Path) -> Blueprint:
     @blueprint.get("/operations/ai-mode/")
     def dashboard() -> Response:
         response = send_from_directory(assets_path, "index.html")
+        response.headers["Cache-Control"] = "no-store"
+        return _secure_static_response(response)
+
+    @blueprint.get("/operations/ai-mode/knowledge/")
+    def knowledge_page() -> Response:
+        response = send_from_directory(assets_path, "knowledge.html")
         response.headers["Cache-Control"] = "no-store"
         return _secure_static_response(response)
 

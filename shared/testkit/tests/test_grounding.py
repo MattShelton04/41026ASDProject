@@ -92,13 +92,6 @@ def test_rejects_a_document_escaping_its_directory(tmp_path: Path) -> None:
         load_corpus_manifest(manifest)
 
 
-def test_reports_a_document_that_may_split_a_claim(tmp_path: Path) -> None:
-    manifest = _write_manifest(tmp_path)
-    (tmp_path / "documents" / "guidance-one.md").write_text("x" * 1500, encoding="utf-8")
-    with pytest.raises(AssertionError, match="may split a claim"):
-        assert_corpus_manifest(manifest, feature_key=FEATURE, corpus_id=CORPUS)
-
-
 def test_grounded_allowlist_variants_are_accepted() -> None:
     base = ("feature.read.v1",)
     assert_grounded_allowlist_accepted(grounded_allowlist_variants(base), base)
@@ -184,3 +177,17 @@ def test_predicate_form_catches_a_list_versus_tuple_comparison() -> None:
     assert_grounded_allowlist_accepted(correct, base)
     with pytest.raises(AssertionError, match="JSON list"):
         assert_grounded_allowlist_accepted(broken, base)
+
+
+def test_corpus_check_reports_sections_that_would_be_split(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path)
+    document = tmp_path / "documents" / "guidance-one.md"
+    long_section = "## Long\n\n" + "A claim and its qualification. " * 50
+    document.write_text("# Guide\n\nShort intro.\n\n" + long_section, encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="Long"):
+        assert_corpus_manifest(manifest, feature_key=FEATURE, corpus_id=CORPUS)
+
+    split = long_section.replace(". A claim", ".\n\n## More\n\nA claim", 20)
+    document.write_text("# Guide\n\n" + split, encoding="utf-8")
+    assert_corpus_manifest(manifest, feature_key=FEATURE, corpus_id=CORPUS)

@@ -11,6 +11,20 @@ from shared_contracts.base import ContractModel
 RETRIEVAL_TOOL = "context.retrieve.v1"
 """Shared read-only guidance tool AI-mode adds to every grounded run's allowlist."""
 
+GROUNDING_TOP_K = 5
+GROUNDING_MAX_CONTEXT_CHARS = 5000
+GROUNDING_MIN_SCORE = 0.55
+"""Relevance floor for passages given to a grounded run.
+
+Calibrated for the prepared ``BAAI/bge-small-en-v1.5`` model, whose cosine scores sit in a
+compressed band. In the Feature 1 v2 evaluation (``student-1/config/rag``) the lowest-scoring
+expected passage for a supported question was 0.65, while unrelated questions about recipes,
+weather, sport and astronomy peaked at 0.50 and now retrieve ``no_match``. A question that
+shares vocabulary with the corpus (a share price and sale prices) can still pass the floor, so
+the model must still refuse when passages do not answer. Recalibrate with
+``scripts/evaluate_release1_retrieval.py`` if the embedding model changes.
+"""
+
 
 def grounded_allowlist_variants(
     *allowlists: Sequence[str], retrieval_tool: str = RETRIEVAL_TOOL

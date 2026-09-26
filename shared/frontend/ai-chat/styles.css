@@ -94,6 +94,10 @@
 
 /* Recorded grounding uses the existing Fieldbook disclosure and evidence vocabulary. */
 .ps-ai-chat__grounding-labels { display: flex; flex-wrap: wrap; gap: var(--ps-space-2); margin-block: var(--ps-space-3); }
+.ps-ai-chat__support { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ps-space-2) var(--ps-space-3); margin-top: var(--ps-space-3); }
+.ps-ai-chat__support p { flex-basis: 100%; margin: 0; color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
+.ps-ai-chat__support-counts { color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
+.ps-ai-chat__answer code { padding: 0 var(--ps-space-1); border-radius: var(--ps-radius-xs); background: var(--ps-color-surface-subtle); font: .92em var(--ps-font-mono); }
 .ps-ai-chat__grounding-note, .ps-ai-chat__finding-kind { color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
 .ps-ai-chat__findings { display: grid; gap: var(--ps-space-4); padding-left: var(--ps-space-5); }
 .ps-ai-chat__finding-kind { display: block; margin-top: var(--ps-space-2); }

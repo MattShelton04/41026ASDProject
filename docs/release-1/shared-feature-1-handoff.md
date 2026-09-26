@@ -261,3 +261,26 @@ Its only frontend failure was an assertion for the previous asset cache version;
 that assertion, the complete frontend stage passed all 209 tests. Local logs are
 `.propertyscope-runtime/release-1/history-quality-gate.log` and `history-frontend-recheck.log`.
 
+
+## Follow-up, 26 September: retrieval quality and inspection
+
+Live testing of the Feature 1 assistant found that unrelated questions retrieved `ready` context,
+half of all stored grounded answers were labelled `low` only because an evidence gap was listed,
+common questions (SEIFA, starting an update, the property page) had no matching guidance, and
+Activity history listed every run as "Conversational assistant turn…". Changes:
+
+- Corpus: 19 documents (10 rewritten in interface terms, 9 new), chunked by Markdown section.
+  Retrieval fuses cosine similarity with BM25 and applies a 0.55 relevance floor. Evaluation v2:
+  recall@5 0.963 on 27 supported cases; 4 of 5 unrelated questions retrieve no context. See
+  [retrieval-evaluation.md](retrieval-evaluation.md).
+- Confidence is derived from the recorded evidence ([ADR-043 amendment](../architecture/decisions/ADR-043-local-grounded-runtime.md))
+  and shown beside each answer instead of inside a collapsed section.
+- The shared retrieval tool asks the planner for the user's own question; a recipe question now
+  retrieves `no_match` and answers as insufficient.
+- Knowledge sources (`/operations/ai-mode/knowledge/`) lists every manifest-registered corpus,
+  its passages, and ranks a test question with the grounded-run limits.
+- Runs take an optional display `title`; Feature 1 sends the user's question.
+- `.github/skills/live-app-browser` documents how to drive and screenshot the live stack.
+
+Other features adopt all of this through their own manifests and run requests; no shared file
+needs a per-feature edit.

@@ -1,7 +1,15 @@
-# Consumer contracts and database ownership
+# How other research areas receive data
 
-Other features obtain versioned Feature 1 artifacts and producer-owned record schemas over HTTP, then import them into their own stores. No consumer opens Feature 1's PostgreSQL database or imports Feature 1 implementation code. Each consumer validates compressed bytes, hash, gzip framing, schema and complete record count before its own atomic handoff.
+Other research areas do not read Property data's database. They receive published versions over HTTP and import them into their own databases.
 
-Feature 1 producer publication and each consumer's accepted generation are independent. There is no distributed atomicity across feature databases. A published release may be available for download while a downstream import is pending or failed. Check the genuine consumer receipt and operation status to establish its progress.
+## The import
 
-Basis: student-1 README; data-product consumer guide, HTTP contracts; ADR-041. This guidance supplies no new Feature 4 data product or unagreed consumer behavior.
+A receiving feature downloads the release file, then checks its size, SHA-256 checksum, compression, record format, schema and record count before loading it in one step. It can find the record schemas through the product-contracts endpoint instead of reading repository files.
+
+## Independent timing
+
+Publishing in Property data and importing in another feature are separate. A version can be published and downloadable while a downstream import is still pending or has failed. To know whether a feature has the new data, check that feature's import status or receipt, not the publication status.
+
+## Current deliveries
+
+Sales history goes to Sales and market. Crime data and school locations go to Suburb context. Other datasets are currently used only within Property data.

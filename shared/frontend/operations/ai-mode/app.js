@@ -273,7 +273,7 @@ function updateRunItem(item, run) {
   const timeTarget = item.querySelector(".run-item-time");
   timeTarget.dataset.runLive = run.id;
   timeTarget.textContent = duration(run.duration_ms);
-  item.querySelector(".run-objective").textContent = run.objective_preview || "Objective hidden by policy";
+  item.querySelector(".run-objective").textContent = run.title || run.objective_preview || "Objective hidden by policy";
   const facts = item.querySelector(".run-facts");
   facts.replaceChildren(
     node("span", "feature-key", researchAreaLabel(run.feature_key)),
@@ -600,9 +600,10 @@ function renderDetail() {
   ui["run-status"].replaceChildren(...statusMark(run.status).childNodes);
   ui["run-status"].className = `status-mark status-${run.status}`;
   const fullObjective = objective || run.objective_preview || "Objective hidden by policy";
-  ui["run-objective"].textContent = workloadTitle(fullObjective);
+  const heading = run.title || workloadTitle(fullObjective);
+  ui["run-objective"].textContent = heading;
   ui["run-objective-full"].textContent = fullObjective;
-  ui["objective-details"].hidden = workloadTitle(fullObjective) === fullObjective;
+  ui["objective-details"].hidden = heading === fullObjective;
   ui["run-subtitle"].textContent = `${researchAreaLabel(run.feature_key)} · created ${localTime(run.created_at)}`;
   ui["last-updated"].textContent = `Updated ${localTime(run.updated_at)}`;
   renderCurrentWork(run, steps);

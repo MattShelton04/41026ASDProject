@@ -1,7 +1,15 @@
-# Missing property evidence is unknown
+# Missing evidence is unknown, not zero
 
-Property evidence comes from accepted published datasets with explicit source and coverage limits. A missing record, unmatched address or unavailable dataset is a gap in available evidence. It is not proof that no sale occurred, no hazard exists, a property is safe, or an area has zero crime. Report the missing source or field and the available coverage rather than inventing a value.
+PropertyScope shows only what published datasets contain. A missing record, an unmatched address or an unloaded dataset is a gap in the evidence. It does not mean:
 
-Feature 1 owns acquisition, canonical addresses, publication and bounded discovery. It does not decide planning approval, structural safety, property valuation or personal buying advice. Project operator guidance cannot establish a property's current condition. A factual property answer requires the current owning tool's evidence; when that evidence is absent, state what cannot be concluded.
+- no sale occurred,
+- there is no bushfire, flood or planning control,
+- a property is safe,
+- an area had no crime,
+- a school place is available.
 
-Basis: registered feature scope; student-1 README; data-product consumer guide, missing values and product semantics.
+When something is missing, say which dataset or field is missing and what coverage is available, instead of filling in a value.
+
+## What Property data does not decide
+
+Property data collects, checks and publishes data and supports address lookup. It does not give valuations, planning approvals, building or structural assessments, legal advice or buying advice. General guidance cannot establish a particular property's current condition; that needs the property's own records and, often, a professional.

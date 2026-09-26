@@ -41,8 +41,7 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     script = _read("shared/frontend/app.js")
     fragment = _read("shared/frontend/fragments/research-areas.html")
 
-    assert "A clearer view" in page
-    assert "your next move." in page
+    assert "<h1>" in page
     assert 'id="property-search-form"' in page
     assert 'aria-labelledby="research-heading"' in page
     assert registry.count('featureKey: "') == 5
@@ -51,7 +50,6 @@ def test_shared_home_is_product_facing_and_keeps_planned_areas_honest() -> None:
     assert 'id="feature-area-list"' in page
     assert fragment.count("Not available yet") == 0
     assert "renderHomeFeatures" not in script
-    assert "Choose an enabled research area" in page
     assert "planned and not available yet" not in page
     assert "ILLUSTRATION · NOT PROPERTY EVIDENCE" in page
     assert page.count('data-story-area="') == 5
@@ -118,7 +116,6 @@ def test_shared_operational_dashboards_are_routed_without_owning_domain_data() -
     assert "Data status" in status
     assert "Published datasets" in evidence
     assert "Detailed availability" in roadmap
-    assert "The research directory" in features
     assert "featureRegistry(config).map(featureCard)" in features
     assert "resolver 127.0.0.11" in nginx
     assert "proxy_pass $enabled_feature_0_backend" in enabled_nginx

@@ -137,11 +137,25 @@ class TrustedIdentifier(ContractModel):
     value: UUID
 
 
+RunTitle = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=200,
+        description=(
+            "Short display label for activity history, such as the user's question. "
+            "Shown to operators only; never sent to the model as instructions."
+        ),
+    ),
+]
+
+
 class AgentRunRequest(ContractModel):
     """Request accepted from a feature backend to start one agent run."""
 
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=16_000)
+    title: RunTitle | None = None
     grounding: GroundingRequest | None = None
     prompt_set: PromptSet = DEFAULT_PROMPT_SET
     model_profile: Identifier = "remote-standard.v1"
@@ -337,6 +351,7 @@ class AgentRun(ContractModel):
     traceparent: Traceparent | None = None
     feature_key: Identifier
     objective: str = Field(min_length=1, max_length=16_000)
+    title: RunTitle | None = None
     status: RunStatus
     prompt_set: Identifier
     model_profile: Identifier

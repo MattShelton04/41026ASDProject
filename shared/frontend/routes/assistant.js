@@ -8,8 +8,8 @@ export const SHARED_ASSISTANT_SCOPES = Object.freeze([
 
 export function sharedAssistantSuggestions(scope) {
   return scope === "application"
-    ? ["What can PropertyScope help me research?", "Which research areas are available now?", "How does AI activity stay reviewable?"]
-    : ["Which Property data sources are available?", "Explain candidate and accepted datasets.", "Find an accepted property record in Parramatta."];
+    ? ["What can PropertyScope help me research?", "Which research areas are available now?", "How can I check what the assistant looked up?"]
+    : ["Which datasets does Property data have?", "What is the difference between a candidate and a published version?", "Find a property record in Parramatta."];
 }
 
 function assistantScope(hash) {

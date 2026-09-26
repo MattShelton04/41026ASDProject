@@ -250,11 +250,17 @@ def capability_guide() -> dict[str, object]:
         "suggested_questions": [
             "What can PropertyScope help me research?",
             "Which datasets and sources are available?",
-            "How does AI activity stay reviewable?",
-            "Find an accepted property record in Parramatta.",
+            "How can I check what the assistant looked up?",
+            "Find a property record in Parramatta.",
             "How many registered addresses are in Sutherland 2232?",
         ],
     }
+
+
+def assistant_turn_title(command: AssistantTurnRequest) -> str:
+    """The user's question, collapsed to one line, as the run's activity-history label."""
+    title = " ".join(command.message.split())
+    return title if len(title) <= 200 else f"{title[:199].rstrip()}…"
 
 
 def build_assistant_objective(command: AssistantTurnRequest) -> str:

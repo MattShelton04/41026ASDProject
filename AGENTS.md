@@ -44,6 +44,13 @@ after dependency, lockfile, or Dockerfile changes. The `stack` group also owns `
 Use `uv add --package <project-name> <dependency>` to change dependencies, and commit the
 resulting `pyproject.toml` and `uv.lock` together. Do not hand-edit `uv.lock`.
 
+## Checking the running application
+
+To see a change working in the real stack (pages, APIs, AI-mode runs, grounded answers), follow
+[`.github/skills/live-app-browser/SKILL.md`](.github/skills/live-app-browser/SKILL.md). It covers
+starting the stack, driving pages with `playwright-cli`, batch screenshots with console and
+network errors, and reading run evidence. Fixture-only checks remain under `uv run scripts/dev.py ui`.
+
 ## Change standards
 
 - Target Python 3.12 and add type annotations to production Python.

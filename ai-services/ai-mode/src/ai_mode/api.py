@@ -47,12 +47,14 @@ def _services() -> AppServices:
 
 
 def _request_hash(command: AgentRunRequest) -> str:
-    """Preserve hashes for legacy requests that predate the empty trust ledger field."""
+    """Preserve hashes for legacy requests that predate later optional fields."""
     exclude = set()
     if not command.trusted_identifiers:
         exclude.add("trusted_identifiers")
     if command.grounding is None:
         exclude.add("grounding")
+    if command.title is None:
+        exclude.add("title")
     payload = command.model_dump_json(exclude=exclude)
     return sha256(payload.encode("utf-8")).hexdigest()
 

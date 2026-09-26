@@ -117,7 +117,7 @@ def test_grounding_binds_guidance_and_live_facts(tmp_path: Path):
         }
     )
     final = validate_grounded_answer(run, value, (fact, source))
-    assert final["confidence"] == "moderate"
+    assert final["confidence"] == "high"
     assert final["citations"][0]["citation_id"] == "evidence-1"
     value["findings"][1]["tool_call_ids"] = [str(uuid4())]
     with pytest.raises(ValueError, match="unrelated tool"):
@@ -155,14 +155,44 @@ def test_no_context_forces_insufficient(tmp_path: Path, status: str):
     assert final["citations"] == []
 
 
-def test_material_gaps_limit_confidence(tmp_path: Path):
+@pytest.mark.parametrize(
+    ("model", "gaps", "score", "with_fact", "expected"),
+    [
+        ("high", [], 0.8, True, "high"),
+        ("moderate", [], 0.8, True, "high"),  # evidence, not self-report, sets the category
+        ("high", ["Current release unavailable"], 0.8, True, "moderate"),
+        ("high", [], 0.6, True, "moderate"),  # weakly matching guidance
+        ("high", [], 0.8, False, "moderate"),  # one guidance document only
+        ("low", [], 0.8, True, "low"),  # stale or conflicting evidence reported by the model
+    ],
+)
+def test_confidence_follows_evidence_strength(
+    tmp_path: Path, model: str, gaps: list[str], score: float, with_fact: bool, expected: str
+):
     _, run = setup_run(tmp_path)
+    passage = citation().evolve(score=score)
+    ready = retrieval().evolve(citations=(passage,))
+    results = [
+        ToolResult(call_id=uuid4(), outcome=ToolOutcome.SUCCEEDED, duration_ms=0, retrieval=ready)
+    ]
     value = answer()
-    value["evidence_gaps"] = ["Current release unavailable"]
-    result = ToolResult(
-        call_id=uuid4(), outcome=ToolOutcome.SUCCEEDED, duration_ms=0, retrieval=retrieval()
-    )
-    assert validate_grounded_answer(run, value, (result,))["confidence"] == "low"
+    value.update(confidence=model, evidence_gaps=gaps)
+    if with_fact:
+        fact = ToolResult(
+            call_id=uuid4(), outcome=ToolOutcome.SUCCEEDED, duration_ms=1, content={"n": 1}
+        )
+        results.append(fact)
+        value["findings"].append(
+            {
+                "text": "One record was found.",
+                "kind": "tool_fact",
+                "citation_ids": [],
+                "tool_call_ids": [str(fact.call_id)],
+            }
+        )
+    final = validate_grounded_answer(run, value, tuple(results))
+    assert final["confidence"] == expected
+    assert final["confidence_reason"]
 
 
 @pytest.mark.parametrize("status", ["ready", "no_match", "unavailable"])

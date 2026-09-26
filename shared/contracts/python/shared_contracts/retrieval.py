@@ -110,6 +110,31 @@ class EvidenceCitation(ContractModel):
     _source_uri = field_validator("source_uri")(validate_source_uri)
 
 
+class CorpusContents(ContractModel):
+    """Every chunk of the active corpus version, for operator inspection and debugging.
+
+    Chunks carry ``score=0``: no query was ranked. Ordering is by document ID, then
+    position, so the listing is stable for a given version.
+    """
+
+    schema_version: Literal["1.0"] = "1.0"
+    version: CorpusVersion
+    chunks: tuple[EvidenceCitation, ...] = Field(default=(), max_length=1000)
+
+    @model_validator(mode="after")
+    def chunks_match_version(self) -> Self:
+        if len(self.chunks) != self.version.chunk_count:
+            raise ValueError("contents must list every chunk of the active version")
+        for chunk in self.chunks:
+            if (chunk.feature_key, chunk.corpus_id, chunk.corpus_version) != (
+                self.version.feature_key,
+                self.version.corpus_id,
+                self.version.corpus_version,
+            ):
+                raise ValueError("chunk scope/version must match the listed version")
+        return self
+
+
 class RetrievalRequest(ContractModel):
     """A bounded query for one registered corpus; filters cannot widen feature scope."""
 

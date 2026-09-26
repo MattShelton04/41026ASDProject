@@ -52,9 +52,9 @@ Grounded runs persist fixed feature/corpus scope and retrieve in each active pla
 reference actual retrieved IDs; current facts reference successful owning tool-call IDs. Server
 validation checks scope, version and support references, projects citation metadata from recorded
 results, and rechecks active corpus identity before completion. Source text is untrusted evidence,
-never an instruction or mutation identifier. Confidence is an evidence-support category: high is
-capped at moderate, material gaps at low, and absent/unusable context forces insufficient. A model
-may refuse with gaps even when dense retrieval returns unrelated high-ranked passages.
+never an instruction or mutation identifier. Confidence is an evidence-support category that the
+server derives from the recorded evidence (amended 26 September, below). Absent or unusable
+context forces insufficient.
 
 Shared chat renders literal text, source excerpts, dates/kinds/versions and safe links, preserving
 legacy answers and native keyboard disclosures. Service configuration/readiness is observed
@@ -81,3 +81,22 @@ prepared-model identity, grounded support checks and safe browser inspection. De
 cannot prove entailment or current facts; the [evaluation record](../../release-1/retrieval-evaluation.md)
 retains the observed negative results. The [handoff](../../release-1/shared-feature-1-handoff.md)
 tracks exact live evidence, limitations and external assessment items.
+
+## Amendment: evidence-derived confidence and a relevance floor (26 September 2026)
+
+Measured history showed the original rule mislabelled supported answers. Of 45 grounded Feature 1
+answers, 23 were `low` only because the model listed any evidence gap, including answers citing
+two to four passages scored 0.70-0.84; `high` was unreachable. Separately, dense retrieval with a
+0.35 floor returned `ready` for unrelated questions (recipes, weather, sport scored 0.42-0.50), so
+insufficient context depended on the model refusing.
+
+- Grounded retrieval applies `GROUNDING_MIN_SCORE` (0.55, in `shared_contracts.grounding`).
+  A question with no passage above it retrieves `no_match` and is answered as insufficient.
+- `agent_core.grounding.assess_confidence` derives the category. The model's `low` (stale or
+  conflicting evidence) is kept. Otherwise: reported gaps, a cited passage below 0.65 or a single
+  supporting source give `moderate`; `high` needs no gaps, strongly matching citations and at
+  least two independent supports (distinct documents or tool calls). The reason text names that
+  basis. Confidence still describes evidence support, not verified entailment or probability.
+- Both thresholds are calibrated for `BAAI/bge-small-en-v1.5` and must be re-measured with
+  `scripts/evaluate_release1_retrieval.py` if the embedding model changes.
+

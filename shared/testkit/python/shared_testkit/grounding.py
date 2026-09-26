@@ -6,6 +6,7 @@ a service, reads an index or downloads a model: these are offline manifest and s
 """
 
 import json
+import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from shared_contracts.retrieval import CorpusIngestRequest
 # Mirrors the rag-server ingest loader: explicit local text confined to the manifest directory.
 _ALLOWED_DOCUMENT_SUFFIXES = frozenset({".md", ".txt"})
 _MAX_DOCUMENT_BYTES = 240_000
+_HEADING = re.compile(r"^#{1,6}[ 	]+(.+?)[ 	#]*$", re.MULTILINE)
 
 
 def load_corpus_manifest(manifest_path: Path) -> CorpusIngestRequest:
@@ -53,14 +55,14 @@ def load_corpus_manifest(manifest_path: Path) -> CorpusIngestRequest:
 
 
 def assert_corpus_manifest(
-    manifest_path: Path, *, feature_key: str, corpus_id: str, max_document_chars: int = 1200
+    manifest_path: Path, *, feature_key: str, corpus_id: str, max_section_chars: int = 1200
 ) -> CorpusIngestRequest:
     """Validate an owned corpus manifest and return it for further feature-specific checks.
 
-    Verifies the identity the host launcher scopes RAG with, that documents resolve and are
-    unique, and that each passage is short enough to survive chunking intact. Documents longer
-    than ``max_document_chars`` are reported because a split can separate a policy assertion
-    from the qualification that bounds it.
+    Verifies the identity the host launcher scopes RAG with and that documents resolve and are
+    unique. RAG chunks documents at Markdown headings; a section longer than
+    ``max_section_chars`` is split mid-text, which can separate a claim from the qualification
+    that bounds it, so oversized sections are reported. Add a ``##`` heading to split one.
     """
     request = load_corpus_manifest(manifest_path)
     assert request.feature_key == feature_key, (
@@ -71,15 +73,28 @@ def assert_corpus_manifest(
     )
     assert request.documents, "a corpus manifest must declare at least one document"
     oversized = sorted(
-        document.document_id
+        f"{document.document_id} ({heading or 'untitled'})"
         for document in request.documents
-        if len(document.text) > max_document_chars
+        for heading, length in _section_lengths(document.text)
+        if length > max_section_chars
     )
     assert not oversized, (
-        f"these documents exceed {max_document_chars} characters and may split a claim from "
-        f"its qualification: {', '.join(oversized)}"
+        f"these sections exceed {max_section_chars} characters and will be split mid-text: "
+        f"{', '.join(oversized)}"
     )
     return request
+
+
+def _section_lengths(text: str) -> list[tuple[str, int]]:
+    """Length of each Markdown section, measured the way RAG chunks documents."""
+    matches = list(_HEADING.finditer(text))
+    starts = [0] + [match.start() for match in matches if match.start() > 0]
+    ends = [*starts[1:], len(text)]
+    headings = {match.start(): match.group(1).strip() for match in matches}
+    return [
+        (headings.get(start, ""), len(text[start:end].strip()))
+        for start, end in zip(starts, ends, strict=True)
+    ]
 
 
 def assert_grounded_allowlist_accepted(
