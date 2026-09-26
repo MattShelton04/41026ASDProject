@@ -250,8 +250,8 @@ def capability_guide() -> dict[str, object]:
         "suggested_questions": [
             "What can PropertyScope help me research?",
             "Which datasets and sources are available?",
-            "How does AI activity stay reviewable?",
-            "Find an accepted property record in Parramatta.",
+            "How can I check what the assistant looked up?",
+            "Find a property record in Parramatta.",
             "How many registered addresses are in Sutherland 2232?",
         ],
     }

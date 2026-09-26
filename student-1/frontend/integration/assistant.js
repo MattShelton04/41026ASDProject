@@ -62,9 +62,9 @@ export const FEATURE_ASSISTANT_CONTEXTS = Object.freeze([
 
 export function featureAssistantSuggestions() {
   return [
-    "Which Property data sources are available?",
-    "Explain candidate and accepted datasets.",
-    "Find an accepted property record in Parramatta.",
+    "Which datasets does Property data have?",
+    "What is the difference between a candidate and a published version?",
+    "Find a property record in Parramatta.",
   ];
 }
 

@@ -83,7 +83,7 @@
 .htmx-indicator { display: none; }
 .htmx-indicator.htmx-request { display: block; }
 .operations-strip { padding-bottom: var(--ps-space-10); }
-.operations-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: var(--ps-border-width) solid var(--ps-color-border); border-radius: var(--ps-radius-md); background: var(--ps-color-surface); }
+.operations-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); border: var(--ps-border-width) solid var(--ps-color-border); border-radius: var(--ps-radius-md); background: var(--ps-color-surface); }
 .operations-links a { position: relative; display: grid; align-content: start; gap: var(--ps-space-2); min-height: 144px; padding: var(--ps-space-6); border-right: var(--ps-border-width) solid var(--ps-color-border); text-decoration: none; }
 .operations-links a:last-child { border-right: 0; }
 .operations-links a:hover { background: var(--ps-color-surface-subtle); }

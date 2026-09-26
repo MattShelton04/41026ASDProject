@@ -29,13 +29,13 @@ function featureCard(feature) {
 
 export function createFeaturesRoute({ config }) {
   return function renderFeatures(root) {
-    append(root, pageHeader("The research directory", "A place is more than a property.", "Choose a perspective. Each research area keeps its own sources, saved work and coverage limits visible.", [link("What’s available →", "#release-roadmap", "ps-button")]));
+    append(root, pageHeader("Directory", "Research areas", "Each area covers one part of a property's research, with its own data, saved work and coverage limits.", [link("What’s available →", "#release-roadmap", "ps-button")]));
     const grid = el("div", "ps-grid ps-grid-2 feature-directory-grid");
     append(grid, ...featureRegistry(config).map(featureCard));
     append(root, grid);
 
     const boundary = el("aside", "product-disclaimer feature-directory-boundary");
-    append(boundary, el("strong", "", "One product, explicit evidence boundaries."), document.createTextNode(" Enabled areas can be opened above. Availability of a workspace does not guarantee coverage for a particular property or suburb."));
+    append(boundary, el("strong", "", "An open area is not full coverage."), document.createTextNode(" An area being available does not mean it has data for every property or suburb."));
     append(root, boundary);
   };
 }

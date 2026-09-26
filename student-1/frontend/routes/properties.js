@@ -24,7 +24,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     view.replaceChildren();
     const hero = el("section", "discovery-hero");
     const searchCopy = el("div", "discovery-copy");
-    append(searchCopy, el("p", "eyebrow", "Property data / Start with a place"), el("h1", "", "Find a NSW property"), el("p", "", "Search the current published address register by street, suburb, postcode or any combination you know."));
+    append(searchCopy, el("p", "eyebrow", "Property data / Address search"), el("h1", "", "Find a NSW property"), el("p", "", "Search the current published address register by street, suburb, postcode or any combination you know."));
     const form = el("form", "search-box");
     form.setAttribute("role", "search");
     const searchField = el("label", "search-field");
@@ -52,7 +52,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
     illustration.setAttribute("aria-hidden", "true");
     const parcels = el("div", "discovery-parcels");
     for (let index = 0; index < 12; index += 1) append(parcels, el("i"));
-    append(illustration, el("span", "eyebrow", "Illustrative parcel view / NSW"), parcels, el("p", "", "A place. A record. A source."));
+    append(illustration, el("span", "eyebrow", "Illustration / not real parcels"), parcels, el("p", "", "Each result opens a property record with its sources."));
     append(hero, searchCopy, illustration);
     hero.classList.toggle("discovery-hero--results", Boolean(input.value));
     append(view, hero);
@@ -274,7 +274,7 @@ export function createPropertyRoutes({ view, request, announce, generationGuard,
       const detailGrid = el("div", "property-detail-grid");
       const summaryColumn = el("aside", "property-summary-column");
       const summaryBody = detailList([["Canonical address", property.address_display || property.display_address], ["Locality", humanise(property.locality)], ["Postcode", property.postcode], ["Identity status", badge(property.resolution_status || "unknown")], ["Last updated", formatDate(property.updated_at)]]);
-      append(summaryColumn, panel("Property at a glance", "Canonical identity from current published records", summaryBody));
+      append(summaryColumn, panel("Property summary", "Address and identity from the published G-NAF release", summaryBody));
       const contentColumn = el("div", "property-content-column");
       const mapHost = pendingSection("Loading spatial context…");
       append(summaryColumn, panel("Location", "Recorded property point and surrounding street context", mapHost));

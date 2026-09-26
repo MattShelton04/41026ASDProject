@@ -217,10 +217,11 @@ def test_shared_suggestions_precede_composer_and_centre_odd_card(
     assert group["y"] + group["height"] <= composer["y"]
     assert abs(last["width"] - first["width"]) < 1
     assert abs(last["x"] + last["width"] / 2 - group["x"] - group["width"] / 2) < 1
+    suggestion = suggestions.last.inner_text().strip()
     suggestions.last.click()
     text = page.get_by_role("textbox", name="Message PropertyScope assistant")
     expect(text).to_be_focused()
-    expect(text).to_have_value("Find an accepted property record in Parramatta.")
+    expect(text).to_have_value(suggestion)
     expect(page.locator(".ps-ai-chat__turn")).to_have_count(0)
 
 
