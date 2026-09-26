@@ -229,6 +229,21 @@
     "status": {
       "$ref": "#/$defs/RunStatus"
     },
+    "title": {
+      "anyOf": [
+        {
+          "description": "Short display label for activity history, such as the user's question. Shown to operators only; never sent to the model as instructions.",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Title"
+    },
     "tool_allowlist": {
       "anyOf": [
         {

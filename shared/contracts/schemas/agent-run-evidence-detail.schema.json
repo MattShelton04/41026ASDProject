@@ -158,6 +158,19 @@
         "status": {
           "$ref": "#/$defs/RunStatus"
         },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
         "tool_call_count": {
           "minimum": 0,
           "title": "Tool Call Count",

@@ -17,6 +17,7 @@ from propertyscope_data_platform.assistant import (
     ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS,
     ASSISTANT_TOOL_ALLOWLIST,
     AssistantTurnRequest,
+    assistant_turn_title,
     build_assistant_objective,
     capability_guide,
 )
@@ -106,6 +107,7 @@ def register_assistant_tool_routes(
             {
                 "feature_key": ASSISTANT_FEATURE_KEY,
                 "objective": objective,
+                "title": f"Data review: {release_data.get('dataset_id') or 'dataset'} release",
                 "trusted_identifiers": [
                     {"kind": "release_id", "value": str(release_id)},
                     *(
@@ -139,6 +141,7 @@ def register_assistant_tool_routes(
             {
                 "feature_key": ASSISTANT_FEATURE_KEY,
                 "objective": build_assistant_objective(command),
+                "title": assistant_turn_title(command),
                 "trusted_identifiers": command.context.trusted_identifiers(),
                 "prompt_set": "default.v7",
                 "tool_allowlist": list(ASSISTANT_TOOL_ALLOWLIST),

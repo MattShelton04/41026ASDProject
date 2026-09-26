@@ -9,6 +9,7 @@ from propertyscope_data_platform.assistant import (
     ASSISTANT_TOOL_ALLOWLIST_V1,
     MAX_ASSISTANT_HISTORY_TOTAL_CHARS,
     AssistantTurnRequest,
+    assistant_turn_title,
     build_assistant_objective,
     capability_guide,
 )
@@ -238,3 +239,13 @@ def test_grounded_runs_stay_readable_by_their_own_backend() -> None:
         return tuple(wire_allowlist) in ASSISTANT_HISTORICAL_TOOL_ALLOWLISTS
 
     assert_grounded_allowlist_accepted(accepts, ASSISTANT_TOOL_ALLOWLIST)
+
+
+def test_turn_title_is_the_question_on_one_bounded_line() -> None:
+    command = AssistantTurnRequest.model_validate(
+        {"message": "Why did\nthis   update stop?", "scope": "feature"}
+    )
+    assert assistant_turn_title(command) == "Why did this update stop?"
+
+    long = AssistantTurnRequest.model_validate({"message": "word " * 300, "scope": "feature"})
+    assert len(assistant_turn_title(long)) <= 200

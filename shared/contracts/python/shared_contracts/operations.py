@@ -172,6 +172,7 @@ class AgentRunSummary(ContractModel):
 
     id: UUID
     feature_key: Identifier
+    title: str | None = Field(default=None, max_length=200)
     objective_preview: str | None = Field(default=None, max_length=160)
     status: RunStatus
     latest_phase: StepPhase | None = None

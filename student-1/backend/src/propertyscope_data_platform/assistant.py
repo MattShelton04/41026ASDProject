@@ -257,6 +257,12 @@ def capability_guide() -> dict[str, object]:
     }
 
 
+def assistant_turn_title(command: AssistantTurnRequest) -> str:
+    """The user's question, collapsed to one line, as the run's activity-history label."""
+    title = " ".join(command.message.split())
+    return title if len(title) <= 200 else f"{title[:199].rstrip()}…"
+
+
 def build_assistant_objective(command: AssistantTurnRequest) -> str:
     """Project validated user intent and exact identifiers into a bounded objective."""
     context = command.context.model_dump(

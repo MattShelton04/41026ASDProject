@@ -267,6 +267,19 @@ def test_parallel_evidence_preserves_every_call_and_matches_reordered_results() 
     assert "this-must-not-appear" not in projected.model_dump_json()
 
 
+def test_run_title_is_listed_and_follows_the_objective_policy() -> None:
+    detail = _detail()
+    titled = detail.model_copy(update={"run": detail.run.model_copy(update={"title": "Why?"})})
+
+    shown = OperationsService(StubReader(titled)).list_runs(RunListQuery(), as_of=NOW)
+    hidden = OperationsService(StubReader(titled), EvidencePolicy(show_objectives=False)).list_runs(
+        RunListQuery(), as_of=NOW
+    )
+
+    assert shown.items[0].title == "Why?"
+    assert hidden.items[0].title is None
+
+
 def test_metadata_only_policy_hides_restricted_values() -> None:
     detail = _detail()
     projected = OperationsService(
