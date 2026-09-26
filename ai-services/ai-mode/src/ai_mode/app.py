@@ -15,6 +15,7 @@ from ai_mode.capabilities import capability_snapshot
 from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.evidence import create_evidence_blueprint
 from ai_mode.http import problem_response as _problem_response
+from ai_mode.knowledge import create_knowledge_blueprint
 from ai_mode.observability import configure_structured_logging
 from ai_mode.operations import OperationsService, RunReader
 from ai_mode.operations_api import create_operations_blueprint
@@ -74,6 +75,9 @@ def create_app(
             raise ConfigurationError("AI-mode operations run reader is unavailable")
         app.extensions["ai_mode_operations"] = OperationsService(reader)
         app.register_blueprint(create_operations_blueprint(assets_path))
+        app.register_blueprint(
+            create_knowledge_blueprint(app_services.knowledge, runtime_settings.rag_corpora)
+        )
     if runtime_settings.evidence_access_token is not None:
         app.register_blueprint(create_evidence_blueprint(runtime_settings.evidence_access_token))
 

@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import threading
 import unicodedata
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from rag_server.embeddings import Embedder, EmbeddingUnavailableError, normalized_vector
 from shared_contracts.retrieval import (
+    CorpusContents,
     CorpusDocument,
     CorpusIngestRequest,
     CorpusVersion,
@@ -24,26 +27,95 @@ from shared_contracts.retrieval import (
 
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 120
-STRATEGY = "unicode-nfc-newline-trim-char1200-overlap120-v1"
+MIN_SECTION_CHUNK = 400
+STRATEGY = "unicode-nfc-markdown-sections-char1200-overlap120-titled-v2"
+HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t#]*$", re.MULTILINE)
 
 
 def normalize(text: str) -> str:
     return unicodedata.normalize("NFC", text.replace("\r\n", "\n").replace("\r", "\n")).strip()
 
 
-def chunk_document(document: CorpusDocument) -> list[tuple[str, str, str]]:
-    """Stable IDs, exact excerpts and one-based normalized character positions."""
+@dataclass(frozen=True)
+class Chunk:
+    """An exact excerpt of normalized text plus the context used only for its vector."""
+
+    chunk_id: str
+    excerpt: str
+    location: str
+    section: str
+    embedding_text: str
+
+
+def _sections(text: str) -> list[tuple[int, int, str]]:
+    """Tile the text into (start, end, heading) spans that each begin at a Markdown heading."""
+    headings = [(match.start(), match.group(1).strip()) for match in HEADING.finditer(text)]
+    if not headings or headings[0][0] != 0:
+        headings.insert(0, (0, ""))
+    bounds = [start for start, _ in headings[1:]] + [len(text)]
+    return [(start, end, heading) for (start, heading), end in zip(headings, bounds, strict=True)]
+
+
+def _windows(text: str, start: int, end: int) -> list[tuple[int, int]]:
+    """Split one oversized section, preferring paragraph breaks, with bounded overlap."""
+    spans: list[tuple[int, int]] = []
+    while end - start > CHUNK_SIZE:
+        limit = start + CHUNK_SIZE
+        cut = text.rfind("\n\n", start + CHUNK_SIZE // 2, limit)
+        cut = cut if cut > start else limit
+        spans.append((start, cut))
+        start = max(cut - CHUNK_OVERLAP, start + 1) if cut == limit else cut
+    spans.append((start, end))
+    return spans
+
+
+def chunk_document(document: CorpusDocument) -> list[Chunk]:
+    """Chunk by Markdown section so a heading stays with the text it introduces.
+
+    Small adjacent sections are packed together up to ``MIN_SECTION_CHUNK`` characters;
+    a section longer than ``CHUNK_SIZE`` is windowed at paragraph breaks where possible.
+    Excerpts remain exact normalized substrings with one-based positions. The document
+    title and section heading are prepended to the embedded text only, which lets short
+    sections match questions phrased in terms of the document's subject.
+    """
     text = normalize(document.text)
-    chunks = []
-    for start in range(0, len(text), CHUNK_SIZE - CHUNK_OVERLAP):
-        excerpt = text[start : start + CHUNK_SIZE]
-        chunk_id = hashlib.sha256(f"{document.document_id}:{start}".encode()).hexdigest()
-        prefix = document.location + "; " if document.location else ""
-        location = f"{prefix}chars {start + 1}-{start + len(excerpt)}"
-        chunks.append((chunk_id, excerpt, location))
-        if start + CHUNK_SIZE >= len(text):
-            break
+    packed: list[tuple[int, int, str]] = []
+    for start, end, heading in _sections(text):
+        if packed and packed[-1][1] - packed[-1][0] < MIN_SECTION_CHUNK:
+            previous_start, _, previous_heading = packed[-1]
+            if end - previous_start <= CHUNK_SIZE:
+                packed[-1] = (previous_start, end, previous_heading or heading)
+                continue
+        packed.append((start, end, heading))
+    chunks: list[Chunk] = []
+    for section_start, section_end, heading in packed:
+        for start, end in _windows(text, section_start, section_end):
+            raw = text[start:end]
+            excerpt = raw.strip()
+            if not excerpt:
+                continue
+            start += len(raw) - len(raw.lstrip())
+            section = heading if heading and heading != document.title else ""
+            parts = [document.location] if document.location else []
+            if section:
+                parts.append(f"section {section[:80]}")
+            parts.append(f"chars {start + 1}-{start + len(excerpt)}")
+            context = f"{document.title} - {section}" if section else document.title
+            chunks.append(
+                Chunk(
+                    chunk_id=hashlib.sha256(f"{document.document_id}:{start}".encode()).hexdigest(),
+                    excerpt=excerpt,
+                    location="; ".join(parts),
+                    section=section,
+                    embedding_text=f"{context}\n\n{excerpt}",
+                )
+            )
     return chunks
+
+
+def _position(location: str) -> int:
+    match = re.search(r"chars (\d+)-\d+$", location)
+    return int(match.group(1)) if match else 0
 
 
 class CorpusScopeDeniedError(ValueError):
@@ -120,6 +192,21 @@ class CorpusIndex:
             ).fetchone()
             return CorpusVersion.model_validate_json(row[0]) if row else None
 
+    def contents(self, feature: str, corpus: str) -> CorpusContents | None:
+        """List the active version's chunks in document and position order."""
+        self.check_scope(feature, corpus)
+        with self._lock:
+            current = self.current(feature, corpus)
+            if current is None:
+                return None
+            rows = self._db.execute(
+                "SELECT citation FROM chunks WHERE feature=? AND corpus=? AND version=?",
+                (feature, corpus, current.corpus_version),
+            ).fetchall()
+        chunks = [EvidenceCitation.model_validate_json(row[0]) for row in rows]
+        chunks.sort(key=lambda chunk: (chunk.document_id, _position(chunk.location)))
+        return CorpusContents(version=current, chunks=tuple(chunks))
+
     def ingest(self, request: CorpusIngestRequest) -> CorpusVersion:
         self.check_scope(request.feature_key, request.corpus_id)
         # R1 admits authored public guidance and clearly labelled fixtures only.
@@ -160,14 +247,14 @@ class CorpusIndex:
                     )
                 return metadata
             chunks = [
-                (document, *chunk) for document in documents for chunk in chunk_document(document)
+                (document, chunk) for document in documents for chunk in chunk_document(document)
             ]
             if len(chunks) > 1000:
                 raise ValueError("corpus exceeds 1000 chunks")
             vectors: list[list[float]] = []
             for start in range(0, len(chunks), 16):
                 batch = chunks[start : start + 16]
-                result = self.embedder.embed([chunk[2] for chunk in batch])
+                result = self.embedder.embed([chunk.embedding_text for _, chunk in batch])
                 if len(result) != len(batch):
                     raise ValueError("embedding batch returned an incorrect vector count")
                 vectors.extend(
@@ -184,25 +271,23 @@ class CorpusIndex:
                 ingested_at=self.clock(),
             )
             rows: list[tuple[Any, ...]] = []
-            for (document, chunk_id, excerpt, location), vector in zip(
-                chunks, vectors, strict=True
-            ):
+            for (document, chunk), vector in zip(chunks, vectors, strict=True):
                 citation = EvidenceCitation(
                     citation_id="cite-"
-                    + hashlib.sha256(f"{version}:{chunk_id}".encode()).hexdigest(),
+                    + hashlib.sha256(f"{version}:{chunk.chunk_id}".encode()).hexdigest(),
                     feature_key=request.feature_key,
                     corpus_id=request.corpus_id,
                     corpus_version=version,
                     document_id=document.document_id,
-                    chunk_id=chunk_id,
+                    chunk_id=chunk.chunk_id,
                     title=document.title,
                     source_uri=document.source_uri,
-                    content_hash=hashlib.sha256(excerpt.encode()).hexdigest(),
-                    location=location,
+                    content_hash=hashlib.sha256(chunk.excerpt.encode()).hexdigest(),
+                    location=chunk.location,
                     ingested_at=metadata.ingested_at,
                     source_date=document.source_date,
                     evidence_kind=document.evidence_kind,
-                    excerpt=excerpt,
+                    excerpt=chunk.excerpt,
                     score=0,
                 )
                 rows.append(
@@ -210,7 +295,7 @@ class CorpusIndex:
                         request.feature_key,
                         request.corpus_id,
                         version,
-                        chunk_id,
+                        chunk.chunk_id,
                         citation.model_dump_json(),
                         json.dumps(vector),
                     )

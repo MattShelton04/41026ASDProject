@@ -42,10 +42,16 @@ def test_authenticated_ingestion_search_status_and_bounds() -> None:
     assert client.get("/health/ready", headers=HEADERS).json["embedding_mode"] == "fixture"
     route = f"/api/v1/corpora/{FEATURE}/operator-guidance"
     assert client.get(route, headers=HEADERS).status_code == 404
+    assert client.get(route + "/chunks", headers=HEADERS).status_code == 404
     assert client.post("/api/v1/corpora/ingest", json=payload()).status_code == 401
     response = client.post("/api/v1/corpora/ingest", json=payload(), headers=HEADERS)
     assert response.status_code == 200
     assert client.get(route, headers=HEADERS).json == response.json
+    assert client.get(route + "/chunks").status_code == 401
+    contents = client.get(route + "/chunks", headers=HEADERS).json
+    assert contents["version"] == response.json
+    assert [chunk["document_id"] for chunk in contents["chunks"]] == ["guide"]
+    assert client.get("/api/v1/corpora/other/private/chunks", headers=HEADERS).status_code == 403
     result = client.post(
         "/api/v1/retrieve",
         headers=HEADERS,

@@ -22,6 +22,7 @@ from ai_mode.adapters.mcp_tools import McpToolExecutor
 from ai_mode.adapters.retrieval import RetrievalToolExecutor, retrieval_definition
 from ai_mode.adapters.system import SystemClock, UUID4Generator
 from ai_mode.configuration import Settings
+from ai_mode.knowledge import KnowledgeClient
 from ai_mode.operations import RunReader
 from ai_mode.persistence import SQLiteRunStore
 from ai_mode.prompts import PromptRegistry, RegistryPromptBuilder
@@ -76,6 +77,7 @@ class AppServices:
     closeables: tuple[object, ...] = ()
     rag_corpora: tuple[tuple[str, str], ...] = ()
     mcp_enabled: bool = False
+    knowledge: KnowledgeClient | None = None
 
     def close(self) -> None:
         """Best-effort cleanup of owned queues, clients, and providers."""
@@ -128,6 +130,7 @@ def build_services(settings: Settings) -> AppServices:
             local_compose=settings.environment == "compose",
         )
     retrieval_executor = None
+    knowledge = None
     if settings.rag_enabled:
         assert settings.rag_service_token is not None
         tools = ToolRegistry(
@@ -140,6 +143,9 @@ def build_services(settings: Settings) -> AppServices:
             service_token=settings.rag_service_token,
         )
         tool_executor = retrieval_executor
+        knowledge = KnowledgeClient(
+            base_url=settings.rag_server_url, service_token=settings.rag_service_token
+        )
     runner = AgentRunner(
         store=store,
         provider=provider,
@@ -172,7 +178,8 @@ def build_services(settings: Settings) -> AppServices:
         model_registry=model_registry,
         run_reader=store,
         default_model_profile=default_model_profile,
-        closeables=(queue, tool_executor, provider),
+        closeables=(queue, tool_executor, provider, knowledge),
         rag_corpora=settings.rag_corpora if settings.rag_enabled else (),
         mcp_enabled=settings.mcp_enabled,
+        knowledge=knowledge,
     )

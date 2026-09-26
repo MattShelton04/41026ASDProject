@@ -13,7 +13,12 @@ from shared_contracts import (
     ToolOutcome,
     ToolResult,
 )
-from shared_contracts.grounding import RETRIEVAL_TOOL
+from shared_contracts.grounding import (
+    GROUNDING_MAX_CONTEXT_CHARS,
+    GROUNDING_MIN_SCORE,
+    GROUNDING_TOP_K,
+    RETRIEVAL_TOOL,
+)
 from shared_contracts.retrieval import CorpusVersion, RetrievalRequest, RetrievalResponse
 
 
@@ -81,7 +86,11 @@ class RetrievalToolExecutor:
         scope = {"feature_key": run.feature_key, "corpus_id": run.grounding.corpus_id}
         try:
             query = RetrievalRequest(
-                **scope, query=str(call.arguments.get("query", "")), top_k=5, max_context_chars=5000
+                **scope,
+                query=str(call.arguments.get("query", "")),
+                top_k=GROUNDING_TOP_K,
+                max_context_chars=GROUNDING_MAX_CONTEXT_CHARS,
+                min_score=GROUNDING_MIN_SCORE,
             )
             headers = {
                 "Authorization": f"Bearer {self.token}",

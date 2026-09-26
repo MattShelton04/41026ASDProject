@@ -202,10 +202,56 @@ def test_chunks_overlap_without_losing_tail() -> None:
     text = "x" * 2500
     chunks = chunk_document(document(text=text, location="Section A"))
     assert len(chunks) == 3
-    assert chunks[-1][1] == text[2160:]
-    assert chunks[-1][2] == "Section A; chars 2161-2500"
-    assert len({chunk[0] for chunk in chunks}) == 3
+    assert chunks[-1].excerpt == text[2160:]
+    assert chunks[-1].location == "Section A; chars 2161-2500"
+    assert len({chunk.chunk_id for chunk in chunks}) == 3
     assert normalized_vector([3, 4], 2) == [0.6, 0.8]
+
+
+def test_chunks_follow_markdown_sections_and_keep_exact_positions() -> None:
+    intro = "# Publication guidance\n\nShort introduction."
+    review = "## Review\n\n" + "Reviewers compare the candidate with its predecessor. " * 9
+    retry = "## Retry\n\n" + "A failed activation can be retried with a fresh key. " * 9
+    text = f"{intro}\n\n{review.strip()}\n\n{retry.strip()}"
+    chunks = chunk_document(document(text=text))
+
+    assert [chunk.section for chunk in chunks] == ["", "Retry"]
+    # The short introduction is packed with the following section rather than stored alone.
+    assert chunks[0].excerpt.startswith("# Publication guidance")
+    assert "## Review" in chunks[0].excerpt
+    assert chunks[1].excerpt.startswith("## Retry")
+    for chunk in chunks:
+        start, end = (int(value) for value in chunk.location.split("chars ")[1].split("-"))
+        assert text[start - 1 : end] == chunk.excerpt
+    # The title and heading add retrieval context without changing the cited excerpt.
+    assert chunks[1].embedding_text.startswith("Publication guidance - Retry\n\n## Retry")
+    assert chunks[1].location.startswith("section Retry; chars ")
+
+
+def test_oversized_section_splits_at_paragraph_breaks() -> None:
+    paragraph = "Candidate data stays isolated from accepted search. " * 8
+    text = "## Long section\n\n" + "\n\n".join(paragraph.strip() for _ in range(4))
+    chunks = chunk_document(document(text=text))
+
+    assert len(chunks) > 1
+    assert all(len(chunk.excerpt) <= 1200 for chunk in chunks)
+    assert all(not chunk.excerpt.startswith(("\n", " ")) for chunk in chunks)
+    assert chunks[1].excerpt.startswith("Candidate data")
+
+
+def test_contents_lists_the_active_version_in_document_order(index: CorpusIndex) -> None:
+    assert index.contents(FEATURE, "operator-guidance") is None
+    version = index.ingest(
+        batch(document("zeta", text="Z guidance."), document("alpha", text="A guidance."))
+    )
+    contents = index.contents(FEATURE, "operator-guidance")
+
+    assert contents is not None
+    assert contents.version == version
+    assert [chunk.document_id for chunk in contents.chunks] == ["alpha", "zeta"]
+    assert all(chunk.score == 0 for chunk in contents.chunks)
+    with pytest.raises(CorpusScopeDeniedError):
+        index.contents(FEATURE, "private-notes")
 
 
 @pytest.mark.parametrize("retained,scopes", [(0, SCOPE), (6, SCOPE), (3, frozenset())])
