@@ -74,8 +74,10 @@ def test_grounded_runs_stay_readable() -> None:
 ## Step 2 — Write your guidance corpus
 
 Copy [`templates/rag-corpus/`](templates/rag-corpus/) into `student-N/config/rag/` and replace
-every `REPLACE` marker. Aim for eight to ten short topics; Feature 1's each fit one 1,200-character
-chunk so a policy assertion is never split from its qualification.
+every `REPLACE` marker. RAG chunks each document at its `##` headings and prepends the title
+and heading when embedding, so write one topic per document and keep each section under 1,200
+characters; `assert_corpus_manifest` reports longer sections. Use the names on your screens, not
+internal field names, because answers quote these passages to users.
 
 Write *project and operator guidance*: what your feature does, where its records come from, what
 its evidence cannot establish. At least one topic must state your limits — the rubric marks
@@ -184,6 +186,14 @@ uv run python -m scripts.dev ai validate rag --feature student-N-your-feature
 read-only tool you own; pass `--tool` if you need a specific one. If you get *"every … tool
 requires arguments"*, register a no-argument capabilities tool as Feature 1 does — it is useful in
 its own right.
+
+After ingesting, open <http://localhost:5100/operations/ai-mode/knowledge/>. Your corpus appears
+there automatically once `feature.yaml` declares it. Read the stored passages and use *Test a
+question* to check that your users' questions reach the right passages and that unrelated
+questions fall below the relevance floor (`GROUNDING_MIN_SCORE`, 0.55).
+
+Optionally send `"title": <the user's question>` with each run request so Activity history lists
+your runs by question instead of by the start of your objective prompt.
 
 Then capture, through your own frontend, what the rubric asks for:
 
