@@ -29,7 +29,7 @@ SCREENSHOTS = (
     ReadmeScreenshot(
         filename="propertyscope-home.png",
         path="/?scenario=populated#home",
-        heading="A clearer view of your next move.",
+        heading="Research a NSW property from published data.",
         ready_selector="#feature-area-list [data-feature-id]",
     ),
     ReadmeScreenshot(

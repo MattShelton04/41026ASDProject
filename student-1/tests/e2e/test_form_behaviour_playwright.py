@@ -622,7 +622,7 @@ def test_table_observers_are_released_after_search_and_shared_navigation(
     expect(page.get_by_text("Current records loaded.")).to_be_visible()
     assert page.evaluate("window.tableObservers.size") > 0
     page.get_by_role("link", name="Home", exact=True).first.click()
-    expect(page.get_by_role("heading", name="A clearer view of your next move.")).to_be_visible()
+    expect(page.locator("#property-search-form")).to_be_visible()
     assert page.evaluate("window.tableObservers.size") == 0
 
 
