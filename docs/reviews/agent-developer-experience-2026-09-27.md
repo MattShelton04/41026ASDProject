@@ -150,6 +150,39 @@ Each step is a focused commit on `Matt/Agent_Developer_Experience`.
 - **Port-offset automation for running two stacks at the same time.** Individual port variables
   already exist; the documentation shows how to set them in the isolated checkout's `.env`.
 
+## Sanity check and revisions
+
+An independent read-only review of this plan against the code answered **go, with changes**.
+The following changes were adopted:
+
+- **Land `.env` loading together with the project resolver.** Compose itself reads the root
+  `.env`. With `COMPOSE_PROJECT_NAME` only in `.env`, the old `reset` ran `down --volumes` on the
+  isolated project and then pruned `ps-dev`. The resolver fix alone would not close this hole.
+  The legacy migration can also `docker stop` the other project's containers, not only copy
+  their history.
+- **Script tests ignore the developer's real `.env`.** `scripts/tests/conftest.py` does this;
+  otherwise a real `.env` would leak into tests.
+- **Drop step 4 (the dispatch-table refactor).** It is scope creep in shared tooling, and tests
+  monkeypatch module functions, which a table of direct references would silently bypass.
+- **Use UI fixture port 5990 instead of 5700.** 5700 would be the next feature port.
+- **Document the global `propertyscope/<service>:dev` image tags as an isolation limit.**
+  Rebuilding in a scratch checkout replaces the images the main stack uses.
+- **The Feature 1 skill must gate publication on explicit, per-release user approval.** It shows
+  the quality evidence first, prefers the UI, never publishes partial PSI, and uses
+  `docker compose` service names rather than `ps-dev-*` container names.
+- **Tighten `test_agent_skills.py`.** It now also checks the `name` format and the length limits
+  on `name` and `description`.
+- Corrections: finding 4 overstated the `live-app-browser` gaps (it already pointed readers to
+  the ports file). Finding 6 undercounted: 23 actions, 17 without `.env`.
+
+**User decision:** skills stay in `.github/skills/` and are referenced from `AGENTS.md` rather
+than moved to `.claude/skills/`. `CLAUDE.md` imports `AGENTS.md`, so Claude Code reaches the
+skills index through it. Copilot loads `.github/skills/` natively.
+
+**Change found during implementation:** a long-syntax Compose bind broke a Feature 3 deployment
+test that reads every volume entry as a string. The runner cache bind therefore stays in short
+syntax. `docker compose config` resolves default, absolute Windows and relative values correctly.
+
 ## Implementation record
 
 Filled in after implementation: see the end of this document.

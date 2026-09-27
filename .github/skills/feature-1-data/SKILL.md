@@ -56,8 +56,10 @@ The runner reads a read-only host cache, by default `./.propertyscope-source-cac
 - `gnaf.zip`: an unmodified official G-NAF PSV archive (≈1.6 GB). Without it the runner downloads
   the latest archive. Set `PROPERTYSCOPE_GNAF_CRS` (GDA94 by default) to match the archive.
 - `psi/<year>.zip` and `psi/weekly/<yyyymmdd>.zip`: fill with
-  `uv run scripts/dev.py data sync-psi --all` (host download; re-runs keep verified files). The
-  publisher blocks container downloads, so do this before collecting `psi-sales`.
+  `uv run scripts/dev.py data sync-psi --all` (host download; re-runs keep verified files;
+  `--current-weekly` adds only this year's new Mondays). The publisher blocks container downloads,
+  so sync on the host, then run `stack up` again so the backend advertises the cached archives,
+  before collecting `psi-sales`.
 
 To reuse another checkout's cache instead of downloading again, set
 `PROPERTYSCOPE_SOURCE_CACHE_DIR` in `.env` (relative paths resolve from the repository root), then
@@ -72,6 +74,10 @@ uv run scripts/dev.py data collect gnaf-nsw --no-wait           # long jobs: que
 uv run scripts/dev.py stack logs --no-follow --tail 50 f1-runner      # acquisition progress
 uv run scripts/dev.py stack logs --no-follow --tail 50 f1-db-loader   # import progress
 ```
+
+Jobs run one at a time by default, so a small job queued behind G-NAF waits for it. Set
+`PROPERTYSCOPE_ACQUISITION_WORKERS=2` in `.env` and `stack restart f1-runner` while idle to
+acquire two jobs at once; database imports always stay serial.
 
 Poll a queued run with `GET /ingestion-runs/{run_id}` until its `status` is `succeeded`, `failed`
 or `cancelled`. The Update history page at <http://localhost:5200/#runs> shows the same timeline.
