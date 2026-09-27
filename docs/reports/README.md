@@ -3,12 +3,15 @@
 This directory contains the maintained Release 0 report source and submission PDF.
 
 - [`release-0-technical-report.md`](release-0-technical-report.md) is the evidence-backed source.
-- [`41026Group20Release0Report.pdf`](41026Group20Release0Report.pdf) is the Canvas submission artefact.
+- [`submissions/release-0/41026Group20Release0Report.pdf`](submissions/release-0/41026Group20Release0Report.pdf)
+  is the PDF submitted on Canvas. It is frozen: a test pins its SHA-256 and the builder refuses to
+  overwrite it.
 - `diagrams/release-0/*.mmd` contains the reviewable Mermaid source for every report diagram.
 - `assets/release-0/*.png` contains the rendered Mermaid figures embedded in the PDF.
 - `assets/release-0/manifest.json` binds every figure to its Mermaid source and rendered PNG by SHA-256
   (source line endings are normalised for Windows and Unix checkouts).
-- `scripts/build_release0_report.py` checks those hashes and regenerates the PDF.
+- `scripts/build_release0_report.py` checks those hashes and rebuilds the PDF into
+  `tmp/reports/release-0/` using the shared engine in `scripts/report_pdf.py`.
 
 The report covers all five enabled feature slices, architecture, Docker Compose, AI mode and the
 agentic loop, local and GitHub Actions evidence, screenshots, contribution records and known
@@ -36,8 +39,8 @@ uv run python scripts/build_release0_report.py --render-diagrams
 ```
 
 This explicitly invokes Mermaid CLI **11.12.0**, which may download its npm package and Chromium on
-first use. Commit the changed Mermaid sources, PNGs, manifest, Markdown and regenerated `41026Group20Release0Report.pdf`
-together. Do not update the manifest by hand to bypass a stale-diagram error.
+first use. Commit the changed Mermaid sources, PNGs, manifest and Markdown together; the submitted PDF stays
+unchanged. Do not update the manifest by hand to bypass a stale-diagram error.
 
 The report includes a runtime architecture and selected-key ERD for every student. ERDs label query
 associations separately from actual foreign keys; the linked owned schemas remain authoritative for
@@ -55,7 +58,7 @@ Before handoff, run the canonical gate and render the PDF for visual review:
 
 ```text
 uv run python scripts/check.py
-pdftoppm -scale-to 1400 -png docs/reports/41026Group20Release0Report.pdf tmp/pdfs/report
+pdftoppm -scale-to 1400 -png tmp/reports/release-0/41026Group20Release0Report.pdf tmp/pdfs/report
 ```
 
 Create `tmp/pdfs` first and install Poppler if it is not available. Inspect every page for clipped
