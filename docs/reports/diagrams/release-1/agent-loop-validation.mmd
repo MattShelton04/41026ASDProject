@@ -1,0 +1,24 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":30,"rankSpacing":35}}}%%
+flowchart TB
+    r0["Release 0 mode<br/>feature assistant runs<br/>ai start --mode direct"]
+    vm["MCP validation mode<br/>dev.py ai validate mcp"]
+    vr["RAG validation mode<br/>dev.py ai validate rag"]
+    r0 --> plan
+    vm --> plan
+    vr --> plan
+    plan["PLAN<br/>allowlisted tools, bounded budget"] --> act["ACT"]
+    act -->|mcp mode| actm["Call a read-only tool<br/>through the live MCP server"]
+    act -->|release 0 mode| actd["Call feature tools<br/>over direct HTTP"]
+    act -->|rag mode| actr["Retrieve from the feature<br/>corpus via the live RAG server"]
+    actm --> observe["OBSERVE<br/>validate and persist the result"]
+    actd --> observe
+    actr --> observe
+    observe --> adapt["ADAPT<br/>summarise and check citations"]
+    adapt --> out["Validation JSON: mode · passed · run id · phases<br/>tool result or citations · confidence"]
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class plan,act,observe,adapt shared;
+    class r0,vm,vr,actm,actd,actr feature;
+    class out note;

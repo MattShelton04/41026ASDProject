@@ -1,0 +1,24 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart LR
+    subgraph ci["GitHub Actions: student-1.yml to student-5.yml"]
+        direction TB
+        env["Workflow environment<br/>AI_MODE_MCP_ENABLED=false<br/>AI_MODE_RAG_ENABLED=false"]
+        checks["Lint, type check, tests<br/>MCP and RAG contracts with test doubles"]
+        build["Build feature images<br/>start the feature stack<br/>smoke frontend, API and database"]
+        env --> checks --> build
+    end
+    subgraph local["Local assessment deployment"]
+        direction TB
+        up["dev.py stack up --ai-runtime host"]
+        dc["docker-compose.yml<br/>edge and five feature slices<br/>backend env: AI_MODE_BASE_URL, MCP_SERVER_URL,<br/>RAG_SERVER_URL on host.docker.internal"]
+        hostsvc["Host processes<br/>AI-mode · MCP · RAG"]
+        up --> dc
+        up --> hostsvc
+        dc -->|service token| hostsvc
+    end
+    ci -.->|same Compose files, AI services off| local
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class checks,build,up,dc,hostsvc shared;
+    class env note;

@@ -10,6 +10,8 @@ Start with the [Shared/Feature 1 handoff and evidence map](shared-feature-1-hand
 on 6 September requires non-containerised local AI-mode, MCP, RAG and agent loop; MCP/RAG stay
 disabled during CI/CD. Those requirements supersede the older Compose assumptions.
 
+- [Release 1 technical report](../reports/release-1-technical-report.md): report source, word budget
+  and owner TODOs; build instructions in [reports/README.md](../reports/README.md).
 - [Host runtime](host-runtime.md): lifecycle, networking, history migration and named loop validations.
 - [Adopt MCP and RAG](adopt-mcp-and-rag.md): the ordered five-step checklist for feature owners,
   with the corpus template and shared assertions. Start here.

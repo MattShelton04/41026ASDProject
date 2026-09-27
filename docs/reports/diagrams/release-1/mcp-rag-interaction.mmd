@@ -1,0 +1,38 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"15px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","actorBkg":"#dfeded","actorBorder":"#176b75","noteBkgColor":"#faf2e4","noteBorderColor":"#a67c00"}}}%%
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as Feature frontend<br/>(shared assistant)
+    participant API as Feature backend/API
+    participant AI as AI-mode and loop<br/>(host)
+    participant Model as Model provider
+    participant MCP as MCP server<br/>(host)
+    participant RAG as RAG server<br/>(host)
+    User->>UI: Ask a question
+    UI->>API: POST .../assistant/turns
+    API->>AI: POST /api/v1/agent-runs<br/>objective, tool allowlist, corpus scope
+    AI-->>API: Run accepted (queued)
+    API-->>UI: Turn id
+    AI->>Model: PLAN with registered tools only
+    Model-->>AI: Structured plan (tool names and arguments)
+    par ACT: current facts
+        AI->>MCP: tools/call + signed feature/run/call binding
+        MCP->>API: Registered tool endpoint (fixed route)
+        API-->>MCP: Structured result from owned data
+        MCP-->>AI: Validated tool result
+    and ACT: project guidance
+        AI->>RAG: POST /api/v1/retrieve (fixed feature corpus)
+        RAG-->>AI: ready with cited excerpts, or no_match
+    end
+    AI->>AI: OBSERVE: persist results as evidence
+    AI->>Model: ADAPT with evidence marked untrusted
+    Model-->>AI: Findings citing evidence ids
+    AI->>AI: Check citations, derive confidence,<br/>recheck corpus version, persist answer
+    Note over AI: No usable context: the answer is<br/>"insufficient context" with no citations
+    loop Until the run ends
+        UI->>API: GET turn
+        API->>AI: GET run (ownership checked)
+        AI-->>API: Status and final answer
+        API-->>UI: Answer, citations, confidence
+    end
+    UI-->>User: Answer with sources and confidence category

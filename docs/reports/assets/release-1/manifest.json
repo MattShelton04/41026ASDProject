@@ -1,0 +1,25 @@
+{
+  "mermaid_version": "11.12.0",
+  "diagrams": {
+    "release-1-architecture.mmd": {
+      "source_sha256": "6230c560470c8a384ad66b1dd3e896bca4941f46d5e4d43f59a4fd3ee22bf24f",
+      "asset_sha256": "abf0ed0a730cfe6884e1f38e909869599a557b6347493bcd135cd2388c858681"
+    },
+    "mcp-rag-interaction.mmd": {
+      "source_sha256": "d39e126d236a2dfc3d32495eed035fab9ddb077a0fc5e5c9de0b7f1f8f0f3214",
+      "asset_sha256": "a910dc96106edbed4d55fdb4493e4d08b34157a32c0f2951ed31b031bb017a35"
+    },
+    "rag-pipeline.mmd": {
+      "source_sha256": "16cc4daa90ec6a3bab084c55092a568ddf31aa7af71ea7d90799576d12a81651",
+      "asset_sha256": "8e55787197de1b0c5748aece1db3aa6d3b0c9042c7839e22084b5c5d5a533a72"
+    },
+    "agent-loop-validation.mmd": {
+      "source_sha256": "13d80abdd9d07eebe4e94104c64c8fe5f6114b1d2c04789592e0e24977b895d7",
+      "asset_sha256": "65ba4ecfd5a9265fae7446884fbece2bd08119a482bae014ebdb220d72b6d53e"
+    },
+    "ci-and-deployment.mmd": {
+      "source_sha256": "3324e62abb7c8a55c3629a02acb621e68e8202894f7624df13579df25c10cf17",
+      "asset_sha256": "c6ab119115f4a20eaac565b307209263d92943ec9e92d6d179f559b965382aaa"
+    }
+  }
+}

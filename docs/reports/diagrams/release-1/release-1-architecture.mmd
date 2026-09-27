@@ -1,0 +1,35 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":30,"rankSpacing":70}}}%%
+flowchart LR
+    user([User browser])
+
+    subgraph compose["Docker Compose: containerised Release 0 application"]
+        direction TB
+        edge["shared-frontend :5100<br/>HTMX shell · route proxy<br/>AI-mode token proxy"]
+        features["Five feature slices<br/>each: frontend · backend/API · owned database service<br/><br/>F1 Property data :5200 · PostGIS<br/>F2 Market intelligence :5300 · SQLite<br/>F3 Suburb analytics :5600 · SQLite<br/>F4 Due diligence :5400 · PostGIS<br/>F5 Buyer workspace :5500 · SQLite"]
+        edge --> features
+    end
+
+    subgraph host["Host: non-containerised shared AI services"]
+        direction TB
+        loop["Loop validation CLI<br/>dev.py ai validate mcp / rag"]
+        ai["AI-mode :5005<br/>run API · Plan/Act/Observe/Adapt loop<br/>SQLite run store"]
+        mcp["MCP server :5011, loopback<br/>Streamable HTTP · registered tools<br/>signed per-call metadata"]
+        rag["RAG server :5012, loopback<br/>ingest · retrieve · corpus versions<br/>SQLite vector index · local embedder"]
+        loop -.->|drives a real run| ai
+        ai -->|tools/call| mcp
+        ai -->|retrieve| rag
+    end
+
+    model["OpenAI Luna / Terra<br/>Gemini supported"]
+
+    user --> edge
+    features -->|"backend AI HTTP<br/>host.docker.internal:5005<br/>+ service token"| ai
+    mcp -->|"feature tool endpoint<br/>published 127.0.0.1 port"| features
+    ai -->|HTTPS| model
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class edge,ai,mcp,rag shared;
+    class features feature;
+    class model,loop note;

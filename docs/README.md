@@ -33,7 +33,9 @@ Store maintained project documentation here throughout all three releases.
 - [Release 1 delivery plan](release-1/release-1-delivery-plan.md): earlier course interpretation and
   wider five-feature checklist; newer supplied rubric/ADR-043 supersede runtime assumptions
 - [Release 0 technical report](reports/release-0-technical-report.md): final report source, evidence map,
-  rubric traceability, and reproducible [`41026Group20Release0Report.pdf`](reports/41026Group20Release0Report.pdf)
+  rubric traceability, and the frozen submitted [`41026Group20Release0Report.pdf`](reports/submissions/release-0/41026Group20Release0Report.pdf)
+- [Release 1 technical report](reports/release-1-technical-report.md): draft report source, word
+  budget and outstanding items; build with `scripts/build_release1_report.py`
 - [Shared-platform design](architecture/shared-platform-design.md): living cross-release
   service and contract design
 - [Feature integration contract](architecture/feature-integration-and-experience-contract.md): canonical

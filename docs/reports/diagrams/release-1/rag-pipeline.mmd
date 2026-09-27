@@ -1,0 +1,37 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"16px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":25,"rankSpacing":35}}}%%
+flowchart LR
+    subgraph ingest["Ingestion: explicit rag-server ingest"]
+        direction TB
+        manifest["Feature corpus manifest<br/>student-N/config/rag/corpus.json<br/>Markdown guidance, CC0"]
+        chunk["Normalise and chunk<br/>one chunk per ## section<br/>title and heading prepended"]
+        embed["Embed locally<br/>BAAI/bge-small-en-v1.5, 384-d<br/>prepared CPU model, no download"]
+        activate["Activate version atomically<br/>identical replay keeps version<br/>omitted documents withdrawn"]
+        manifest --> chunk --> embed --> activate
+    end
+    index[("RAG SQLite index<br/>chunks · vectors · versions")]
+    activate --> index
+
+    subgraph retrieve["Retrieval: one per grounded run"]
+        direction TB
+        q["Question and fixed<br/>feature/corpus scope"]
+        rank["Cosine similarity fused with BM25<br/>top-k 5, max 2 chunks per document"]
+        floor{"Best score<br/>at least 0.55?"}
+        ready["ready: excerpts and citations<br/>document, title, version, score"]
+        none["no_match: no context"]
+        q --> rank --> floor
+        floor -->|yes| ready
+        floor -->|no| none
+    end
+    index --> rank
+
+    cite["AI-mode grounded answer<br/>guidance claims cite retrieved ids<br/>current facts cite tool-call ids"]
+    conf["Confidence derived from evidence<br/>high · moderate · low"]
+    insuff["AI-mode answers<br/>insufficient context<br/>no unsupported answer"]
+    cite --> conf
+    ready --> cite
+    none --> insuff
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class manifest,chunk,embed,activate,q,rank,ready,cite,conf shared;
+    class none,insuff note;
