@@ -164,6 +164,8 @@ on the running stack. Screenshots and loop output below come from the live stack
 
 ### 6.1 Terminal validation of the MCP and RAG servers
 
+![Figure 22 Activity history listing recent runs across features](assets/release-1/screenshots/shared-activity-history.png)
+
 [[TODO: Shared | With the stack up in combined mode, capture `uv run scripts/dev.py ai status`, an unauthenticated and authenticated `curl` to AI-mode, and the MCP `tools/list` count as a text block here.]]
 
 ### 6.2 Shared agentic loop: MCP and RAG validation modes
@@ -237,6 +239,11 @@ Feature 1's retrieval baseline uses a disposable index and the same embedding mo
 server. Recall counts how many of each question's expected documents appear in the top five.
 
 [[RETRIEVAL_SUMMARY student-1/config/rag/evaluation-baseline-v2.json]]
+
+The Knowledge sources page lists each registered corpus and its passages, and tests which passages
+a question retrieves.
+
+![Figure 21 Knowledge sources page with the registered corpora](assets/release-1/screenshots/shared-knowledge-sources.png)
 
 Retrieval similarity is not proof that an answer is correct. A share-price question still retrieves
 a sales passage (0.58), so the model and the confidence rules must still reject it.
