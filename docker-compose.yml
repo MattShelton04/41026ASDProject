@@ -195,12 +195,7 @@ services:
     volumes:
       - f1-artifacts:/var/lib/propertyscope/artifacts:rw
       # Optional shared host cache so several checkouts reuse one verified G-NAF/PSI download.
-      - type: bind
-        source: ${PROPERTYSCOPE_SOURCE_CACHE_DIR:-./.propertyscope-source-cache}
-        target: /var/lib/propertyscope/source-cache
-        read_only: true
-        bind:
-          create_host_path: true
+      - ${PROPERTYSCOPE_SOURCE_CACHE_DIR:-./.propertyscope-source-cache}:/var/lib/propertyscope/source-cache:ro
     networks: [shared-platform]
     stop_grace_period: 35s
     mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-4g}
