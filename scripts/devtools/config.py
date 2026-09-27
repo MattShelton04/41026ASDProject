@@ -1,6 +1,7 @@
 """Stable development-workflow configuration shared by parsing and execution."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,18 @@ ENABLED_FEATURE_KEYS = tuple(
     if isinstance(feature, dict) and isinstance(feature.get("feature_key"), str)
 )
 DEFAULT_PROJECT_NAME = "ps-dev"
+
+
+def compose_project_name() -> str:
+    """Return the Compose project that Docker itself will select for this invocation.
+
+    Compose prefers COMPOSE_PROJECT_NAME over the development overlay's ``name: ps-dev``. Every
+    label-scoped operation (volume pruning, port ownership, legacy state discovery) must use the
+    same answer, or an isolated project could act on the default project's data.
+    """
+    return os.environ.get("COMPOSE_PROJECT_NAME", "").strip() or DEFAULT_PROJECT_NAME
+
+
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
 SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})

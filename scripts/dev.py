@@ -33,7 +33,6 @@ from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
     COMPOSE_FILES,
-    DEFAULT_PROJECT_NAME,
     DEFAULT_UI_FIXTURE_PORT,
     DISABLED_FEATURE_SERVICES,
     ENABLED_FEATURE_KEYS,
@@ -49,6 +48,7 @@ from scripts.devtools.config import (
     RUNTIME_DIRECTORY,
     SUPPORTED_LLM_PROVIDERS,
     TERMINAL_COLLECTION_STATES,
+    compose_project_name,
 )
 from scripts.devtools.operator_report import collect_operator_report, render_operator_report
 from scripts.devtools.runtime_settings import AI_PLACEMENTS
@@ -74,9 +74,7 @@ def _compose_command(
     if not reload:
         # The development overlay also supplies name: ps-dev. Omitting it must
         # retain the same containers/volumes rather than start the base "ps" project.
-        command.extend(
-            ("--project-name", os.environ.get("COMPOSE_PROJECT_NAME") or DEFAULT_PROJECT_NAME)
-        )
+        command.extend(("--project-name", compose_project_name()))
     for filename in COMPOSE_FILES if reload else PRODUCTION_COMPOSE_FILES:
         command.extend(("--file", filename))
     if (placement or ai_runtime.selection()) == "docker":
@@ -219,7 +217,7 @@ def _published_port_owners(port: int) -> tuple[tuple[str, str], ...]:
 
 def _preflight_compose_host_ports(*, services: Sequence[str]) -> None:
     """Reject conflicting host ports before secrets, builds, or container mutation."""
-    project = DEFAULT_PROJECT_NAME
+    project = compose_project_name()
     conflicts: list[str] = []
     for service, (variable, port) in _resolved_host_ports(services).items():
         if _host_port_is_available(port):
@@ -646,7 +644,7 @@ def _down(*, remove_volumes: bool = False) -> None:
 def _reset() -> None:
     """Delete only volumes labelled for the selected Compose project."""
     _down(remove_volumes=True)
-    project_name = DEFAULT_PROJECT_NAME
+    project_name = compose_project_name()
     _run(
         (
             "docker",
