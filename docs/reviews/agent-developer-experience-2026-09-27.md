@@ -190,4 +190,68 @@ syntax. `docker compose config` resolves default, absolute Windows and relative 
 
 ## Implementation record
 
-Filled in after implementation: see the end of this document.
+### Commits
+
+| Commit | Scope |
+|---|---|
+| `fix(dev): honour the selected Compose project for every label-scoped action` | Project resolver for reset pruning, port preflight and legacy AI-state migration; `.env` for every command |
+| `feat(dev): make the helper consistent for isolated stacks and coding agents` | `logs --no-follow/--tail`, Feature 1 URL from `PROPERTYSCOPE_PORT`, unreachable-stack hint, `PROPERTYSCOPE_SOURCE_CACHE_DIR`, UI fixture port 5990, `doctor` and `up` summaries, help text |
+| `docs(agents): index skills in AGENTS.md and add a Feature 1 data skill` | `CLAUDE.md`, restructured `AGENTS.md`, `feature-1-data` skill and `data_status.py`, refreshed `live-app-browser`, `test_agent_skills.py`, `.gitignore` |
+| `docs: document isolated stacks, shared source cache and non-following logs` | README, CONTRIBUTING, scripts README, Feature 1 README, UI fixture docs |
+| `fix(compose): keep the source-cache bind in short volume syntax` | See "Change found during implementation" |
+| `docs(...)` follow-ups | Plan review outcome, publication on the user's behalf, run-to-candidate lookup |
+
+Step 4 (dispatch refactor) was dropped after review. Everything else in the plan landed.
+
+### Validation
+
+Deterministic:
+
+- `uv run python scripts/check.py` passed on the branch, which includes the new `scripts/tests` cases
+  and the skills test. It took 17 minutes this time because a G-NAF import was running on the same
+  machine; on an idle machine it takes about 6.5 minutes.
+
+Live, from a detached worktree of this branch with `COMPOSE_PROJECT_NAME=ps-fresh` and
+`PROPERTYSCOPE_SOURCE_CACHE_DIR=../41026ASDProject/.propertyscope-source-cache` in its `.env`:
+
+- **Stack and isolation.**
+  - `stack up --offline`, `stack doctor` and the `up` summary resolved the `ps-fresh` project and
+    the shared cache ("G-NAF present").
+  - `stack reset` driven only by `.env` removed `ps-fresh` volumes. The seven `ps-dev` volumes
+    were unchanged, compared against a listing taken before.
+- **Helper commands.**
+  - `ui serve` on 5990 worked alongside the full stack.
+  - `data sync-psi --current-weekly` wrote into the shared cache outside the checkout.
+  - `data_status.py` labelled the five seeded datasets `SEEDED DEMO ONLY`.
+- **Small real sources.** `schools-master` collected 2,210 records in 4 s and was reviewed,
+  published and searchable within seconds.
+- **G-NAF from the shared cache.**
+  - Acquisition to a succeeded run took 30 min (acquiring 11 min, staging 14 min,
+    building_release 5 min).
+  - The candidate had 5,190,134 records and passed 2/2 quality checks.
+  - The agent reviewed and published it through the API with a comment recording what was checked
+    and for whom, and got 202 back.
+  - Activation (`UPDATE ... SET published=TRUE` over the generation) was still running after more
+    than 20 minutes. This is consistent with the skill's "many minutes" guidance.
+- **Not run live:** SEIFA, CPI and PSI were skipped. PSI needs another 45–75 minutes; its timings
+  in the skill come from the earlier review records it cites. SEIFA and schools runs queued behind
+  G-NAF confirmed that acquisition is serial by default.
+
+### Incident: Docker Desktop drive share
+
+Twice during validation, Docker Desktop's Windows drive share (`/run/desktop/mnt/host/c`) went
+stale:
+
+- existing bind mounts returned `I/O error`, so nginx served 500 on 5100;
+- new containers failed with `mkdir /run/desktop/mnt/host/c: file exists`;
+- named-volume services (every Feature 1 database, the loader and the activation) kept working.
+
+Recovery needs the whole Docker VM restarted: stop Docker Desktop, run `wsl --shutdown --force`,
+then relaunch. Named volumes survive this. The Docker logs did not record a cause. Both times it
+happened during heavy reads of large archives through the share, which is an inference, not a
+confirmed cause. The branch does not change this behaviour; `ps-dev` uses the same kind of bind
+mount.
+
+### Left for owners
+
+- `student-3/README.md` still says port 5300 is shared with the fixture server.

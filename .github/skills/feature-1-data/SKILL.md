@@ -37,7 +37,7 @@ are the files in `student-1/config/job-profiles/`; the dataset they produce is i
 | `schools-master` | `nsw-government-schools` | ≈2,200 schools, seconds | internet |
 | `abs-seifa-2021` | `abs-seifa-2021` | ≈4,500 NSW suburbs, under a minute | internet |
 | `abs-cpi` | `abs-cpi` | small, about a minute | internet |
-| `gnaf-nsw` | `gnaf-nsw` (address register) | 5.2 M addresses; about 10 min from cache plus publish | 1.6 GB archive (cache or download) |
+| `gnaf-nsw` | `gnaf-nsw` (address register) | 5.2 M addresses; about 30 min from cache to candidate, then 20+ min activation | 1.6 GB archive (cache or download) |
 | `psi-sales` | `nsw-psi-sales` | 7.4 M sales; 35-55 min plus publish | PSI archives (`data sync-psi`); accepted G-NAF for address matching |
 | `bocsar-crime` | `bocsar-crime` | 10 M observations; about 20 min | internet |
 | `nsw-cadastre`, `nsw-planning-controls`, `nsw-bushfire-prone-land`, `nsw-flood-planning`, `abs-geography-2021`, `nsw-suburb-boundaries`, `nsw-school-catchments`, `nsw-strata-schemes`, `nsw-amenities` | same name | large spatial layers; minutes to hours | internet |
