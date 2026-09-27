@@ -88,7 +88,7 @@ insufficient.
 | MCP tool boundaries | A run can call only its feature's allowlisted tools. Tools with side effects require human approval; Feature 1's two write tools are approval-gated | A model must not choose destinations or trigger writes |
 | Grounding and traceability | Every guidance claim cites a retrieved passage and every current fact cites a tool call. Answers store the corpus version, and completion fails if the active version changed | A reader can check each claim against its source |
 | Reliability | An MCP outage fails the run in a bounded time without retrying (observed 2.2 s, `mcp_unavailable`). A RAG outage yields an insufficient answer while ordinary CRUD keeps working | Failures stay visible and contained |
-| Performance | Retrieval median 0.08 s and slowest 0.13 s over 27 questions; ingesting 19 documents takes 13.8 s on CPU | Retrieval must not dominate answer time |
+| Performance | Retrieval median 0.08 s and slowest 0.13 s in the retrieval evaluation; ingesting 19 documents takes 13.8 s on CPU | Retrieval must not dominate answer time |
 | Retrieval quality | Expected-source recall@5 of at least 0.9 on the authored question set (measured 0.963) | Grounded answers depend on finding the right passage |
 | Usability | Sources open with the keyboard; unsafe links are rejected; no horizontal overflow at 320 px | Evidence must be readable and safe for all users |
 | Maintainability | A feature adopts MCP and RAG by declaring a corpus in its own `feature.yaml`, without editing shared files | Five owners can integrate without conflicts |
