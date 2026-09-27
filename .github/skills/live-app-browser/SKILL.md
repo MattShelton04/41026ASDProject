@@ -11,14 +11,20 @@ skill when you need the real stack: real databases, AI-mode, MCP, RAG and provid
 ## 1. Start or reuse the stack
 
 ```text
-uv run scripts/dev.py stack status          # what is already running
+uv run scripts/dev.py stack status          # what is already running, and under which project
 uv run scripts/dev.py stack up              # add --offline to run without a model key
 uv run scripts/dev.py ai status             # AI-mode, MCP and RAG state
+uv run scripts/dev.py stack doctor          # resolved ports and who owns each one
 ```
 
-- Shared shell: <http://localhost:5100>. Feature frontends use `frontend.host_port_default` in
-  `deployment/enabled-features.v1.json` (Feature 1 is 5200). Pages are also reachable through the
-  shared edge at the feature's `routes[].path`, e.g. `http://localhost:5100/features/data-platform/`.
+- `stack up` prints every URL. Shared shell: <http://localhost:5100>; Feature 1-5 frontends are
+  5200, 5300, 5600 (Feature 3), 5400, 5500 (see the port table in `AGENTS.md`). Pages are also
+  reachable through the shared edge at the feature's `routes[].path` in
+  `deployment/enabled-features.v1.json`, e.g. `http://localhost:5100/features/data-platform/`.
+- Do not stop, reset or rebuild a stack the user is running unless asked. For a disposable stack,
+  follow "Isolated environments" in `AGENTS.md`; its ports come from that checkout's `.env`.
+- A fresh database holds a small seeded demonstration baseline, so property pages show
+  `FIXTURE STREET`/`Example Street` addresses. Use the `feature-1-data` skill to load real sources.
 - Frontend and container Python code reload on save. Host AI services (`ai-runtime.json` placement
   `host`) do not: after changing `ai-services/` or `shared/contracts`, run
   `uv run scripts/dev.py ai stop` then `uv run scripts/dev.py ai start --mode combined`.
@@ -80,6 +86,13 @@ In a run's evidence, check the `context.retrieve.v1` step's query and status, th
 `final_result.confidence`, `confidence_reason` and `citations`. A `no_match` retrieval should give
 an insufficient-context answer. Feature APIs sit under each feature's backend route, for example
 `http://localhost:5200/api/data-platform/v1/...`.
+
+For server-side errors behind a failed request, read the owning service's logs without blocking:
+
+```text
+uv run scripts/dev.py stack logs --no-follow --tail 100 f1-backend
+uv run scripts/dev.py ai logs ai-mode
+```
 
 ## 5. Report
 

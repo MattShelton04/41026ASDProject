@@ -66,6 +66,11 @@ temp/
 docker-compose.override.yml
 compose.override.yml
 
+# Coding-agent local state (shared skills live in .github/skills/)
+.claude/settings.local.json
+.claude/worktrees/
+.playwright-cli/
+
 # IDEs and editors
 .vs/
 .idea/
