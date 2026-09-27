@@ -63,7 +63,6 @@ def compose_project_name() -> str:
 RUNTIME_DIRECTORY = REPOSITORY_ROOT / ".propertyscope-runtime"
 OFFLINE_OPENAI_CREDENTIAL = "offline-local-development-only"
 SUPPORTED_LLM_PROVIDERS = frozenset({"gemini", "openai"})
-PROPERTYSCOPE_API_URL = "http://127.0.0.1:5200/api/data-platform/v1"
 JOB_PROFILE_DIRECTORY = REPOSITORY_ROOT / "student-1" / "config" / "job-profiles"
 COLLECTION_JOBS = tuple(path.stem for path in sorted(JOB_PROFILE_DIRECTORY.glob("*.yaml")))
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
@@ -71,6 +70,7 @@ HOST_PORTS: dict[str, tuple[str, int]] = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
     **{AI_CONTAINER_SERVICES[service]: ports for service, ports in AI_SERVICE_PORTS.items()},
 }
+FEATURE_FRONTEND_OWNERS: dict[str, str] = {}
 for _feature in _json_object(_ENABLED_FEATURES_PATH).get("features", []):
     if not isinstance(_feature, dict) or not isinstance(_feature.get("frontend"), dict):
         continue
@@ -80,6 +80,7 @@ for _feature in _json_object(_ENABLED_FEATURES_PATH).get("features", []):
     _default = _frontend.get("host_port_default")
     if isinstance(_service, str) and isinstance(_variable, str) and isinstance(_default, int):
         HOST_PORTS[_service] = (_variable, _default)
+        FEATURE_FRONTEND_OWNERS[_service] = str(_feature.get("owner", _service))
 UI_FIXTURE_SCENARIOS = (
     "populated",
     "empty",
@@ -90,6 +91,6 @@ UI_FIXTURE_SCENARIOS = (
     "large",
     "validation-error",
 )
-DEFAULT_UI_FIXTURE_PORT = 5300
+DEFAULT_UI_FIXTURE_PORT = 5990
 PSI_YEARLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{partition}.zip"
 PSI_WEEKLY_URL = "https://www.valuergeneral.nsw.gov.au/__psi/weekly/{partition}.zip"

@@ -21,18 +21,18 @@ uv run scripts/dev.py ui serve
 ```
 
 The command waits for its fixture-only JSON readiness response, prints all three URLs, stays in the
-foreground and closes its listener on Ctrl+C or startup failure. It uses port `5300` by default, away from the
+foreground and closes its listener on Ctrl+C or startup failure. It uses port `5990` by default, away from the
 canonical Compose ports. Select another loopback port with either
-`PROPERTYSCOPE_UI_FIXTURE_PORT=5301` or `--port 5301`.
+`PROPERTYSCOPE_UI_FIXTURE_PORT=5991` or `--port 5991`.
 
 The canonical paths remain:
 
 ```text
-Shared              http://127.0.0.1:5300/?scenario=populated#home
-Property Discovery  http://127.0.0.1:5300/features/data-platform/?scenario=populated#properties
-Data Operations     http://127.0.0.1:5300/features/data-platform/?scenario=populated#overview
-Health              http://127.0.0.1:5300/healthz
-Fixture readiness   http://127.0.0.1:5300/__ui-fixture__/ready
+Shared              http://127.0.0.1:5990/?scenario=populated#home
+Property Discovery  http://127.0.0.1:5990/features/data-platform/?scenario=populated#properties
+Data Operations     http://127.0.0.1:5990/features/data-platform/?scenario=populated#overview
+Health              http://127.0.0.1:5990/healthz
+Fixture readiness   http://127.0.0.1:5990/__ui-fixture__/ready
 ```
 
 ## Deterministic scenarios
@@ -59,7 +59,7 @@ authentication or permission contract, so fixture mode does not invent one.
 ## Real-browser smoke
 
 Install the browser binary once after dependency sync, then run the smoke command. The command
-starts and owns a fixture child when port 5300 is free, reuses an already-running fixture host, and
+starts and owns a fixture child when port 5990 is free, reuses an already-running fixture host, and
 always cleans up a child it started when the browser succeeds or fails.
 
 ```text

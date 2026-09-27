@@ -850,3 +850,115 @@ def test_operator_health_uses_authenticated_edge_without_exposing_host_token(
     assert observed["ai_health_url"] == (
         override or "http://127.0.0.1:6100/api/shared-health/ai-mode"
     )
+
+
+def test_every_command_reads_the_root_env_so_reset_matches_compose(
+    captured_commands: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    default_env = tmp_path / "isolated.env"
+    default_env.write_text("COMPOSE_PROJECT_NAME=ps-from-env\n", encoding="utf-8")
+    monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", default_env)
+    # Record the variable as absent so teardown removes the value the loader sets.
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "placeholder")
+    monkeypatch.delenv("COMPOSE_PROJECT_NAME")
+
+    assert dev.main(["stack", "reset"]) == 0
+
+    assert captured_commands[-1][-1] == "label=com.docker.compose.project=ps-from-env"
+
+
+def test_logs_follow_by_default_and_can_print_and_exit(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["stack", "logs", "f1-runner"]) == 0
+    followed = captured_commands[-1]
+    assert "--follow" in followed
+    assert followed[followed.index("--tail") + 1] == "200"
+
+    assert dev.main(["stack", "logs", "--no-follow", "--tail", "25", "f1-runner"]) == 0
+    printed = captured_commands[-1]
+    assert "--follow" not in printed
+    assert printed[printed.index("--tail") + 1] == "25"
+    assert printed[-1] == "f1-runner"
+
+
+def test_collect_defaults_to_the_configured_feature_1_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(dev, "_collect", lambda **values: calls.append(values))
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "6200")
+
+    assert dev.main(["data", "collect", "fixture-property", "--no-wait"]) == 0
+    assert dev.main(["data", "collect", "fixture-property", "--base-url", "http://x/api"]) == 0
+
+    assert calls[0]["base_url"] == "http://127.0.0.1:6200/api/data-platform/v1"
+    assert calls[1]["base_url"] == "http://x/api"
+
+
+def test_unreachable_stack_explains_how_to_start_it(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def refuse(**_values: object) -> None:
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(dev, "_collect", refuse)
+
+    assert dev.main(["data", "collect", "fixture-property"]) == 1
+    assert "stack up" in capsys.readouterr().err
+
+
+def test_source_cache_can_be_shared_between_checkouts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(dev, "REPOSITORY_ROOT", tmp_path / "checkout")
+    assert dev._source_cache_root() == tmp_path / "checkout" / ".propertyscope-source-cache"
+
+    shared = tmp_path / "shared-cache"
+    (shared / "psi" / "weekly").mkdir(parents=True)
+    (shared / "psi" / "2024.zip").write_bytes(b"cached")
+    (shared / "psi" / "weekly" / "20260803.zip").write_bytes(b"cached")
+    monkeypatch.setenv("PROPERTYSCOPE_SOURCE_CACHE_DIR", str(shared))
+
+    assert dev._source_cache_root() == shared.resolve()
+    assert dev._psi_cache_years() == (2024,)
+    assert dev._psi_cache_weeks() == ("2026-08-03",)
+
+
+def test_psi_sync_writes_into_a_cache_outside_the_repository(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    payload = io.BytesIO()
+    with ZipFile(payload, "w") as archive:
+        archive.writestr("source.DAT", "valid source payload")
+    monkeypatch.setattr(dev, "REPOSITORY_ROOT", tmp_path / "checkout")
+    monkeypatch.setenv("PROPERTYSCOPE_SOURCE_CACHE_DIR", str(tmp_path / "shared-cache"))
+    monkeypatch.setattr(dev, "_download_psi_archive", lambda _client, _url: payload.getvalue())
+
+    dev._sync_psi(years=[2025], weeks=[])
+
+    assert (tmp_path / "shared-cache" / "psi" / "2025.zip").is_file()
+
+
+def test_doctor_reports_project_and_port_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: None)
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "ps-isolated")
+    monkeypatch.setattr(dev, "_host_port_is_available", lambda port: port != 5200)
+    monkeypatch.setattr(dev, "_published_port_owners", lambda _port: (("ps-dev", "f1-frontend"),))
+
+    assert dev.main(["stack", "doctor"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Compose project: ps-isolated" in output
+    assert "in use by ps-dev/f1-frontend" in output
+    assert "free" in output
+
+
+def test_ui_fixture_default_port_is_outside_every_stack_port() -> None:
+    assert dev.DEFAULT_UI_FIXTURE_PORT not in {port for _variable, port in dev.HOST_PORTS.values()}

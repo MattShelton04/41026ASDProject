@@ -11,11 +11,15 @@ from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
     COLLECTION_JOBS,
+    DEFAULT_UI_FIXTURE_PORT,
     PRODUCTION_BUILD_SERVICES,
-    PROPERTYSCOPE_API_URL,
     UI_FIXTURE_SCENARIOS,
 )
 from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_PLACEMENTS
+
+_FIXTURE_PORT_HELP = (
+    f"Loopback fixture port (default: $PROPERTYSCOPE_UI_FIXTURE_PORT or {DEFAULT_UI_FIXTURE_PORT})"
+)
 
 
 def _add_offline_option(command: argparse.ArgumentParser) -> None:
@@ -90,8 +94,17 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     doctor = commands.add_parser("doctor", help="Validate Docker and the Compose model")
     _add_env_file_option(doctor)
 
-    logs = commands.add_parser("logs", help="Follow recent application logs")
+    logs = commands.add_parser("logs", help="Show recent application logs and follow them")
     logs.add_argument("services", nargs="*", choices=(*APPLICATION_SERVICES, *DOCKER_SERVICES))
+    logs.add_argument(
+        "--no-follow",
+        dest="follow",
+        action="store_false",
+        help="Print recent lines and exit (use from scripts and coding agents)",
+    )
+    logs.add_argument(
+        "--tail", type=int, default=200, help="Recent lines per service (default: 200)"
+    )
 
 
 def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -99,23 +112,33 @@ def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     commands = ui.add_subparsers(dest="action", required=True)
 
     serve = commands.add_parser("serve", help="Serve Shared and Feature 1 fixtures without Docker")
-    serve.add_argument("--port", type=int, default=None, help="Loopback port (default: 5300)")
+    serve.add_argument("--port", type=int, default=None, help=_FIXTURE_PORT_HELP)
     serve.add_argument(
         "--scenario",
         choices=UI_FIXTURE_SCENARIOS,
         default=os.environ.get("PROPERTYSCOPE_UI_SCENARIO", "populated"),
+        help="Deterministic API fixture state to serve (default: populated)",
     )
 
     smoke = commands.add_parser("smoke", help="Run the minimal Playwright render smoke")
-    smoke.add_argument("--port", type=int, default=None, help="Loopback port (default: 5300)")
-    smoke.add_argument("--scenario", choices=UI_FIXTURE_SCENARIOS, default="populated")
-    smoke.add_argument("--all-routes", action="store_true")
+    smoke.add_argument("--port", type=int, default=None, help=_FIXTURE_PORT_HELP)
+    smoke.add_argument(
+        "--scenario",
+        choices=UI_FIXTURE_SCENARIOS,
+        default="populated",
+        help="Deterministic API fixture state to render (default: populated)",
+    )
+    smoke.add_argument(
+        "--all-routes",
+        action="store_true",
+        help="Render every fixture route, not only the core set",
+    )
 
     screenshots = commands.add_parser(
         "readme-screenshots",
         help="Refresh the deterministic screenshots embedded in the root README",
     )
-    screenshots.add_argument("--port", type=int, default=None, help="Loopback fixture port")
+    screenshots.add_argument("--port", type=int, default=None, help=_FIXTURE_PORT_HELP)
     screenshots.add_argument(
         "--output",
         type=Path,
@@ -124,18 +147,37 @@ def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     )
 
     audit = commands.add_parser("audit", help="Run a resumable browser interaction audit")
-    audit.add_argument("profile", choices=("quick", "full"))
-    audit.add_argument("--port", type=int, default=None, help="Loopback fixture port")
+    audit.add_argument(
+        "profile",
+        choices=("quick", "full"),
+        help="quick: core routes at two widths; full: the route/state/four-viewport matrix",
+    )
+    audit.add_argument("--port", type=int, default=None, help=_FIXTURE_PORT_HELP)
     audit.add_argument("--output", type=Path, default=None, help="Artifact directory")
     audit.add_argument("--resume", type=Path, default=None, help="Resume artifact directory")
-    audit.add_argument("--workspace", action="append", default=[])
-    audit.add_argument("--route-group", action="append", default=[])
-    audit.add_argument("--route", action="append", default=[])
-    audit.add_argument("--scenario", action="append", default=[])
-    audit.add_argument("--viewport", action="append", default=[])
-    audit.add_argument("--shard-index", type=int, default=0)
-    audit.add_argument("--shard-total", type=int, default=1)
-    audit.add_argument("--allow-destructive", action="store_true")
+    audit.add_argument(
+        "--workspace",
+        action="append",
+        default=[],
+        help="Limit to a workspace, e.g. shared or feature-1-property-discovery (repeatable)",
+    )
+    audit.add_argument(
+        "--route-group", action="append", default=[], help="Limit to a route group (repeatable)"
+    )
+    audit.add_argument("--route", action="append", default=[], help="Limit to a route (repeatable)")
+    audit.add_argument(
+        "--scenario", action="append", default=[], help="Limit to a fixture scenario (repeatable)"
+    )
+    audit.add_argument(
+        "--viewport", action="append", default=[], help="Limit to a viewport (repeatable)"
+    )
+    audit.add_argument("--shard-index", type=int, default=0, help="Zero-based shard to run")
+    audit.add_argument("--shard-total", type=int, default=1, help="Number of stable shards")
+    audit.add_argument(
+        "--allow-destructive",
+        action="store_true",
+        help="Also exercise controls that mutate fixture state",
+    )
 
 
 def _data_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -145,27 +187,54 @@ def _data_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     collect = commands.add_parser(
         "collect", help="Plan, queue, and optionally wait for a registered acquisition"
     )
-    collect.add_argument("job", choices=COLLECTION_JOBS)
-    collect.add_argument("--wait", action=argparse.BooleanOptionalAction, default=True)
-    collect.add_argument("--timeout", type=int, default=900)
-    collect.add_argument("--base-url", default=PROPERTYSCOPE_API_URL)
+    collect.add_argument(
+        "job",
+        choices=COLLECTION_JOBS,
+        help="Registered job profile (student-1/config/job-profiles)",
+    )
+    collect.add_argument(
+        "--wait",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Wait for the run to reach a terminal state (default); --no-wait only queues it",
+    )
+    collect.add_argument(
+        "--timeout", type=int, default=900, help="Seconds to wait before giving up (default: 900)"
+    )
+    collect.add_argument(
+        "--base-url",
+        default=None,
+        help="Feature 1 API root (default: http://127.0.0.1:$PROPERTYSCOPE_PORT/api/data-platform/v1)",
+    )
 
     sync_psi = commands.add_parser(
         "sync-psi", help="Acquire official PSI archives into the read-only app cache"
     )
-    sync_psi.add_argument("--all", action="store_true")
-    sync_psi.add_argument("--year", type=int, action="append", default=[])
-    sync_psi.add_argument("--week", action="append", default=[], metavar="YYYY-MM-DD")
-    sync_psi.add_argument("--current-weekly", action="store_true")
+    sync_psi.add_argument(
+        "--all", action="store_true", help="Every annual archive since 1990 plus this year's weeks"
+    )
+    sync_psi.add_argument(
+        "--year", type=int, action="append", default=[], help="One annual archive (repeatable)"
+    )
+    sync_psi.add_argument(
+        "--week",
+        action="append",
+        default=[],
+        metavar="YYYY-MM-DD",
+        help="One Monday weekly archive (repeatable)",
+    )
+    sync_psi.add_argument(
+        "--current-weekly", action="store_true", help="Every Monday archive so far this year"
+    )
 
 
 def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     operator = root.add_parser("operator", help="Inspect review and publication readiness")
     commands = operator.add_subparsers(dest="action", required=True)
     report = commands.add_parser("report", help="Print a read-only operational evidence report")
-    report.add_argument("--base-url")
-    report.add_argument("--feature-health-url")
-    report.add_argument("--ai-health-url")
+    report.add_argument("--base-url", help="Feature 1 API root (default: from PROPERTYSCOPE_PORT)")
+    report.add_argument("--feature-health-url", help="Feature 1 readiness URL override")
+    report.add_argument("--ai-health-url", help="AI-mode health URL override")
 
 
 def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

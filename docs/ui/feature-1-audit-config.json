@@ -19,9 +19,9 @@
   "fixtureMode": {
     "command": "uv run scripts/dev.py ui serve",
     "smokeCommand": "uv run scripts/dev.py ui smoke",
-    "origin": "http://127.0.0.1:5300/",
-    "feature1Edge": "http://127.0.0.1:5300/features/data-platform/",
-    "health": "http://127.0.0.1:5300/healthz",
+    "origin": "http://127.0.0.1:5990/",
+    "feature1Edge": "http://127.0.0.1:5990/features/data-platform/",
+    "health": "http://127.0.0.1:5990/healthz",
     "selection": {
       "queryParameter": "scenario",
       "header": "X-PropertyScope-UI-Scenario",
