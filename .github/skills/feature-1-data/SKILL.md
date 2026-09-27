@@ -92,10 +92,12 @@ never publishes on its own, but an agent may review and publish when it acts on 
 A task such as "load real G-NAF into my local stack" includes publishing what you collected
 there. Act as a careful reviewer:
 
-- **Check the evidence first.** Look at the record count against the expected scale (table
-  above), the quality results and warnings (`GET /dataset-releases/{id}`,
-  `GET /ingestion-runs/{run_id}/quality-results`), and the manifest's source and coverage. Reject
-  or stop and report a candidate that is truncated, fails quality checks, or is unexpectedly small.
+- **Check the evidence first.** Find the candidate with
+  `GET /dataset-releases?ingestion_run_id={run_id}`. `GET /dataset-releases/{id}` returns
+  `release.record_count`, `release.coverage_json`, `quality_summary`
+  (`passed`/`failed`/`blocking_failures`) and every `quality_results` entry. Compare the count with
+  the expected scale (table above). Reject, or stop and report, a candidate that is truncated,
+  fails quality checks, or is unexpectedly small.
 - **Say who decided.** Write a `comment` that records what you checked and that you acted for
   the user, for example `"Reviewed by agent for <user>: 5,190,134 records, all checks passed"`.
 - **Local stacks are yours to operate** when the task calls for data. For a shared or hosted
