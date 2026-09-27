@@ -9,15 +9,17 @@ from scripts import build_release1_report as report
 from scripts import report_pdf
 
 
-def test_draft_builds_to_tmp_and_final_is_blocked_while_work_remains(
+def test_drafts_write_the_tracked_submission_file_and_final_is_blocked_while_work_remains(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     calls: list[tuple[object, ...]] = []
     monkeypatch.setattr(report_pdf, "build", lambda *args: calls.append(args))
 
     assert report.main([]) == 0
-    assert calls == [(report.SOURCE, report.DRAFT_OUTPUT, "main", report.SPEC)]
-    assert report_pdf.ROOT / "tmp" in report.DRAFT_OUTPUT.parents
+    assert calls == [(report.SOURCE, report.OUTPUT, "main", report.SPEC)]
+    assert report.OUTPUT.relative_to(report_pdf.REPORT_DIR).as_posix() == (
+        "submissions/release-1/group-20.pdf"
+    )
 
     assert report.main(["--final", "--baseline", "0" * 40]) == 1
     assert len(calls) == 1
@@ -33,8 +35,8 @@ def test_final_output_uses_the_required_submission_name(
     monkeypatch.setattr(report_pdf, "build", lambda *args: calls.append(args))
 
     assert report.main(["--source", str(source), "--final", "--baseline", "a" * 40]) == 0
-    assert calls[0][1] == report.FINAL_OUTPUT
-    assert report.FINAL_OUTPUT.name == "group-20.pdf"
+    assert calls[0][1] == report.OUTPUT
+    assert report.OUTPUT.name == "group-20.pdf"
 
 
 def test_status_reports_the_word_limit_and_owners(capsys: pytest.CaptureFixture[str]) -> None:

@@ -8,10 +8,12 @@ byte-identical output for the same inputs and locked environment.
 | Release | Source | Builder | Submitted PDF |
 |---|---|---|---|
 | 0 | [`release-0-technical-report.md`](release-0-technical-report.md) | `scripts/build_release0_report.py` | [`submissions/release-0/41026Group20Release0Report.pdf`](submissions/release-0/41026Group20Release0Report.pdf) (frozen) |
-| 1 | [`release-1-technical-report.md`](release-1-technical-report.md) | `scripts/build_release1_report.py` | `submissions/release-1/group-20.pdf`, written by `--final` |
+| 1 | [`release-1-technical-report.md`](release-1-technical-report.md) | `scripts/build_release1_report.py` | [`submissions/release-1/group-20.pdf`](submissions/release-1/group-20.pdf) (draft until submission) |
 
-`submissions/` holds exactly what was uploaded to Canvas. Those files are never regenerated: a test
-pins the Release 0 PDF's SHA-256, and ordinary rebuilds write to `tmp/reports/` instead.
+`submissions/` holds what goes to Canvas. The Release 0 PDF is exactly what was uploaded and is
+never regenerated: a test pins its SHA-256, and Release 0 rebuilds write to `tmp/reports/` instead.
+The Release 1 PDF is rebuilt and committed as the report fills in, so it always shows the current
+draft; it becomes the submitted file after the `--final` build.
 
 ## Layout
 
@@ -28,7 +30,7 @@ shows each chapter against its budget in `SECTION_WORD_BUDGETS`:
 
 ```text
 uv run python scripts/build_release1_report.py --status   # word budget, TODOs, pending screenshots
-uv run python scripts/build_release1_report.py            # draft PDF in tmp/reports/release-1/
+uv run python scripts/build_release1_report.py            # rebuild submissions/release-1/group-20.pdf
 ```
 
 Counted: chapter headings, prose, lists and tables from chapter 1 up to the first `## Appendix`.
@@ -56,10 +58,10 @@ To fill in your part:
 3. Capture screenshots with the live stack running
    (`uv run python scripts/capture_release1_screenshots.py --only feature-N`). The script lists
    every expected screenshot, its question and its owner.
-4. Build the draft and look at every page you changed.
+4. Rebuild the PDF, look at every page you changed, and commit it with your Markdown changes.
 
-To submit, build with the submission commit. `--final` refuses to run while any TODO, pending image,
-unpinned baseline or word-limit overrun remains:
+To submit, rebuild with the submission commit. `--final` writes the same file, but refuses to run
+while any TODO, pending image, unpinned baseline or word-limit overrun remains:
 
 ```text
 uv run python scripts/build_release1_report.py --final --baseline <40-character commit SHA>
@@ -85,7 +87,7 @@ final-build guard. They do not replace looking at the PDF. Render the pages and 
 tables, tiny diagram labels, orphaned headings and caption placement:
 
 ```text
-pdftoppm -scale-to 1400 -png tmp/reports/release-1/group-20-draft.pdf tmp/pdfs/report
+pdftoppm -scale-to 1400 -png docs/reports/submissions/release-1/group-20.pdf tmp/pdfs/report
 ```
 
 ## Release 0 notes

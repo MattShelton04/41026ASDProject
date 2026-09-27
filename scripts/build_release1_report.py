@@ -1,11 +1,12 @@
 """Build the Release 1 technical report (Assessment 2) from its maintained Markdown source.
 
-Draft builds are the default: they render TODO callouts and pending-image placeholders, write to
-``tmp/reports/release-1/`` and print the word budget. ``--final`` refuses to build while anything
-is outstanding, then writes the Canvas file ``docs/reports/submissions/release-1/group-20.pdf``.
+Every build writes the Canvas file ``docs/reports/submissions/release-1/group-20.pdf``, which is
+committed so the team can track the report as it fills in. Until submission it is a draft: TODO
+callouts and pending-image placeholders are rendered and the word budget is printed. ``--final``
+builds the same file but refuses to while anything is outstanding.
 
     uv run python scripts/build_release1_report.py --status      # budget and outstanding items only
-    uv run python scripts/build_release1_report.py               # draft PDF
+    uv run python scripts/build_release1_report.py               # draft of group-20.pdf
     uv run python scripts/build_release1_report.py --render-diagrams
     uv run python scripts/build_release1_report.py --final --baseline <40-character commit SHA>
 
@@ -44,9 +45,9 @@ from scripts import report_pdf
 from scripts.report_pdf import REPORT_DIR, ROOT, ReportSpec
 
 SOURCE = REPORT_DIR / "release-1-technical-report.md"
-DRAFT_OUTPUT = ROOT / "tmp" / "reports" / "release-1" / "group-20-draft.pdf"
-# The brief requires exactly this file name for the single group upload.
-FINAL_OUTPUT = REPORT_DIR / "submissions" / "release-1" / "group-20.pdf"
+# The brief requires exactly this file name for the single group upload. Drafts are written here
+# too, so the committed PDF always shows the report's current state.
+OUTPUT = REPORT_DIR / "submissions" / "release-1" / "group-20.pdf"
 # TODO(before submission): pass the submission commit with --baseline; drafts link to main.
 DRAFT_BASELINE = "main"
 WORD_LIMIT = 3000
@@ -282,11 +283,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--source", type=Path, default=SOURCE)
-    parser.add_argument("--output", type=Path, help="defaults to the draft or submission path")
+    parser.add_argument("--output", type=Path, default=OUTPUT)
     parser.add_argument("--baseline", default=DRAFT_BASELINE, help="commit that links pin to")
     parser.add_argument("--status", action="store_true", help="print the budget and TODOs only")
     parser.add_argument(
-        "--final", action="store_true", help="fail on any outstanding item, then build group-20.pdf"
+        "--final", action="store_true", help="refuse to build while any item is outstanding"
     )
     parser.add_argument(
         "--render-diagrams",
@@ -306,7 +307,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             return 1
     if args.render_diagrams:
         report_pdf.render_diagrams(SPEC)
-    output = (args.output or (FINAL_OUTPUT if args.final else DRAFT_OUTPUT)).resolve()
+    output = args.output.resolve()
     report_pdf.build(source, output, args.baseline, SPEC)
     print(output)
     return 0
