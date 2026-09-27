@@ -351,7 +351,10 @@ $env:PROPERTYSCOPE_GNAF_CRS = "GDA94" # or GDA2020
 uv run scripts/dev.py stack up
 ```
 
-The cache directory is Git-ignored and mounted read-only. Without a cache, the runner discovers
+The cache directory is Git-ignored and mounted read-only. Another checkout can reuse it
+by setting `PROPERTYSCOPE_SOURCE_CACHE_DIR` (for example
+`../41026ASDProject/.propertyscope-source-cache`) in its `.env`; `stack doctor` shows the
+cache in use. Without a cache, the runner discovers
 and downloads the latest registered archive from the official CKAN package. The runner streams
 every NSW address into an isolated candidate generation without an operator row ceiling.
 Deterministic demonstrations use the finite fixture source instead of reducing G-NAF.

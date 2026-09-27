@@ -36,9 +36,18 @@ per invocation, and `stack rebuild`/`stack restart` retain their development beh
 switch modes before queueing work so worker recreation does not interrupt an active job.
 Use `uv run python scripts/check.py` for source quality; `dev.py` does not proxy that command.
 
+Every `dev.py` command loads the optional root `.env` (or `--env-file` where offered)
+without overriding shell variables. The Compose project is `COMPOSE_PROJECT_NAME` (default
+`ps-dev`); `reset`, port preflight and legacy AI-state migration act only on that project's
+labels. Host ports follow the `*_PORT` variables that `stack doctor` lists, and
+`data collect`/`operator report` derive the Feature 1 URL from `PROPERTYSCOPE_PORT`. The
+runner's read-only source cache is `PROPERTYSCOPE_SOURCE_CACHE_DIR` (default
+`./.propertyscope-source-cache`), so worktrees can share one verified G-NAF/PSI download.
+`stack logs --no-follow` prints recent lines and exits, for scripts and coding agents.
+
 | Workflow | Actions | Responsibility |
 |---|---|---|
-| `dev.py stack` | `up`, `build`, `rebuild`, `restart`, `down`, `reset`, `status`, `config`, `doctor`, `logs` | Compose lifecycle, reload, images, diagnostics, and labelled volumes |
+| `dev.py stack` | `up`, `build`, `rebuild`, `restart`, `down`, `reset`, `status`, `config`, `doctor`, `logs [--no-follow] [--tail N]` | Compose lifecycle, reload, images, diagnostics, and labelled volumes |
 | `dev.py ui` | `serve`, `smoke`, `readme-screenshots`, `audit {quick,full}` | Deterministic same-origin fixtures, README captures, and browser validation |
 | `dev.py data` | `collect`, `sync-psi` | Registered Feature 1 acquisition and source-cache preparation |
 | `dev.py operator` | `report` | Read-only release, publication, activation, and dependency evidence |

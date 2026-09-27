@@ -170,13 +170,18 @@ Common lifecycle commands:
 | Show service state | `uv run scripts/dev.py stack status` |
 | Show selected AI service state | `uv run scripts/dev.py ai status` |
 | Read selected AI service logs | `uv run scripts/dev.py ai logs` |
-| Follow logs | `uv run scripts/dev.py stack logs` |
+| Follow logs (`--no-follow` prints and exits) | `uv run scripts/dev.py stack logs [--no-follow] [service ...]` |
 | Read release/publication readiness | `uv run scripts/dev.py operator report` |
 | Stop while preserving data | `uv run scripts/dev.py stack down` |
 | Restart selected containers | `uv run scripts/dev.py stack restart [service ...]` |
 | Rebuild selected services | `uv run scripts/dev.py stack rebuild [service ...]` |
 | Run long data jobs without development reload polling | `uv run scripts/dev.py stack up --offline --no-reload --build` |
 | Delete this stack's labelled volumes | `uv run scripts/dev.py stack reset` |
+
+`scripts/dev.py` reads the optional root `.env` for every command (shell values win). To
+run a second, disposable stack from another worktree, set `COMPOSE_PROJECT_NAME` there and,
+to reuse downloaded official archives, `PROPERTYSCOPE_SOURCE_CACHE_DIR`; see "Isolated
+environments" in [AGENTS.md](AGENTS.md).
 
 ## UI-only workflow
 
