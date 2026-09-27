@@ -8,6 +8,7 @@ from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
 
+from scripts.ui_fixture_server import DEFAULT_PORT
 from scripts.ui_smoke import fixture_runtime
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -113,7 +114,7 @@ def capture_readme_screenshots(*, port: int, output: Path) -> None:
 def main() -> int:
     """Run the README screenshot capture command."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", type=int, default=5300)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     arguments = parser.parse_args()
     capture_readme_screenshots(port=arguments.port, output=arguments.output)

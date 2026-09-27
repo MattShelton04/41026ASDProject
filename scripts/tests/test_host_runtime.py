@@ -122,6 +122,34 @@ def test_legacy_migration_preserves_data_and_never_overwrites(
     assert calls == []
 
 
+def test_legacy_migration_only_reads_the_selected_projects_volume(
+    isolated: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def docker(*arguments: str) -> str:
+        calls.append(arguments)
+        return ""
+
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "ps-isolated")
+    monkeypatch.setattr(runtime, "_docker", docker)
+    runtime.migrate_legacy_state()
+
+    assert calls == [
+        (
+            "volume",
+            "ls",
+            "--filter",
+            "label=com.docker.compose.project=ps-isolated",
+            "--filter",
+            "label=com.docker.compose.volume=shared-ai-mode-state",
+            "--format",
+            "{{.Name}}",
+        )
+    ]
+
+
 def test_legacy_migration_refuses_unrelated_volume_owner(
     isolated: Path,
     monkeypatch: pytest.MonkeyPatch,

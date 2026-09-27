@@ -283,7 +283,7 @@ The Docker stack and the frontend-only fixture server are separate environments:
 | --- | --- |
 | <http://localhost:5100/features/data-platform/> | Feature 1 through the integrated PropertyScope shell; use this to verify shared navigation and the real stack together. |
 | <http://localhost:5200> | The same live Feature 1 backend and PostgreSQL data through its direct frontend; use this for focused Feature 1 development. |
-| <http://127.0.0.1:5300> | Deterministic `ui serve` fixtures only; no Docker runner, loader, official source, or durable PostgreSQL workflow. |
+| <http://127.0.0.1:5990> | Deterministic `ui serve` fixtures only; no Docker runner, loader, official source, or durable PostgreSQL workflow. |
 | `ps-dev-f1-runner-1` | The serial acquisition worker. It claims durable run tasks, downloads and parses only registered official sources, writes verified content-addressed artifacts, and heartbeats/cancels work through private HTTP APIs. It serves no browser port and has no PostgreSQL credentials. |
 | `ps-dev-f1-db-loader-1` | The separate serial database loader. It verifies runner artifacts and performs registered PostgreSQL COPY/import operations; keeping credentials here prevents the runner and backend from opening the database. |
 
@@ -351,7 +351,10 @@ $env:PROPERTYSCOPE_GNAF_CRS = "GDA94" # or GDA2020
 uv run scripts/dev.py stack up
 ```
 
-The cache directory is Git-ignored and mounted read-only. Without a cache, the runner discovers
+The cache directory is Git-ignored and mounted read-only. Another checkout can reuse it
+by setting `PROPERTYSCOPE_SOURCE_CACHE_DIR` (for example
+`../41026ASDProject/.propertyscope-source-cache`) in its `.env`; `stack doctor` shows the
+cache in use. Without a cache, the runner discovers
 and downloads the latest registered archive from the official CKAN package. The runner streams
 every NSW address into an isolated candidate generation without an operator row ceiling.
 Deterministic demonstrations use the finite fixture source instead of reducing G-NAF.

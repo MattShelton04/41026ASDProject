@@ -33,10 +33,10 @@ from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
     COMPOSE_FILES,
-    DEFAULT_PROJECT_NAME,
     DEFAULT_UI_FIXTURE_PORT,
     DISABLED_FEATURE_SERVICES,
     ENABLED_FEATURE_KEYS,
+    FEATURE_FRONTEND_OWNERS,
     HOST_PORTS,
     JOB_PROFILE_DIRECTORY,
     OFFLINE_OPENAI_CREDENTIAL,
@@ -49,21 +49,16 @@ from scripts.devtools.config import (
     RUNTIME_DIRECTORY,
     SUPPORTED_LLM_PROVIDERS,
     TERMINAL_COLLECTION_STATES,
+    compose_project_name,
 )
 from scripts.devtools.operator_report import collect_operator_report, render_operator_report
 from scripts.devtools.runtime_settings import AI_PLACEMENTS
 
 FEATURE_1_KEY = "student-1-propertyscope-data-platform"
 DEFAULT_ENV_FILE = REPOSITORY_ROOT / ".env"
-ENVIRONMENT_FILE_COMMANDS = frozenset(
-    {
-        ("stack", "up"),
-        ("stack", "rebuild"),
-        ("stack", "restart"),
-        ("stack", "doctor"),
-        ("ai", "start"),
-        ("ai", "validate"),
-    }
+STACK_UNREACHABLE_HINT = (
+    "Is the stack running? Start it with `uv run scripts/dev.py stack up` (add --offline without "
+    "a model key), or check `stack status`. Custom ports are read from .env or the shell."
 )
 
 
@@ -74,9 +69,7 @@ def _compose_command(
     if not reload:
         # The development overlay also supplies name: ps-dev. Omitting it must
         # retain the same containers/volumes rather than start the base "ps" project.
-        command.extend(
-            ("--project-name", os.environ.get("COMPOSE_PROJECT_NAME") or DEFAULT_PROJECT_NAME)
-        )
+        command.extend(("--project-name", compose_project_name()))
     for filename in COMPOSE_FILES if reload else PRODUCTION_COMPOSE_FILES:
         command.extend(("--file", filename))
     if (placement or ai_runtime.selection()) == "docker":
@@ -219,7 +212,7 @@ def _published_port_owners(port: int) -> tuple[tuple[str, str], ...]:
 
 def _preflight_compose_host_ports(*, services: Sequence[str]) -> None:
     """Reject conflicting host ports before secrets, builds, or container mutation."""
-    project = DEFAULT_PROJECT_NAME
+    project = compose_project_name()
     conflicts: list[str] = []
     for service, (variable, port) in _resolved_host_ports(services).items():
         if _host_port_is_available(port):
@@ -327,8 +320,29 @@ def _remove_openai_secret() -> None:
         RUNTIME_DIRECTORY.rmdir()
 
 
+def _source_cache_root() -> Path:
+    """Return the host source cache mounted read-only into the Feature 1 runner.
+
+    PROPERTYSCOPE_SOURCE_CACHE_DIR lets several checkouts share one verified cache instead of
+    downloading G-NAF and PSI again. Relative values resolve from the repository root, exactly as
+    Compose resolves the same variable in docker-compose.yml.
+    """
+    configured = os.environ.get("PROPERTYSCOPE_SOURCE_CACHE_DIR", "").strip()
+    if not configured:
+        return REPOSITORY_ROOT / ".propertyscope-source-cache"
+    return (REPOSITORY_ROOT / Path(configured).expanduser()).resolve()
+
+
+def _feature_1_api_url() -> str:
+    """Resolve the direct Feature 1 API root from the same port setting Compose uses."""
+    ports = _resolved_host_ports(APPLICATION_SERVICES)
+    if "f1-frontend" not in ports:
+        raise RuntimeError("Feature 1 is not enabled in the deployment projection")
+    return f"http://127.0.0.1:{ports['f1-frontend'][1]}/api/data-platform/v1"
+
+
 def _psi_cache_years() -> tuple[int, ...]:
-    root = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi"
+    root = _source_cache_root() / "psi"
     if not root.is_dir():
         return ()
     return tuple(
@@ -337,7 +351,7 @@ def _psi_cache_years() -> tuple[int, ...]:
 
 
 def _psi_cache_weeks() -> tuple[str, ...]:
-    weekly = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi" / "weekly"
+    weekly = _source_cache_root() / "psi" / "weekly"
     return tuple(
         sorted(
             f"{match.group(1)[:4]}-{match.group(1)[4:6]}-{match.group(1)[6:]}"
@@ -398,7 +412,7 @@ def _download_psi_archive(client: httpx.Client, url: str) -> bytes:
 
 
 def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
-    root = REPOSITORY_ROOT / ".propertyscope-source-cache" / "psi"
+    root = _source_cache_root() / "psi"
     targets = [
         (PSI_YEARLY_URL.format(partition=year), root / f"{year}.zip") for year in sorted(set(years))
     ]
@@ -419,7 +433,7 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
                         valid_cache = bool(archive.namelist()) and archive.testzip() is None
                     if valid_cache:
                         print(
-                            f"PSI cache retained: {destination.relative_to(REPOSITORY_ROOT)}",
+                            f"PSI cache retained: {destination}",
                             flush=True,
                         )
                         continue
@@ -441,7 +455,7 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
                 temporary_path = Path(temporary.name)
             os.replace(temporary_path, destination)
             print(
-                f"PSI cached: {destination.relative_to(REPOSITORY_ROOT)} "
+                f"PSI cached: {destination} "
                 f"({len(content):,} bytes, sha256 {hashlib.sha256(content).hexdigest()})",
                 flush=True,
             )
@@ -556,12 +570,15 @@ def _up(
     )
     ports = _resolved_host_ports(APPLICATION_SERVICES)
     shared_port = ports["shared-frontend"][1]
-    print(f"\nAI-mode health:     http://localhost:{shared_port}/api/shared-health/ai-mode")
-    print(f"PropertyScope home: http://localhost:{ports['shared-frontend'][1]}")
-    if "f1-frontend" in ports:
-        print(f"PropertyScope:      http://localhost:{ports['f1-frontend'][1]}")
+    print(f"\nCompose project:    {compose_project_name()}")
+    print(f"AI-mode health:     http://localhost:{shared_port}/api/shared-health/ai-mode")
+    print(f"PropertyScope home: http://localhost:{shared_port}")
+    for service, owner in FEATURE_FRONTEND_OWNERS.items():
+        if service in ports:
+            print(f"{owner + ':':<20}http://localhost:{ports[service][1]}  ({service})")
     if feature_1_enabled:
-        print("Official sources:   enabled (small and complete job scopes available)")
+        print(f"Source cache:       {_source_cache_root()}")
+        print("Official sources:   enabled; nothing is downloaded until a data job starts")
     else:
         print("Official sources:   disabled (Feature 1 is not enabled)")
     if offline:
@@ -646,7 +663,7 @@ def _down(*, remove_volumes: bool = False) -> None:
 def _reset() -> None:
     """Delete only volumes labelled for the selected Compose project."""
     _down(remove_volumes=True)
-    project_name = DEFAULT_PROJECT_NAME
+    project_name = compose_project_name()
     _run(
         (
             "docker",
@@ -674,11 +691,38 @@ def _doctor() -> None:
         f"{provider.title()} credential: {credential_state} (--offline remains available)",
         flush=True,
     )
+    print(f"Compose project: {compose_project_name()}", flush=True)
+    print(f"AI runtime: {ai_runtime.selection()} ({ai_runtime.capability_mode()})", flush=True)
     if FEATURE_1_KEY in ENABLED_FEATURE_KEYS:
+        cache = _source_cache_root()
+        gnaf = "present" if (cache / "gnaf.zip").is_file() else "absent"
+        print(f"Source cache: {cache} (G-NAF archive {gnaf})", flush=True)
         print(f"Cached PSI annual archives: {len(_psi_cache_years())}", flush=True)
         print(f"Cached PSI weekly archives: {len(_psi_cache_weeks())}", flush=True)
     else:
         print("Official sources: disabled (Feature 1 is not enabled)", flush=True)
+    print("Host ports:", flush=True)
+    for line in _host_port_report(tuple(HOST_PORTS)):
+        print(f"  {line}", flush=True)
+
+
+def _host_port_report(services: Sequence[str]) -> tuple[str, ...]:
+    """Describe each configured loopback port as free, owned by this project, or occupied."""
+    project = compose_project_name()
+    lines: list[str] = []
+    for service, (variable, port) in _resolved_host_ports(services).items():
+        if _host_port_is_available(port):
+            state = "free"
+        else:
+            owners = _published_port_owners(port)
+            if owners and all(owner_project == project for owner_project, _ in owners):
+                state = "in use by this project"
+            elif owners:
+                state = "in use by " + ", ".join(f"{p}/{s}" for p, s in owners)
+            else:
+                state = "in use by a non-Compose process (host AI runtime or another program)"
+        lines.append(f"{service:<18} 127.0.0.1:{port:<6} {variable:<36} {state}")
+    return tuple(lines)
 
 
 def _json_response(response: httpx.Response) -> dict[str, Any]:
@@ -838,8 +882,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     try:
         command = (arguments.group, arguments.action)
-        if command in ENVIRONMENT_FILE_COMMANDS:
-            _load_development_environment(arguments.env_file)
+        # Every command sees the same optional .env (the shell still wins), so a project name or
+        # port chosen there applies to reset, logs and data commands exactly as it does to up.
+        _load_development_environment(arguments.env_file)
         if arguments.group in {"stack", "ai"} and command != ("stack", "up"):
             ai_runtime.require_same_placement()
         if command == ("stack", "up"):
@@ -912,12 +957,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 *APPLICATION_SERVICES,
                 *_selected_ai_services(),
             )
+            if arguments.tail < 0:
+                raise RuntimeError("--tail must be zero or a positive number of lines")
             _run(
                 _compose_command(
                     "logs",
-                    "--follow",
+                    *(("--follow",) if arguments.follow else ()),
                     "--tail",
-                    "200",
+                    str(arguments.tail),
                     *selected,
                 )
             )
@@ -926,21 +973,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 job_profile=arguments.job,
                 wait=arguments.wait,
                 timeout_seconds=arguments.timeout,
-                base_url=arguments.base_url,
+                base_url=arguments.base_url or _feature_1_api_url(),
             )
         elif command == ("operator", "report"):
+            data_base_url = _feature_1_api_url()
             ports = _resolved_host_ports(APPLICATION_SERVICES)
-            if "f1-frontend" not in ports:
-                raise RuntimeError("Feature 1 is not enabled in the deployment projection")
             feature_port = ports["f1-frontend"][1]
             shared_port = ports["shared-frontend"][1]
             with httpx.Client(follow_redirects=False) as client:
                 report = collect_operator_report(
                     client,
-                    data_base_url=(
-                        arguments.base_url
-                        or f"http://127.0.0.1:{feature_port}/api/data-platform/v1"
-                    ),
+                    data_base_url=arguments.base_url or data_base_url,
                     feature_health_url=(
                         arguments.feature_health_url
                         or f"http://127.0.0.1:{feature_port}/health/ready"
@@ -1116,6 +1159,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return exc.returncode
     except httpx.HTTPError as exc:
         print(f"Development HTTP request failed: {exc}", file=sys.stderr)
+        if isinstance(exc, httpx.TransportError):
+            print(STACK_UNREACHABLE_HINT, file=sys.stderr)
         return 1
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)

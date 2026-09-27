@@ -31,7 +31,7 @@ from scripts.ui_fixtures import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SHARED_FRONTEND = REPOSITORY_ROOT / "shared" / "frontend"
 LOOPBACK_HOST = "127.0.0.1"
-DEFAULT_PORT = 5300
+DEFAULT_PORT = 5990
 SCENARIO_COOKIE = "propertyscope_ui_scenario"
 SESSION_COOKIE = "propertyscope_ui_session"
 MAX_SOURCE_SESSIONS = 64

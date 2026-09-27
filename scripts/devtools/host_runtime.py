@@ -20,7 +20,7 @@ import httpx
 import psutil
 import yaml
 
-from scripts.devtools.config import DEFAULT_PROJECT_NAME, REPOSITORY_ROOT, RUNTIME_DIRECTORY
+from scripts.devtools.config import REPOSITORY_ROOT, RUNTIME_DIRECTORY, compose_project_name
 from scripts.devtools.runtime_settings import AI_SERVICE_PORTS, validate_capability_mode
 from scripts.devtools.service_auth import protect_entry as protect_host_entry
 from scripts.devtools.service_auth import validate_service_token
@@ -133,11 +133,12 @@ def migrate_legacy_state() -> None:
     destination = HOST_DIRECTORY / "ai-mode" / "agent-state.sqlite3"
     if destination.exists():
         return
+    project = compose_project_name()
     volumes = _docker(
         "volume",
         "ls",
         "--filter",
-        f"label=com.docker.compose.project={DEFAULT_PROJECT_NAME}",
+        f"label=com.docker.compose.project={project}",
         "--filter",
         "label=com.docker.compose.volume=shared-ai-mode-state",
         "--format",
@@ -157,7 +158,7 @@ def migrate_legacy_state() -> None:
     ).splitlines()
     for container in containers:
         labels = json.loads(_docker("inspect", "--format", "{{json .Config.Labels}}", container))
-        if labels.get("com.docker.compose.project") != DEFAULT_PROJECT_NAME:
+        if labels.get("com.docker.compose.project") != project:
             raise RuntimeError("Legacy AI volume is used by another project; refusing migration")
         _docker("stop", "--time", "35", container)
     name = f"propertyscope-state-export-{secrets.token_hex(6)}"

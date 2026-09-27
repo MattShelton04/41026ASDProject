@@ -194,7 +194,8 @@ services:
         condition: service_healthy
     volumes:
       - f1-artifacts:/var/lib/propertyscope/artifacts:rw
-      - ./.propertyscope-source-cache:/var/lib/propertyscope/source-cache:ro
+      # Optional shared host cache so several checkouts reuse one verified G-NAF/PSI download.
+      - ${PROPERTYSCOPE_SOURCE_CACHE_DIR:-./.propertyscope-source-cache}:/var/lib/propertyscope/source-cache:ro
     networks: [shared-platform]
     stop_grace_period: 35s
     mem_limit: ${PROPERTYSCOPE_RUNNER_MEMORY_LIMIT:-4g}

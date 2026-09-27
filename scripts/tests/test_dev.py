@@ -13,6 +13,7 @@ from zipfile import ZipFile
 import httpx
 import pytest
 from scripts import dev
+from scripts.devtools.config import DEFAULT_PROJECT_NAME
 
 
 @pytest.mark.parametrize("cached_kind", ["valid", "empty", "bad_crc", "not_zip"])
@@ -57,6 +58,7 @@ def isolate_local_development_state(
     monkeypatch.setattr(dev, "_validate_deployment_inputs", lambda: None)
     monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", tmp_path / ".env")
     monkeypatch.setenv("PROPERTYSCOPE_AI_RUNTIME", "host")
+    monkeypatch.delenv("COMPOSE_PROJECT_NAME", raising=False)
     monkeypatch.setattr(dev.ai_runtime, "STATE_PATH", tmp_path / "ai-runtime.json")
     monkeypatch.setattr(dev.ai_runtime, "RUNTIME_DIRECTORY", tmp_path)
     monkeypatch.setattr(dev.ai_runtime, "remember", lambda *_args: None)
@@ -281,7 +283,7 @@ def test_long_data_run_uses_images_without_development_reload_overlay(
     assert dev.main(["stack", "up", "--no-reload", "--build"]) == 0
     command = captured_commands[1]
     assert "docker-compose.dev.yml" not in command
-    assert command[command.index("--project-name") + 1] == dev.DEFAULT_PROJECT_NAME
+    assert command[command.index("--project-name") + 1] == DEFAULT_PROJECT_NAME
     assert all(filename in command for filename in dev.PRODUCTION_COMPOSE_FILES)
     assert "--build" in command
     assert command[-len(dev.APPLICATION_SERVICES) :] == dev.APPLICATION_SERVICES
@@ -371,7 +373,7 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     monkeypatch.setattr(
         dev,
         "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "f1-frontend"),),
+        lambda _port: ((DEFAULT_PROJECT_NAME, "f1-frontend"),),
     )
 
     dev._preflight_compose_host_ports(
@@ -381,7 +383,7 @@ def test_port_preflight_allows_only_the_exact_selected_compose_service(
     monkeypatch.setattr(
         dev,
         "_published_port_owners",
-        lambda _port: ((dev.DEFAULT_PROJECT_NAME, "shared-frontend"),),
+        lambda _port: ((DEFAULT_PROJECT_NAME, "shared-frontend"),),
     )
     with pytest.raises(RuntimeError, match="service 'shared-frontend'"):
         dev._preflight_compose_host_ports(
@@ -566,7 +568,7 @@ def test_default_stack_connects_official_sources_without_a_second_project(
 
 
 def test_compose_project_uses_a_short_scannable_name() -> None:
-    assert dev.DEFAULT_PROJECT_NAME == "ps-dev"
+    assert DEFAULT_PROJECT_NAME == "ps-dev"
 
 
 def test_default_stack_exposes_psi_and_advertises_cached_years(
@@ -663,8 +665,38 @@ def test_reset_removes_only_selected_project_volumes(
         "--all",
         "--force",
         "--filter",
-        f"label=com.docker.compose.project={dev.DEFAULT_PROJECT_NAME}",
+        f"label=com.docker.compose.project={DEFAULT_PROJECT_NAME}",
     )
+
+
+def test_reset_of_an_isolated_project_never_prunes_the_default_project(
+    captured_commands: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "ps-isolated")
+
+    assert dev.main(["stack", "reset"]) == 0
+
+    prune = captured_commands[-1]
+    assert prune[-1] == "label=com.docker.compose.project=ps-isolated"
+    assert not any(DEFAULT_PROJECT_NAME in part for part in prune)
+
+
+def test_port_preflight_recognises_the_selected_isolated_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "ps-isolated")
+    monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: False)
+    monkeypatch.setattr(
+        dev, "_published_port_owners", lambda _port: (("ps-isolated", "f1-frontend"),)
+    )
+    dev._preflight_compose_host_ports(services=("f1-frontend",))
+
+    monkeypatch.setattr(
+        dev, "_published_port_owners", lambda _port: ((DEFAULT_PROJECT_NAME, "f1-frontend"),)
+    )
+    with pytest.raises(RuntimeError, match="Compose project 'ps-dev'"):
+        dev._preflight_compose_host_ports(services=("f1-frontend",))
 
 
 def test_psi_host_sync_handles_publisher_range_only_response() -> None:
@@ -818,3 +850,115 @@ def test_operator_health_uses_authenticated_edge_without_exposing_host_token(
     assert observed["ai_health_url"] == (
         override or "http://127.0.0.1:6100/api/shared-health/ai-mode"
     )
+
+
+def test_every_command_reads_the_root_env_so_reset_matches_compose(
+    captured_commands: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    default_env = tmp_path / "isolated.env"
+    default_env.write_text("COMPOSE_PROJECT_NAME=ps-from-env\n", encoding="utf-8")
+    monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", default_env)
+    # Record the variable as absent so teardown removes the value the loader sets.
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "placeholder")
+    monkeypatch.delenv("COMPOSE_PROJECT_NAME")
+
+    assert dev.main(["stack", "reset"]) == 0
+
+    assert captured_commands[-1][-1] == "label=com.docker.compose.project=ps-from-env"
+
+
+def test_logs_follow_by_default_and_can_print_and_exit(
+    captured_commands: list[tuple[str, ...]],
+) -> None:
+    assert dev.main(["stack", "logs", "f1-runner"]) == 0
+    followed = captured_commands[-1]
+    assert "--follow" in followed
+    assert followed[followed.index("--tail") + 1] == "200"
+
+    assert dev.main(["stack", "logs", "--no-follow", "--tail", "25", "f1-runner"]) == 0
+    printed = captured_commands[-1]
+    assert "--follow" not in printed
+    assert printed[printed.index("--tail") + 1] == "25"
+    assert printed[-1] == "f1-runner"
+
+
+def test_collect_defaults_to_the_configured_feature_1_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(dev, "_collect", lambda **values: calls.append(values))
+    monkeypatch.setenv("PROPERTYSCOPE_PORT", "6200")
+
+    assert dev.main(["data", "collect", "fixture-property", "--no-wait"]) == 0
+    assert dev.main(["data", "collect", "fixture-property", "--base-url", "http://x/api"]) == 0
+
+    assert calls[0]["base_url"] == "http://127.0.0.1:6200/api/data-platform/v1"
+    assert calls[1]["base_url"] == "http://x/api"
+
+
+def test_unreachable_stack_explains_how_to_start_it(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def refuse(**_values: object) -> None:
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(dev, "_collect", refuse)
+
+    assert dev.main(["data", "collect", "fixture-property"]) == 1
+    assert "stack up" in capsys.readouterr().err
+
+
+def test_source_cache_can_be_shared_between_checkouts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(dev, "REPOSITORY_ROOT", tmp_path / "checkout")
+    assert dev._source_cache_root() == tmp_path / "checkout" / ".propertyscope-source-cache"
+
+    shared = tmp_path / "shared-cache"
+    (shared / "psi" / "weekly").mkdir(parents=True)
+    (shared / "psi" / "2024.zip").write_bytes(b"cached")
+    (shared / "psi" / "weekly" / "20260803.zip").write_bytes(b"cached")
+    monkeypatch.setenv("PROPERTYSCOPE_SOURCE_CACHE_DIR", str(shared))
+
+    assert dev._source_cache_root() == shared.resolve()
+    assert dev._psi_cache_years() == (2024,)
+    assert dev._psi_cache_weeks() == ("2026-08-03",)
+
+
+def test_psi_sync_writes_into_a_cache_outside_the_repository(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    payload = io.BytesIO()
+    with ZipFile(payload, "w") as archive:
+        archive.writestr("source.DAT", "valid source payload")
+    monkeypatch.setattr(dev, "REPOSITORY_ROOT", tmp_path / "checkout")
+    monkeypatch.setenv("PROPERTYSCOPE_SOURCE_CACHE_DIR", str(tmp_path / "shared-cache"))
+    monkeypatch.setattr(dev, "_download_psi_archive", lambda _client, _url: payload.getvalue())
+
+    dev._sync_psi(years=[2025], weeks=[])
+
+    assert (tmp_path / "shared-cache" / "psi" / "2025.zip").is_file()
+
+
+def test_doctor_reports_project_and_port_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(dev, "_run", lambda *_args, **_kwargs: None)
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "ps-isolated")
+    monkeypatch.setattr(dev, "_host_port_is_available", lambda port: port != 5200)
+    monkeypatch.setattr(dev, "_published_port_owners", lambda _port: (("ps-dev", "f1-frontend"),))
+
+    assert dev.main(["stack", "doctor"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Compose project: ps-isolated" in output
+    assert "in use by ps-dev/f1-frontend" in output
+    assert "free" in output
+
+
+def test_ui_fixture_default_port_is_outside_every_stack_port() -> None:
+    assert dev.DEFAULT_UI_FIXTURE_PORT not in {port for _variable, port in dev.HOST_PORTS.values()}

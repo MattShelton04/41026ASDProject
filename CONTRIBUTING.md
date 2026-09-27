@@ -87,9 +87,9 @@ only for documented, non-secret defaults.
 | Select Docker / host AI placement | `uv run scripts/dev.py stack up --ai-runtime docker` / `uv run scripts/dev.py stack up --ai-runtime host` |
 | Start local MCP + RAG + AI-mode | `uv run scripts/dev.py ai start --mode combined` |
 | Validate MCP / RAG through the agent loop | `uv run scripts/dev.py ai validate mcp` / `uv run scripts/dev.py ai validate rag` |
-| Check Docker and Compose prerequisites | `uv run scripts/dev.py stack doctor` |
+| Check Docker, Compose, project, source cache and port ownership | `uv run scripts/dev.py stack doctor` |
 | Run a code-driven fixture acquisition | `uv run scripts/dev.py data collect fixture-property` |
-| Follow local stack logs | `uv run scripts/dev.py stack logs` |
+| Follow local stack logs / print and exit | `uv run scripts/dev.py stack logs` / `uv run scripts/dev.py stack logs --no-follow --tail 100 f1-runner` |
 | Show generated runtime/service state | `uv run scripts/dev.py stack status` |
 | Inspect release/publication readiness | `uv run scripts/dev.py operator report` |
 | Restart changed workers or runtime configuration | `uv run scripts/dev.py stack restart [service ...]` |
@@ -224,7 +224,10 @@ domain entity, private corpus or cross-feature database connection to make a dem
 
 ## Coding-agent workflow
 
-Agents follow the root `AGENTS.md` plus any closer scoped instructions. Give an agent a concrete
+Agents follow the root `AGENTS.md` (Claude Code reads it through `CLAUDE.md`) plus any
+closer scoped instructions. Reusable task procedures live in `.github/skills/` and are
+indexed in `AGENTS.md`; add a new skill to both, which `scripts/tests/test_agent_skills.py`
+checks. Give an agent a concrete
 goal, owned paths, acceptance criteria, and required checks. Agents should inspect the current
 diff before acting, preserve unrelated work, and finish with an evidence-based handoff rather
 than assuming that a passing unit test proves integration behaviour.
