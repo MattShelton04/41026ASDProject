@@ -97,6 +97,8 @@ class ReportSpec:
     image_max_height: Callable[[Path], float] = default_image_max_height
     directives: Mapping[str, Directive] = field(default_factory=dict)
     word_limit: int | None = None
+    # Widen table columns so code identifiers (`like.this.v1`) are not split mid-word.
+    fit_code_columns: bool = False
     section_word_budgets: Mapping[str, int] = field(default_factory=dict)
 
 
@@ -452,8 +454,30 @@ def _inline(text: str, source: Path, baseline: str) -> str:
     return re.sub(r"\[([^\]]+)\]\(([^)]+)\)", replace_link, escaped)
 
 
+def _fit_code_columns(widths: list[float], rows: list[list[str]]) -> list[float]:
+    """Give each column room for its longest code token, taking space from the others."""
+    courier_char = 0.6 * 8.1  # Courier advance width at the table cell font size.
+    minimums = []
+    for col in range(len(widths)):
+        tokens = [token for row in rows for token in re.findall(r"`([^`]+)`", row[col])]
+        longest = max((len(token) for token in tokens), default=0)
+        minimums.append(min(longest * courier_char + 12, CONTENT_WIDTH * 0.4))
+    short = [col for col, width in enumerate(widths) if width < minimums[col]]
+    if not short:
+        return widths
+    fixed = sum(minimums[col] for col in short)
+    rest = [col for col in range(len(widths)) if col not in short]
+    scale = (CONTENT_WIDTH - fixed) / sum(widths[col] for col in rest) if rest else 0
+    return [minimums[col] if col in short else widths[col] * scale for col in range(len(widths))]
+
+
 def _table(
-    rows: list[list[str]], styles: dict[str, ParagraphStyle], source: Path, baseline: str
+    rows: list[list[str]],
+    styles: dict[str, ParagraphStyle],
+    source: Path,
+    baseline: str,
+    *,
+    fit_code: bool = False,
 ) -> Table:
     if not rows:
         return Table([])
@@ -469,6 +493,8 @@ def _table(
     total = sum(weights)
     available = CONTENT_WIDTH
     widths = [available * weight / total for weight in weights]
+    if fit_code:
+        widths = _fit_code_columns(widths, normalised)
     cell_style = ParagraphStyle(
         "TableCell", parent=styles["small"], fontSize=8.1, leading=10.5, spaceAfter=0
     )
@@ -543,16 +569,16 @@ def _image_flowable(
     return [KeepTogether([rendered, Paragraph(html.escape(caption), styles["caption"])])]
 
 
-def source_lines(source: Path, spec: ReportSpec) -> list[str]:
-    """Return renderable lines: guidance comments removed and release directives expanded."""
-    lines: list[str] = []
+def _numbered_lines(source: Path, spec: ReportSpec) -> list[tuple[int, str]]:
+    """Renderable lines with their source line numbers; expanded lines share the directive's."""
+    lines: list[tuple[int, str]] = []
     in_comment = in_code = False
-    for line in source.read_text(encoding="utf-8").splitlines():
+    for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), start=1):
         stripped = line.strip()
         if line.startswith("```"):
             in_code = not in_code
         if in_code or line.startswith("```"):
-            lines.append(line)
+            lines.append((number, line))
             continue
         if in_comment:
             in_comment = "-->" not in stripped
@@ -562,12 +588,16 @@ def source_lines(source: Path, spec: ReportSpec) -> list[str]:
             continue
         directive = DIRECTIVE_PATTERN.fullmatch(stripped)
         if directive and directive.group("name") in spec.directives:
-            lines.extend(
-                spec.directives[directive.group("name")](directive.group("argument") or "")
-            )
+            expanded = spec.directives[directive.group("name")](directive.group("argument") or "")
+            lines.extend((number, item) for item in expanded)
             continue
-        lines.append(line)
+        lines.append((number, line))
     return lines
+
+
+def source_lines(source: Path, spec: ReportSpec) -> list[str]:
+    """Return renderable lines: guidance comments removed and release directives expanded."""
+    return [line for _, line in _numbered_lines(source, spec)]
 
 
 def parse_markdown(source: Path, baseline: str, spec: ReportSpec) -> list[Flowable]:
@@ -607,7 +637,7 @@ def parse_markdown(source: Path, baseline: str, spec: ReportSpec) -> list[Flowab
                     index == 1 and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row)
                 )
             ]
-            story.append(_table(rows, styles, source, baseline))
+            story.append(_table(rows, styles, source, baseline, fit_code=spec.fit_code_columns))
             story.append(Spacer(1, 3 * mm))
             table_rows.clear()
 
@@ -759,25 +789,24 @@ def count_words(source: Path, spec: ReportSpec) -> WordCount:
     return WordCount(total=sum(words for _, words in sections), sections=tuple(sections))
 
 
-def find_todos(source: Path) -> tuple[Todo, ...]:
-    todos = []
-    for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), start=1):
-        match = TODO_PATTERN.fullmatch(line.strip())
-        if match:
-            todos.append(Todo(number, match.group("owner"), match.group("text")))
-    return tuple(todos)
-
-
 def review(source: Path, spec: ReportSpec) -> ReportStatus:
-    missing = []
-    for line in source_lines(source, spec):
-        match = IMAGE_PATTERN.fullmatch(line.strip())
-        if match and not (source.parent / match.group(2)).resolve().exists():
-            missing.append(match.group(2))
+    """Collect TODOs (including those emitted by directives), pending images and the word count."""
+    todos: list[Todo] = []
+    missing: list[str] = []
+    in_code = False
+    for number, line in _numbered_lines(source, spec):
+        if line.startswith("```"):
+            in_code = not in_code
+        if in_code:
+            continue
+        todo = TODO_PATTERN.fullmatch(line.strip())
+        if todo:
+            todos.append(Todo(number, todo.group("owner"), todo.group("text")))
+        image = IMAGE_PATTERN.fullmatch(line.strip())
+        if image and not (source.parent / image.group(2)).resolve().exists():
+            missing.append(image.group(2))
     return ReportStatus(
-        todos=find_todos(source),
-        missing_images=tuple(missing),
-        words=count_words(source, spec),
+        todos=tuple(todos), missing_images=tuple(missing), words=count_words(source, spec)
     )
 
 

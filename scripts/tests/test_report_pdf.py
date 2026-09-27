@@ -190,3 +190,10 @@ def test_release_directives_expand_before_rendering_and_counting(tmp_path: Path)
         if isinstance(item, Paragraph)
     ]
     assert "Hello team there." in paragraphs
+
+
+def test_code_columns_widen_to_fit_identifiers() -> None:
+    rows = [["Tool", "Notes"], ["`platform.capabilities.v1`", "x " * 200]]
+    widths = engine._fit_code_columns([60.0, engine.CONTENT_WIDTH - 60.0], rows)
+    assert widths[0] > 60.0
+    assert abs(sum(widths) - engine.CONTENT_WIDTH) < 0.01
