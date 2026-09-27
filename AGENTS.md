@@ -98,9 +98,11 @@ dependencies with `uv add --package <project-name> <dependency>` and commit `pyp
   loaded; the `feature-1-data` skill shows how.
 - Starting the stack never downloads or publishes data. Acquisition is explicit
   (`uv run scripts/dev.py data collect <job>`) and ends at a reviewable candidate.
-- **Publishing is a human decision.** Never submit a review, publish, reject, or retry publication
-  unless the user has explicitly approved that specific release. Setting `"approved": true` on
-  the publish API is a human attestation, not a formality.
+- Publishing makes a candidate the current data. Agents may review and publish on the user's
+  behalf, which is routine in a local stack when the task needs data. First check the record
+  count and quality results, record in the review comment what you checked and for whom, and
+  report what you published. Confirm first on shared environments, or before replacing accepted
+  data the task did not ask to change.
 - Never run `stack reset`, `docker volume rm/prune`, or `docker compose down --volumes` against a
   stack you did not create for the task. `stack down` preserves data; `reset` deletes it.
 - Never commit secrets, `.env`, local databases, source caches, model weights, generated runtime

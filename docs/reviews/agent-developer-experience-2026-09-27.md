@@ -140,9 +140,8 @@ Each step is a focused commit on `Matt/Agent_Developer_Experience`.
 
 ## Deliberately not changed
 
-- **No `data publish` CLI.** The README, the ADRs and `dev.py` all describe human approval before
-  publication as an intentional product boundary. The skill documents the existing API and
-  requires explicit user approval before an agent calls it.
+- **No `data publish` CLI.** Collection deliberately stops at a candidate, and the existing
+  review/publish API and UI already cover publication. The skill documents that API.
 - **Other students' ports and READMEs.** Feature 2 keeps 5300. The student-3 README sentence that
   says 5300 is shared with the fixture server becomes stale; this is left for its owner.
 - **A shared `.claude/settings.json` permission allowlist.** Permission policy is a per-developer
@@ -167,15 +166,21 @@ The following changes were adopted:
 - **Use UI fixture port 5990 instead of 5700.** 5700 would be the next feature port.
 - **Document the global `propertyscope/<service>:dev` image tags as an isolation limit.**
   Rebuilding in a scratch checkout replaces the images the main stack uses.
-- **The Feature 1 skill must gate publication on explicit, per-release user approval.** It shows
-  the quality evidence first, prefers the UI, never publishes partial PSI, and uses
-  `docker compose` service names rather than `ps-dev-*` container names.
+- **The Feature 1 skill checks quality evidence before publishing and never publishes partial
+  PSI.** It uses `docker compose` service names rather than `ps-dev-*` container names. The review
+  suggested per-release user approval; the user later decided otherwise (below).
 - **Tighten `test_agent_skills.py`.** It now also checks the `name` format and the length limits
   on `name` and `description`.
 - Corrections: finding 4 overstated the `live-app-browser` gaps (it already pointed readers to
   the ports file). Finding 6 undercounted: 23 actions, 17 without `.env`.
 
-**User decision:** skills stay in `.github/skills/` and are referenced from `AGENTS.md` rather
+**User decision (publication):** review and publish need not be a strictly human decision.
+Agents may carry them out on the user's behalf, especially in a local environment. The skill and
+`AGENTS.md` therefore ask agents to check the evidence first, record what they checked and for
+whom in the review comment, report what they published, and confirm first only on shared
+environments or when replacing accepted data the task did not target.
+
+**User decision (skills location):** skills stay in `.github/skills/` and are referenced from `AGENTS.md` rather
 than moved to `.claude/skills/`. `CLAUDE.md` imports `AGENTS.md`, so Claude Code reaches the
 skills index through it. Copilot loads `.github/skills/` natively.
 

@@ -1,6 +1,6 @@
 ---
 name: feature-1-data
-description: Find out what PropertyScope Feature 1 data is really loaded, collect official NSW sources (G-NAF addresses, PSI sales, schools, SEIFA, BOCSAR crime, reference layers), take candidates through human review and publication, and query the accepted property data over HTTP. Use when a task needs real data rather than the seeded demo baseline, when checking data updates end to end, or when preparing an isolated data environment.
+description: Find out what PropertyScope Feature 1 data is really loaded, collect official NSW sources (G-NAF addresses, PSI sales, schools, SEIFA, BOCSAR crime, reference layers), review and publish candidate releases, and query the accepted property data over HTTP. Use when a task needs real data rather than the seeded demo baseline, when checking data updates end to end, or when preparing an isolated data environment.
 ---
 
 # Feature 1 data: check, collect, publish, query
@@ -80,32 +80,40 @@ Jobs run one at a time by default, so a small job queued behind G-NAF waits for 
 acquire two jobs at once; database imports always stay serial.
 
 Poll a queued run with `GET /ingestion-runs/{run_id}` until its `status` is `succeeded`, `failed`
-or `cancelled`. The Update history page at <http://localhost:5200/#runs> shows the same timeline.
-A successful run ends with a **candidate** release. Nothing becomes current yet.
+or `cancelled`. `GET /ingestion-runs/{run_id}/activity?limit=5` shows the live phase and row counts
+(for example `canonicalising addresses`, 5,000,000 rows); the runner container logs are sparse.
+The Update history page at <http://localhost:5200/#runs> shows the same timeline. A successful run
+ends with a **candidate** release. Nothing becomes current yet.
 
-## 5. Review and publish (human decision)
+## 5. Review and publish
 
-Publication makes a candidate the current data for everyone. It is a deliberate human
-checkpoint.
+Publication makes a candidate the current data for every feature and the assistant. Collection
+never publishes on its own, but an agent may review and publish when it acts on the user's behalf.
+A task such as "load real G-NAF into my local stack" includes publishing what you collected
+there. Act as a careful reviewer:
 
-- **Do not submit, publish or reject a release unless the user has explicitly approved that
-  specific release in this conversation** (dataset, release ID and record count). "Get the data
-  loaded" is not approval to publish; ask. Approval for a disposable isolated environment does
-  not carry over to the developer's main stack.
-- Before asking, show the evidence: record count, quality results and warnings
-  (`GET /dataset-releases/{id}` and `GET /ingestion-runs/{run_id}/quality-results`).
-- Prefer letting the user publish in the UI: **Published data** at <http://localhost:5200>, open
-  the version, then **Submit for review** and **Publish**.
-- Never publish a partial PSI candidate (selected archive years). The API refuses to let it
+- **Check the evidence first.** Look at the record count against the expected scale (table
+  above), the quality results and warnings (`GET /dataset-releases/{id}`,
+  `GET /ingestion-runs/{run_id}/quality-results`), and the manifest's source and coverage. Reject
+  or stop and report a candidate that is truncated, fails quality checks, or is unexpectedly small.
+- **Say who decided.** Write a `comment` that records what you checked and that you acted for
+  the user, for example `"Reviewed by agent for <user>: 5,190,134 records, all checks passed"`.
+- **Local stacks are yours to operate** when the task calls for data. For a shared or hosted
+  environment, or when publishing would replace accepted data the user relies on and the task
+  did not ask for that, confirm with the user first.
+- Never publish a partial PSI candidate (selected archive years); the API refuses to let it
   replace complete history anyway.
+- Report every release you published or rejected, with its ID and record count.
 
-With approval, the API sequence is (each step needs the release's current `version`):
+The **Published data** page at <http://localhost:5200> offers the same **Submit for review** and
+**Publish** actions in the UI. The API sequence is below; each step needs the release's current
+`version`:
 
 ```text
 GET  /dataset-releases/{id}                     -> release.version (for example 3)
 POST /dataset-releases/{id}/submit-review        {"version": 3, "comment": "why"}
                                                 -> status awaiting_review, version 4
-POST /dataset-releases/{id}/publish              {"version": 4, "comment": "Approved by <user>", "approved": true}
+POST /dataset-releases/{id}/publish              {"version": 4, "comment": "what was checked, for whom", "approved": true}
      header Idempotency-Key: <new uuid>          -> 202, activation queued
 GET  /dataset-releases/{id}                      -> poll until status accepted
 ```
@@ -138,8 +146,8 @@ those limits in any answer. The full contract is
 - Read the run: `GET /ingestion-runs/{run_id}`, its `tasks`, and `activity`. Then read
   `stack logs --no-follow f1-runner` or `f1-db-loader`.
 - `POST /ingestion-runs/{run_id}/resume` retries a retryable failed import after its cause is
-  fixed. `reprocess-cached` rebuilds from the verified artifact without downloading again. Both
-  change durable state, so confirm with the user first.
+  fixed. `reprocess-cached` rebuilds from the verified artifact without downloading again. Both are
+  routine in a local stack; on a shared environment, confirm with the user first.
 - Never delete volumes, edit tables by hand, or restart a worker that is mid-import to "fix" a
   run. `docs/release-0/feature-1-large-data-operations.md` is the recovery runbook.
 
@@ -154,5 +162,5 @@ and `git worktree remove`.
 ## Report
 
 State which datasets are real, and which are seeded, with their record counts and release IDs.
-Say what you collected and which releases the user approved and published. Record timings and
+Say what you collected, and which releases you published or rejected and why. Record timings and
 any failures, and say whether observations came from the user's stack or a disposable one.
