@@ -22,13 +22,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = REPOSITORY_ROOT / "docs" / "reports" / "assets" / "release-1" / "screenshots"
 VIEWPORT = {"width": 1440, "height": 1000}
 ANSWER_TIMEOUT_MS = 180_000
+RUN_START_TIMEOUT_MS = 20_000
 TURN = ".ps-ai-chat__turn"
 FINISHED_TURN = f"{TURN}:has(.ps-ai-chat__answer), {TURN}:has(.ps-ai-chat__turn-error)"
+STOP_RESPONSE = 'form.ps-ai-chat__composer button:has-text("Stop response")'
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,6 @@ class Shot:
 # TODO(Students 2-5): once your feature uses the shared assistant and has a registered corpus
 # (docs/release-1/adopt-mcp-and-rag.md), write questions your tools and corpus can answer, delete
 # the `pending` value, capture with --only feature-N and check the images.
-_FEATURE_2_PENDING = "Feature 2 renders answer text only; adopt the shared assistant and a corpus"
 _FEATURE_3_PENDING = "Feature 3 has the shared assistant but no registered corpus yet"
 _FEATURE_4_PENDING = "Feature 4 renders answer text only; adopt the shared assistant and a corpus"
 _FEATURE_5_PENDING = "Feature 5 needs /assistant/turns routes, the shared assistant and a corpus"
@@ -80,10 +82,35 @@ SHOTS: tuple[Shot, ...] = (
         "/features/data-platform/#assistant",
         question="What oven temperature should I use for a chocolate cake?",
     ),
+    # Feature 2 scores measured against the 0.55 relevance floor with the corpus at version
+    # 998ed4d7: the two answerable questions retrieve at 0.766 and 0.831, and the insufficient
+    # one tops out at 0.466. Re-check the insufficient question if the corpus text changes;
+    # several plausible alternatives sit within 0.01 of the floor and would silently start
+    # returning a grounded answer instead of the refusal this screenshot has to show.
+    Shot(
+        "feature-2-mcp",
+        "Student 2",
+        "/features/market-intelligence/#assistant",
+        question=("How many eligible sales and what is the median recorded price in this case?"),
+    ),
+    Shot(
+        "feature-2-rag",
+        "Student 2",
+        "/features/market-intelligence/#assistant",
+        question=(
+            "What does the minimum match tier exclude, and why might a case show few "
+            "eligible sales?"
+        ),
+    ),
+    Shot(
+        "feature-2-insufficient",
+        "Student 2",
+        "/features/market-intelligence/#assistant",
+        question="How do I reset my password?",
+    ),
     *(
         Shot(f"feature-{number}-{kind}", f"Student {number}", path, pending=reason)
         for number, path, reason in (
-            (2, "/features/market-intelligence/#assistant", _FEATURE_2_PENDING),
             (3, "/features/suburb-analytics/#assistant", _FEATURE_3_PENDING),
             (4, "/features/due-diligence/#assistant", _FEATURE_4_PENDING),
             (5, "/features/buyer-workspaces/#assistant", _FEATURE_5_PENDING),
@@ -96,14 +123,21 @@ SHOTS: tuple[Shot, ...] = (
 def _ask(page: Page, question: str) -> None:
     composer = page.locator("textarea[name='message']").first
     composer.wait_for(state="visible")
-    finished_before = page.locator(FINISHED_TURN).count()
     composer.fill(question)
     composer.press("Enter")
-    page.wait_for_function(
-        "([selector, before]) => document.querySelectorAll(selector).length > before",
-        arg=[FINISHED_TURN, finished_before],
-        timeout=ANSWER_TIMEOUT_MS,
-    )
+    # A queued turn already renders its answer container, so waiting for FINISHED_TURN to appear
+    # returns while the chip still reads "Queued" and captures an empty answer. The composer's
+    # stop control is shown for exactly as long as a turn is running, so wait for it to appear
+    # and then to go away: that brackets the run without racing the first render.
+    stop = page.locator(STOP_RESPONSE)
+    try:
+        stop.wait_for(state="visible", timeout=RUN_START_TIMEOUT_MS)
+    except PlaywrightTimeoutError:
+        # A turn rejected before it started is already terminal; nothing to wait for.
+        pass
+    else:
+        stop.wait_for(state="hidden", timeout=ANSWER_TIMEOUT_MS)
+    page.locator(FINISHED_TURN).last.wait_for(state="visible", timeout=RUN_START_TIMEOUT_MS)
     page.locator(TURN).last.evaluate("turn => turn.scrollIntoView({block: 'start'})")
 
 
