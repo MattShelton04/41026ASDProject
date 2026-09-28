@@ -191,6 +191,12 @@ Use `ui audit full` for the explicit route/state/four-viewport matrix. Scenarios
 and generated evidence are documented in the [UI fixture guide](docs/ui/feature-1-fixture-mode.md)
 and [UI audit guide](docs/ui/feature-1-audit.md).
 
+Pull requests that touch a frontend get an automatic visual review: every research area is captured
+before and after the change, compared pixel by pixel, published to GitHub Pages, and summarised
+in one pull request comment. Run the same comparison locally with `uv run scripts/dev.py ui visual`
+(once to save a baseline, again after your change). See the
+[visual regression guide](docs/ui/visual-regression.md).
+
 ## Feature 1 data operations
 
 Starting the stack does not contact a data publisher. An operator explicitly previews and starts

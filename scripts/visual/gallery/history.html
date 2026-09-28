@@ -1,0 +1,10 @@
+<header class="app-header"><div>$brand
+<p class="eyebrow">Visual history</p><h1>How PropertyScope looks, change by change</h1>
+<p class="header-meta">$capture_summary · latest 30 main and 30 pull request runs retained</p></div></header>
+<main class="history-main"><div class="history-bar"><div class="segmented" role="tablist" aria-label="History views">$tabs</div>
+<label class="history-search">Find a pull request, commit or view<input id="history-search" class="search" type="search" placeholder="PR number, commit or view ID"></label></div>
+<section id="panel-prs" role="tabpanel" aria-labelledby="tab-prs" hidden><p class="history-note">The latest report for each pull request. Every push re-compares the whole pull request with its merge base; earlier pushes are listed under each card.</p><div id="pr-list" class="pr-grid"></div></section>
+<section id="panel-main" role="tabpanel" aria-labelledby="tab-main" hidden><p class="history-note">Each merge to main compared with the main commit before it.</p><ol id="main-list" class="main-list"></ol></section>
+<section id="panel-timeline" role="tabpanel" aria-labelledby="tab-timeline" hidden><div class="history-controls"><label>View<select id="timeline-view"></select></label><label>Runs<select id="timeline-scope"><option value="main">Main only</option><option value="all">Main and pull requests</option></select></label></div>
+<p class="history-note">Only runs in which this view's after screenshot differs from the previous listed run are shown. Fixture, seed or browser changes can also alter images.</p><div id="timeline-list" class="timeline"></div></section>
+<p id="history-empty" class="history-note" hidden>No retained runs match this search.</p></main>

@@ -1,0 +1,136 @@
+name: Visual Capture
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "shared/frontend/**"
+      - "student-*/frontend/**"
+      - "student-*/backend/**"
+      - "student-*/database/**"
+      - "student-*/config/**"
+      - "student-*/Dockerfile"
+      - "deployment/**"
+      - "docker-compose*.yml"
+      - "scripts/ui_fixture*.py"
+      - "scripts/visual/**"
+      - ".github/workflows/visual-*.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+  push:
+    branches: [main]
+    paths:
+      - "shared/frontend/**"
+      - "student-*/frontend/**"
+      - "student-*/backend/**"
+      - "student-*/database/**"
+      - "student-*/config/**"
+      - "student-*/Dockerfile"
+      - "deployment/**"
+      - "docker-compose*.yml"
+      - "scripts/ui_fixture*.py"
+      - "scripts/visual/**"
+      - ".github/workflows/visual-*.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+# Pull request code runs here with read-only access. Publishing happens in visual-report.yml.
+permissions:
+  contents: read
+
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
+
+concurrency:
+  group: visual-capture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: ${{ matrix.revision }} ${{ matrix.provider }} screenshots
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: [base, head]
+        provider: [fixture, stack]
+    steps:
+      # The harness always comes from the workflow revision (the PR merge commit), so a base
+      # revision that predates scripts/visual is still captured with today's cases and policy.
+      - name: Check out capture harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select merge base or previous main revision
+        id: refs
+        working-directory: harness
+        run: python3 -m scripts.visual.refs .
+
+      - name: Check out ${{ matrix.revision }} application
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.revision == 'base' && steps.refs.outputs.base || steps.refs.outputs.head }}
+          path: app
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+          cache-dependency-glob: |
+            harness/uv.lock
+            app/uv.lock
+
+      - name: Install harness and application environments
+        run: |
+          uv sync --locked --all-packages --all-groups --directory harness
+          uv sync --locked --all-packages --all-groups --directory app
+
+      - name: Install lockfile-pinned Chromium
+        working-directory: harness
+        run: uv run --no-sync playwright install --with-deps chromium
+
+      - name: Harness policy tests
+        if: matrix.revision == 'head' && matrix.provider == 'fixture'
+        working-directory: harness
+        run: uv run --no-sync pytest scripts/tests/test_visual_*.py -q --no-cov -p no:cacheprovider
+
+      - name: Start offline stack
+        if: matrix.provider == 'stack'
+        working-directory: app
+        run: uv run --no-sync scripts/dev.py stack up --offline
+
+      - name: Capture screenshots
+        working-directory: harness
+        env:
+          VISUAL_REVISION_SHA: ${{ matrix.revision == 'base' && steps.refs.outputs.base || steps.refs.outputs.head }}
+        run: >-
+          uv run --no-sync python -m scripts.visual capture
+          --provider "${{ matrix.provider }}"
+          --revision "${{ matrix.revision }}"
+          --target ../app
+          --out ../captures
+
+      - name: Stack logs on failure
+        if: failure() && matrix.provider == 'stack'
+        working-directory: app
+        run: |
+          uv run --no-sync scripts/dev.py stack status
+          uv run --no-sync scripts/dev.py stack logs --no-follow
+
+      - name: Retain captures and explicit failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-${{ matrix.revision }}-${{ matrix.provider }}
+          path: captures/
+          if-no-files-found: warn
+          retention-days: 14

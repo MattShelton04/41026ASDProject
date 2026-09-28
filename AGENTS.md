@@ -71,6 +71,7 @@ uv run scripts/dev.py stack up [--offline]       # complete Docker stack; --offl
 uv run scripts/dev.py stack status               # what is running
 uv run scripts/dev.py ai probe                   # check the running MCP and RAG servers directly
 uv run scripts/dev.py stack logs --no-follow f1-runner   # print recent logs and exit
+uv run scripts/dev.py ui visual [--case ID]      # before/after screenshots of a UI change (docs/ui/visual-regression.md)
 uv run scripts/dev.py --help                     # every workflow group and option
 ```
 

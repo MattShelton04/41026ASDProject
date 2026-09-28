@@ -286,6 +286,20 @@ service.
 
 [[TODO: Shared | Run `uv run scripts/dev.py stack up` at the submission commit and paste the `stack status` table (service, state, health), `ai status`, and HTTP 200 checks for the shared home and all five feature pages as text blocks here.]]
 
+### 6.7 Visual regression review
+
+Five students change one product, so a change in one area can quietly alter another. Every pull
+request that touches a frontend, backend, seed or deployment file triggers a *Visual Capture*
+workflow. It renders 42 views across Shared and Features 1–5 in Chromium, before and after the
+change. Shared and Feature 1 use deterministic fixtures; Features 2–5 use the offline stack with
+seeded data. A separate trusted workflow compares the pixels, publishes an interactive gallery and
+history to GitHub Pages, and keeps one pull request comment up to date with the changed views per
+feature. Reviewers see layout and styling effects without starting the stack. Developers run the
+same comparison locally with `uv run scripts/dev.py ui visual`, which shortens UI iteration. The
+comparison informs review; it never blocks a merge.
+
+[[TODO: Shared | Add a screenshot of a visual review pull request comment and link the Pages history once the workflow has published from main.]]
+
 ## 7 Integration summary
 
 [[TODO: Team | Three to five sentences once all features are validated: one stack started, every feature's Release 0 CRUD and AI-mode still work, and each feature's MCP and RAG interactions succeeded through its frontend. Link Section 6.3 rather than repeating it.]]

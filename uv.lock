@@ -115,6 +115,10 @@ dev = [
     { name = "types-waitress" },
     { name = "waitress" },
 ]
+visual = [
+    { name = "numpy" },
+    { name = "pillow" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -141,6 +145,10 @@ dev = [
     { name = "types-pyyaml", specifier = ">=6.0,<7" },
     { name = "types-waitress", specifier = ">=3.0.1.20260724" },
     { name = "waitress", specifier = ">=3.0.2" },
+]
+visual = [
+    { name = "numpy", specifier = ">=2.2,<3" },
+    { name = "pillow", specifier = ">=11,<13" },
 ]
 
 [[package]]
