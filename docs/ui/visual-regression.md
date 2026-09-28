@@ -241,6 +241,9 @@ Troubleshooting:
 - Captures use one width (1440 px) and the light theme. Responsive and dark-mode regressions need
   more cases.
 - Pages over 6000 px tall are clipped, and the view's notes say so.
+- Full-page captures keep the 1000 px viewport, so `100vh` or sticky elements (for example,
+  Feature 3's sidebar background) end at 1000 px in screenshots. This is deterministic, not a
+  regression.
 - The Feature 3 map renders without tiles, so the markers, controls and scale are compared but the
   basemap isn't.
 - Stack views depend on each feature's seed data. Changing a seed is a visual change by design.
