@@ -281,17 +281,17 @@ def test_client_rejects_unapproved_endpoint(url: str) -> None:
         McpToolExecutor(base_url=url, service_token=TOKEN)
 
 
-def test_client_compose_origin_requires_explicit_opt_in() -> None:
+def test_client_rejects_container_service_origins() -> None:
     from ai_mode.adapters.mcp_tools import McpToolExecutor
 
-    url = "http://mcp-server:5011/mcp"
-    with pytest.raises(ValueError, match="allowlisted"):
-        McpToolExecutor(base_url=url, service_token=TOKEN)
-    client = McpToolExecutor(base_url=url, service_token=TOKEN, local_compose=True)
-    client.close()
-    for rejected in ("http://mcp-server:5012/mcp", "http://mcp-server.attacker.test:5011/mcp"):
-        with pytest.raises(ValueError, match="allowlisted"):
-            McpToolExecutor(base_url=rejected, service_token=TOKEN, local_compose=True)
+    for rejected in (
+        "http://mcp-server:5011/mcp",
+        "http://host.docker.internal:5011/mcp",
+        "http://mcp-server.attacker.test:5011/mcp",
+    ):
+        with pytest.raises(ValueError, match="allowlisted loopback"):
+            McpToolExecutor(base_url=rejected, service_token=TOKEN)
+    McpToolExecutor(base_url="http://127.0.0.1:5011/mcp", service_token=TOKEN).close()
 
 
 @pytest.mark.parametrize("compose", [False, True])

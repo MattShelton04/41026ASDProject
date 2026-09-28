@@ -1,6 +1,7 @@
 # ADR-044: Retain reversible Docker and host AI placement
 
-- Status: Accepted for local development at the user's explicit request
+- Status: Superseded by [ADR-046](ADR-046-non-containerised-ai-tier.md) on 28 September 2026.
+  The Docker placement, overlay and image described below were removed.
 - Date: 7 September 2026
 - Owner: Shared platform (Matthew Shelton)
 - Extends: [ADR-043](ADR-043-local-grounded-runtime.md)

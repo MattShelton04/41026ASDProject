@@ -11,10 +11,10 @@ The supported lifecycle is the shared `scripts/dev.py` local stack workflow. For
 diagnosis, configure `MCP_SERVICE_TOKEN`, `MCP_TOOL_CATALOG_PATHS` (comma-separated validated
 host catalogue paths), optional `MCP_PORT` (5011), then run `uv run python -m mcp_server`.
 `MCP_HOST` defaults to `127.0.0.1` and only accepts loopback addresses. Host projections map
-feature service origins to published loopback API routes. The optional Docker development
-overlay instead uses the authenticated container entrypoint and fixed internal service origin;
-base Compose retains the host assessment topology. CI and cloud runtime keep MCP disabled.
-Select placement through the [runtime guide](../../docs/release-1/host-runtime.md).
+feature service origins to published loopback API routes. MCP runs only as a host process and
+never in a container ([ADR-046](../../docs/architecture/decisions/ADR-046-non-containerised-ai-tier.md)).
+CI and cloud runtime keep MCP disabled. `uv run scripts/dev.py ai probe` checks the running server
+from a terminal; see the [runtime guide](../../docs/release-1/host-runtime.md).
 
 Protocol discovery exposes original input/output schemas and side-effect annotations.
 The `propertyscope://tools/catalog` resource exposes public tool definitions only, without

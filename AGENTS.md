@@ -38,6 +38,8 @@ Keep a skill's `name` equal to its directory and list every skill here;
 - Student backends call `ai-mode` over HTTP. `ai-mode` may call allowlisted feature tool
   endpoints, but it must never access a student's database directly.
 - Each database file has one owning database service. Do not mount or open it elsewhere.
+- AI-mode, MCP, RAG and the agent loop run only as host processes (ADR-046). Never add them to a
+  Compose file or give `ai-services/` a Dockerfile; backends reach them via `host.docker.internal`.
 - Keep shared packages domain-neutral. Feature-specific entities and business rules stay in
   their owning student slice.
 - `scripts/validate_architecture.py` enforces these rules inside the quality gate. Update its
@@ -53,11 +55,11 @@ Keep a skill's `name` equal to its directory and list every skill here;
 | Feature 4 Due Diligence | <http://localhost:5400> | `PROPERTYSCOPE_DUE_DILIGENCE_PORT` |
 | Feature 5 Buyer Workspaces | <http://localhost:5500> | `PROPERTYSCOPE_BUYER_WORKSPACES_PORT` |
 | Feature 3 Suburb Analytics | <http://localhost:5600> | `PROPERTYSCOPE_SUBURB_ANALYTICS_PORT` |
-| AI-mode / MCP / RAG | 5005 / 5011 / 5012 | `AI_MODE_PORT` / `MCP_PORT` / `RAG_PORT` |
+| AI-mode / MCP / RAG (host processes) | 5005 / 5011 / 5012 | `AI_MODE_PORT` / `MCP_PORT` / `RAG_PORT` |
 | Deterministic UI fixtures (`ui serve`) | <http://127.0.0.1:5990> | `PROPERTYSCOPE_UI_FIXTURE_PORT` |
 
 `deployment/enabled-features.v1.json` is the generated source of truth for feature ports and
-routes. `uv run scripts/dev.py stack doctor` shows the resolved project, AI placement and which
+routes. `uv run scripts/dev.py stack doctor` shows the resolved project, host AI state and which
 process owns each port.
 
 ## Commands
@@ -67,6 +69,7 @@ uv sync --locked --all-packages --all-groups     # reproduce the environment
 uv run python scripts/check.py                   # full gate, required before handoff (~6-7 min)
 uv run scripts/dev.py stack up [--offline]       # complete Docker stack; --offline needs no model key
 uv run scripts/dev.py stack status               # what is running
+uv run scripts/dev.py ai probe                   # check the running MCP and RAG servers directly
 uv run scripts/dev.py stack logs --no-follow f1-runner   # print recent logs and exit
 uv run scripts/dev.py --help                     # every workflow group and option
 ```

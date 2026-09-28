@@ -1,7 +1,7 @@
-"""AI runtime identities shared by launchers and packaged container entrypoints.
+"""Host AI service identities shared by the launcher and the managed host runtime.
 
-Host ports are configurable; container listeners use these fixed defaults. This module
-must remain independent of generated deployment files and host-only dependencies.
+AI-mode, MCP and RAG run only as host processes (ADR-043, ADR-046); Compose never defines
+them. This module must remain independent of generated deployment files.
 """
 
 AI_SERVICE_PORTS = {
@@ -9,12 +9,6 @@ AI_SERVICE_PORTS = {
     "mcp": ("MCP_PORT", 5011),
     "rag": ("RAG_PORT", 5012),
 }
-AI_CONTAINER_SERVICES = {
-    "ai-mode": "shared-ai-mode",
-    "mcp": "mcp-server",
-    "rag": "rag-server",
-}
-AI_PLACEMENTS = ("host", "docker")
 AI_CAPABILITY_MODES = ("direct", "mcp", "rag", "combined")
 
 

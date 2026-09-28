@@ -127,7 +127,6 @@ def build_services(settings: Settings) -> AppServices:
             base_url=settings.mcp_server_url,
             service_token=settings.mcp_service_token,
             max_response_bytes=settings.max_tool_response_bytes,
-            local_compose=settings.environment == "compose",
         )
     retrieval_executor = None
     knowledge = None

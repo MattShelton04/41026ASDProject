@@ -29,7 +29,9 @@ all five feature slices are manifest-enabled. Their owners retain responsibility
 feature behavior and remaining release evidence.
 
 MCP and RAG are implemented local Release 1 services; multi-agent remains a Release 2 placeholder.
-Fresh developer setups run AI services in Docker. Select `stack up --ai-runtime host` for the
-Release 1 assessment topology, which requires AI services outside containers. Both placements use
-the same exclusive AI history and RAG state directories. MCP/RAG remain disabled in CI/CD and cloud.
+AI-mode, MCP and RAG run only as non-containerised host processes, as the Release 1 rubric
+requires ([ADR-046](../docs/architecture/decisions/ADR-046-non-containerised-ai-tier.md)).
+No package here has a Dockerfile and no Compose file defines an AI service; the architecture gate
+enforces both. `scripts/dev.py stack up` starts them before the feature containers, which reach
+AI-mode through `host.docker.internal`. MCP/RAG remain disabled in CI/CD and cloud.
 See the [runtime guide](../docs/release-1/host-runtime.md) for lifecycle and configuration.

@@ -9,9 +9,9 @@ flowchart LR
     end
     subgraph local["Local assessment deployment"]
         direction TB
-        up["dev.py stack up --ai-runtime host"]
+        up["dev.py stack up<br/>host AI first, then Compose"]
         dc["docker-compose.yml<br/>edge and five feature slices<br/>backend env: AI_MODE_BASE_URL, MCP_SERVER_URL,<br/>RAG_SERVER_URL on host.docker.internal"]
-        hostsvc["Host processes<br/>AI-mode · MCP · RAG"]
+        hostsvc["Host processes, never containerised<br/>AI-mode · MCP · RAG"]
         up --> dc
         up --> hostsvc
         dc -->|service token| hostsvc

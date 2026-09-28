@@ -5,9 +5,10 @@ through authenticated AI-mode retrieval; no feature database is opened and no do
 Only registered public project-guidance corpora are admitted. Private notes, case documents and raw
 warehouse records require a future owner-scoped contract and are rejected today.
 
-The launcher defaults to Docker placement and supports the non-containerised assessment mode via
-`stack up --ai-runtime host`. Both placements reuse the same index/model directories; see the
-[runtime guide](../../docs/release-1/host-runtime.md). Custom index/cache paths remain host-only.
+The launcher runs RAG only as a non-containerised host process on loopback, with its index and
+model cache under `.propertyscope-runtime/host/rag/`. See the
+[runtime guide](../../docs/release-1/host-runtime.md); `uv run scripts/dev.py ai probe` checks
+corpus versions, grounded retrieval and insufficient-context behaviour from a terminal.
 
 ## Prepare and run
 

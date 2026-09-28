@@ -12,7 +12,10 @@ disabled during CI/CD. Those requirements supersede the older Compose assumption
 
 - [Release 1 technical report](../reports/release-1-technical-report.md): report source, word budget
   and owner TODOs; build instructions in [reports/README.md](../reports/README.md).
-- [Host runtime](host-runtime.md): lifecycle, networking, history migration and named loop validations.
+- [Host runtime](host-runtime.md): why the AI tier is not containerised, lifecycle, networking,
+  history migration, the terminal validation checklist and named loop validations.
+- [Non-containerised AI alignment plan](non-containerised-ai-alignment-plan.md): the change that
+  removed the optional Docker AI placement ([ADR-046](../architecture/decisions/ADR-046-non-containerised-ai-tier.md)).
 - [Adopt MCP and RAG](adopt-mcp-and-rag.md): the ordered five-step checklist for feature owners,
   with the corpus template and shared assertions. Start here.
 - [Feature adoption](feature-adoption.md): existing tools/backend boundary, owned corpus registration,

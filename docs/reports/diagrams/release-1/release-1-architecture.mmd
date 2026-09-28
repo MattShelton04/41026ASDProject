@@ -2,20 +2,20 @@
 flowchart LR
     user([User browser])
 
-    subgraph compose["Docker Compose: containerised Release 0 application"]
+    subgraph compose["Docker Compose: containerised application, no AI service"]
         direction TB
         edge["shared-frontend :5100<br/>HTMX shell · route proxy<br/>AI-mode token proxy"]
         features["Five feature slices<br/>each: frontend · backend/API · owned database service<br/><br/>F1 Property data :5200 · PostGIS<br/>F2 Market intelligence :5300 · SQLite<br/>F3 Suburb analytics :5600 · SQLite<br/>F4 Due diligence :5400 · PostGIS<br/>F5 Buyer workspace :5500 · SQLite"]
         edge --> features
     end
 
-    subgraph host["Host: non-containerised shared AI services"]
+    subgraph host["Host processes started by dev.py stack up: never containerised"]
         direction TB
-        loop["Loop validation CLI<br/>dev.py ai validate mcp / rag"]
+        loop["Terminal validation<br/>dev.py ai probe<br/>dev.py ai validate mcp / rag"]
         ai["AI-mode :5005<br/>run API · Plan/Act/Observe/Adapt loop<br/>SQLite run store"]
         mcp["MCP server :5011, loopback<br/>Streamable HTTP · registered tools<br/>signed per-call metadata"]
         rag["RAG server :5012, loopback<br/>ingest · retrieve · corpus versions<br/>SQLite vector index · local embedder"]
-        loop -.->|drives a real run| ai
+        loop -.->|real runs and direct probes| ai
         ai -->|tools/call| mcp
         ai -->|retrieve| rag
     end
@@ -23,7 +23,7 @@ flowchart LR
     model["OpenAI Luna / Terra<br/>Gemini supported"]
 
     user --> edge
-    features -->|"backend AI HTTP<br/>host.docker.internal:5005<br/>+ service token"| ai
+    features -->|"backend AI HTTP + service token<br/>AI_MODE_BASE_URL, MCP_SERVER_URL,<br/>RAG_SERVER_URL via host.docker.internal"| ai
     mcp -->|"feature tool endpoint<br/>published 127.0.0.1 port"| features
     ai -->|HTTPS| model
 

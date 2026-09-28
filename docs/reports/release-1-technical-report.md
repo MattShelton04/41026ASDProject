@@ -105,11 +105,13 @@ docs/release-1/retrieval-evaluation.md. Re-measure any figure that changes at th
 ## 4 Release 1 architecture
 
 Figure 1 shows the containerisation boundary. Docker Compose runs the shared edge and the five
-feature slices, as in Release 0. AI-mode, MCP, RAG and the loop run as host processes started by
-`uv run scripts/dev.py stack up --ai-runtime host`. Backends reach AI-mode at
-`host.docker.internal:5005` with a service token. MCP calls a feature's tool through that feature's
-published loopback port, so it never opens a feature database. Only AI-mode holds the model
-credentials.
+feature slices, as in Release 0. AI-mode, MCP, RAG and the loop always run as host processes, which
+`uv run scripts/dev.py stack up` starts before the containers. This follows the labs: the AI tier is
+local developer infrastructure, disabled in CI and the cloud, and it keeps model caches and
+credentials on the host. Backends reach AI-mode at `host.docker.internal:5005` with a service
+token. MCP calls a feature's tool through that feature's published loopback port, so it never opens
+a feature database. The architecture check fails the build if any Compose file defines an AI
+service (ADR-046).
 
 ![Figure 1 Release 1 architecture and containerisation boundary](assets/release-1/release-1-architecture.png)
 
@@ -175,7 +177,7 @@ on the running stack. Screenshots and loop output below come from the live stack
 
 ![Figure 22 Activity history listing recent runs across features](assets/release-1/screenshots/shared-activity-history.png)
 
-[[TODO: Shared | With the stack up in combined mode, capture `uv run scripts/dev.py ai status`, an unauthenticated and authenticated `curl` to AI-mode, and the MCP `tools/list` count as a text block here.]]
+[[TODO: Shared | With the stack up in combined mode, paste `uv run scripts/dev.py ai status` and `uv run scripts/dev.py ai probe` output at the submission commit as a text block here. The probe checks each server's authentication, the MCP `tools/list` per feature, each corpus version, a grounded retrieval and an insufficient-context query.]]
 
 ### 6.2 Shared agentic loop: MCP and RAG validation modes
 
@@ -282,7 +284,7 @@ All five backends receive `AI_MODE_BASE_URL` (Feature 3: `AI_MODE_URL`), `MCP_SE
 `RAG_SERVER_URL` pointing at `host.docker.internal`. Compose defines no AI-mode, MCP, RAG or loop
 service.
 
-[[TODO: Shared | Run `uv run scripts/dev.py stack up --ai-runtime host` at the submission commit and paste the `stack status` table (service, state, health), `ai status`, and HTTP 200 checks for the shared home and all five feature pages as text blocks here.]]
+[[TODO: Shared | Run `uv run scripts/dev.py stack up` at the submission commit and paste the `stack status` table (service, state, health), `ai status`, and HTTP 200 checks for the shared home and all five feature pages as text blocks here.]]
 
 ## 7 Integration summary
 
@@ -373,6 +375,7 @@ published under CC0.
 ## Appendix D Evidence index and reproduction
 
 - [ADR-043 local grounded runtime](../architecture/decisions/ADR-043-local-grounded-runtime.md)
+- [ADR-046 non-containerised AI tier](../architecture/decisions/ADR-046-non-containerised-ai-tier.md)
 - [Host runtime guide](../release-1/host-runtime.md)
 - [Adopt MCP and RAG checklist](../release-1/adopt-mcp-and-rag.md)
 - [Retrieval evaluation](../release-1/retrieval-evaluation.md)
@@ -384,8 +387,9 @@ published under CC0.
 ```text
 uv sync --locked --all-packages --all-groups
 uv run python scripts/check.py
-uv run scripts/dev.py stack up --ai-runtime host
+uv run scripts/dev.py stack up
 uv run scripts/dev.py ai status
+uv run scripts/dev.py ai probe
 uv run scripts/dev.py ai validate mcp
 uv run scripts/dev.py ai validate rag
 uv run python scripts/build_release1_report.py

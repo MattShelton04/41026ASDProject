@@ -53,7 +53,7 @@ write, retry, and provider request-ID evidence is retained with the run.
 | `AI_MODE_DATABASE_PATH` | `instance/agent-state.sqlite3` |
 | `AI_MODE_LLM_PROVIDER` | `openai` |
 | `OPENAI_API_KEY` | unset; direct host-process credential |
-| `OPENAI_API_KEY_FILE` | unset; mutually exclusive file-mounted credential used by Compose |
+| `OPENAI_API_KEY_FILE` | unset; mutually exclusive credential file written by the managed launcher |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` |
 | `GEMINI_API_KEY` | unset; direct host-process Gemini credential |
 | `GEMINI_API_KEY_FILE` | unset; mutually exclusive file-mounted Gemini credential |
@@ -176,8 +176,8 @@ uv run python scripts/validate_model_registry.py
 
 Its public JSON Schema and the endpoint's OpenAPI definition are generated from the
 Pydantic contract and drift-checked by `scripts/generate_contracts.py --check` in CI.
-The managed Docker runtime uses the bundled registry. Use host placement for
-`AI_MODE_MODEL_REGISTRY_PATH` overrides; a host path is not implicitly visible in Docker.
+The managed host runtime uses the bundled registry unless `AI_MODE_MODEL_REGISTRY_PATH`
+names another host file.
 
 The default `default.v7` prompt set keeps explicit generic output skeletons, maps every
 objective requirement to observable success criteria, and keeps untrusted objective prose

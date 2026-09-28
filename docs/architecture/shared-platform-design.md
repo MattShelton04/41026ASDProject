@@ -10,27 +10,25 @@
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
-### Local placement and Release 1 implementation (7 September 2026)
+### Non-containerised AI tier and Release 1 implementation (updated 28 September 2026)
 
-The launcher supports reversible Docker and host placement for AI-mode, MCP and RAG. Fresh
-developer setups default to Docker; `stack up --ai-runtime host` selects the assessment topology
-and `stack up --ai-runtime docker` restores Docker visibility. Selection is persisted.
-[ADR-044](decisions/ADR-044-dual-ai-runtime.md) records this user-authorised development alternative;
-[the plan](../release-1/dual-ai-runtime-plan.md) defines its validation. Docker uses an optional
-overlay; base and CI models retain the host topology. Both placements use the same exclusive
-history and RAG index/model directories, stopping previous owners before switching. The loop
-remains part of AI-mode, not a fourth service.
+AI-mode, MCP and RAG run only as host processes managed by `scripts/dev.py`; no Compose file
+defines an AI service and no `ai-services/` package has a Dockerfile.
+[ADR-046](decisions/ADR-046-non-containerised-ai-tier.md) removed the optional Docker placement
+that [ADR-044](decisions/ADR-044-dual-ai-runtime.md) had added, because it made the non-compliant
+topology the default. `scripts/validate_architecture.py` enforces the boundary in the quality
+gate. The loop remains part of AI-mode, not a fourth service.
 
 The user-supplied 6 September Release 1 marking rubric requires **AI-mode, MCP, RAG and the
 shared agent loop to run locally outside containers**, with MCP/RAG disabled during CI/CD.
-[ADR-043](decisions/ADR-043-local-grounded-runtime.md) records that assessment topology. Optional
-Docker development placement does not satisfy its non-containerisation clause. The
+[ADR-043](decisions/ADR-043-local-grounded-runtime.md) records that topology, and it is the only
+one the launcher supports. The
 [reviewed implementation plan](../release-1/shared-feature-1-implementation-plan.md),
 [runtime guide](../release-1/host-runtime.md) and [handoff/evidence map](../release-1/shared-feature-1-handoff.md)
 separate implemented behavior from validation and assessment items still owned by people.
 
 The local topology retains the shared frontend and every enabled feature's independently owned
-containers. AI-mode owns the same four-phase runner and durable SQLite run store in either placement.
+containers. Host AI-mode owns the four-phase runner and durable SQLite run store.
 MCP exposes
 enabled catalogues through authenticated Streamable HTTP and invokes the existing owning backend
 endpoints; it does not implement CRUD. RAG owns a separate bounded SQLite metadata/vector index
@@ -82,8 +80,8 @@ store, prompt registry, OpenAI Responses API adapter, opt-in Gemini development 
 serial worker, and
 create/read/cancel/review HTTP endpoints. JSON Schema and OpenAPI artefacts are generated
 and drift-checked by the canonical quality gate. The historical Release 0 AI-mode image is
-superseded by the host process required for Release 1 assessment and the optional unified Docker
-AI image recorded in ADR-044; remote model inference remains outside the application topology.
+superseded by the host process required for Release 1 (ADR-043, ADR-046); remote model
+inference remains outside the application topology.
 
 A subsequent domain-neutral Release 0 increment added validated feature manifests,
 feature-scoped/versioned tool registration, fail-fast YAML tool composition, a bounded
@@ -441,8 +439,8 @@ flowchart LR
 ```
 
 The edge and feature slices are containers. The Release 1 assessment topology runs AI-mode
-(including the loop), MCP and RAG as local host processes. Fresh developer setups default to the
-optional Docker AI placement; `stack up --ai-runtime host` selects the assessment topology.
+(including the loop), MCP and RAG as local host processes; that is the only local topology
+(ADR-046).
 Azure is a separate future topology, not an extra destination in this runtime.
 Feature 1's PostgreSQL/PostGIS exception replaces the generic SQLite branch below only within
 its credential-owning database API/loader boundary.
@@ -504,7 +502,7 @@ There are two different shared elements and they must not be confused:
    AI services may import `shared_contracts`; tests may also import `shared_testkit`.
    Student services do not import `agent-core` or another student's package.
 2. **Shared services** are independent runtime processes. The edge is containerised;
-   AI-mode, MCP and RAG run in the selected local host or Docker placement. Student backends call the shared orchestrator
+   AI-mode, MCP and RAG run as non-containerised host processes. Student backends call the shared orchestrator
    over HTTP; they do not embed its implementation.
 
 The normal runtime flow is:
@@ -601,7 +599,7 @@ canonical gate verifies project names, ownership
 prefixes, overlay membership, image alignment, and the absence of hard-coded container names.
 
 The developer entry point mirrors those boundaries: `scripts/dev.py stack` coordinates container
-and host lifecycle, `scripts/dev.py ai` manages the selected AI placement and local validation modes,
+and host lifecycle, `scripts/dev.py ai` manages the host AI processes, the terminal probe and local validation modes,
 `scripts/dev.py ui` owns deterministic browser fixtures, and `scripts/dev.py data` owns
 source acquisition. `scripts/check.py` remains the single source-quality runner instead of being
 proxied through the lifecycle command. The development overlay bind-mounts every enabled built
@@ -609,8 +607,8 @@ service. Static frontend source is visible on refresh and request-serving Python
 workers in place. Durable background workers require an explicit targeted restart so an edit cannot
 silently interrupt an active job. Ordinary `stack up` reuses images and containers; image rebuilds
 remain explicit after dependency or Docker input changes.
-AI Python source changes in either placement require an explicit `ai stop` / `ai start`; bind
-mounts alone do not restart AI workers. Ordinary shutdown preserves AI state and all Docker data.
+AI Python source changes require an explicit `ai stop` / `ai start`; host AI workers are never
+restarted implicitly. Ordinary shutdown preserves AI state and all Docker data.
 
 ## 7. Shared contracts
 
@@ -1037,8 +1035,8 @@ retains its local conversation; route departure aborts browser polling, not serv
 history continues to render the same structured results with independently inspectable run steps.
 The operations projection carries all calls in `tools`, matching results by call ID, while keeping
 the legacy first `tool` field for existing clients. Projection version 3 invalidates earlier ETags.
-The shared gateway resolves the AI service through Docker DNS at request time so recreating the
-local AI container does not strand activity links on its previous container address.
+The shared gateway reaches host AI-mode through `host.docker.internal`, and resolves other
+upstreams through Docker DNS at request time so a recreated container does not strand links.
 Before nginx template substitution, its entrypoint resolves explicit `/etc/hosts` mappings
 (including Linux `host.docker.internal:host-gateway`) to an address. Nginx's asynchronous resolver
 does not read that file. Unmapped service names retain runtime DNS resolution.
@@ -1203,19 +1201,15 @@ target. Use GitHub OIDC to Azure rather than long-lived cloud credentials.
 
 The base model, enabled-feature projection and development overlay contain the shared frontend
 and student feature services. The retained `release-0` profile selects that feature application.
-`docker-compose.ai.yml` adds AI-mode (with its loop), MCP and RAG under the `ai-container` profile
-for optional local development. `stack up` defaults to Docker on a fresh setup and remembers the
-selection. Use `stack up --ai-runtime host` for the required non-containerised Release 1 assessment
-topology. Docker placement is a development convenience and does not satisfy that rubric clause.
+No Compose file adds AI services. `stack up` starts AI-mode (with its loop), MCP and RAG as host
+processes before the containers, and `stack down` stops them first. They own
+`.propertyscope-runtime/host/ai-mode/` and `host/rag/` exclusively. The first start after upgrading
+from the retired Docker placement removes that project's old AI containers and generated projection
+without touching those stores. Backends in `docker-compose.yml` that call AI-mode carry
+`AI_MODE_BASE_URL`, `MCP_SERVER_URL` and `RAG_SERVER_URL` through `host.docker.internal` with the
+`host-gateway` mapping; the architecture validator checks this.
 
-Both placements reuse `.propertyscope-runtime/host/ai-mode/` and `host/rag/` under exclusive
-service ownership. Switching stops the previous owners before opening those stores; no database
-copy or reset is implied. Saved placement/mode metadata is validated before lifecycle effects.
-An unreadable or malformed state file must be repaired from known ownership evidence, not deleted
-to force a guessed placement. Configuration and authentication helpers are shared by both entries,
-while configurable published host ports remain distinct from fixed container listener ports.
-
-| Capability mode (either placement) | AI-mode dispatch | MCP | RAG |
+| Capability mode | AI-mode dispatch | MCP | RAG |
 |---|---|---|---|
 | `direct` / `stack up --offline` | Direct owning HTTP tools | Stopped | Stopped |
 | `mcp` | MCP owning tools | Running | Stopped |
@@ -1225,13 +1219,14 @@ while configurable published host ports remain distinct from fixed container lis
 Host AI-mode binds port 5005 for Docker access through `host.docker.internal`; generated container
 configuration includes Linux `host-gateway`. MCP (5011) and RAG (5012) bind authenticated loopback
 only. Host tool catalogue copies resolve approved owning APIs through published feature frontend
-ports. Host listener ports remain configurable. Docker catalogues retain internal service origins;
-only AI-mode receives the file-mounted provider secret. Host placement uses its process environment.
+ports. Host listener ports remain configurable. Only AI-mode receives the provider credential,
+through a launcher-written file under the ignored runtime directory; AI-mode rejects any MCP or RAG
+URL that is not a loopback HTTP endpoint.
 Local service tokens and state are ignored by Git. Managed AI-mode requires an internal
 `X-PropertyScope-AI-Token` header on every route except `/health/live`; backend clients and the
 shared nginx proxy attach it. It never enters browser assets. Both managed entrypoints require 32–128 URL-safe token characters
 and return the same unauthorized response. Token rotation requires `stack up`
-to align container and host configuration. This service authentication does not add production
+to align backend container and host configuration. This service authentication does not add production
 end-user identity to the trusted local demo. [Host lifecycle documentation](../release-1/host-runtime.md)
 defines stop/restart, migration and diagnosis without killing unrelated processes or deleting history.
 
@@ -1292,6 +1287,7 @@ internal modules. Future Azure/multi-agent folders are placeholders, not deploye
 |   |-- dev.py
 |   |-- devtools/host_runtime.py
 |   |-- release1_validation.py
+|   |-- release1_probe.py
 |   `-- evaluate_release1_retrieval.py
 |-- docs/architecture/decisions/ADR-043-local-grounded-runtime.md
 |-- docs/release-1/                # reviewed plan, runtime, adoption and evidence
@@ -1299,8 +1295,7 @@ internal modules. Future Azure/multi-agent folders are placeholders, not deploye
 |-- pyproject.toml
 |-- uv.lock
 |-- docker-compose.yml
-|-- docker-compose.dev.yml
-`-- docker-compose.ai.yml          # optional local Docker AI placement
+`-- docker-compose.dev.yml
 ```
 
 A root Python workspace and lock keep versions consistent without merging service ownership.

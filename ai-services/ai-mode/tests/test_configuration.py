@@ -203,36 +203,38 @@ def test_invalid_multi_catalog_settings_fail_fast(values: dict[str, str], messag
         Settings.from_env(values)
 
 
-def test_local_compose_allows_only_the_registered_shared_service_origins() -> None:
+def test_shared_services_are_loopback_only_and_never_container_origins() -> None:
+    """MCP and RAG run as host processes; a Compose service origin is never accepted."""
     settings = Settings.from_env(
         {
-            "AI_MODE_ENVIRONMENT": "compose",
             "AI_MODE_MCP_ENABLED": "true",
             "AI_MODE_RAG_ENABLED": "true",
             "MCP_SERVICE_TOKEN": "m" * 32,
             "RAG_SERVICE_TOKEN": "r" * 32,
-            "MCP_SERVER_URL": "http://mcp-server:5011/mcp",
-            "RAG_SERVER_URL": "http://rag-server:5012",
+            "MCP_SERVER_URL": "http://127.0.0.1:5011/mcp",
+            "RAG_SERVER_URL": "http://localhost:5012",
         }
     )
     assert settings.mcp_enabled and settings.rag_enabled
+    with pytest.raises(ConfigurationError, match="local-only"):
+        Settings.from_env(
+            {
+                "AI_MODE_ENVIRONMENT": "compose",
+                "AI_MODE_MCP_ENABLED": "true",
+                "MCP_SERVICE_TOKEN": "m" * 32,
+            }
+        )
 
 
 @pytest.mark.parametrize(
-    ("environment", "name", "url"),
+    ("name", "url"),
     [
-        ("local", "MCP_SERVER_URL", "http://mcp-server:5011/mcp"),
-        ("local", "RAG_SERVER_URL", "http://rag-server:5012"),
-        ("compose", "MCP_SERVER_URL", "http://rag-server:5012"),
-        ("compose", "RAG_SERVER_URL", "http://mcp-server:5011/mcp"),
-        ("compose", "MCP_SERVER_URL", "http://mcp-server:5012/mcp"),
-        ("compose", "MCP_SERVER_URL", "http://mcp-server:5011/other"),
-        ("compose", "RAG_SERVER_URL", "http://rag-server:5012?token=x"),
-        ("compose", "RAG_SERVER_URL", "http://rag-server.attacker.test:5012"),
+        ("MCP_SERVER_URL", "http://mcp-server:5011/mcp"),
+        ("RAG_SERVER_URL", "http://rag-server:5012"),
+        ("MCP_SERVER_URL", "http://host.docker.internal:5011/mcp"),
+        ("RAG_SERVER_URL", "http://rag-server.attacker.test:5012"),
     ],
 )
-def test_compose_service_url_exception_does_not_expand_other_boundaries(
-    environment: str, name: str, url: str
-) -> None:
+def test_non_loopback_shared_service_urls_are_rejected(name: str, url: str) -> None:
     with pytest.raises(ConfigurationError, match="Shared MCP/RAG URLs"):
-        Settings.from_env({"AI_MODE_ENVIRONMENT": environment, name: url})
+        Settings.from_env({name: url})
