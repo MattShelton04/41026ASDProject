@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "mode": "rag",
+  "feature_key": "student-2-market-intelligence",
+  "tool_name": "context.retrieve.v1",
+  "corpus_id": "operator-guidance",
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "b58f2071-9853-4a73-b0ef-51faf5422fb7",
+  "request_id": "r1-rag-f2f2d6bf-7708-4775-b469-8d58fca2c3e1",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "ba2e8638-875a-407c-a3b8-75ed36bfc818",
+      "outcome": "succeeded",
+      "content": {
+        "detail": "Similarity measures retrieval relevance, not factual confidence",
+        "status": "ready"
+      },
+      "error": null,
+      "duration_ms": 77,
+      "retryable": false,
+      "evidence_references": [
+        "service:rag"
+      ],
+      "retrieval": {
+        "schema_version": "1.0",
+        "feature_key": "student-2-market-intelligence",
+        "corpus_id": "operator-guidance",
+        "status": "ready",
+        "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+        "citations": [
+          {
+            "citation_id": "cite-80da31d13678b4a3c813bd400cdf3c407cd550ac4054a6863c398d2d753eec2f",
+            "feature_key": "student-2-market-intelligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+            "document_id": "what-this-feature-does",
+            "chunk_id": "dda722fbf0732d78640971a78e4288015bf36847294f52502ea209603a5ded06",
+            "title": "What Sales and market does and does not claim",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/what-this-feature-does.md",
+            "content_hash": "ac3ff875530bccbfd398424a7685c7e4b7db1ef026689e4e6dbb0cefb5bf42c1",
+            "location": "Operator guidance: what-this-feature-does; section Where the sale records come from; chars 421-1251",
+            "ingested_at": "2026-09-28T05:45:39.725733Z",
+            "source_date": "2026-09-28",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## Where the sale records come from\n\nSale observations arrive as a checksum-protected release published by the Property data research\narea, which sources them from NSW property sales information. Sales and market does not collect\nrecords from publishers directly and does not fetch anything from the internet when you open a\ncase.\n\nEach sale carries its contract date, recorded price, match tier, match confidence, the source\nrelease it arrived in, and whether the record is synthetic demonstration data. Every summary names\nthe source releases it drew on, so a number on screen can be traced back to the release that\nsupplied it.\n\nCurrent record counts, release identifiers and case contents are live database facts. Ask the\nassistant for those; they are answered from the feature's read-only tools rather than from this\nguidance.",
+            "score": 0.5656406668943597
+          },
+          {
+            "citation_id": "cite-6ec0d02a6beef6c734de5a0e2a5e0d53fa7eabff3527496699448f2ad43dd4cb",
+            "feature_key": "student-2-market-intelligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+            "document_id": "what-this-feature-does",
+            "chunk_id": "95ab2e2c1fbeb615fcfbe7f155587762060277ba68e2bb1d9f01f7b9d4974fd0",
+            "title": "What Sales and market does and does not claim",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/what-this-feature-does.md",
+            "content_hash": "ad4f39b9807b7177c68d2a8ae4df45757d17b557b1b32edf7799d97c84a23256",
+            "location": "Operator guidance: what-this-feature-does; section How to build a market case; chars 1254-2136",
+            "ingested_at": "2026-09-28T05:45:39.725733Z",
+            "source_date": "2026-09-28",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## How to build a market case\n\nChoose New case, give it a descriptive name, and select the property by its address. Confirm the\naddress is the one you meant, then set the start and end dates for the period you want to study.\n\nSet the status to Draft, Active, Complete or Archived, and choose the minimum match tier. Tier A\nis the strictest; the default minimum is tier B. Add research notes if they help you remember why\nthe case exists, then choose Save case.\n\nSelecting a saved case from the Market cases list shows its eligible sale count, median recorded\nprice, excluded-record count, source-release count, and volume by contract year. Use Edit to\nchange the name, date window, status, match threshold or notes. Edits use optimistic version\nchecking, so if the case changed elsewhere since you opened it, your update is rejected rather\nthan silently overwriting the other change.",
+            "score": 0.580542016710275
+          },
+          {
+            "citation_id": "cite-1e6d7f75e0037bbac31ddaf96e4c127cd276cbee07360fdc18dcbf802f2349bb",
+            "feature_key": "student-2-market-intelligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+            "document_id": "evidence-limits",
+            "chunk_id": "2cee15a627059dde0431753af837c62d8c4a4a31f18c4e04938767da32d1708b",
+            "title": "What Sales and market evidence cannot establish",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/evidence-limits.md",
+            "content_hash": "b43b1077f382603fb6748bb8d521124b15e3da36b6d8cb0c7bb677aff15ae00c",
+            "location": "Operator guidance: evidence-limits; section Demonstration data; chars 1908-2415",
+            "ingested_at": "2026-09-28T05:45:39.725733Z",
+            "source_date": "2026-09-28",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## Demonstration data\n\nSome cases include deterministic synthetic showcase data so the workflow can be demonstrated\nwithout real records. Where that is so, the summary says the case includes synthetic showcase\ndata. Those figures exist to show the mechanics and must never be quoted as evidence about a real\nproperty or a real market.\n\nA case whose records are synthetic cannot support any claim about actual sales activity, and no\nconclusion about a real suburb, street or property should be drawn from one.",
+            "score": 0.6148246164007579
+          },
+          {
+            "citation_id": "cite-0da7cd9e45cd9dfb38cc8f37e1bd700e904fa3046e720b3cdd577508afdf5cd0",
+            "feature_key": "student-2-market-intelligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+            "document_id": "evidence-limits",
+            "chunk_id": "ecd74b4739d4def521295212538ff53ccf38197be842e39ec94e3622e67cd369",
+            "title": "What Sales and market evidence cannot establish",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/evidence-limits.md",
+            "content_hash": "22a036de43173fa7388afdd5b2072a4844c459d69209a081d7439d7be7e78d29",
+            "location": "Operator guidance: evidence-limits; section Coverage gaps and excluded records; chars 1169-1905",
+            "ingested_at": "2026-09-28T05:45:39.725733Z",
+            "source_date": "2026-09-28",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## Coverage gaps and excluded records\n\nA summary reports only the sales that passed the case filters, and separately counts what it left\nout. Records are excluded for four reasons: no contract date, a contract date outside the case\nperiod, a missing or zero price, or a match tier below the threshold you selected.\n\nExcluded records are not errors and are not deleted. Raising the minimum match tier deliberately\nnarrows the evidence, so a case with few eligible sales may reflect a strict threshold rather than\na quiet market.\n\nWhere fewer than three sales are eligible, the summary states that this is insufficient evidence.\nTreat the median from such a case as an observation about those specific records, not a\nrepresentative figure.",
+            "score": 0.5966202454935792
+          },
+          {
+            "citation_id": "cite-9bdeb61c019b9db3a3d8a1dbb01d8eb4992af7debf969aa35d1260be23e8a762",
+            "feature_key": "student-2-market-intelligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+            "document_id": "match-quality",
+            "chunk_id": "6d5e20aba17859b9c33a79dceeb236db054065b2e42e98e7c240bd383d28d016",
+            "title": "How sales are attributed to a property and how confident that is",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/match-quality.md",
+            "content_hash": "c45b947176b8f6444113ace92ad81e6cedaaf236e9d755800a95fa73159e95b6",
+            "location": "Operator guidance: match-quality; section Reading a summary honestly; chars 1036-1637",
+            "ingested_at": "2026-09-28T05:45:39.725733Z",
+            "source_date": "2026-09-28",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## Reading a summary honestly\n\nThe eligible sale count and the excluded count should be read together. A median drawn from three\neligible sales with twelve excluded is a much weaker statement than the same median drawn from\nthirty, and the summary reports both so the difference stays visible.\n\nVolume by contract year shows when the eligible sales occurred. Gaps in that series mean no\neligible sale was registered in those years for this property at this threshold. They do not mean\nthe property was unavailable, unsold or unoccupied, and they are not evidence of market conditions\nin the wider area.",
+            "score": 0.5670428786154609
+          }
+        ],
+        "detail": "Similarity measures retrieval relevance, not factual confidence"
+      }
+    }
+  ],
+  "final_result": {
+    "citations": [
+      {
+        "chunk_id": "dda722fbf0732d78640971a78e4288015bf36847294f52502ea209603a5ded06",
+        "citation_id": "cite-80da31d13678b4a3c813bd400cdf3c407cd550ac4054a6863c398d2d753eec2f",
+        "content_hash": "ac3ff875530bccbfd398424a7685c7e4b7db1ef026689e4e6dbb0cefb5bf42c1",
+        "corpus_id": "operator-guidance",
+        "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+        "document_id": "what-this-feature-does",
+        "evidence_kind": "project_guidance",
+        "excerpt": "## Where the sale records come from\n\nSale observations arrive as a checksum-protected release published by the Property data research\narea, which sources them from NSW property sales information. Sales and market does not collect\nrecords from publishers directly and does not fetch anything from the internet when you open a\ncase.\n\nEach sale carries its contract date, recorded price, match tier, match confidence, the source\nrelease it arrived in, and whether the record is synthetic demonstration data. Every summary names\nthe source releases it drew on, so a number on screen can be traced back to the release that\nsupplied it.\n\nCurrent record counts, release identifiers and case contents are live database facts. Ask the\nassistant for those; they are answered from the feature's read-only tools rather than from this\nguidance.",
+        "feature_key": "student-2-market-intelligence",
+        "ingested_at": "2026-09-28T05:45:39.725733Z",
+        "location": "Operator guidance: what-this-feature-does; section Where the sale records come from; chars 421-1251",
+        "score": 0.5656406668943597,
+        "source_date": "2026-09-28",
+        "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/what-this-feature-does.md",
+        "title": "What Sales and market does and does not claim"
+      }
+    ],
+    "confidence": "moderate",
+    "confidence_reason": "Based on 1 cited guidance document; some cited guidance only partly matches the question.",
+    "corpus_version": "998ed4d705882ed6322568ca8a66fe2f8d7d90c060aab105352cc4cecc396373",
+    "evidence_gaps": [],
+    "findings": [
+      {
+        "citation_ids": [
+          "cite-80da31d13678b4a3c813bd400cdf3c407cd550ac4054a6863c398d2d753eec2f"
+        ],
+        "kind": "guidance",
+        "text": "## Where the sale records come from\n\nSale observations arrive as a checksum-protected release published by the Property data research\narea, which sources them from NSW property sales information. Sales and market does not collect\nrecords from publishers directly and does not fetch anything from the internet when you open a\ncase.\n\nEach sale carries its contract date, recorded price, match tier, match confidence, the source\nrelease it arrived in, and whether the record is synthetic demonstration data. Every summary names\nthe source releases it drew on, so a number on screen can be traced back to the release that\nsupplied it.\n\nCurrent record counts, release identifiers and case contents are live database facts. Ask the\nassistant for those; they are answered from the feature's read-only tools rather than from this\nguidance.",
+        "tool_call_ids": []
+      }
+    ],
+    "grounding_status": "ready",
+    "next_step": "Review the linked source before acting.",
+    "safety_boundary": "Read-only guidance validation; no publication or approval.",
+    "summary": "Retrieved project guidance."
+  },
+  "error": null
+}

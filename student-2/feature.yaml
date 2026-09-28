@@ -22,6 +22,8 @@ onboarding:
   ai:
     tool_catalog: student-2/tool-catalog.yaml
     runtime_path: /etc/ai-mode/market-intelligence-tools.yaml
+    rag_corpus: student-2/config/rag/corpus.json
+    rag_corpus_id: operator-guidance
   quality:
     python_test_paths:
       - student-2/tests

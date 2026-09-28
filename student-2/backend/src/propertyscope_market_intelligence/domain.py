@@ -12,8 +12,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from shared_contracts.grounding import grounded_allowlist_variants
+
 FEATURE_KEY = "student-2-market-intelligence"
-TOOL_ALLOWLIST = ("market.cases.inspect.v1", "market.sales.summary.v1")
+CAPABILITY_REVISION = "2026-09-28.v1"
+# Release 0 shipped two case-scoped tools; Release 1 adds the argument-free capability guide.
+# Runs recorded under the earlier allowlist must stay readable, so both are approved.
+TOOL_ALLOWLIST_V1 = ("market.cases.inspect.v1", "market.sales.summary.v1")
+TOOL_ALLOWLIST = (*TOOL_ALLOWLIST_V1, "market.capabilities.v1")
+MAX_ASSISTANT_HISTORY_MESSAGES = 8
+MAX_ASSISTANT_HISTORY_MESSAGE_CHARS = 2000
+MAX_ASSISTANT_HISTORY_TOTAL_CHARS = 8000
+# AI-mode appends the retrieval tool to runs it grounds against a registered corpus, so an
+# exact comparison against TOOL_ALLOWLIST alone rejects this feature's own grounded runs.
+APPROVED_TOOL_ALLOWLISTS = grounded_allowlist_variants(TOOL_ALLOWLIST_V1, TOOL_ALLOWLIST)
 SALES_SCHEMA_VERSION = "propertyscope.property-sales.v3"
 
 
@@ -60,14 +72,64 @@ class MarketCaseUpdate(FeatureModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class AssistantHistoryMessage(FeatureModel):
+    """One visible exchange the browser replays; display context, never evidence."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=MAX_ASSISTANT_HISTORY_MESSAGE_CHARS)
+
+
 class AssistantTurn(FeatureModel):
+    """One assistant question about a saved market case.
+
+    The shared chat component posts ``{message, scope, context, history}`` and carries the case
+    in ``context.market_case_id``; a direct caller may supply ``case_id`` at the top level.
+    Both normalise to the same validated command.
+    """
+
     case_id: UUID
     message: str = Field(min_length=2, max_length=2000)
+    history: tuple[AssistantHistoryMessage, ...] = Field(
+        default=(), max_length=MAX_ASSISTANT_HISTORY_MESSAGES
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_shared_chat_payload(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        context = payload.pop("context", None)
+        # Scope is presentation state for the shared composer; this feature answers one case.
+        payload.pop("scope", None)
+        if payload.get("case_id") is None and isinstance(context, dict):
+            supplied = context.get("market_case_id") or context.get("case_id")
+            if supplied is not None:
+                payload["case_id"] = supplied
+        return payload
 
     @field_validator("message", mode="before")
     @classmethod
     def strip_message(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def history_is_completed_alternating_exchanges(self) -> AssistantTurn:
+        if len(self.history) % 2:
+            raise ValueError("history must contain complete user/assistant exchanges")
+        expected = ("user", "assistant") * (len(self.history) // 2)
+        if tuple(item.role for item in self.history) != expected:
+            raise ValueError("history must alternate user then assistant")
+        if sum(len(item.content) for item in self.history) > MAX_ASSISTANT_HISTORY_TOTAL_CHARS:
+            raise ValueError(
+                f"history content must not exceed {MAX_ASSISTANT_HISTORY_TOTAL_CHARS} characters"
+            )
+        return self
+
+    def title(self) -> str:
+        """The question collapsed to one line, as the run's activity-history label."""
+        title = " ".join(self.message.split())
+        return title if len(title) <= 200 else f"{title[:199].rstrip()}…"
 
 
 class ProvenanceV3(FeatureModel):
@@ -180,6 +242,56 @@ class PublicationRequest(FeatureModel):
         if byte_count is not None and (type(byte_count) is not int or byte_count < 1):
             raise ValueError("manifest byte_count must be a positive integer")
         return self
+
+
+def capability_guide() -> dict[str, Any]:
+    """The bounded, versioned description of this feature, shared by the API and MCP tool.
+
+    Argument-free and static: it states what the feature is for and what it refuses to do. Live
+    counts, cases and releases are database facts and belong to the case-scoped tools.
+    """
+    return {
+        "revision": CAPABILITY_REVISION,
+        "feature": {
+            "feature_key": FEATURE_KEY,
+            "label": "Sales & market",
+            "summary": (
+                "A property sales research workspace. Review the sale records attributed to a "
+                "verified property, narrow them by date window and match-quality threshold, and "
+                "save the result as a market case."
+            ),
+            "route": "/features/market-intelligence/#market-cases",
+        },
+        "tools": [
+            {
+                "name": "market.capabilities.v1",
+                "purpose": "Explain this feature, its tools and its limits. Takes no arguments.",
+            },
+            {
+                "name": "market.cases.inspect.v1",
+                "purpose": "Read one saved market case: name, address, window, status, notes.",
+            },
+            {
+                "name": "market.sales.summary.v1",
+                "purpose": (
+                    "Deterministic sale count, median price, yearly volume, exclusions and "
+                    "source releases for one saved case."
+                ),
+            },
+        ],
+        "limitations": [
+            "It is research support, not professional advice.",
+            "It does not estimate a property value, forecast prices or recommend a purchase.",
+            "Recorded prices are historical transactions, not current market value.",
+            "Every figure is calculated by the data service; the model never does the arithmetic.",
+            "Answers cover one saved market case; it holds no listings, rentals or appraisals.",
+        ],
+        "suggested_questions": [
+            "Explain the recorded sales, exclusions and limitations in this case.",
+            "What does the match tier threshold exclude from this summary?",
+            "What can this evidence not tell me about the property's value?",
+        ],
+    }
 
 
 def decode_sales_artifact(

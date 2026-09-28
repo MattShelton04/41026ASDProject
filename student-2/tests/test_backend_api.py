@@ -13,6 +13,7 @@ import httpx
 from flask.testing import FlaskClient
 
 from propertyscope_market_intelligence.app import create_app as create_backend
+from propertyscope_market_intelligence.domain import TOOL_ALLOWLIST
 from propertyscope_market_intelligence.import_worker import SalesImportWorker
 from propertyscope_market_store.app import create_app as create_database
 from propertyscope_market_store.configuration import StoreSettings
@@ -168,7 +169,9 @@ def test_assistant_run_is_bounded_and_owned(tmp_path: Path) -> None:
     )
     assert created.status_code == 202
     assert ai.payload is not None
-    assert ai.payload["tool_allowlist"] == ["market.cases.inspect.v1", "market.sales.summary.v1"]
+    assert ai.payload["tool_allowlist"] == list(TOOL_ALLOWLIST)
+    # The argument-free capability tool is what makes MCP loop validation possible.
+    assert "market.capabilities.v1" in ai.payload["tool_allowlist"]
     assert ai.payload["limits"]["max_iterations"] == 4
     assert case_id not in ai.payload["objective"]
     assert "Never display UUIDs" in ai.payload["objective"]

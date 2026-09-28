@@ -4,6 +4,31 @@ services:
     base_url: http://f2-backend:5301
 tools:
   - definition:
+      name: market.capabilities.v1
+      version: v1
+      feature_key: student-2-market-intelligence
+      description: Explain the Sales and market research area, its read-only tools, its limits and safe suggested questions from a bounded versioned guide. Takes no arguments and returns no case, property or sale record.
+      input_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          revision: {type: string}
+          feature: {type: object}
+          tools: {type: array, maxItems: 10, items: {type: object}}
+          limitations: {type: array, maxItems: 10, items: {type: string}}
+          suggested_questions: {type: array, maxItems: 10, items: {type: string}}
+        required: [revision, feature, tools, limitations, suggested_questions]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-market-intelligence-backend
+    method: POST
+    path: /api/market-intelligence/v1/tools/market.capabilities.v1
+  - definition:
       name: market.cases.inspect.v1
       version: v1
       feature_key: student-2-market-intelligence

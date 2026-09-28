@@ -1,23 +1,21 @@
 import { el, requestJsonResponse, createLatestTask } from "./browser/index.js";
+import { createFeatureAssistant } from "./ai-chat/index.js";
 
 const API = "/api/market-intelligence/v1";
 const EXAMPLE_PROPERTY = {
   reference: "a0000000-0000-0000-0000-000000000001",
   address: "11 Example Street, Sydney NSW 2000",
 };
-const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
   currency: "AUD",
   maximumFractionDigits: 0,
 });
 
-const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false };
+const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false, assistant: null };
 const evidenceTask = createLatestTask();
-const assistantTask = createLatestTask();
 let saving = false;
 let deleting = false;
-let asking = false;
 const byId = (id) => document.getElementById(id);
 
 function text(node, value) {
@@ -30,13 +28,6 @@ function clear(node) {
 
 function humanise(value) {
   return String(value || "unknown").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function redactInternalIdentifiers(value) {
-  return String(value)
-    .replace(UUID_PATTERN, "[internal reference hidden]")
-    .replace(/\bmarket_case_id\b/gi, "market case")
-    .replace(/\bproperty_ref\b/gi, "property");
 }
 
 function populatePropertyChoices(selectedReference, selectedAddress) {
@@ -183,16 +174,11 @@ async function loadCases(preferredId = null) {
 
 async function loadEvidence() {
   const task = evidenceTask.start();
-  assistantTask.cancel();
   const id = state.selectedId;
   state.evidence = null;
   state.evidenceError = null;
   state.evidenceLoading = Boolean(id);
-  asking = false;
-  byId("assistant-form").querySelector("button").disabled = false;
-  byId("assistant-activity").hidden = true;
-  byId("assistant-status").textContent = "";
-  text(byId("assistant-answer"), "No question sent for this case. Your saved research works independently of the assistant.");
+  syncAssistantContext();
   renderCases();
   renderEvidence();
   if (!id) return;
@@ -303,69 +289,39 @@ async function deleteCase() {
   } finally { deleting = false; }
 }
 
-function answerText(result) {
-  if (!result || typeof result !== "object") return "The run completed without a displayable answer.";
-  const preferred = ["summary", "findings", "limitations", "recommended_next_step", "safety_note", "evidence"];
-  const lines = [];
-  for (const key of preferred) {
-    const value = result[key];
-    if (value == null) continue;
-    lines.push(`${humanise(key)}:\n${redactInternalIdentifiers(Array.isArray(value) ? value.join("\n") : value)}`);
-  }
-  return lines.join("\n\n") || "The run has no displayable answer. Open recorded activity to inspect the public result.";
+function selectedCase() {
+  return state.cases.find((item) => item.id === state.selectedId) || null;
 }
 
-async function pollAssistant(runId, task) {
-  for (let attempt = 0; attempt < 90; attempt += 1) {
-    const detail = await api(`/assistant/turns/${encodeURIComponent(runId)}`, { signal: task.signal });
-    if (!task.isCurrent()) return;
-    const run = detail.run || detail;
-    text(byId("assistant-status"), `${humanise(run.status)} · recorded AI activity`);
-    if (run.status === "succeeded") {
-      text(byId("assistant-answer"), answerText(run.final_result));
-      return;
-    }
-    if (["failed", "cancelled", "timed_out"].includes(run.status)) {
-      throw new Error(run.error?.message || `AI run ${humanise(run.status)}`);
-    }
-    if (["waiting_for_review", "review_required"].includes(run.status)) {
-      text(byId("assistant-answer"), "This run needs human review. Open AI activity to continue; your saved case is unchanged.");
-      return;
-    }
-    await task.delay(1200);
-  }
-  throw new Error("AI run is still active; check AI-mode activity for its durable status.");
+function syncAssistantContext() {
+  if (!state.assistant) return;
+  const item = selectedCase();
+  state.assistant.controller.setContext(
+    item ? { market_case_id: item.id, display_label: item.name } : {},
+  );
 }
 
-async function askAssistant(event) {
-  event.preventDefault();
-  if (!state.selectedId || asking) return;
-  const question = byId("assistant-message").value.trim();
-  if (question.length < 2) { byId("assistant-message").focus(); return; }
-  asking = true;
-  const task = assistantTask.start();
-  const button = event.submitter || byId("assistant-form").querySelector("button");
-  button.disabled = true;
-  text(byId("assistant-status"), "Sending this question for the selected case…");
-  text(byId("assistant-answer"), "The assistant will inspect the case through its read-only tools. No answer has been recorded yet.");
-  try {
-    const run = await api("/assistant/turns", {
-      method: "POST", signal: task.signal,
-      body: JSON.stringify({ case_id: state.selectedId, message: question }),
-    });
-    if (task.isCurrent()) {
-      const runId = run.id || run.run?.id;
-      if (!runId) throw new Error("The service did not return a recorded run reference.");
-      const params = new URLSearchParams({feature_key: "student-2-market-intelligence", run: runId, return_to: "/features/market-intelligence/#market-cases"});
-      byId("assistant-activity").href = `/operations/ai-mode/?${params}`;
-      byId("assistant-activity").hidden = false;
-      await pollAssistant(runId, task);
-    }
-  } catch (error) {
-    if (task.isCurrent()) text(byId("assistant-answer"), `${error.message}\n\nThe deterministic case summary above remains available.`);
-  } finally {
-    if (task.isCurrent()) { asking = false; button.disabled = false; }
-  }
+function initialiseAssistant() {
+  state.assistant = createFeatureAssistant({
+    root: byId("assistant-root"),
+    apiRoot: `${API}/assistant`,
+    featureKey: "student-2-market-intelligence",
+    featureLabel: "Sales & market",
+    returnTo: "/features/market-intelligence/#market-cases",
+    scopes: [{ id: "feature", label: "Sales & market", description: "Recorded sale observations, deterministic case summaries and this feature's published guidance." }],
+    suggestions: [
+      "Explain the recorded sales, exclusions and limitations in this case.",
+      "What does the match tier threshold exclude from this summary?",
+      "What can this evidence not tell me about the property's value?",
+    ],
+    title: "Ask about this case",
+    description: "Ask about the selected case's recorded sales, exclusions and limits. Every answer is a bounded, reviewable AI activity run.",
+    welcomeTitle: "What would you like to understand?",
+    welcomeMessage: "I read this case through two read-only tools and the feature's published guidance. I do not estimate value, forecast prices or recommend whether to buy.",
+    placeholder: "Ask about the recorded sales, exclusions or limits of this case...",
+    announce: (message) => notify(message),
+  });
+  syncAssistantContext();
 }
 
 function initialise() {
@@ -384,7 +340,7 @@ byId("delete-case").addEventListener("click", () => deleteCase().catch((error) =
 byId("close-dialog").addEventListener("click", () => byId("case-dialog").close());
 byId("cancel-dialog").addEventListener("click", () => byId("case-dialog").close());
 byId("case-form").addEventListener("submit", (event) => saveCase(event).catch((error) => notify(error.message, true)));
-byId("assistant-form").addEventListener("submit", askAssistant);
+initialiseAssistant();
 
 loadCases().catch((error) => {
   notify(`Sales & market could not be loaded: ${error.message}`, true);
@@ -394,7 +350,7 @@ loadCases().catch((error) => {
   renderEvidence();
 });
 
-  window.addEventListener("pagehide", () => { evidenceTask.cancel(); assistantTask.cancel(); }, { once: true });
+  window.addEventListener("pagehide", () => { evidenceTask.cancel(); state.assistant?.controller.destroy(); }, { once: true });
 }
 
 if (typeof document !== "undefined") initialise();
