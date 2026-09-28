@@ -944,6 +944,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(evidence, indent=2))
             return 0 if evidence["passed"] else 1
+        elif command == ("ai", "probe"):
+            from scripts.release1_probe import probe, render
+
+            observations = probe(os.environ, output=arguments.output)
+            print(render(observations), flush=True)
+            return 0 if observations["passed"] else 1
         elif command == ("ui", "serve"):
             _run(
                 (

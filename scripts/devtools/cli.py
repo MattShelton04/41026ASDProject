@@ -265,6 +265,12 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         "argument-free read-only tool owned by the feature",
     )
     _add_env_file_option(validate)
+    probe = commands.add_parser(
+        "probe",
+        help="Check the running MCP and RAG servers directly: auth, tools, corpora, retrieval",
+    )
+    probe.add_argument("--output", type=Path, default=None, help="Also write JSON evidence here")
+    _add_env_file_option(probe)
     for action, help_text in (
         ("stop", "Stop host AI services while preserving their data"),
         ("logs", "Print recent host AI service logs"),
