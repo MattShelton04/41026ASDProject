@@ -2201,6 +2201,7 @@ def test_run_and_failed_ai_details_remain_clear_at_mobile_width(
     assert page.evaluate(
         "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
+    page.unroute_all(behavior="wait")
 
 
 def test_ai_active_poll_preserves_disclosure_without_stealing_external_focus(
@@ -2231,6 +2232,7 @@ def test_ai_active_poll_preserves_disclosure_without_stealing_external_focus(
     assert detail_reads >= 2
     expect(activity).to_have_attribute("open", "")
     expect(external_focus).to_be_focused()
+    page.unroute_all(behavior="wait")
 
 
 def test_activity_download_uses_a_browser_attachment(page: Page, fixture_origin: str) -> None:
