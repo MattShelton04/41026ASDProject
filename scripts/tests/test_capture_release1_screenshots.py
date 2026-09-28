@@ -22,7 +22,16 @@ def test_assistant_shots_that_are_ready_ask_a_question() -> None:
 
 
 def test_list_marks_pending_shots(capsys) -> None:  # type: ignore[no-untyped-def]
-    assert capture.main(["--list", "--only", "feature-2"]) == 0
+    # A feature that has not adopted the shared assistant and a corpus yet; features adopt
+    # independently, so this must name one that is still pending rather than the first adopter.
+    assert capture.main(["--list", "--only", "feature-4"]) == 0
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == 3
     assert all("pending" in line for line in lines)
+
+
+def test_list_marks_adopted_shots_ready(capsys) -> None:  # type: ignore[no-untyped-def]
+    assert capture.main(["--list", "--only", "feature-2"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 3
+    assert all("pending" not in line for line in lines)

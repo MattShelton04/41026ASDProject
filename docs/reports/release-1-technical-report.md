@@ -64,7 +64,11 @@ insufficient.
 | 5 Derek Song | Buyer Journey and Agent Workspace | Feature 5 assistant routes, corpus, MCP/RAG evidence and `student-5.yml` |
 | Group | Integrated application | Compose deployment, integration validation, report and showcase video |
 
-[[TODO: Students 2-5 | Confirm your row, then add one sentence each on the feature updates you made in Release 1 beyond MCP/RAG adoption (if any).]]
+Feature 2 also registers an argument-free capability tool describing the area and its refusals,
+and withholds its assistant until a case is selected, so every question is scoped to saved
+research.
+
+[[TODO: Students 3-5 | Confirm your row, then add one sentence each on the feature updates you made in Release 1 beyond MCP/RAG adoption (if any).]]
 
 ## 2 Functional requirements
 
@@ -154,7 +158,12 @@ and strong matches. Appendix B lists every document.
 
 ![Figure 3 RAG ingestion, retrieval and grounded-answer rules](assets/release-1/rag-pipeline.png)
 
-[[TODO: Students 2-5 | Register your corpus (docs/release-1/adopt-mcp-and-rag.md steps 1-3). The table in 5.1 and Appendix B update automatically; add one sentence here on what your corpus covers.]]
+Feature 2's corpus covers what Sales and market is for and where its sale records come from, how a
+sale is attributed to a property and how confident that attribution is, and what recorded sales
+cannot establish, including that they are not a valuation and that fixture cases carry synthetic
+showcase figures.
+
+[[TODO: Students 3-5 | Register your corpus (docs/release-1/adopt-mcp-and-rag.md steps 1-3). The table in 5.1 and Appendix B update automatically; add one sentence here on what your corpus covers.]]
 
 ## 6 Validation and results
 
@@ -186,12 +195,12 @@ model decisions, so they test the integration rather than answer quality (Figure
 | Feature | Frontend, API and database (Release 0) | AI-mode | MCP result in UI | Grounded answer | Insufficient context |
 |---|---|---|---|---|---|
 | 1 Property data | Source CRUD and property search, browser suite passes | Yes | Yes | Yes | Yes |
-| 2 Market intelligence | Pending | Pending | Pending | Pending | Pending |
+| 2 Market intelligence | Case CRUD, sales evidence and deterministic summaries unchanged | Yes | Yes | Yes | Yes |
 | 3 Suburb analytics | Pending | Pending | Pending | Pending | Pending |
 | 4 Due diligence | Pending | Pending | Pending | Pending | Pending |
 | 5 Buyer workspace | Pending | Pending | Pending | Pending | Pending |
 
-[[TODO: Students 2-5 | Replace "Pending" in your row once each item is observed on the live stack, and add your three screenshots below with `capture_release1_screenshots.py`.]]
+[[TODO: Students 3-5 | Replace "Pending" in your row once each item is observed on the live stack, and add your three screenshots below with `capture_release1_screenshots.py`.]]
 
 #### Feature 1 / Property data
 
@@ -289,8 +298,9 @@ service.
 | Loop validation modes use deterministic model decisions | They prove the integration path, not answer quality; live answers are shown separately |
 | Confidence is an evidence-support category | It is not a probability and does not verify that each claim follows from its source |
 | Some demonstration data is labelled fixture data | Screenshots show fixture records where official data is not loaded |
+| Feature 2 answers one selected market case | The assistant is withheld until a case is selected, and it cannot compare cases or answer without one |
 
-[[TODO: Students 2-5 | Add any limitation specific to your feature (one row each, if any).]]
+[[TODO: Students 3-5 | Add any limitation specific to your feature (one row each, if any).]]
 
 ## 9 Contributions, repository and showcase
 
@@ -300,12 +310,12 @@ Detailed contribution logs and Release 1 commits are in Appendix C.
 | Student | Release 1 contribution | Pull requests |
 |---|---|---|
 | Matthew | Shared MCP server, RAG server, host runtime, loop validation modes, grounding and confidence rules, adoption kit, Feature 1 corpus and grounded assistant | [#107](https://github.com/MattShelton04/41026ASDProject/pull/107), [#116](https://github.com/MattShelton04/41026ASDProject/pull/116), [#117](https://github.com/MattShelton04/41026ASDProject/pull/117) and others in Appendix C |
-| Burhan | Pending | Pending |
+| Burhan | Feature 2 shared MCP and RAG adoption: grounded allowlist ownership, operator-guidance corpus, argument-free capability tool, shared assistant UI with citations and confidence | [#120](https://github.com/MattShelton04/41026ASDProject/pull/120) and Appendix C |
 | James | Pending | Pending |
 | Michael | Pending | Pending |
 | Derek | Pending | Pending |
 
-[[TODO: Students 2-5 | Fill in your row with your merged Release 1 pull requests, and add your log to Appendix C.]]
+[[TODO: Students 3-5 | Fill in your row with your merged Release 1 pull requests, and add your log to Appendix C.]]
 
 [[TODO: Team | Add the showcase video URL here and record Week 9 attendance for all five students.]]
 
@@ -340,7 +350,13 @@ published under CC0.
 
 ### Student 2 Burhan Naeem
 
-[[TODO: Student 2 | Contribution log (date, commit, work) for Release 1.]]
+| Date | Commit | Work |
+|---|---|---|
+| 28 September | `a1b8577` | Approved the grounded tool allowlist so Feature 2 can read its own grounded runs, with regression tests for the pre-grounding, grounded and foreign-allowlist cases |
+| 28 September | `a1b8577` | Wrote the three operator-guidance corpus documents, registered the corpus in `student-2/feature.yaml` and ingested it |
+| 28 September | `a1b8577` | Added the argument-free `market.capabilities.v1` tool so the shared loop has a read-only tool to call in MCP validation mode |
+| 28 September | `a1b8577` | Replaced the answer-text-only renderer with the shared assistant, accepted the shared `{message, scope, context, history}` payload and bounded assistant history |
+| 28 September | `a1b8577` | Captured MCP and RAG validation evidence under `student-2/docs/release-1/evidence/` |
 
 ### Student 3 James Huang
 

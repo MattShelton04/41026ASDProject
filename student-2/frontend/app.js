@@ -294,11 +294,14 @@ function selectedCase() {
 }
 
 function syncAssistantContext() {
-  if (!state.assistant) return;
+  // The backend answers one saved case, so the composer must not exist before a case is bound;
+  // an unscoped turn is rejected as a missing case_id, which reads like a fault to the user.
   const item = selectedCase();
-  state.assistant.controller.setContext(
-    item ? { market_case_id: item.id, display_label: item.name } : {},
-  );
+  byId("assistant-requires-case").hidden = Boolean(item);
+  byId("assistant-root").hidden = !item;
+  if (!item) return;
+  if (!state.assistant) initialiseAssistant();
+  state.assistant.controller.setContext({ market_case_id: item.id, display_label: item.name });
 }
 
 function initialiseAssistant() {
@@ -321,7 +324,6 @@ function initialiseAssistant() {
     placeholder: "Ask about the recorded sales, exclusions or limits of this case...",
     announce: (message) => notify(message),
   });
-  syncAssistantContext();
 }
 
 function initialise() {
@@ -340,7 +342,6 @@ byId("delete-case").addEventListener("click", () => deleteCase().catch((error) =
 byId("close-dialog").addEventListener("click", () => byId("case-dialog").close());
 byId("cancel-dialog").addEventListener("click", () => byId("case-dialog").close());
 byId("case-form").addEventListener("submit", (event) => saveCase(event).catch((error) => notify(error.message, true)));
-initialiseAssistant();
 
 loadCases().catch((error) => {
   notify(`Sales & market could not be loaded: ${error.message}`, true);

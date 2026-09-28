@@ -39,3 +39,13 @@ test("research area fragment replaces the planned sales row", () => {
   assert.match(fragment, /data-feature-state="available"/);
   assert.match(fragment, /\/features\/market-intelligence\/#market-cases/);
 });
+
+test("the assistant is withheld until a market case is bound", () => {
+  // An unscoped turn is rejected as a missing case_id, which reads as a fault to the user.
+  assert.match(page, /id="assistant-root" hidden/);
+  assert.match(page, /id="assistant-requires-case"/);
+  assert.match(app, /byId\("assistant-root"\)\.hidden = !item/);
+  // Creating the assistant lazily is what removes the load-order race with loadCases().
+  assert.match(app, /if \(!state\.assistant\) initialiseAssistant\(\)/);
+  assert.doesNotMatch(app, /^initialiseAssistant\(\);$/m);
+});
