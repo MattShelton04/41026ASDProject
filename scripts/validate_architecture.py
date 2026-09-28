@@ -54,6 +54,22 @@ FEATURE_FRONTEND_PATHS = {
     "due-diligence": "student-4",
     "buyer-workspaces": "student-5",
 }
+# Release 1: AI-mode (with the agent loop), MCP and RAG run on the host and must not be defined
+# as Compose services or built as images (ADR-043, ADR-046).
+HOST_AI_COMPONENTS = ("ai-mode", "mcp-server", "rag-server", "agent-core")
+HOST_AI_MODULES = ("ai_mode", "mcp_server", "rag_server", "agent_core")
+HOST_AI_SERVICE_NAMES = frozenset({*HOST_AI_COMPONENTS, "shared-ai-mode", "agent-loop"})
+COMPOSE_FILE_PATTERNS = (
+    "docker-compose*.yml",
+    "docker-compose*.yaml",
+    "compose*.yml",
+    "compose*.yaml",
+    "deployment/*.compose.yml",
+)
+AI_MODE_URL_VARIABLES = ("AI_MODE_BASE_URL", "AI_MODE_URL")
+HOST_AI_CONNECTION_VARIABLES = ("MCP_SERVER_URL", "RAG_SERVER_URL")
+HOST_GATEWAY_URL = re.compile(r"^http://host\.docker\.internal[:/]")
+HOST_GATEWAY_MAPPING = "host.docker.internal:host-gateway"
 FEATURE_1_BRIDGE = "shared/frontend/feature-1-bridge.js"
 FEATURE_1_ADAPTER = "student-1/frontend/integration/shell.js"
 
@@ -134,9 +150,91 @@ def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViola
         *_validate_python_imports(root, projects, database_owners),
         *_validate_frontend_imports(root),
         *_validate_compose_boundaries(root, projection),
+        *_validate_non_containerised_ai(root),
         *_validate_corpus_declarations(root, projection),
     ]
     return tuple(sorted(violations))
+
+
+def _validate_non_containerised_ai(root: Path) -> Iterable[ArchitectureViolation]:
+    """Keep the shared AI tier out of containers and wire every AI-using backend to it.
+
+    The Release 1 brief requires AI-mode, MCP, RAG and the agent loop to run locally, outside
+    containers, and not be defined as Compose services. Backends that call AI-mode must carry the
+    MCP/RAG connection settings the same way, through the Docker host gateway.
+    """
+    ai_root = root / "ai-services"
+    if ai_root.is_dir():
+        for path in sorted(ai_root.rglob("*")):
+            name = path.name.lower()
+            if path.is_file() and (name.startswith("dockerfile") or name.endswith(".dockerfile")):
+                yield ArchitectureViolation(
+                    _relative(root, path), 0, "Shared AI services must not be built as images"
+                )
+    compose_paths = sorted(
+        {path for pattern in COMPOSE_FILE_PATTERNS for path in root.glob(pattern) if path.is_file()}
+    )
+    for compose_path in compose_paths:
+        location = _relative(root, compose_path)
+        try:
+            document = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            yield ArchitectureViolation(location, 0, f"could not inspect Compose services: {exc}")
+            continue
+        services = document.get("services") if isinstance(document, dict) else None
+        if not isinstance(services, dict):
+            continue
+        for service_name, raw_service in services.items():
+            if not isinstance(raw_service, dict):
+                continue
+            if _defines_host_ai_service(str(service_name), raw_service):
+                yield ArchitectureViolation(
+                    location,
+                    0,
+                    f"Compose service {service_name} runs a shared AI service; AI-mode, MCP, RAG "
+                    "and the agent loop must run as host processes",
+                )
+            if compose_path.name == "docker-compose.yml":
+                yield from _validate_host_ai_connection(location, str(service_name), raw_service)
+
+
+def _defines_host_ai_service(name: str, service: Mapping[str, object]) -> bool:
+    build = str(service.get("build", "")).lower().replace("\\", "/")
+    image = str(service.get("image", "")).lower()
+    command = f"{service.get('command', '')} {service.get('entrypoint', '')}".lower()
+    return (
+        name in HOST_AI_SERVICE_NAMES
+        or "ai-services" in build
+        or any(component in image for component in (*HOST_AI_COMPONENTS, "shared-ai"))
+        or any(module in command for module in (*HOST_AI_MODULES, *HOST_AI_COMPONENTS))
+    )
+
+
+def _validate_host_ai_connection(
+    location: str, name: str, service: Mapping[str, object]
+) -> Iterable[ArchitectureViolation]:
+    environment = _compose_environment(service.get("environment"))
+    ai_urls = [str(environment[key]) for key in AI_MODE_URL_VARIABLES if key in environment]
+    if not ai_urls:
+        return
+    for variable in HOST_AI_CONNECTION_VARIABLES:
+        value = str(environment.get(variable, ""))
+        if HOST_GATEWAY_URL.match(value) is None:
+            yield ArchitectureViolation(
+                location,
+                0,
+                f"Compose service {name} calls AI-mode and must set {variable} to the host "
+                "service through http://host.docker.internal",
+            )
+    if any(HOST_GATEWAY_URL.match(url) is None for url in ai_urls):
+        yield ArchitectureViolation(
+            location, 0, f"Compose service {name} must reach host AI-mode via host.docker.internal"
+        )
+    extra_hosts = service.get("extra_hosts")
+    if not isinstance(extra_hosts, list) or HOST_GATEWAY_MAPPING not in extra_hosts:
+        yield ArchitectureViolation(
+            location, 0, f"Compose service {name} must map {HOST_GATEWAY_MAPPING}"
+        )
 
 
 def _validate_corpus_declarations(
@@ -740,7 +838,7 @@ def main() -> int:
         for violation in violations:
             print(f"- {violation}")
         return 1
-    print("Validated workspace dependency, import, credential, and volume boundaries")
+    print("Validated workspace dependency, import, credential, volume and host AI boundaries")
     return 0
 
 

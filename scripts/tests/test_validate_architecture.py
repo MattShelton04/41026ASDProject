@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from scripts.validate_architecture import validate_repository
 
 
@@ -544,3 +545,85 @@ def test_a_feature_cannot_declare_another_slices_corpus(tmp_path: Path) -> None:
         "must own its corpus manifest" in violation.message
         for violation in validate_repository(root)
     )
+
+
+_HOST_AI_BACKEND = """\
+services:
+  f1-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+"""
+
+
+def _host_ai_messages(root: Path) -> list[str]:
+    return [
+        violation.message
+        for violation in validate_repository(root)
+        if "AI" in violation.message or "host" in violation.message
+    ]
+
+
+def test_backend_wired_to_host_ai_services_passes(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    (root / "docker-compose.yml").write_text(_HOST_AI_BACKEND, encoding="utf-8")
+
+    assert _host_ai_messages(root) == []
+
+
+def test_backend_that_calls_ai_mode_must_reach_mcp_and_rag_through_the_host(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    compose = (
+        _HOST_AI_BACKEND.replace("      - host.docker.internal:host-gateway\n", "      - other\n")
+        .replace("MCP_SERVER_URL: http://host.docker.internal", "MCP_SERVER_URL: http://mcp-server")
+        .replace("      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}\n", "")
+    )
+    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    messages = _host_ai_messages(root)
+
+    assert any("must set MCP_SERVER_URL" in message for message in messages)
+    assert any("must set RAG_SERVER_URL" in message for message in messages)
+    assert any("must map host.docker.internal:host-gateway" in message for message in messages)
+
+
+@pytest.mark.parametrize(
+    ("filename", "service"),
+    [
+        ("docker-compose.ai.yml", "shared-ai-mode:\n    image: example/app"),
+        (
+            "docker-compose.override.yml",
+            "helper:\n    build:\n      context: ai-services/rag-server",
+        ),
+        ("compose.yaml", "helper:\n    image: example/mcp-server:dev"),
+        ("deployment/extra.compose.yml", "helper:\n    command: [python, -m, ai_mode]"),
+    ],
+)
+def test_any_compose_file_defining_a_shared_ai_service_is_rejected(
+    tmp_path: Path, filename: str, service: str
+) -> None:
+    root = _workspace(tmp_path)
+    (root / filename).write_text(f"services:\n  {service}\n", encoding="utf-8")
+
+    messages = _host_ai_messages(root)
+
+    assert len(messages) == 1
+    assert "must run as host processes" in messages[0]
+
+
+def test_ai_service_dockerfile_is_rejected(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    dockerfile = root / "ai-services" / "ai-mode" / "Dockerfile"
+    dockerfile.parent.mkdir(parents=True, exist_ok=True)
+    dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
+
+    violations = validate_repository(root)
+
+    assert [str(violation) for violation in violations] == [
+        "ai-services/ai-mode/Dockerfile: Shared AI services must not be built as images"
+    ]
