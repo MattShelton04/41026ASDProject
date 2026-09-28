@@ -312,12 +312,17 @@ def test_named_validation_loads_its_explicit_environment_file(
 
 
 def test_derived_corpus_scope_matches_the_literal_it_replaced(isolated: Path) -> None:
-    """Pins the behaviour-preservation claim: declarations must reproduce the old value."""
+    """Pins the behaviour-preservation claim: the original declaration still scopes RAG.
+
+    The scope grows as owners adopt RAG independently, so this asserts the founding pair is
+    still present rather than that it is the only one; derivation itself is covered by
+    ``test_corpus_scopes_come_from_enabled_declarations``.
+    """
     resolved = runtime.prepare_environment({}, mode="combined")
 
-    assert (
-        resolved["RAG_ALLOWED_CORPORA"] == "student-1-propertyscope-data-platform:operator-guidance"
-    )
+    scope = resolved["RAG_ALLOWED_CORPORA"].split(",")
+    assert "student-1-propertyscope-data-platform:operator-guidance" in scope
+    assert len(scope) == len(set(scope))
     assert resolved["AI_MODE_RAG_CORPORA"] == resolved["RAG_ALLOWED_CORPORA"]
 
 
