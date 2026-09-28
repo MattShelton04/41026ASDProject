@@ -215,8 +215,9 @@ gh api -X PUT repos/<owner>/<repo>/pages -f "source[branch]=gh-pages" -f "source
   -f build_type=legacy                                          # or POST if Pages is not yet enabled
 ```
 
-In the repository's Actions settings, workflows need read and write permission for the
-`GITHUB_TOKEN`, as the report workflow's `permissions:` block requests. Free Actions minutes and
+The repository's default workflow token can stay read-only. The report workflow requests
+`contents`, `pull-requests` and `pages` write access in its own `permissions:` block, and the
+capture workflow asks only for `contents: read`. Free Actions minutes and
 Pages hosting on this public repository cover it: a run uses four capture jobs (about 15–25
 runner-minutes in total, mostly building stack images) and one short publish job.
 
