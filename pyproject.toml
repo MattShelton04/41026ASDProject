@@ -28,6 +28,10 @@ dev = [
     "types-waitress>=3.0.1.20260724",
     "waitress>=3.0.2",
 ]
+visual = [
+    "numpy>=2.2,<3",
+    "pillow>=11,<13",
+]
 
 [tool.uv]
 default-groups = ["dev"]

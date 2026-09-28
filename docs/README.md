@@ -47,6 +47,8 @@ Store maintained project documentation here throughout all three releases.
   AI-mode, MCP and RAG run only as host processes ([ADR-046](architecture/decisions/ADR-046-non-containerised-ai-tier.md))
 - [Feature onboarding](release-0/feature-onboarding.md): requirements for approved student
   vertical slices
+- [Visual regression review](ui/visual-regression.md): before/after screenshot capture for every
+  pull request, the Pages history, the sticky PR comment, and the local `ui visual` loop
 
 The root documents and the files named above are maintained guidance. ADRs are durable
 decision records. The [initial scaffold record](architecture/repository-architecture.md),

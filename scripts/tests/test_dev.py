@@ -961,3 +961,30 @@ def test_doctor_reports_project_and_port_ownership(
 
 def test_ui_fixture_default_port_is_outside_every_stack_port() -> None:
     assert dev.DEFAULT_UI_FIXTURE_PORT not in {port for _variable, port in dev.HOST_PORTS.values()}
+
+
+def test_ui_visual_saves_a_baseline_then_compares_the_working_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[tuple[str, ...]] = []
+
+    def record(command: Sequence[str], **_kwargs: object) -> None:
+        commands.append(tuple(command))
+        if "--out" in command and "capture" in command:
+            output = Path(command[command.index("--out") + 1])
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "capture-fixture.json").write_text("{}")
+
+    monkeypatch.setattr(dev, "LOCAL_VISUAL_ROOT", tmp_path)
+    monkeypatch.setattr(dev, "_run", record)
+
+    assert dev.main(["ui", "visual", "--case", "f1-runs"]) == 0
+    assert len(commands) == 1
+    assert commands[0][2:5] == ("scripts.visual", "capture", "--provider")
+    assert commands[0][6:8] == ("--case", "f1-runs")
+    assert "base" in commands[0]
+
+    assert dev.main(["ui", "visual", "--case", "f1-runs"]) == 0
+    assert [command[3] for command in commands[1:]] == ["capture", "compare"]
+    assert "head" in commands[1]
+    assert str(tmp_path / "fixture" / "baseline") in commands[2]

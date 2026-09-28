@@ -77,6 +77,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "student-5/backend/src/propertyscope_buyer_workspaces",
         "student-5/database/src/propertyscope_buyer_store",
         "scripts/ui_audit",
+        "scripts/visual",
         "scripts/devtools",
         "scripts/check.py",
         "scripts/dev.py",

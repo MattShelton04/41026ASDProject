@@ -145,6 +145,28 @@ def _ui_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         help="Screenshot directory (default: docs/images/readme)",
     )
 
+    visual = commands.add_parser(
+        "visual",
+        help="Compare screenshots before and after a local change (first run saves the baseline)",
+    )
+    visual.add_argument(
+        "--provider",
+        choices=("fixture", "stack"),
+        default="fixture",
+        help="fixture: Shared and Feature 1 without Docker; stack: Features 2-5 on a running stack",
+    )
+    visual.add_argument(
+        "--case", action="append", default=[], help="Limit to a visual case ID (repeatable)"
+    )
+    visual.add_argument(
+        "--section", action="append", default=[], help="Limit to a section, e.g. feature-1"
+    )
+    visual.add_argument(
+        "--reset-baseline",
+        action="store_true",
+        help="Discard the saved baseline and capture a new one from the current tree",
+    )
+
     audit = commands.add_parser("audit", help="Run a resumable browser interaction audit")
     audit.add_argument(
         "profile",

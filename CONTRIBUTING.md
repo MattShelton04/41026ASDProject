@@ -98,6 +98,7 @@ only for documented, non-secret defaults.
 | Delete only this stack's durable data | `uv run scripts/dev.py stack reset` |
 | Run the quick Shared/Feature 1 UI audit | `uv run scripts/dev.py ui audit quick` |
 | Run the full resumable UI matrix | `uv run scripts/dev.py ui audit full` |
+| Compare screenshots before/after a UI change (first run saves the baseline) | `uv run scripts/dev.py ui visual [--provider stack] [--case ID]` |
 | Build production-like Release 0 images without starting them | `uv run scripts/dev.py stack build` |
 
 The source-only `check.py` stages are cross-platform and require no shell-specific syntax. They do

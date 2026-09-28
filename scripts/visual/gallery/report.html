@@ -1,0 +1,22 @@
+<header class="app-header"><div>$brand
+<p class="eyebrow">Visual comparison</p><h1>$title</h1>
+<p class="header-meta">$capture_summary$revisions</p></div>
+<div class="header-side">$counts<nav class="header-links" aria-label="Report links">$links</nav></div></header>
+<div class="workspace"><aside class="sidebar" aria-label="Captured views">
+<p class="sidebar-label">Areas</p><nav id="sections" class="sections" aria-label="Areas"></nav>
+<p class="sidebar-label">Views</p><div class="filters"><input id="search" class="search" type="search" placeholder="Find a view…" aria-label="Filter views in this area">
+<label class="check"><input id="only-changes" type="checkbox"> Hide identical and subtle views</label></div>
+<nav id="view-list" class="view-list" aria-label="Views"></nav>
+<p class="sidebar-footer"><span id="visible-count"></span><br>Pixel changes need human review; nothing here judges intent.</p></aside>
+<main class="review" id="main"><div class="view-heading"><div><h2 id="view-title"></h2><p id="view-description" class="view-description"></p></div><span id="view-status"></span></div>
+<div class="toolbar"><div class="segmented" role="group" aria-label="Comparison mode">$modes</div>
+<div class="segmented" role="group" aria-label="Zoom"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-value" class="zoom-value"></span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-fit" type="button">Fit width</button><button id="zoom-actual" type="button">100%</button></div></div>
+<div class="adjustments"><span id="toggle-control" class="segmented" role="group" aria-label="Displayed side"><button type="button" data-side="base">Before</button><button type="button" data-side="head">After</button></span>
+<label id="wipe-control">Split <input id="wipe-range" type="range" min="0" max="100" value="50"><output id="wipe-value">50%</output></label>
+<label id="opacity-control">After opacity <input id="opacity" type="range" min="0" max="100" value="50"><output id="opacity-value">50%</output></label>
+<label id="threshold-control">Ignore channel differences up to <select id="threshold"><option value="0">0 (exact)</option><option value="8">8 / 255</option><option value="16">16 / 255</option><option value="32">32 / 255</option></select></label>
+<span id="mode-hint" class="hint"></span></div>
+<div id="viewport" class="stage-viewport" tabindex="0" aria-label="Screenshot comparison; drag or scroll to pan"><div id="scaled-stage" class="scaled-stage"><div id="image-stage" class="image-stage"></div></div></div>
+<div id="metrics" class="metrics" role="status" aria-live="polite"></div><div id="regions" class="regions" aria-label="Changed regions"></div>
+<section id="shared" class="notes" hidden></section><section id="problems" class="notes problem" hidden></section><section id="notes" class="notes" hidden></section>
+</main></div>

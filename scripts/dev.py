@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import socket
 import subprocess
 import sys
@@ -79,6 +80,9 @@ def _compose_command(*arguments: str, reload: bool = True) -> tuple[str, ...]:
     return tuple(command)
 
 
+LOCAL_VISUAL_ROOT = REPOSITORY_ROOT / ".propertyscope-visual" / "local"
+
+
 def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     print(f"> {shlex.join(command)}", flush=True)
     subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)
@@ -86,6 +90,56 @@ def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None
 
 def _repeated_options(option: str, values: Sequence[str]) -> tuple[str, ...]:
     return tuple(part for value in values for part in (option, value))
+
+
+def _visual_compare(
+    *, provider: str, cases: Sequence[str], sections: Sequence[str], reset_baseline: bool
+) -> None:
+    """Save a screenshot baseline, or capture the working tree and compare it with the baseline."""
+    root = LOCAL_VISUAL_ROOT / provider
+    baseline, current, report = root / "baseline", root / "current", root / "report"
+    capture = (
+        sys.executable,
+        "-m",
+        "scripts.visual",
+        "capture",
+        "--provider",
+        provider,
+        *_repeated_options("--case", cases),
+        *_repeated_options("--section", sections),
+    )
+    if reset_baseline:
+        shutil.rmtree(baseline, ignore_errors=True)
+    if not (baseline / f"capture-{provider}.json").is_file():
+        _run((*capture, "--revision", "base", "--out", str(baseline)))
+        print(
+            f"\nBaseline saved in {baseline}.\nMake your change, then run this command again "
+            "to compare it with the baseline.",
+            flush=True,
+        )
+        return
+    shutil.rmtree(current, ignore_errors=True)
+    shutil.rmtree(report, ignore_errors=True)
+    try:
+        _run((*capture, "--revision", "head", "--out", str(current)))
+    except subprocess.CalledProcessError:
+        print("Some views were not captured; the comparison lists them as incomplete.", flush=True)
+    _run(
+        (
+            sys.executable,
+            "-m",
+            "scripts.visual",
+            "compare",
+            "--base",
+            str(baseline),
+            "--head",
+            str(current),
+            "--out",
+            str(report),
+            "--title",
+            f"Working tree against the saved {provider} baseline",
+        )
+    )
 
 
 def _ensure_docker() -> None:
@@ -985,6 +1039,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(_ui_fixture_port(arguments.port)),
                     *(("--output", str(arguments.output)) if arguments.output else ()),
                 )
+            )
+        elif command == ("ui", "visual"):
+            _visual_compare(
+                provider=arguments.provider,
+                cases=arguments.case,
+                sections=arguments.section,
+                reset_baseline=arguments.reset_baseline,
             )
         elif command == ("ui", "audit"):
             _run(
