@@ -43,7 +43,8 @@ Store maintained project documentation here throughout all three releases.
 - [Agent-run state machine](architecture/agent-run-state-machine.md): normative Release 0
   execution/recovery model
 - [OpenAI API operations](release-0/openai-api-operations.md): provider/profile background;
-  [Release 1 host runtime](release-1/host-runtime.md) supersedes earlier container lifecycle/secret wiring
+  [Release 1 host runtime](release-1/host-runtime.md) supersedes earlier container lifecycle/secret wiring;
+  AI-mode, MCP and RAG run only as host processes ([ADR-046](architecture/decisions/ADR-046-non-containerised-ai-tier.md))
 - [Feature onboarding](release-0/feature-onboarding.md): requirements for approved student
   vertical slices
 

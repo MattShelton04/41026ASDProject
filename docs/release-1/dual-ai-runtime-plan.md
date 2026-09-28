@@ -1,5 +1,10 @@
 # Reversible AI runtime placement
 
+> **Superseded (28 September 2026).** This plan was implemented and later reversed by
+> [ADR-046](../architecture/decisions/ADR-046-non-containerised-ai-tier.md). AI-mode, MCP and RAG
+> now run only as host processes. It is kept as a historical record; see the
+> [non-containerised AI alignment plan](non-containerised-ai-alignment-plan.md) instead.
+
 User-authorised follow-up: run AI-mode, MCP and RAG in Docker for development visibility,
 while retaining the non-containerised Release 1 assessment mode. Docker placement is a
 development convenience; it does not satisfy the supplied non-containerisation rubric.

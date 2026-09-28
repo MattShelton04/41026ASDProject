@@ -13,9 +13,9 @@ manifest-driven feature onboarding, a shared HTMX product shell, bounded AI-mode
 the OpenAI Responses API, and a containerised Feature 1 data platform using PostgreSQL/PostGIS.
 Release 1 adds local MCP tool dispatch, versioned semantic retrieval and grounded Feature 1
 answers with inspectable sources, confidence categories and insufficient-context handling.
-Fresh developer setups run AI-mode, MCP and RAG in Docker for visibility. The launcher also retains
-an explicit host mode for the Release 1 non-containerisation requirement; the agent loop runs
-inside AI-mode in either placement. The shared frontend and student services remain containerised.
+AI-mode, MCP and RAG run as non-containerised host processes, as the Release 1 rubric requires,
+and the agent loop runs inside AI-mode. The shared frontend and student services stay
+containerised and reach the AI tier through `host.docker.internal`.
 The [Shared/Feature 1 handoff](docs/release-1/shared-feature-1-handoff.md)
 maps this increment to the rubric, evidence and remaining owner responsibilities.
 
@@ -53,9 +53,10 @@ implementation; the application exposes only manifest-enabled features.
 
 MCP and RAG run locally for Release 1 and remain disabled during CI/CD. Multi-agent orchestration
 is planned for Release 2; all three advanced capabilities must remain disabled in its cloud
-deployment. The supplied Release 1 rubric requires all shared AI services and the loop outside
-containers; use `stack up --ai-runtime host` for that assessment topology. The optional Docker
-development mode does not satisfy that requirement. Release 2 cloud hosting remains a future decision.
+deployment. The Release 1 rubric requires every shared AI service and the loop to run outside
+containers. `stack up` always starts them that way, and the quality gate rejects any Compose AI
+service ([ADR-046](docs/architecture/decisions/ADR-046-non-containerised-ai-tier.md)). Release 2
+cloud hosting remains a future decision.
 
 ## Application preview
 
@@ -126,21 +127,13 @@ uv run scripts/dev.py stack up --offline
 
 `stack up` validates the enabled feature manifests and Compose/route projections, then starts or
 reuses only approved enabled services. Missing images are built automatically; pass `--build` only
-when Docker or dependency inputs changed. AI placement defaults to Docker on a fresh setup and
-is remembered for subsequent commands. Switch explicitly with:
-
-```text
-uv run scripts/dev.py stack up --ai-runtime host    # Release 1 assessment topology
-uv run scripts/dev.py stack up --ai-runtime docker  # Docker Desktop development visibility
-```
-
-The launcher stops the previous AI owners before starting the selected placement and recreates
-backend/proxy routing. Both placements use the same exclusive history and RAG state directories
-under `.propertyscope-runtime/host/`; switching does not copy or reset their databases.
-Only AI-mode receives the provider credential, through a runtime secret file in Docker or its
-host environment. Credentials never enter the image. An internal service token protects AI-mode;
-backend clients and the shared proxy attach it without exposing it to browser code. Use `stack up`
-after rotating that token so every caller receives the updated configuration.
+when Docker or dependency inputs changed. AI-mode, MCP and RAG start first as host processes on
+ports 5005, 5011 and 5012; `stack status` and `ai status` show them with their local URLs. Compose
+defines no AI service. The containers reach AI-mode through `host.docker.internal`, and AI-mode
+calls MCP and RAG on loopback. All AI state lives under `.propertyscope-runtime/host/`.
+Only host AI-mode receives the provider credential, which never enters an image. An internal
+service token protects AI-mode. Backend clients and the shared proxy attach it without exposing it
+to browser code. Run `stack up` after rotating that token so every caller gets the new value.
 OpenAI configuration, the opt-in Gemini compatibility profile, and provider diagnostics are in the
 [OpenAI API operations guide](docs/release-0/openai-api-operations.md).
 
@@ -154,6 +147,7 @@ uv run scripts/dev.py ai stop
 uv run scripts/dev.py ai start --mode combined
 # With the managed RAG_SERVICE_TOKEN in this shell:
 uv run rag-server ingest student-1/config/rag/corpus.json
+uv run scripts/dev.py ai probe          # auth, MCP tools, corpora, retrieval, no-match
 uv run scripts/dev.py ai validate mcp
 uv run scripts/dev.py ai validate rag
 ```

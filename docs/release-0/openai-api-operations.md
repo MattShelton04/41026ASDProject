@@ -82,14 +82,13 @@ Copy-Item .env.example .env  # Windows PowerShell; first setup only
 # Add OPENAI_API_KEY to .env.
 uv run scripts/dev.py stack up
 uv run scripts/dev.py stack status
-uv run scripts/dev.py stack logs shared-ai-mode
+uv run scripts/dev.py ai logs ai-mode
 ```
 
 Stack commands automatically load the optional root `.env`; shell variables retain precedence, and
 `--env-file` selects a different dotenv file instead. The helper copies the selected credential into
-`.propertyscope-runtime/`, which is Git-ignored, and passes only that file path to Compose. This
-file-backed secret is compatible with the read-only AI-mode container on Compose implementations
-that cannot materialise environment-backed secrets there. `down` removes the corresponding runtime
+`.propertyscope-runtime/`, which is Git-ignored, and passes only that file path to the host AI-mode
+process; AI-mode no longer runs in a container (ADR-046). `down` removes the corresponding runtime
 file. Use `up --offline` for deterministic data work without live model readiness.
 
 For Gemini, create a Git-ignored `.env.gemini`:

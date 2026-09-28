@@ -102,8 +102,10 @@ stack at <http://localhost:5200>. Starting the stack performs no acquisition. Ea
 job explicitly starts a complete registered-source import and writes candidates through the same
 durable database and human-review boundary.
 
-AI runtime identities and fixed container ports live in `devtools/runtime_settings.py`;
-`devtools/service_auth.py` applies the same internal proxy authentication in either placement.
-Both are packaged explicitly in the AI image and do not load host process management. Corrupt
-saved runtime selection stops lifecycle commands before effects. Restore its known placement and
-mode after verifying the active owner; do not delete the selection file to force a default.
+AI-mode, MCP and RAG run only as host processes (ADR-046). `devtools/runtime_settings.py` holds
+their port variables and capability modes, `devtools/host_runtime.py` manages their processes and
+state, and `devtools/service_auth.py` applies AI-mode's internal proxy authentication. On first
+start after upgrading, `host_runtime.retire_container_placement()` removes this Compose project's
+old AI containers and projection. `ai validate mcp|rag` runs the agent loop over each protocol
+(`release1_validation.py`), and `ai probe` checks the running servers directly
+(`release1_probe.py`). Both refuse to run in CI.

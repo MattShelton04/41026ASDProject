@@ -25,8 +25,8 @@ uv run scripts/dev.py stack doctor          # resolved ports and who owns each o
   follow "Isolated environments" in `AGENTS.md`; its ports come from that checkout's `.env`.
 - A fresh database holds a small seeded demonstration baseline, so property pages show
   `FIXTURE STREET`/`Example Street` addresses. Use the `feature-1-data` skill to load real sources.
-- Frontend and container Python code reload on save. Host AI services (`ai-runtime.json` placement
-  `host`) do not: after changing `ai-services/` or `shared/contracts`, run
+- Frontend and container Python code reload on save. The AI services run as host processes, not
+  containers, and do not reload: after changing `ai-services/` or `shared/contracts`, run
   `uv run scripts/dev.py ai stop` then `uv run scripts/dev.py ai start --mode combined`.
 - AI pages: Activity history `http://localhost:5100/operations/ai-mode/`, Knowledge sources
   `http://localhost:5100/operations/ai-mode/knowledge/` (corpora, passages, and a question-ranking test).
