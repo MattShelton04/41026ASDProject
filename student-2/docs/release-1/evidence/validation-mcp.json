@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "mode": "mcp",
+  "feature_key": "student-2-market-intelligence",
+  "tool_name": "market.capabilities.v1",
+  "corpus_id": null,
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "46cc80ae-7d18-4877-b18b-192191eda90d",
+  "request_id": "r1-mcp-4ac27f41-02ab-4fcd-a88c-fc46facd93cd",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "4a143a32-a2ab-4417-bd5a-35957c283877",
+      "outcome": "succeeded",
+      "content": {
+        "feature": {
+          "feature_key": "student-2-market-intelligence",
+          "label": "Sales & market",
+          "route": "/features/market-intelligence/#market-cases",
+          "summary": "A property sales research workspace. Review the sale records attributed to a verified property, narrow them by date window and match-quality threshold, and save the result as a market case."
+        },
+        "limitations": [
+          "It is research support, not professional advice.",
+          "It does not estimate a property value, forecast prices or recommend a purchase.",
+          "Recorded prices are historical transactions, not current market value.",
+          "Every figure is calculated by the data service; the model never does the arithmetic.",
+          "Answers cover one saved market case; it holds no listings, rentals or appraisals."
+        ],
+        "revision": "2026-09-28.v1",
+        "suggested_questions": [
+          "Explain the recorded sales, exclusions and limitations in this case.",
+          "What does the match tier threshold exclude from this summary?",
+          "What can this evidence not tell me about the property's value?"
+        ],
+        "tools": [
+          {
+            "name": "market.capabilities.v1",
+            "purpose": "Explain this feature, its tools and its limits. Takes no arguments."
+          },
+          {
+            "name": "market.cases.inspect.v1",
+            "purpose": "Read one saved market case: name, address, window, status, notes."
+          },
+          {
+            "name": "market.sales.summary.v1",
+            "purpose": "Deterministic sale count, median price, yearly volume, exclusions and source releases for one saved case."
+          }
+        ]
+      },
+      "error": null,
+      "duration_ms": 2,
+      "retryable": false,
+      "evidence_references": [
+        "service:propertyscope-market-intelligence-backend",
+        "status:200"
+      ],
+      "retrieval": null
+    }
+  ],
+  "final_result": {
+    "summary": "Registered MCP tool returned structured evidence."
+  },
+  "error": null
+}

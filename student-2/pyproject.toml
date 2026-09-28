@@ -20,3 +20,11 @@ where = ["backend/src", "database/src"]
 
 [tool.setuptools.package-data]
 propertyscope_market_store = ["sql/*.sql"]
+
+[tool.uv.sources]
+shared-testkit = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "shared-testkit",
+]

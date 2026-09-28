@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="design-system/tokens.css">
   <link rel="stylesheet" href="design-system/base.css">
   <link rel="stylesheet" href="design-system/components.css">
+  <link rel="stylesheet" href="./ai-chat/styles.css">
   <link rel="stylesheet" href="styles.css">
   <script type="module" src="app.js"></script>
   <link rel="stylesheet" href="./design-system/shell.css">
@@ -99,15 +100,8 @@
             <div class="card ai-card">
               <p class="eyebrow">CASE-SCOPED ASSISTANT</p>
               <h3>Ask about this evidence</h3>
-              <p>The shared AI service can inspect this case through two read-only tools. It cannot alter this case. The figures above are calculated by the data service, not the model.</p>
-              <form id="assistant-form">
-                <label for="assistant-message">Question</label>
-                <textarea id="assistant-message" rows="3" maxlength="2000" required minlength="2">Explain the recorded sales, exclusions and limitations in this market case.</textarea>
-                <button class="button button-primary" type="submit">Ask about this case</button>
-              </form>
-              <p id="assistant-status" class="muted" role="status" aria-live="polite"></p>
-              <div id="assistant-answer" class="assistant-answer" role="region" aria-label="Assistant response">No question sent. Your saved research works independently of the assistant.</div>
-              <a id="assistant-activity" class="activity-link" hidden>Open recorded AI activity →</a>
+              <p>The shared AI service can inspect this case through two read-only tools and the feature's published guidance. It cannot alter this case. The figures above are calculated by the data service, not the model.</p>
+              <div id="assistant-root"></div>
             </div>
           </section>
 
