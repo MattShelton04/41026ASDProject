@@ -1,7 +1,7 @@
 """Capture the Release 1 report screenshots from the running application.
 
 This drives the real stack (feature containers plus host AI-mode, MCP and RAG), so it needs
-``uv run scripts/dev.py stack up --ai-runtime host`` with the corpora ingested and a model key.
+``uv run scripts/dev.py stack up`` with the corpora ingested and a model key.
 Each assistant screenshot asks one question through the feature's own frontend and waits for the
 answer, so every feature is captured the same way at the same size.
 

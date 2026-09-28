@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from scripts.devtools.runtime_settings import AI_CONTAINER_SERVICES, AI_SERVICE_PORTS
+from scripts.devtools.runtime_settings import AI_SERVICE_PORTS
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = (
@@ -68,7 +68,8 @@ COLLECTION_JOBS = tuple(path.stem for path in sorted(JOB_PROFILE_DIRECTORY.glob(
 TERMINAL_COLLECTION_STATES = frozenset({"succeeded", "failed", "cancelled"})
 HOST_PORTS: dict[str, tuple[str, int]] = {
     "shared-frontend": ("PROPERTYSCOPE_SHARED_PORT", 5100),
-    **{AI_CONTAINER_SERVICES[service]: ports for service, ports in AI_SERVICE_PORTS.items()},
+    # Host AI processes, reported by name; they are never Compose services.
+    **AI_SERVICE_PORTS,
 }
 FEATURE_FRONTEND_OWNERS: dict[str, str] = {}
 for _feature in _json_object(_ENABLED_FEATURES_PATH).get("features", []):

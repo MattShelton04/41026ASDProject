@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# Nginx's asynchronous DNS resolver does not consult /etc/hosts. Resolve explicit
-# host mappings before envsubst; leave service names to Docker DNS so recreated
-# AI containers can receive a new address without restarting the shared edge.
+# Nginx's asynchronous DNS resolver does not consult /etc/hosts. Resolve the explicit
+# host-gateway mapping for the host AI-mode process before envsubst; any other name is
+# left to Docker DNS.
 propertyscope_resolve_ai_host() {
     awk -v host="$1" '
         {

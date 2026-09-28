@@ -1,4 +1,8 @@
-"""Managed local AI processes, exclusive state and Docker-to-host projections."""
+"""Managed host AI processes, exclusive state and Docker-to-host projections.
+
+AI-mode, MCP and RAG run only here, outside containers (ADR-043, ADR-046). Compose services
+reach AI-mode through ``host.docker.internal``; MCP and RAG bind loopback.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import hashlib
 import json
 import os
 import secrets
+import shutil
 import socket
 import sqlite3
 import subprocess
@@ -29,6 +34,10 @@ from shared_contracts.deployment import DeploymentProjectionV1
 HOST_DIRECTORY = RUNTIME_DIRECTORY / "host"
 SERVICES = tuple(AI_SERVICE_PORTS)
 PORTS = AI_SERVICE_PORTS
+# Left behind by the retired Docker AI placement (ADR-044, superseded by ADR-046).
+RETIRED_CONTAINER_SERVICES = ("shared-ai-mode", "mcp-server", "rag-server")
+RETIRED_PROJECTION_DIRECTORY = RUNTIME_DIRECTORY / "docker-ai"
+RETIRED_PLACEMENT_STATE = RUNTIME_DIRECTORY / "ai-runtime.json"
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -95,10 +104,22 @@ def stop(services: Sequence[str] = SERVICES) -> None:
         (HOST_DIRECTORY / f"{service}.json").unlink(missing_ok=True)
 
 
-def status() -> list[dict[str, object]]:
-    """Return process state without exposing configuration or credentials."""
+def local_url(service: str, environment: Mapping[str, str]) -> str:
+    """Return the host URL a terminal check or ingestion client uses for one service."""
+    return f"http://127.0.0.1:{port_for(service, environment)}" + (
+        "/mcp" if service == "mcp" else ""
+    )
+
+
+def status(environment: Mapping[str, str] | None = None) -> list[dict[str, object]]:
+    """Return process state and local URLs without exposing configuration or credentials."""
+    values = os.environ if environment is None else environment
     return [
-        {"service": service, "state": "running" if _owned_process(service) else "stopped"}
+        {
+            "service": service,
+            "state": "running" if _owned_process(service) else "stopped",
+            "url": local_url(service, values),
+        }
         for service in SERVICES
     ]
 
@@ -126,6 +147,42 @@ def _docker(*arguments: str) -> str:
         text=True,
         cwd=REPOSITORY_ROOT,
     ).stdout.strip()
+
+
+def retire_container_placement() -> None:
+    """Remove what the retired Docker AI placement left in this checkout, once.
+
+    Its containers opened the same SQLite stores and published the same host ports, so they
+    must be gone before a host owner starts. Only a checkout that recorded that placement is
+    inspected; a fresh setup needs no Docker call here. Durable history and the RAG index were
+    always bind-mounted from ``HOST_DIRECTORY`` and are untouched.
+    """
+    if RETIRED_PROJECTION_DIRECTORY.exists():
+        project = compose_project_name()
+        containers = [
+            container
+            for service in RETIRED_CONTAINER_SERVICES
+            for container in _docker(
+                "ps",
+                "--all",
+                "--quiet",
+                "--filter",
+                f"label=com.docker.compose.project={project}",
+                "--filter",
+                f"label=com.docker.compose.service={service}",
+            ).splitlines()
+            if container.strip()
+        ]
+        if containers:
+            _docker("stop", "--time", "35", *containers)
+            _docker("rm", *containers)
+        # The projection held copies of the service tokens; nothing reads it any more.
+        shutil.rmtree(RETIRED_PROJECTION_DIRECTORY)
+        print(
+            "Retired the Docker AI placement: AI-mode, MCP and RAG now run only as host processes.",
+            flush=True,
+        )
+    RETIRED_PLACEMENT_STATE.unlink(missing_ok=True)
 
 
 def migrate_legacy_state() -> None:

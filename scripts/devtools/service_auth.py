@@ -1,4 +1,4 @@
-"""The same internal AI proxy authentication in host and container placement."""
+"""Internal service authentication for the host AI-mode listener."""
 
 import re
 import secrets
@@ -9,7 +9,7 @@ AI_SERVICE_TOKEN_HEADER = "X-PropertyScope-AI-Token"
 
 
 def validate_service_token(token: str) -> None:
-    """Use one credential format across issuance and both HTTP entrypoints."""
+    """Use one credential format for issuance and the HTTP entrypoint."""
     if re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token) is None:
         raise RuntimeError("AI_MODE_SERVICE_TOKEN must contain 32-128 URL-safe characters")
 

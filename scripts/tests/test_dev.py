@@ -57,11 +57,8 @@ def isolate_local_development_state(
     monkeypatch.setattr(dev, "_host_port_is_available", lambda _port: True)
     monkeypatch.setattr(dev, "_validate_deployment_inputs", lambda: None)
     monkeypatch.setattr(dev, "DEFAULT_ENV_FILE", tmp_path / ".env")
-    monkeypatch.setenv("PROPERTYSCOPE_AI_RUNTIME", "host")
     monkeypatch.delenv("COMPOSE_PROJECT_NAME", raising=False)
-    monkeypatch.setattr(dev.ai_runtime, "STATE_PATH", tmp_path / "ai-runtime.json")
-    monkeypatch.setattr(dev.ai_runtime, "RUNTIME_DIRECTORY", tmp_path)
-    monkeypatch.setattr(dev.ai_runtime, "remember", lambda *_args: None)
+    monkeypatch.setattr(dev.host_runtime, "retire_container_placement", lambda: None)
     monkeypatch.setattr(dev.host_runtime, "start", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(dev.host_runtime, "stop", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(dev.host_runtime, "migrate_legacy_state", lambda: None)
@@ -290,15 +287,17 @@ def test_long_data_run_uses_images_without_development_reload_overlay(
     assert "--volumes" not in command
 
 
-def test_no_reload_retains_selected_ai_runtime_overlay() -> None:
-    command = dev._compose_command("up", placement="docker", reload=False)
-    assert dev.ai_runtime.OVERLAY in command
-    assert "docker-compose.dev.yml" not in command
+def test_compose_commands_never_select_an_ai_overlay_or_profile() -> None:
+    for reload in (True, False):
+        command = dev._compose_command("up", reload=reload)
+        assert "docker-compose.ai.yml" not in command
+        assert "ai-container" not in command
+    assert "docker-compose.dev.yml" not in dev._compose_command("up", reload=False)
 
 
 def test_no_reload_preserves_explicit_compose_project(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("COMPOSE_PROJECT_NAME", "isolated-data-test")
-    command = dev._compose_command("up", placement="host", reload=False)
+    command = dev._compose_command("up", reload=False)
     assert command[command.index("--project-name") + 1] == "isolated-data-test"
 
 
@@ -606,7 +605,7 @@ def test_disabled_feature_stack_does_not_probe_or_advertise_psi(
         raise AssertionError("disabled Feature 1 must not inspect the PSI cache")
 
     monkeypatch.setattr(dev, "ENABLED_FEATURE_KEYS", ())
-    monkeypatch.setattr(dev, "APPLICATION_SERVICES", ("shared-frontend", "shared-ai-mode"))
+    monkeypatch.setattr(dev, "APPLICATION_SERVICES", ("shared-frontend", "f1-backend"))
     monkeypatch.setattr(dev, "_psi_cache_years", unavailable_cache)
     monkeypatch.setattr(dev, "_psi_cache_weeks", unavailable_cache)
     monkeypatch.setattr(

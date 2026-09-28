@@ -11,7 +11,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_integration_ci_validates_optional_ai_topology_without_starting_it() -> None:
+def test_integration_ci_validates_the_compose_models_without_any_ai_service() -> None:
     workflow = yaml.safe_load(
         (ROOT / ".github/workflows/integration-ci.yml").read_text(encoding="utf-8")
     )
@@ -22,7 +22,7 @@ def test_integration_ci_validates_optional_ai_topology_without_starting_it() -> 
         step["run"] for step in steps if step["name"] == "Validate integrated Compose model"
     )
     commands = compose.strip().splitlines()
-    assert len(commands) == 3
+    assert len(commands) == 2
     assert all(command.endswith(" config --quiet") for command in commands)
     assert commands[-1].split() == [
         "docker",
@@ -33,15 +33,12 @@ def test_integration_ci_validates_optional_ai_topology_without_starting_it() -> 
         "deployment/enabled-features.compose.yml",
         "--file",
         "docker-compose.dev.yml",
-        "--file",
-        "docker-compose.ai.yml",
         "--profile",
         "release-0",
-        "--profile",
-        "ai-container",
         "config",
         "--quiet",
     ]
+    assert "ai-container" not in compose
 
 
 @pytest.mark.parametrize("number", range(1, 6))

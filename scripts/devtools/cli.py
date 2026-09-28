@@ -6,7 +6,6 @@ import argparse
 import os
 from pathlib import Path
 
-from scripts.devtools.ai_runtime import DOCKER_SERVICES
 from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
@@ -15,7 +14,7 @@ from scripts.devtools.config import (
     PRODUCTION_BUILD_SERVICES,
     UI_FIXTURE_SCENARIOS,
 )
-from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_PLACEMENTS
+from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_SERVICE_PORTS
 
 _FIXTURE_PORT_HELP = (
     f"Loopback fixture port (default: $PROPERTYSCOPE_UI_FIXTURE_PORT or {DEFAULT_UI_FIXTURE_PORT})"
@@ -39,10 +38,14 @@ def _add_env_file_option(command: argparse.ArgumentParser) -> None:
 
 
 def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    stack = root.add_parser("stack", help="Build and operate Compose stacks")
+    stack = root.add_parser(
+        "stack", help="Operate the Compose feature stack together with the host AI services"
+    )
     commands = stack.add_subparsers(dest="action", required=True)
 
-    up = commands.add_parser("up", help="Start the reloadable development stack")
+    up = commands.add_parser(
+        "up", help="Start host AI-mode/MCP/RAG processes and the reloadable Compose stack"
+    )
     up.add_argument(
         "--build",
         action="store_true",
@@ -55,31 +58,25 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     )
     _add_offline_option(up)
     _add_env_file_option(up)
-    up.add_argument(
-        "--ai-runtime",
-        choices=AI_PLACEMENTS,
-        default=None,
-        help="Select and remember AI placement; fresh setups default to Docker",
-    )
+    # Retired placement switch (ADR-046), kept hidden so older instructions fail helpfully.
+    up.add_argument("--ai-runtime", default=None, help=argparse.SUPPRESS)
 
     build = commands.add_parser(
         "build", help="Build production-like Release 0 images without starting containers"
     )
-    build.add_argument(
-        "services", nargs="*", choices=(*PRODUCTION_BUILD_SERVICES, *DOCKER_SERVICES)
-    )
+    build.add_argument("services", nargs="*", choices=PRODUCTION_BUILD_SERVICES)
 
     rebuild = commands.add_parser(
         "rebuild", help="Rebuild and recreate changed development services"
     )
-    rebuild.add_argument("services", nargs="*", choices=(*BUILD_SERVICES, *DOCKER_SERVICES))
+    rebuild.add_argument("services", nargs="*", choices=BUILD_SERVICES)
     _add_offline_option(rebuild)
     _add_env_file_option(rebuild)
 
     restart = commands.add_parser(
         "restart", help="Recreate application containers without rebuilding images"
     )
-    restart.add_argument("services", nargs="*", choices=(*APPLICATION_SERVICES, *DOCKER_SERVICES))
+    restart.add_argument("services", nargs="*", choices=APPLICATION_SERVICES)
     _add_offline_option(restart)
     _add_env_file_option(restart)
 
@@ -94,8 +91,10 @@ def _stack_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -
     doctor = commands.add_parser("doctor", help="Validate Docker and the Compose model")
     _add_env_file_option(doctor)
 
-    logs = commands.add_parser("logs", help="Show recent application logs and follow them")
-    logs.add_argument("services", nargs="*", choices=(*APPLICATION_SERVICES, *DOCKER_SERVICES))
+    logs = commands.add_parser(
+        "logs", help="Show recent container logs and follow them (host AI logs: ai logs)"
+    )
+    logs.add_argument("services", nargs="*", choices=APPLICATION_SERVICES)
     logs.add_argument(
         "--no-follow",
         dest="follow",
@@ -238,13 +237,15 @@ def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
 
 
 def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    ai = root.add_parser("ai", help="Operate AI services in the selected runtime")
+    ai = root.add_parser(
+        "ai", help="Operate the non-containerised AI-mode, MCP and RAG host processes"
+    )
     commands = ai.add_subparsers(dest="action", required=True)
-    start = commands.add_parser("start", help="Start AI services in the selected placement")
+    start = commands.add_parser("start", help="Start or reconfigure the host AI services")
     start.add_argument("--mode", choices=AI_CAPABILITY_MODES, default="combined")
     _add_offline_option(start)
     _add_env_file_option(start)
-    commands.add_parser("status", help="Show AI container or host process state")
+    commands.add_parser("status", help="Show host AI process state and local URLs")
     validate = commands.add_parser(
         "validate", help="Capture a local MCP or RAG four-phase validation"
     )
@@ -264,13 +265,14 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         "argument-free read-only tool owned by the feature",
     )
     _add_env_file_option(validate)
-    for action in ("stop", "logs"):
-        command = commands.add_parser(
-            action, help=f"{action.title()} AI services in the selected placement"
-        )
-        command.add_argument("services", nargs="*", choices=("ai-mode", "mcp", "rag"))
-    foreground = commands.add_parser("serve", help="Run one service in the foreground")
-    foreground.add_argument("service", choices=("ai-mode", "mcp", "rag"))
+    for action, help_text in (
+        ("stop", "Stop host AI services while preserving their data"),
+        ("logs", "Print recent host AI service logs"),
+    ):
+        command = commands.add_parser(action, help=help_text)
+        command.add_argument("services", nargs="*", choices=tuple(AI_SERVICE_PORTS))
+    foreground = commands.add_parser("serve", help="Run one host service in the foreground")
+    foreground.add_argument("service", choices=tuple(AI_SERVICE_PORTS))
 
 
 def build_parser() -> argparse.ArgumentParser:
