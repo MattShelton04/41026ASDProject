@@ -63,7 +63,7 @@ def test_frontend_has_required_ui_states_and_responsive_floor() -> None:
 def test_frontend_never_contains_server_identity_or_internal_credentials() -> None:
     source = "\n".join(
         (FRONTEND / name).read_text(encoding="utf-8")
-        for name in ("index.html", "styles.css", "app.js", "api.js", "models.js")
+        for name in ("index.html", "styles.css", "app.js", "api.js", "models.js", "assistant.js")
     )
     assert "owner_ref" not in source
     assert "release0-demo-owner" not in source

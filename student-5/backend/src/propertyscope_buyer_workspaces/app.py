@@ -7,6 +7,7 @@ import os
 from flask import Flask
 
 from propertyscope_buyer_workspaces.api import register_api
+from propertyscope_buyer_workspaces.assistant import register_assistant
 from propertyscope_buyer_workspaces.clients import BuyerStoreClient, BuyerStoreGateway
 from propertyscope_buyer_workspaces.configuration import BackendSettings
 from propertyscope_buyer_workspaces.integrations import (
@@ -35,6 +36,7 @@ def create_app(
         runtime_settings.data_platform_url,
         runtime_settings.market_intelligence_url,
         runtime_settings.due_diligence_url,
+        suburb_analytics_url=runtime_settings.suburb_analytics_url,
     )
     runtime_ai_mode = ai_mode or AiModeClient(
         runtime_settings.ai_mode_url, service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", "")
@@ -51,4 +53,5 @@ def create_app(
         evidence=runtime_evidence,
         ai_mode=runtime_ai_mode,
     )
+    register_assistant(app, runtime_store, runtime_settings, runtime_ai_mode)
     return app

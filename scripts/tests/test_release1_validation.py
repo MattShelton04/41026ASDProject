@@ -234,14 +234,18 @@ def test_unknown_feature_and_tool_are_reported_distinctly(tmp_path: Path) -> Non
         resolve_mcp_tool(paths, FEATURE, "absent.v1")
 
 
-def test_corpus_resolves_from_the_features_own_manifest() -> None:
-    assert resolve_corpus(FEATURE) == CORPUS
+@pytest.mark.parametrize("number", [1, 2, 4, 5])
+def test_corpus_resolves_from_the_features_own_manifest(number: int) -> None:
+    root = Path(__file__).resolve().parents[2]
+    manifest = yaml.safe_load((root / f"student-{number}/feature.yaml").read_text("utf-8"))
+    assert manifest["onboarding"]["ai"]["rag_corpus"]
+    assert resolve_corpus(manifest["feature_key"]) == manifest["onboarding"]["ai"]["rag_corpus_id"]
 
 
 def test_feature_without_a_corpus_is_told_what_to_declare() -> None:
     # Any enabled feature that has not yet adopted RAG; features adopt independently.
     with pytest.raises(RuntimeError, match=r"declare ai\.rag_corpus"):
-        resolve_corpus("student-5-buyer-journey")
+        resolve_corpus("student-3-suburb-analytics")
 
 
 def test_unknown_feature_is_rejected() -> None:

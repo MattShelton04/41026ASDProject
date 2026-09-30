@@ -363,14 +363,6 @@ body {
   gap: var(--ps-space-3);
 }
 
-.workflow-status {
-  margin-block: var(--ps-space-3);
-  padding: var(--ps-space-3);
-  border-inline-start: var(--ps-space-1) solid var(--ps-color-accent);
-  background: var(--ps-color-surface-subtle);
-  color: var(--ps-color-text-strong);
-  font-weight: var(--ps-weight-bold);
-}
 
 .item-reference,
 .empty-inline {
@@ -428,8 +420,7 @@ body {
 .workspace-item { min-width: 0; }
 .workspace-item details.item-reference { margin-top: var(--ps-space-2); }
 .evidence-references { grid-column: 1 / -1; font-size: var(--ps-text-label); }
+/* Page selection determines the only allowed UI scope; keep activity inspection visible. */
+#buyer-assistant .ps-ai-chat__settings { display: none; }
 .evidence-references summary { min-height: var(--ps-control-height); display: list-item; }
-.workflow-phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--ps-space-3); padding: 0; list-style: none; }
-.workflow-phases li { display: grid; gap: var(--ps-space-1); padding-block: var(--ps-space-3); border-top: var(--ps-border-width) solid var(--ps-color-border); font-size: var(--ps-text-label); }
-.workflow-phases span { color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
 @media (max-width: 42rem) { .workspace-jumps { gap: 0; } .workspace-jumps button { flex: 1 0 auto; padding-inline: var(--ps-space-2); font-size: var(--ps-text-label); } }

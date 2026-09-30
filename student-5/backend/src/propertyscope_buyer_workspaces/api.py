@@ -35,6 +35,7 @@ from propertyscope_buyer_workspaces.domain import (
     validate_task_create,
     validate_task_update,
 )
+from propertyscope_buyer_workspaces.grounded import project_answer
 from propertyscope_buyer_workspaces.integrations import (
     AiModeGateway,
     EvidenceGateway,
@@ -790,7 +791,7 @@ def _run_projection(value: object, *, expected_case_id: str) -> dict[str, Any]:
             step_status = step.get("status")
             if step_status in {"pending", "running", "succeeded", "failed", "cancelled"}:
                 phase_states[step["phase"]] = step_status
-    final = run_value.get("final_result")
+    final = project_answer(run_value.get("final_result"))
     summary = None
     actions: list[str] = []
     references: list[str] = []
@@ -802,17 +803,17 @@ def _run_projection(value: object, *, expected_case_id: str) -> dict[str, Any]:
         action_candidates: list[object] = []
         if isinstance(raw_actions, list):
             action_candidates.extend(raw_actions[:10])
-        next_step = final.get("recommended_next_step")
+        next_step = final.get("next_step", final.get("recommended_next_step"))
         if isinstance(next_step, str):
             action_candidates.append(next_step)
         actions = _bounded_actions(action_candidates, _evidence_action_fallbacks(observations))
         raw_refs = final.get("evidence_references", final.get("evidence", []))
         if isinstance(raw_refs, list):
             references = [str(item) for item in raw_refs[:20] if isinstance(item, (str, int))]
-        raw_limits = final.get("limitations", [])
+        raw_limits = final.get("evidence_gaps", final.get("limitations", []))
         if isinstance(raw_limits, list):
             limitations = [item for item in raw_limits[:10] if isinstance(item, str)]
-        safety = final.get("safety_note")
+        safety = final.get("safety_boundary", final.get("safety_note"))
         if isinstance(safety, str):
             limitations.append(safety)
     error = run_value.get("error")
@@ -821,6 +822,9 @@ def _run_projection(value: object, *, expected_case_id: str) -> dict[str, Any]:
         "status": status,
         "phases": [{"name": name, "status": phase_states[name]} for name in _PHASES],
         "summary": summary,
+        "grounded_answer": final
+        if isinstance(final, dict) and "grounding_status" in final
+        else None,
         "suggested_next_actions": actions,
         "evidence_used": _evidence_used(observations),
         "evidence_references": references,
@@ -1143,7 +1147,7 @@ def register_api(
         case_response = store.get_case(str(case_id), request_id=g.request_id)
         if case_response.status_code >= 400:
             return _upstream_problem(case_response)
-        _public_case(_mapping(case_response), settings.demo_owner_ref)
+        buyer_case = _public_case(_mapping(case_response), settings.demo_owner_ref)
         property_response = store.list_children(
             str(case_id), "properties", page=1, page_size=100, request_id=g.request_id
         )
@@ -1152,7 +1156,11 @@ def register_api(
         raw_properties, _, _, _ = _list_envelope(_mapping(property_response))
         properties = [_public_property(item, str(case_id)) for item in raw_properties]
         return jsonify(
-            evidence.collect([item["property_ref"] for item in properties], request_id=g.request_id)
+            evidence.collect(
+                [item["property_ref"] for item in properties],
+                request_id=g.request_id,
+                target_suburbs=buyer_case["target_suburbs"],
+            )
         )
 
     def tool_children(
@@ -1230,6 +1238,11 @@ def register_api(
     @app.post(f"{_API}/tools/buyer.evidence.collect.v1")
     def tool_collect_evidence() -> Response | tuple[Response, int]:
         case_id = _tool_case_id()
+        buyer_case, problem = _owned_case(store, settings, case_id, g.request_id)
+        if problem is not None:
+            return problem
+        if buyer_case is None:
+            raise DatabaseProtocolError("Case projection was unexpectedly absent")
         properties, problem = tool_children(case_id, "properties", _public_property, 10)
         if problem is not None:
             return problem
@@ -1237,7 +1250,9 @@ def register_api(
             raise DatabaseProtocolError("Property projection was unexpectedly absent")
         try:
             collected = evidence.collect(
-                [item["property_ref"] for item in properties], request_id=g.request_id
+                [item["property_ref"] for item in properties],
+                request_id=g.request_id,
+                target_suburbs=buyer_case["target_suburbs"],
             )
         except IntegrationUnavailableError:
             collected = {
@@ -1286,7 +1301,7 @@ def register_api(
             {
                 "feature_key": _FEATURE_KEY,
                 "objective": objective,
-                "prompt_set": "default.v7",
+                "prompt_set": "default.v9",
                 "limits": {
                     "max_iterations": 3,
                     "max_tool_calls": 10,

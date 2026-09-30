@@ -1,0 +1,216 @@
+{
+  "corpus": {
+    "chunk_count": 5,
+    "corpus_id": "operator-guidance",
+    "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+    "document_count": 5,
+    "embedding_dimensions": 384,
+    "embedding_model": "BAAI/bge-small-en-v1.5@82a556141f0473c60c5b9302c9d597373f79070324d8d4f7750af4ad6211b659",
+    "feature_key": "student-5-buyer-journey",
+    "ingested_at": "2026-09-30T19:29:47.330375Z",
+    "schema_version": "1.0"
+  },
+  "retrieval_checks": [
+    {
+      "status": "ready",
+      "sources": [
+        {
+          "document_id": "buyer-cases",
+          "title": "Manage buyer cases",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/buyer-cases.md",
+          "score": 0.7447500949688954
+        },
+        {
+          "document_id": "notes-and-tasks",
+          "title": "Buyer notes and tasks",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/notes-and-tasks.md",
+          "score": 0.6658687829158014
+        },
+        {
+          "document_id": "responsible-ai",
+          "title": "Responsible AI and insufficient context",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/responsible-ai.md",
+          "score": 0.6127115558790653
+        },
+        {
+          "document_id": "evidence-limits",
+          "title": "Limits of buyer-workspace evidence",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/evidence-limits.md",
+          "score": 0.6002935253993426
+        },
+        {
+          "document_id": "shortlist-and-stages",
+          "title": "Shortlists and journey stages",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+          "score": 0.6115824771536046
+        }
+      ],
+      "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+      "query": "How do I create and edit a buyer case?"
+    },
+    {
+      "status": "ready",
+      "sources": [
+        {
+          "document_id": "shortlist-and-stages",
+          "title": "Shortlists and journey stages",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+          "score": 0.7420261528798872
+        },
+        {
+          "document_id": "notes-and-tasks",
+          "title": "Buyer notes and tasks",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/notes-and-tasks.md",
+          "score": 0.5501616332431318
+        }
+      ],
+      "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+      "query": "What are the shortlist journey stages?"
+    },
+    {
+      "status": "ready",
+      "sources": [
+        {
+          "document_id": "notes-and-tasks",
+          "title": "Buyer notes and tasks",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/notes-and-tasks.md",
+          "score": 0.8323932485074166
+        },
+        {
+          "document_id": "buyer-cases",
+          "title": "Manage buyer cases",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/buyer-cases.md",
+          "score": 0.7145170486461362
+        },
+        {
+          "document_id": "shortlist-and-stages",
+          "title": "Shortlists and journey stages",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+          "score": 0.687362186881609
+        },
+        {
+          "document_id": "responsible-ai",
+          "title": "Responsible AI and insufficient context",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/responsible-ai.md",
+          "score": 0.6522747886011954
+        },
+        {
+          "document_id": "evidence-limits",
+          "title": "Limits of buyer-workspace evidence",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/evidence-limits.md",
+          "score": 0.6438330748495357
+        }
+      ],
+      "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+      "query": "What happens to notes and tasks when a shortlisted property is removed?"
+    },
+    {
+      "status": "ready",
+      "sources": [
+        {
+          "document_id": "evidence-limits",
+          "title": "Limits of buyer-workspace evidence",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/evidence-limits.md",
+          "score": 0.8486221515232544
+        },
+        {
+          "document_id": "responsible-ai",
+          "title": "Responsible AI and insufficient context",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/responsible-ai.md",
+          "score": 0.7650820750914951
+        },
+        {
+          "document_id": "shortlist-and-stages",
+          "title": "Shortlists and journey stages",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+          "score": 0.6747442309981914
+        },
+        {
+          "document_id": "notes-and-tasks",
+          "title": "Buyer notes and tasks",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/notes-and-tasks.md",
+          "score": 0.7017831117590668
+        },
+        {
+          "document_id": "buyer-cases",
+          "title": "Manage buyer cases",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/buyer-cases.md",
+          "score": 0.6811665728759368
+        }
+      ],
+      "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+      "query": "What are the limitations of buyer workspace evidence?"
+    },
+    {
+      "status": "ready",
+      "sources": [
+        {
+          "document_id": "responsible-ai",
+          "title": "Responsible AI and insufficient context",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/responsible-ai.md",
+          "score": 0.7208306979103838
+        },
+        {
+          "document_id": "shortlist-and-stages",
+          "title": "Shortlists and journey stages",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+          "score": 0.5848306509341802
+        },
+        {
+          "document_id": "notes-and-tasks",
+          "title": "Buyer notes and tasks",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/notes-and-tasks.md",
+          "score": 0.6167981383898534
+        },
+        {
+          "document_id": "buyer-cases",
+          "title": "Manage buyer cases",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/buyer-cases.md",
+          "score": 0.5835494068556829
+        },
+        {
+          "document_id": "evidence-limits",
+          "title": "Limits of buyer-workspace evidence",
+          "feature_key": "student-5-buyer-journey",
+          "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/evidence-limits.md",
+          "score": 0.575476021021666
+        }
+      ],
+      "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+      "query": "Can AI provide a valuation or legal advice?"
+    },
+    {
+      "status": "no_match",
+      "sources": [],
+      "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+      "query": "How do I bake sourdough?"
+    }
+  ],
+  "readiness": {
+    "embedding_mode": "semantic",
+    "embedding_model": "BAAI/bge-small-en-v1.5@82a556141f0473c60c5b9302c9d597373f79070324d8d4f7750af4ad6211b659",
+    "service": "rag-server",
+    "status": "ok"
+  }
+}

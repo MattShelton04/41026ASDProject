@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "mode": "rag",
+  "feature_key": "student-5-buyer-journey",
+  "tool_name": "context.retrieve.v1",
+  "corpus_id": "operator-guidance",
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "61f95c85-81df-44ab-8341-46012fcebcda",
+  "request_id": "r1-rag-3407d5f6-e82e-4e23-96fd-4abaa7517c25",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "867bcc01-ed45-42d7-83a1-8ec4a1832708",
+      "outcome": "succeeded",
+      "content": {
+        "detail": "Similarity measures retrieval relevance, not factual confidence",
+        "status": "no_match"
+      },
+      "error": null,
+      "duration_ms": 109,
+      "retryable": false,
+      "evidence_references": [
+        "service:rag"
+      ],
+      "retrieval": {
+        "schema_version": "1.0",
+        "feature_key": "student-5-buyer-journey",
+        "corpus_id": "operator-guidance",
+        "status": "no_match",
+        "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+        "citations": [],
+        "detail": "Similarity measures retrieval relevance, not factual confidence"
+      }
+    }
+  ],
+  "final_result": {
+    "citations": [],
+    "confidence": "insufficient",
+    "confidence_reason": "Relevant document context is unavailable or insufficient.",
+    "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+    "evidence_gaps": [
+      "Similarity measures retrieval relevance, not factual confidence"
+    ],
+    "findings": [],
+    "grounding_status": "no_match",
+    "next_step": "Review the linked source before acting.",
+    "safety_boundary": "Read-only guidance validation; no publication or approval.",
+    "summary": "Insufficient context to provide a grounded explanation."
+  },
+  "error": null
+}

@@ -80,7 +80,10 @@ jobs:
       - name: Check Student 5 browser code
         run: |
           node --check student-5/frontend/app.js
-          node --import ./scripts/frontend-test-bootstrap.mjs --test student-5/tests/frontend/buyer_cases.test.mjs
+          node --check student-5/frontend/assistant.js
+          node --import ./scripts/frontend-test-bootstrap.mjs --test student-5/tests/frontend/*.test.mjs shared/frontend/ai-chat/*.test.mjs
+      - name: Accept scoped assistant, grounding and public guidance without live AI
+        run: uv run pytest student-5/tests/test_backend_api.py -k "turn or corpus or injection or insufficient or outage or foreign" --no-cov -q
       - name: Validate deployment and boundaries
         run: |
           uv lock --check

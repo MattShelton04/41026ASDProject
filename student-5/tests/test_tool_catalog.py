@@ -16,6 +16,7 @@ CATALOG_PATH = ROOT / "student-5" / "tool-catalog.yaml"
 MANIFEST_PATH = ROOT / "student-5" / "feature.yaml"
 FEATURE_KEY = "student-5-buyer-journey"
 EXPECTED_TOOLS = [
+    "buyer.capabilities.v1",
     "buyer.cases.inspect.v1",
     "buyer.notes.list.v1",
     "buyer.tasks.list.v1",
@@ -53,6 +54,9 @@ def test_student_five_catalog_builds_real_owned_tool_runtime() -> None:
             assert definition.input_schema["additionalProperties"] is False
             properties = definition.input_schema["properties"]
             assert isinstance(properties, dict)
+            if name == "buyer.capabilities.v1":
+                assert not definition.input_schema.get("required")
+                continue
             buyer_case_id = properties["buyer_case_id"]
             assert isinstance(buyer_case_id, dict)
             assert buyer_case_id["format"] == "uuid"

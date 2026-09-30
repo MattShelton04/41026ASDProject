@@ -221,8 +221,8 @@
     },
     {
       "ai": {
-        "rag_corpus": null,
-        "rag_corpus_id": null,
+        "rag_corpus": "student-5/config/rag/corpus.json",
+        "rag_corpus_id": "operator-guidance",
         "runtime_path": "/etc/ai-mode/buyer-workspace-tools.yaml",
         "tool_catalog": "student-5/tool-catalog.yaml"
       },
@@ -254,7 +254,8 @@
           "propertyscope_buyer_store"
         ],
         "node_test_files": [
-          "student-5/tests/frontend/buyer_cases.test.mjs"
+          "student-5/tests/frontend/buyer_cases.test.mjs",
+          "student-5/tests/frontend/assistant.test.mjs"
         ],
         "python_test_paths": [
           "student-5/tests"

@@ -340,11 +340,14 @@ def test_corpus_scopes_come_from_enabled_declarations(
             feature["ai"]["rag_corpus"] = "student-1/config/rag/corpus.json"
     _write_projection(isolated, monkeypatch, projection)
 
-    assert runtime._corpus_scopes() == (
-        "student-1-propertyscope-data-platform:operator-guidance",
-        "student-2-market-intelligence:second-guidance",
-        "student-4-due-diligence:operator-guidance",
+    expected = tuple(
+        f"{feature['feature_key']}:{feature['ai']['rag_corpus_id']}"
+        for feature in projection["features"]
+        if feature.get("ai") and feature["ai"].get("rag_corpus")
     )
+    assert "student-2-market-intelligence:second-guidance" in expected
+    assert "student-5-buyer-journey:operator-guidance" in expected
+    assert runtime._corpus_scopes() == expected
 
 
 def test_a_declared_but_missing_corpus_manifest_is_rejected(
@@ -390,6 +393,16 @@ def _write_projection(
     for source in ("student-1/config/rag", "student-1", "student-2", "student-3"):
         (root / source).mkdir(parents=True, exist_ok=True)
     (root / "student-1/config/rag/corpus.json").write_text("{}", encoding="utf-8")
+    # Mirror real declared corpora, but leave deliberately absent paths missing.
+    declared = json.loads((root / "deployment/enabled-features.v1.json").read_text("utf-8"))
+    for feature in declared["features"]:
+        corpus = (feature.get("ai") or {}).get("rag_corpus")
+        if corpus and (runtime.REPOSITORY_ROOT / corpus).is_file():
+            destination = root / corpus
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(
+                (runtime.REPOSITORY_ROOT / corpus).read_text(encoding="utf-8"), encoding="utf-8"
+            )
     for number in range(1, 6):
         catalogue = runtime.REPOSITORY_ROOT / f"student-{number}/tool-catalog.yaml"
         if catalogue.is_file():

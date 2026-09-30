@@ -4,6 +4,31 @@ services:
     base_url: http://f5-backend:5501
 tools:
   - definition:
+      name: buyer.capabilities.v1
+      version: v1
+      feature_key: student-5-buyer-journey
+      description: Explain buyer workspace capabilities and limits without reading private records.
+      input_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          feature_key: {const: student-5-buyer-journey}
+          purpose: {type: string, maxLength: 500}
+          limitations: {type: array, maxItems: 10, items: {type: string, maxLength: 500}}
+          suggested_questions: {type: array, maxItems: 10, items: {type: string, maxLength: 500}}
+          read_only: {const: true}
+        required: [feature_key, purpose, limitations, suggested_questions, read_only]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 5000
+      requires_approval: false
+    service: f5-backend
+    method: POST
+    path: /api/buyer-workspaces/v1/tools/buyer.capabilities.v1
+  - definition:
       name: buyer.cases.inspect.v1
       version: v1
       feature_key: student-5-buyer-journey
