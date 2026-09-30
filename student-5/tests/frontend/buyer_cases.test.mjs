@@ -19,10 +19,8 @@ import {
   renderNoteItems,
   renderEvidence,
   renderPropertyItems,
-  renderSummaryRun,
   renderTaskItems,
   statusLabel,
-  summaryWorkflowView,
   targetSuburbsFromText,
   uiStateForError,
   validateCaseInput,
@@ -35,6 +33,19 @@ function jsonResponse(status, payload) {
     json: async () => payload,
   };
 }
+
+test("suburb evidence separates target and property context and labels limitations by domain", () => {
+  const html = renderEvidence({sections: {feature_3: {state: "partial", limitations: ["Feature 3 is partial"], items: [
+    {context_kind: "case_target", locality: "MASCOT", state: "partial", record_counts: {crime: 1}, evidence: {sources: [{publisher: "BOCSAR", temporal_coverage: {from: "2025-01"}}]}},
+    {context_kind: "verified_property_location", locality: "SYDNEY", state: "unavailable", limitations: ["No published evidence"]},
+  ]}}, limitations: ["Feature 2 is partial"]});
+  assert.match(html, /Case target suburb: MASCOT/);
+  assert.match(html, /Verified property-location context: SYDNEY/);
+  assert.match(html, /Suburb analytics is partial/);
+  assert.match(html, /Sales research is partial/);
+  assert.match(html, /BOCSAR/);
+  assert.match(html, /2025-01/);
+});
 
 test("API base is a same-origin versioned public path", () => {
   assert.equal(API_BASE, "/api/buyer-workspaces/v1");
@@ -292,85 +303,6 @@ test("bounded evidence renderer exposes all states and limitations safely", () =
   for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
 });
 
-test("AI summary renderer preserves its user-facing result without phase cards", () => {
-  const rawReference = "buyer.evidence.collect.v1:feature_1:property_ref:b5000000-0000-4000-8000-000000000001:succeeded";
-  const html = renderSummaryRun({
-    status: "succeeded",
-    phases: ["plan", "act", "observe", "adapt"].map((name) => ({ name, status: "succeeded" })),
-    summary: "Property discovery and Sales research provide bounded <evidence>.",
-    suggested_next_actions: ["Review Due diligence findings"],
-    evidence_used: [
-      { label: "Buyer case and shortlist", status: "Retrieved", detail: "1 shortlisted property" },
-      { label: "Case notes", status: "Retrieved", detail: "1 note" },
-      { label: "Case tasks", status: "Retrieved", detail: "2 tasks (1 completed, 1 incomplete)" },
-      { label: "Property discovery", status: "Complete" },
-      { label: "Sales research", status: "Conflicting; verification required" },
-      { label: "Suburb analytics", status: "Unavailable" },
-      { label: "Due diligence", status: "Partial" },
-    ],
-    evidence_references: [rawReference],
-    limitations: ["Suburb analytics is unavailable"],
-  });
-  assert.match(html, /Case summary generated successfully\./);
-  assert.doesNotMatch(html, /AI processing details/);
-  assert.doesNotMatch(html, /run-phases|data-phase/);
-  assert.match(html, /Property discovery and Sales research provide bounded &lt;evidence&gt;/);
-  const primaryEvidence = html.slice(html.indexOf("<h4>Evidence used</h4>"), html.indexOf('<details class="technical-audit"'));
-  for (const label of ["Buyer case and shortlist", "Case notes", "Case tasks", "Property discovery", "Sales research", "Suburb analytics", "Due diligence"]) {
-    assert.match(primaryEvidence, new RegExp(label));
-  }
-  assert.match(primaryEvidence, /Buyer case and shortlist<\/strong>: Retrieved; 1 shortlisted property/);
-  assert.match(primaryEvidence, /Case tasks<\/strong>: Retrieved; 2 tasks \(1 completed, 1 incomplete\)/);
-  assert.match(primaryEvidence, /Sales research<\/strong>: Conflicting; verification required/);
-  assert.match(primaryEvidence, /Due diligence<\/strong>: Partial/);
-  for (const mojibake of ["â", "€", "�"]) assert.doesNotMatch(html, new RegExp(mojibake));
-  assert.doesNotMatch(primaryEvidence, /buyer\.evidence|feature_1|b5000000/);
-  assert.match(html, /<details class="technical-audit"><summary>Technical audit references<\/summary>/);
-  assert.doesNotMatch(html, /<details class="technical-audit" open/);
-  assert.match(html, new RegExp(rawReference.replaceAll(".", "\\.")));
-  assert.match(html, /Suburb analytics is unavailable/);
-  const userFacingHtml = html.replace(/<details class="technical-audit">.*?<\/details>/, "");
-  assert.doesNotMatch(userFacingHtml, /Feature\s+[1-4]/i);
-});
-
-test("AI workflow presents a compact accessible idle status", () => {
-  const view = summaryWorkflowView(null);
-  const html = renderSummaryRun(null, view);
-  assert.deepEqual(view, { statusText: "Ready to generate a case summary." });
-  assert.match(html, /role="status" aria-live="polite" data-workflow-status>Ready to generate a case summary\.<\/p>/);
-  assert.doesNotMatch(html, /AI processing details|run-phases|data-phase/);
-});
-
-test("AI workflow uses one concise processing status for every phase", () => {
-  for (const status of ["queued", "planning", "acting", "observing", "adapting"]) {
-    const run = { status, phases: [{ name: "adapt", status: "running" }] };
-    assert.equal(summaryWorkflowView(run).statusText, "Generating case summary");
-  }
-});
-
-test("successful workflow status is concise", () => {
-  const view = summaryWorkflowView({ status: "succeeded", phases: [] });
-  assert.equal(view.statusText, "Case summary generated successfully.");
-});
-
-test("failed workflow status identifies the failed phase without rendering phase cards", () => {
-  const run = {
-    status: "failed",
-    phases: [
-      { name: "plan", status: "succeeded" },
-      { name: "act", status: "succeeded" },
-      { name: "observe", status: "succeeded" },
-      { name: "adapt", status: "failed" },
-    ],
-    error: "Generation stopped safely.",
-  };
-  const view = summaryWorkflowView(run);
-  const html = renderSummaryRun(run, view);
-  assert.equal(view.statusText, "The case summary could not be generated: Adapt failed.");
-  assert.match(html, /role="status" aria-live="polite"/);
-  assert.doesNotMatch(html, /AI processing details|run-phases|data-phase/);
-});
-
 test("workspace renderers show journey, ratings, associations and completion controls safely", () => {
   const propertyHtml = renderPropertyItems([{
     id: "property-1", property_ref: "f1000000-0000-4000-8000-000000000001",
@@ -404,9 +336,4 @@ test("buyer reads accept cancellation without relabelling it as database unavail
   controller.abort();
   await assert.rejects(reading, {name: "AbortError"});
   assert.equal(requestedSignal.aborted, true);
-});
-
-test("review-required summary is paused, not described as still generating", () => {
-  assert.match(summaryWorkflowView({status: "review_required", phases: []}).statusText, /review/i);
-  assert.doesNotMatch(summaryWorkflowView({status: "review_required", phases: []}).statusText, /Generating/);
 });

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="./design-system/tokens.css" />
     <link rel="stylesheet" href="./design-system/base.css" />
     <link rel="stylesheet" href="./design-system/components.css" />
+    <link rel="stylesheet" href="./ai-chat/styles.css" />
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
     <link rel="stylesheet" href="./design-system/shell.css">
@@ -54,6 +55,13 @@
             <h2>Loading buyer cases&hellip;</h2>
             <p>Please wait while the workspace checks your saved cases.</p>
           </div>
+        </section>
+        <section class="workspace-section" aria-label="Buyer workspace assistant">
+          <header><h2 id="assistant-heading">Buyer workspace assistant</h2><button class="ps-button ps-button--primary" type="button" id="summarise-case" hidden disabled>Summarise this case</button></header>
+          <p id="assistant-selected-case" role="status" aria-live="polite">No case selected. Open a buyer case to summarise its records.</p>
+          <p>Ask about workspace guidance, or open a case to include its approved records.
+            Inspect MCP tools and RAG retrieval in Sources &amp; activity.</p>
+          <div id="buyer-assistant"></div>
         </section>
       </div>
     </main>

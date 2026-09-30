@@ -1,0 +1,11 @@
+{
+  "chunk_count": 5,
+  "corpus_id": "operator-guidance",
+  "corpus_version": "b8c5424bc339808fbf27a49a765f89124b57f1c6f72ad8c2146eede592c2fb9d",
+  "document_count": 5,
+  "embedding_dimensions": 384,
+  "embedding_model": "BAAI/bge-small-en-v1.5@82a556141f0473c60c5b9302c9d597373f79070324d8d4f7750af4ad6211b659",
+  "feature_key": "student-5-buyer-journey",
+  "ingested_at": "2026-09-30T19:29:47.330375Z",
+  "schema_version": "1.0"
+}

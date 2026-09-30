@@ -19,7 +19,8 @@ class BackendSettings:
     data_platform_url: str = "http://f1-backend:5201"
     market_intelligence_url: str = "http://f2-backend:5301"
     due_diligence_url: str = "http://f4-backend:5401"
-    ai_mode_url: str = "http://shared-ai-mode:5005"
+    suburb_analytics_url: str = "http://f3-backend:5301"
+    ai_mode_url: str = "http://127.0.0.1:5005"
 
     def __post_init__(self) -> None:
         origins = {
@@ -27,6 +28,7 @@ class BackendSettings:
             "data_platform_url": self.data_platform_url,
             "market_intelligence_url": self.market_intelligence_url,
             "due_diligence_url": self.due_diligence_url,
+            "suburb_analytics_url": self.suburb_analytics_url,
             "ai_mode_url": self.ai_mode_url,
         }
         for name, origin in origins.items():
@@ -57,6 +59,9 @@ class BackendSettings:
             due_diligence_url=os.environ.get(
                 "PROPERTYSCOPE_DUE_DILIGENCE_URL", "http://f4-backend:5401"
             ),
-            ai_mode_url=os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"),
+            suburb_analytics_url=os.environ.get(
+                "PROPERTYSCOPE_SUBURB_ANALYTICS_URL", "http://f3-backend:5301"
+            ),
+            ai_mode_url=os.environ.get("AI_MODE_BASE_URL", "http://127.0.0.1:5005"),
             demo_owner_ref=os.environ.get("PROPERTYSCOPE_DEMO_OWNER_REF", DEMO_OWNER_REF),
         )

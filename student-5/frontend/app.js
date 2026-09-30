@@ -1,4 +1,5 @@
-import { createLatestTask, pollUntilSettled } from "./browser/index.js";
+import { createLatestTask } from "./browser/index.js";
+import { createBuyerAssistant, setSummaryVisibility } from "./assistant.js";
 
 import {
   API_BASE,
@@ -61,6 +62,7 @@ export {
 const api = createBuyerCaseApi();
 let cases = [];
 let currentCase = null;
+let buyerAssistant = null;
 let properties = [];
 let notes = [];
 let tasks = [];
@@ -70,7 +72,6 @@ let editingNote = null;
 let editingTask = null;
 let pendingDelete = null;
 const viewTask = createLatestTask();
-const summaryTask = createLatestTask();
 const evidenceTask = createLatestTask();
 let toastTimer;
 
@@ -177,6 +178,7 @@ export function evidenceStateLabel(state) {
 }
 
 export function renderEvidence(value) {
+  const domainText = (text) => String(text).replace(/feature[ _]+([1-4])/gi, (_, id) => ({1: "Property discovery", 2: "Sales research", 3: "Suburb analytics", 4: "Due diligence"})[id]);
   const sections = value?.sections && typeof value.sections === "object" ? value.sections : {};
   const titles = {
     feature_1: "Property identity and source releases",
@@ -190,78 +192,21 @@ export function renderEvidence(value) {
     const limitations = Array.isArray(section.limitations) ? section.limitations : [];
     const visibleLimitations = limitations.map((item) => key === "feature_3" && item === "Feature 3 has no available Release 0 public API." ? "No suburb evidence was returned to this buyer case." : item);
     return `<article class="evidence-card"><header><h4>${escapeHtml(title)}</h4><span class="ps-badge evidence-${escapeHtml(section.state)}">${escapeHtml(evidenceStateLabel(section.state))}</span></header>
-      ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item.address_display || item.property_ref || "Unknown property")} · ${escapeHtml(evidenceStateLabel(item.state))}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
-      ${visibleLimitations.map((item) => `<p class="item-reference">${escapeHtml(item)}</p>`).join("")}</article>`;
+      ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item.locality ? `${item.context_kind === "case_target" ? "Case target suburb" : "Verified property-location context"}: ${item.locality}, NSW` : item.address_display || item.property_ref || "Unknown property")} · ${escapeHtml(evidenceStateLabel(item.state))}
+        ${item.record_counts ? `<p>Published records: ${escapeHtml(Object.entries(item.record_counts).map(([name, count]) => `${name}: ${count}`).join("; "))}</p>` : ""}
+        ${(Array.isArray(item.limitations) ? item.limitations : []).map((text) => `<p>${escapeHtml(domainText(text))}</p>`).join("")}
+        ${item.evidence?.sources?.length ? `<details><summary>Source provenance and reporting periods</summary><pre>${escapeHtml(JSON.stringify(item.evidence.sources, null, 2))}</pre></details>` : ""}</li>`).join("")}</ul>` : "<p>No evidence records returned.</p>"}
+      ${visibleLimitations.map((item) => `<p class="item-reference">${escapeHtml(domainText(item))}</p>`).join("")}</article>`;
   }).join("");
   const limitations = Array.isArray(value?.limitations) ? value.limitations : [];
   const references = Array.isArray(value?.evidence_references) ? value.evidence_references : [];
   return `${cards}<details class="evidence-references"><summary>Evidence references</summary>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No evidence references available.</p>"}</details>
-    <div class="evidence-limitations"><h4>Evidence limitations</h4><ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
-}
-
-function workflowPhaseLabel(value) {
-  const label = String(value || "").replaceAll("_", " ");
-  return label ? `${label[0].toUpperCase()}${label.slice(1)}` : "Pending";
-}
-
-export function summaryWorkflowView(run) {
-  const status = typeof run?.status === "string" ? run.status : "";
-  const phases = Array.isArray(run?.phases) ? run.phases : [];
-  let statusText = "Generating case summary";
-
-  if (!status) {
-    statusText = "Ready to generate a case summary.";
-  } else if (status === "succeeded") {
-    statusText = "Case summary generated successfully.";
-  } else if (["failed", "cancelled"].includes(status)) {
-    const failedPhase = phases.find((phase) => phase?.status === "failed")?.name;
-    statusText = failedPhase
-      ? `The case summary could not be generated: ${workflowPhaseLabel(failedPhase)} failed.`
-      : "The case summary could not be generated.";
-  }
-
-  if (status === "cancelled") statusText = "Case summary cancelled. Your saved case is unchanged.";
-  if (["review_required", "waiting_for_review"].includes(status)) statusText = "The workflow requires human review; no final summary is available.";
-  return { statusText };
-}
-
-export function renderSummaryRun(run, workflowView = summaryWorkflowView(run)) {
-  const phases = Array.isArray(run?.phases) ? run.phases : [];
-  const actions = Array.isArray(run?.suggested_next_actions) ? run.suggested_next_actions : [];
-  const evidenceUsed = Array.isArray(run?.evidence_used) ? run.evidence_used : [];
-  const references = Array.isArray(run?.evidence_references) ? run.evidence_references : [];
-  const limitations = Array.isArray(run?.limitations) ? run.limitations : [];
-  if (!run?.status) return `<p class="workflow-status" role="status" aria-live="polite" data-workflow-status>${escapeHtml(workflowView.statusText)}</p>`;
-  return `<p class="workflow-status" role="status" aria-live="polite" data-workflow-status>${escapeHtml(workflowView.statusText)}</p>
-    ${phases.length ? `<ol class="workflow-phases" aria-label="Recorded workflow phases">${phases.map(phase => `<li><strong>${escapeHtml(workflowPhaseLabel(phase.name))}</strong><span>${escapeHtml(workflowPhaseLabel(phase.status))}</span></li>`).join("")}</ol>` : ""}
-    ${run?.summary ? `<h4>Case summary</h4><p>${escapeHtml(run.summary)}</p>` : `<p>${run?.error ? escapeHtml(run.error) : "Summary generation is in progress."}</p>`}
-    <h4>Suggested next actions</h4>${actions.length ? `<ol>${actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : "<p>No suggested actions yet.</p>"}
-    <h4>Evidence used</h4>${evidenceUsed.length ? `<ul>${evidenceUsed.map((item) => `<li><strong>${escapeHtml(item?.label || "Evidence source")}</strong>: ${escapeHtml(item?.status || "Unavailable")}${item?.detail ? `; ${escapeHtml(item.detail)}` : ""}</li>`).join("")}</ul>` : "<p>No evidence summary is available. Review the bounded evidence above.</p>"}
-    <details class="technical-audit"><summary>Technical audit references</summary>${references.length ? `<ul>${references.map((item) => `<li><code>${escapeHtml(item)}</code></li>`).join("")}</ul>` : "<p>No technical references reported.</p>"}</details>
-    <h4>Limitations</h4>${limitations.length ? `<ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>No additional AI limitations reported.</p>"}`;
-}
-
-const summaryMarkup = new WeakMap();
-export function updateSummaryRegion(target, run) {
-  const markup = renderSummaryRun(run);
-  if (summaryMarkup.get(target) === markup) return;
-  const audit = target.querySelector(".technical-audit");
-  const open = Boolean(audit?.open);
-  const restoreFocus = audit?.contains(target.ownerDocument?.activeElement);
-  const before = restoreFocus ? audit.getBoundingClientRect().top : null;
-  target.innerHTML = markup;
-  summaryMarkup.set(target, markup);
-  const updated = target.querySelector(".technical-audit");
-  if (updated) {
-    updated.open = open;
-    if (restoreFocus) {
-      updated.querySelector("summary")?.focus({ preventScroll: true });
-      globalThis.scrollBy?.(0, updated.getBoundingClientRect().top - before);
-    }
-  }
+    <div class="evidence-limitations"><h4>Evidence limitations</h4><ul>${limitations.map((item) => `<li>${escapeHtml(domainText(item))}</li>`).join("")}</ul></div>`;
 }
 
 function renderDetail(item) {
+  buyerAssistant?.select(item);
+  setSummaryVisibility(document.querySelector("#summarise-case"), true);
   const view = document.querySelector("#case-view");
   if (!view) return;
   const preferenceLists = projectPreferenceLists(item.preferences);
@@ -286,14 +231,14 @@ function renderDetail(item) {
       <div class="detail-actions"><button class="ps-button" type="button" data-edit>Edit case</button>
       <button class="ps-button ps-button--danger" type="button" data-delete>Delete case</button></div>
     </article>
-    <nav class="workspace-jumps" aria-label="Within this buyer case">${[["properties", "Shortlist"], ["tasks", "Tasks"], ["notes", "Notes"], ["evidence", "Evidence"], ["summary", "AI summary"]].map(([id, label]) => `<button type="button" data-jump="${id}-heading">${label}</button>`).join("")}</nav>
+    <nav class="workspace-jumps" aria-label="Within this buyer case">${[["properties", "Shortlist"], ["tasks", "Tasks"], ["notes", "Notes"], ["evidence", "Evidence"], ["assistant", "Assistant"]].map(([id, label]) => `<button type="button" data-jump="${id}-heading">${label}</button>`).join("")}</nav>
     <section class="workspace-section" aria-labelledby="properties-heading"><header><div><p class="ps-eyebrow">SHORTLIST</p><h3 id="properties-heading">Properties</h3></div><button class="ps-button ps-button--primary" type="button" data-add-property>Add property</button></header><div class="workspace-items">${renderPropertyItems(properties)}</div></section>
     <section class="workspace-section" aria-labelledby="tasks-heading"><header><div><p class="ps-eyebrow">NEXT STEPS</p><h3 id="tasks-heading">Tasks</h3></div><button class="ps-button ps-button--primary" type="button" data-add-task>Add task</button></header><div class="workspace-items">${renderTaskItems(tasks, propertyName)}</div></section>
     <section class="workspace-section" aria-labelledby="notes-heading"><header><div><p class="ps-eyebrow">OBSERVATIONS</p><h3 id="notes-heading">Notes</h3></div><button class="ps-button ps-button--primary" type="button" data-add-note>Add note</button></header><div class="workspace-items">${renderNoteItems(notes, propertyName)}</div></section>
     <section class="workspace-section" aria-labelledby="evidence-heading"><header><div><p class="ps-eyebrow">CROSS-FEATURE EVIDENCE</p><h3 id="evidence-heading">Bounded evidence</h3></div><button class="ps-button" type="button" data-refresh-evidence>Refresh evidence</button></header><div data-evidence aria-live="polite"><p>Loading evidence…</p></div></section>
-    <section class="workspace-section" aria-labelledby="summary-heading"><header><div><p class="ps-eyebrow">AI ASSISTANCE</p><h3 id="summary-heading">Buyer case summary</h3></div><button class="ps-button ps-button--primary" type="button" data-generate-summary>Generate case summary</button></header><p class="item-reference">AI output is advisory. Confirm evidence and important decisions yourself.</p><div data-summary-run>${renderSummaryRun(null)}</div></section>`;
+    `;
   view.querySelectorAll("[data-jump]").forEach(button => button.addEventListener("click", () => {
-    const heading = view.querySelector(`#${button.dataset.jump}`);
+    const heading = document.querySelector(`#${button.dataset.jump}`);
     if (!heading) return;
     heading.tabIndex = -1;
     heading.scrollIntoView({block: "start"}); heading.focus({preventScroll: true});
@@ -304,7 +249,6 @@ function renderDetail(item) {
   view.querySelector("[data-add-note]")?.addEventListener("click", () => openNoteForm());
   view.querySelector("[data-add-task]")?.addEventListener("click", () => openTaskForm());
   view.querySelector("[data-refresh-evidence]")?.addEventListener("click", () => loadEvidence(item.id));
-  view.querySelector("[data-generate-summary]")?.addEventListener("click", () => generateSummary(item.id));
   view.querySelectorAll("[data-edit-property]").forEach((button) => button.addEventListener("click", () => openPropertyForm(properties.find((value) => value.id === button.dataset.editProperty))));
   view.querySelectorAll("[data-delete-property]").forEach((button) => button.addEventListener("click", () => {
     const property = properties.find((value) => value.id === button.dataset.deleteProperty);
@@ -343,33 +287,10 @@ async function loadEvidence(caseId) {
   }
 }
 
-async function generateSummary(caseId) {
-  const target = document.querySelector("[data-summary-run]");
-  const button = document.querySelector("[data-generate-summary]");
-  if (!target || !button || button.disabled) return;
-  const task = summaryTask.start();
-  const isCurrent = () => task.isCurrent() && currentCase?.id === caseId && target.isConnected;
-  button.disabled = true;
-  updateSummaryRegion(target, { status: "queued", phases: [] });
-  try {
-    const key = `buyer-summary-${caseId}-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
-    const initial = await api.summaries.create(caseId, key);
-    if (!isCurrent()) return;
-    updateSummaryRegion(target, initial);
-    await pollUntilSettled((signal) => api.summaries.read(caseId, initial.id, {signal}), {
-      task, initial, isSettled: (run) => ["succeeded", "failed", "cancelled", "timed_out", "waiting_for_review", "review_required"].includes(run.status),
-      onUpdate: (run) => { if (isCurrent()) updateSummaryRegion(target, run); },
-    });
-  } catch (error) {
-    if (isCurrent()) target.textContent = error.message + " Your saved buyer case is unchanged. A workflow may still be active; do not assume this network error cancelled it.";
-  } finally {
-    if (isCurrent()) button.disabled = false;
-  }
-}
-
 async function loadList() {
+  buyerAssistant?.select(null);
+  setSummaryVisibility(document.querySelector("#summarise-case"), false);
   const task = viewTask.start();
-  summaryTask.cancel();
   evidenceTask.cancel();
   currentCase = null;
   renderState("loading", "Loading buyer cases…", "Please wait while saved cases are retrieved.");
@@ -387,8 +308,9 @@ async function loadList() {
 }
 
 async function loadDetail(caseId) {
+  if (currentCase?.id !== caseId) buyerAssistant?.select(null);
+  setSummaryVisibility(document.querySelector("#summarise-case"), false);
   const task = viewTask.start();
-  summaryTask.cancel();
   evidenceTask.cancel();
   currentCase = null;
   renderState("loading", "Loading buyer case…", "Please wait while the case is retrieved.");
@@ -411,6 +333,7 @@ async function loadDetail(caseId) {
     if (!task.isCurrent()) return;
     setServiceState(false);
     const missing = error instanceof ApiProblem && error.status === 404;
+    buyerAssistant?.select(null);
     renderState(missing ? "empty" : "unavailable", missing ? "Buyer case not found" : "Buyer case unavailable", missing ? "It may have been deleted." : "The service could not be reached.", !missing);
   }
 }
@@ -743,6 +666,15 @@ async function route(focus = true) {
 }
 
 export function initialise() {
+  const assistantRoot = document.querySelector("#buyer-assistant");
+  if (assistantRoot) {
+    buyerAssistant = createBuyerAssistant(assistantRoot, undefined, document.querySelector("#assistant-selected-case"));
+    document.querySelector("#summarise-case")?.addEventListener("click", () => buyerAssistant.summarise());
+    buyerAssistant.select(null);
+  }
+  globalThis.addEventListener("pagehide", () => {
+    buyerAssistant?.destroy();
+  }, { once: true });
   document.querySelector("#new-case")?.addEventListener("click", () => openCaseForm());
   document.querySelector("#case-form")?.addEventListener("submit", submitCase);
   document.querySelector("#property-form")?.addEventListener("submit", submitProperty);
@@ -755,7 +687,7 @@ export function initialise() {
   document.querySelectorAll("[data-close-delete]").forEach((button) => button.addEventListener("click", closeDeleteDialog));
   document.querySelector("#confirm-delete")?.addEventListener("click", confirmDelete);
   globalThis.addEventListener("hashchange", () => route());
-  globalThis.addEventListener("pagehide", () => { viewTask.cancel(); summaryTask.cancel(); evidenceTask.cancel(); clearTimeout(toastTimer); }, { once: true });
+  globalThis.addEventListener("pagehide", () => { viewTask.cancel(); evidenceTask.cancel(); clearTimeout(toastTimer); }, { once: true });
   route(false);
 }
 

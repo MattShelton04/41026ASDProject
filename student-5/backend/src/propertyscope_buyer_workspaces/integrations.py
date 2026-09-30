@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
+from urllib.parse import urlencode
 
 from propertyscope_buyer_workspaces.clients import (
     ClientResponse,
@@ -12,6 +14,7 @@ from propertyscope_buyer_workspaces.clients import (
     HttpTransport,
     UrllibTransport,
 )
+from propertyscope_buyer_workspaces.suburb_evidence import normalise_locality, project_context
 
 _MAX_PROPERTIES = 10
 _PAGE_SIZE = 25
@@ -22,7 +25,13 @@ class IntegrationUnavailableError(RuntimeError):
 
 
 class EvidenceGateway(Protocol):
-    def collect(self, property_refs: Sequence[str], *, request_id: str) -> dict[str, Any]: ...
+    def collect(
+        self,
+        property_refs: Sequence[str],
+        *,
+        request_id: str,
+        target_suburbs: Sequence[Mapping[str, str]] = (),
+    ) -> dict[str, Any]: ...
 
     def validate_property(self, property_ref: str, *, request_id: str) -> dict[str, str]: ...
 
@@ -34,6 +43,10 @@ class AiModeGateway(Protocol):
 
     def get_run(self, run_id: str, *, request_id: str) -> ClientResponse: ...
 
+    def get_events(self, run_id: str, *, after: int, request_id: str) -> ClientResponse: ...
+
+    def cancel_run(self, run_id: str, *, request_id: str) -> ClientResponse: ...
+
 
 class PublicEvidenceClient:
     """Collect small evidence projections without importing another feature."""
@@ -44,12 +57,14 @@ class PublicEvidenceClient:
         market_intelligence_url: str,
         due_diligence_url: str,
         *,
+        suburb_analytics_url: str = "http://f3-backend:5301",
         transport: HttpTransport | None = None,
         timeout_seconds: float = 4,
     ) -> None:
         self._origins = {
             "feature_1": data_platform_url.rstrip("/"),
             "feature_2": market_intelligence_url.rstrip("/"),
+            "feature_3": suburb_analytics_url.rstrip("/"),
             "feature_4": due_diligence_url.rstrip("/"),
         }
         self._transport = transport or UrllibTransport()
@@ -107,10 +122,17 @@ class PublicEvidenceClient:
             raise IntegrationUnavailableError("Property validation returned invalid data")
         return {"state": state, "label": address.strip()}
 
-    def collect(self, property_refs: Sequence[str], *, request_id: str) -> dict[str, Any]:
+    def collect(
+        self,
+        property_refs: Sequence[str],
+        *,
+        request_id: str,
+        target_suburbs: Sequence[Mapping[str, str]] = (),
+    ) -> dict[str, Any]:
         refs = list(dict.fromkeys(property_refs))[:_MAX_PROPERTIES]
+        discovery = self._feature_one(refs, request_id)
         sections = {
-            "feature_1": self._feature_one(refs, request_id),
+            "feature_1": discovery,
             "feature_2": self._matched_feature(
                 refs,
                 request_id,
@@ -120,9 +142,7 @@ class PublicEvidenceClient:
                 identifier="market_case_id",
                 evidence_keys=("sales",),
             ),
-            "feature_3": self._section(
-                "unavailable", [], ["Feature 3 has no available Release 0 public API."]
-            ),
+            "feature_3": self._suburbs(discovery, target_suburbs, request_id),
             "feature_4": self._matched_feature(
                 refs,
                 request_id,
@@ -145,20 +165,102 @@ class PublicEvidenceClient:
                     identifier = item.get(key)
                     if isinstance(identifier, str):
                         references.append(f"{feature}:{key}:{identifier}")
+                if feature == "feature_3" and item.get("locality"):
+                    references.append(f"{feature}:{item['context_kind']}:NSW:{item['locality']}")
         return {
             "state": overall,
             "sections": sections,
             "evidence_references": list(dict.fromkeys(references))[:50],
             "limitations": [
-                "Evidence is bounded to 10 shortlisted properties and the first 25 "
-                "matching records per feature.",
-                "Feature 3 is unavailable and is not inferred from other sources.",
+                "Evidence is bounded to 10 shortlisted properties, 10 target suburbs, "
+                "10 distinct locality requests and the first 25 "
+                "Sales research/Due diligence records.",
+                "Case target suburbs are buyer preferences, not verified property locations. "
+                "Exact locality names do not establish geographic boundary equivalence.",
             ],
         }
 
     @staticmethod
     def _section(state: str, items: list[dict[str, Any]], limitations: list[str]) -> dict[str, Any]:
         return {"state": state, "items": items, "limitations": limitations}
+
+    def _suburbs(
+        self, discovery: dict[str, Any], targets: Sequence[Mapping[str, str]], request_id: str
+    ) -> dict[str, Any]:
+        contexts: list[dict[str, Any]] = []
+        for target in targets[:10]:
+            locality = target.get("locality")
+            if target.get("state") == "NSW" and isinstance(locality, str) and locality.strip():
+                contexts.append(
+                    {"context_kind": "case_target", "locality": normalise_locality(locality)}
+                )
+        for item in discovery["items"]:
+            identity = item.get("identity") or {}
+            locality = identity.get("locality")
+            if (
+                identity.get("resolution_status") == "verified"
+                and identity.get("state") == "NSW"
+                and isinstance(locality, str)
+                and locality.strip()
+            ):
+                contexts.append(
+                    {
+                        "context_kind": "verified_property_location",
+                        "property_ref": item["property_ref"],
+                        "locality": normalise_locality(locality),
+                    }
+                )
+        cache: dict[str, dict[str, Any]] = {}
+        items = []
+        for context in contexts:
+            locality = context["locality"]
+            if locality not in cache:
+                if len(cache) >= 10:
+                    items.append(
+                        {
+                            **context,
+                            "state": "partial",
+                            "limitations": [
+                                "Locality request limit reached; evidence not retrieved."
+                            ],
+                        }
+                    )
+                    continue
+                try:
+                    response = self._get(
+                        self._origins["feature_3"],
+                        "/api/suburb-analytics/v1/published/context?"
+                        + urlencode({"locality": locality}),
+                        request_id,
+                    )
+                    if response.status_code != 200:
+                        raise IntegrationUnavailableError("Suburb analytics unavailable")
+                    cache[locality] = project_context(self._object(response), locality)
+                except (IntegrationUnavailableError, ValueError):
+                    cache[locality] = {
+                        "state": "unavailable",
+                        "limitations": [
+                            "Suburb analytics is unavailable or returned invalid locality evidence."
+                        ],
+                    }
+            items.append({**context, "state_code": "NSW", **cache[locality]})
+        state = (
+            "needs_verification"
+            if any(item["state"] == "needs_verification" for item in items)
+            else "partial"
+            if any(item["state"] != "unavailable" for item in items)
+            else "unavailable"
+        )
+        return self._section(
+            state,
+            items,
+            [
+                "Case target context and verified property-location context are separate; "
+                "neither is substituted for the other.",
+                "Only exact normalized NSW source localities are requested; "
+                "no postcode or boundary inference.",
+            ],
+        )
 
     def _feature_one(self, refs: list[str], request_id: str) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
@@ -171,15 +273,41 @@ class PublicEvidenceClient:
                     request_id,
                 )
                 if response.status_code != 200:
-                    items.append({"property_ref": property_ref, "state": "needs_verification"})
+                    unavailable = unavailable or response.status_code != 404
+                    items.append(
+                        {
+                            "property_ref": property_ref,
+                            "state": "needs_verification"
+                            if response.status_code == 404
+                            else "unavailable",
+                        }
+                    )
                     continue
                 value = self._object(response)
                 identity = value.get("identity")
+                releases = value.get("release_evidence")
+                if (
+                    value.get("property_ref") != property_ref
+                    or not isinstance(identity, dict)
+                    or not isinstance(value.get("address_display"), str)
+                    or not isinstance(releases, list)
+                    or len(releases) > 25
+                    or any(not isinstance(release, dict) for release in releases)
+                ):
+                    raise IntegrationUnavailableError("Invalid Property discovery evidence")
+                complete = bool(releases) and all(
+                    release.get("coverage_status") == "supported"
+                    and isinstance(release.get("coverage_scope"), dict)
+                    and release["coverage_scope"].get("complete") is not False
+                    and release["coverage_scope"].get("synthetic") is not True
+                    and "showcase" not in str(release["coverage_scope"].get("profile", ""))
+                    for release in releases
+                )
                 resolution = (
                     identity.get("resolution_status") if isinstance(identity, dict) else None
                 )
                 states = {
-                    "verified": "complete" if value.get("release_evidence") else "partial",
+                    "verified": "complete" if complete else "partial",
                     "provisional": "needs_verification",
                     "unresolved": "needs_verification",
                     "retired": "conflicting",
@@ -213,7 +341,16 @@ class PublicEvidenceClient:
             state = "complete"
         else:
             state = "partial"
-        return self._section(state, items, [] if refs else ["No shortlisted properties to verify."])
+        return self._section(
+            state,
+            items,
+            [
+                "Property discovery release coverage is retained; fixture, stale and partial "
+                "coverage is not complete official evidence."
+            ]
+            if refs
+            else ["No shortlisted properties to verify."],
+        )
 
     def _matched_feature(
         self,
@@ -230,13 +367,17 @@ class PublicEvidenceClient:
             return self._section("partial", [], ["No shortlisted properties to match."])
         try:
             response = self._get(
-                self._origins[feature], list_path, request_id, {"page": 1, "page_size": _PAGE_SIZE}
+                self._origins[feature], list_path, request_id, {"limit": _PAGE_SIZE}
             )
             if response.status_code != 200:
                 raise IntegrationUnavailableError("Evidence list unavailable")
             envelope = self._object(response)
             records = envelope.get("items")
-            if not isinstance(records, list):
+            if (
+                not isinstance(records, list)
+                or len(records) > _PAGE_SIZE
+                or any(not isinstance(record, dict) for record in records)
+            ):
                 raise IntegrationUnavailableError("Evidence list invalid")
             items: list[dict[str, Any]] = []
             for property_ref in refs:
@@ -255,6 +396,11 @@ class PublicEvidenceClient:
                 if not isinstance(record_id, str):
                     items.append({"property_ref": property_ref, "state": "needs_verification"})
                     continue
+                try:
+                    uuid.UUID(record_id)
+                except ValueError:
+                    items.append({"property_ref": property_ref, "state": "needs_verification"})
+                    continue
                 namespace = "market-intelligence" if feature == "feature_2" else "due-diligence"
                 detail = self._get(
                     self._origins[feature],
@@ -265,15 +411,72 @@ class PublicEvidenceClient:
                     items.append({"property_ref": property_ref, "state": "unavailable"})
                     continue
                 evidence = self._object(detail)
-                populated = any(
-                    isinstance(evidence.get(key), list) and evidence[key] for key in evidence_keys
-                )
+                parent = evidence.get("market_case" if feature == "feature_2" else "site_review")
+                if (
+                    not isinstance(parent, dict)
+                    or parent.get("id") != record_id
+                    or parent.get("property_ref") != property_ref
+                ):
+                    raise IntegrationUnavailableError("Mismatched evidence identity")
+                for key in evidence_keys:
+                    if not isinstance(evidence.get(key), list) or any(
+                        not isinstance(row, dict) or row.get("property_ref") != property_ref
+                        for row in evidence[key]
+                    ):
+                        raise IntegrationUnavailableError("Invalid evidence records")
+                rows = [row for key in evidence_keys for row in evidence[key]]
+                state = "partial"
+                limitations = [
+                    "Matching is restricted to the first 25 saved records; "
+                    "no match does not mean no evidence exists."
+                ]
+                if feature == "feature_4":
+                    states = [row.get("evidence_state") for row in rows]
+                    if any(
+                        value
+                        not in {"confirmed", "non_intersection", "partial_coverage", "unavailable"}
+                        for value in states
+                    ):
+                        raise IntegrationUnavailableError("Invalid Due diligence state")
+                    if states and all(value == "unavailable" for value in states):
+                        state = "unavailable"
+                    elif all(evidence[key] for key in evidence_keys) and all(
+                        value in {"confirmed", "non_intersection"} for value in states
+                    ):
+                        state = "complete"
+                else:
+                    summary = evidence.get("summary")
+                    if not isinstance(summary, dict) or any(
+                        type(summary.get(key)) is not int or summary[key] < 0
+                        for key in ("eligible_sale_count", "excluded_sale_count")
+                    ):
+                        raise IntegrationUnavailableError("Invalid Sales research summary")
+                    if not isinstance(summary.get("limitations"), list) or not all(
+                        isinstance(text, str) for text in summary["limitations"]
+                    ):
+                        raise IntegrationUnavailableError("Invalid Sales research limitations")
+                    limitations.extend(summary["limitations"][:20])
+                    if (
+                        summary["eligible_sale_count"] >= 3
+                        and summary["excluded_sale_count"] == 0
+                        and summary["eligible_sale_count"] <= len(rows)
+                        and not any(row.get("synthetic") for row in rows)
+                    ):
+                        state = "complete"
+                if len(records) == _PAGE_SIZE or any(
+                    len(evidence[key]) > _PAGE_SIZE for key in evidence_keys
+                ):
+                    state = "partial" if state == "complete" else state
+                    limitations.append("The bounded response may omit additional evidence records.")
+                for key in evidence_keys:
+                    evidence[key] = evidence[key][:_PAGE_SIZE]
                 items.append(
                     {
                         "property_ref": property_ref,
-                        "state": "complete" if populated else "partial",
+                        "state": state,
                         identifier: record_id,
                         "evidence": evidence,
+                        "limitations": limitations,
                     }
                 )
             states = [item["state"] for item in items]
@@ -288,10 +491,22 @@ class PublicEvidenceClient:
                 if states and all(value == "complete" for value in states)
                 else "partial"
             )
-            return self._section(state, items, [])
+            return self._section(
+                state,
+                items,
+                [
+                    "Only the first 25 saved records are matched by exact property reference; "
+                    "this is not an exhaustive search."
+                ],
+            )
         except IntegrationUnavailableError:
             return self._section(
-                "unavailable", [], [f"{feature.replace('_', ' ').title()} is unavailable."]
+                "unavailable",
+                [],
+                [
+                    f"{'Sales research' if feature == 'feature_2' else 'Due diligence'} "
+                    "is unavailable or returned invalid evidence."
+                ],
             )
 
 
@@ -350,3 +565,13 @@ class AiModeClient:
 
     def get_run(self, run_id: str, *, request_id: str) -> ClientResponse:
         return self._request("GET", f"/api/v1/agent-runs/{run_id}", request_id=request_id)
+
+    def get_events(self, run_id: str, *, after: int, request_id: str) -> ClientResponse:
+        return self._request(
+            "GET",
+            f"/api/v1/agent-runs/{run_id}/events?after={after}&limit=100",
+            request_id=request_id,
+        )
+
+    def cancel_run(self, run_id: str, *, request_id: str) -> ClientResponse:
+        return self._request("POST", f"/api/v1/agent-runs/{run_id}/cancel", request_id=request_id)

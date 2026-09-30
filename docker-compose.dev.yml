@@ -184,9 +184,11 @@ services:
 
   f5-frontend:
     volumes:
+      - ./shared/frontend/ai-chat:/usr/share/nginx/html/ai-chat:ro
       - ./shared/frontend/browser:/usr/share/nginx/html/browser:ro
       - ./student-5/frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./student-5/frontend/app.js:/usr/share/nginx/html/app.js:ro
+      - ./student-5/frontend/assistant.js:/usr/share/nginx/html/assistant.js:ro
       - ./student-5/frontend/shell.js:/usr/share/nginx/html/shell.js:ro
       - ./student-5/frontend/api.js:/usr/share/nginx/html/api.js:ro
       - ./student-5/frontend/models.js:/usr/share/nginx/html/models.js:ro

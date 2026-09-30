@@ -63,7 +63,13 @@ class PendingPropertyEvidence:
     def validate_property(self, property_ref: str, *, request_id: str) -> dict[str, str]:
         return {"state": "pending"}
 
-    def collect(self, property_refs: Sequence[str], *, request_id: str) -> dict[str, Any]:
+    def collect(
+        self,
+        property_refs: Sequence[str],
+        *,
+        request_id: str,
+        target_suburbs: Sequence[Mapping[str, str]] = (),
+    ) -> dict[str, Any]:
         return {"state": "partial", "sections": {}, "limitations": []}
 
 

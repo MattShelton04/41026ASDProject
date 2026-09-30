@@ -43,6 +43,13 @@ def test_nginx_exposes_only_public_buyer_routes_and_shared_assets() -> None:
     assert "X-Request-ID" in nginx
     assert "/internal/buyer-workspaces" not in nginx
     assert "shared/frontend/design-system" in dockerfile
+    assert "COPY shared/frontend/ai-chat /usr/share/nginx/html/ai-chat" in dockerfile
+    assert "student-5/frontend/assistant.js" in dockerfile
+    development = yaml.safe_load((ROOT / "docker-compose.dev.yml").read_text("utf-8"))
+    mounts = development["services"]["f5-frontend"]["volumes"]
+    assert "./shared/frontend/ai-chat:/usr/share/nginx/html/ai-chat:ro" in mounts
+    for filename in ("index.html", "app.js", "assistant.js", "api.js", "models.js"):
+        assert f"./student-5/frontend/{filename}:/usr/share/nginx/html/{filename}:ro" in mounts
 
 
 def test_generated_projection_enables_student_five_and_registers_host_catalogue() -> None:
@@ -58,6 +65,8 @@ def test_generated_projection_enables_student_five_and_registers_host_catalogue(
         item for item in runtime["features"] if item["frontend"]["service"] == "f5-frontend"
     )
     assert feature["ai"]["tool_catalog"] == "student-5/tool-catalog.yaml"
+    assert feature["ai"]["rag_corpus"] == "student-5/config/rag/corpus.json"
+    assert feature["ai"]["rag_corpus_id"] == "operator-guidance"
     base = yaml.safe_load((ROOT / "docker-compose.yml").read_text("utf-8"))["services"]
     assert (
         base["f5-backend"]["environment"]["AI_MODE_BASE_URL"]
