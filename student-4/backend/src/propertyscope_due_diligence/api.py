@@ -23,15 +23,70 @@ _VERSION = "0.1.0"
 _API = "/api/due-diligence/v1"
 _INTERNAL = "/internal/due-diligence/v1"
 FEATURE_KEY = "student-4-due-diligence"
-TOOL_ALLOWLIST = ("duediligence.review.inspect.v1", "duediligence.evidence.summary.v1")
+CAPABILITY_REVISION = "2026-09-30.v1"
+# Release 0 shipped two review-scoped tools; Release 1 adds the argument-free capability guide.
+# Runs recorded under the earlier allowlist must stay readable, so both are approved.
+TOOL_ALLOWLIST_V1 = ("duediligence.review.inspect.v1", "duediligence.evidence.summary.v1")
+TOOL_ALLOWLIST = (*TOOL_ALLOWLIST_V1, "duediligence.capabilities.v1")
 # AI-mode appends the retrieval tool to runs it grounds against a registered corpus, so an
 # exact comparison against TOOL_ALLOWLIST alone rejects this feature's own grounded runs.
-APPROVED_TOOL_ALLOWLISTS = grounded_allowlist_variants(TOOL_ALLOWLIST)
+APPROVED_TOOL_ALLOWLISTS = grounded_allowlist_variants(TOOL_ALLOWLIST_V1, TOOL_ALLOWLIST)
 _SUGGESTED_QUESTIONS = (
     "Generate professional-verification questions for this site review.",
     "What planning and environmental evidence still needs professional checking?",
     "Which strata or building matters should a buyer confirm before proceeding?",
 )
+_LIMITATIONS = (
+    "It is due-diligence research support, not professional, legal or building advice.",
+    "It does not certify compliance, safety, or the legal suitability of a property.",
+    "Planning and environmental evidence is indicative and needs professional confirmation.",
+    "Every record is returned by the data service; the model performs no assessment itself.",
+    "Answers cover one saved site review; it holds no live council or certificate data.",
+)
+
+
+def capability_guide() -> dict[str, Any]:
+    """The bounded, versioned description of this feature, shared by the API and MCP tool.
+
+    Argument-free and static: it states what the feature is for and what it refuses to do. Live
+    reviews, evidence and property records are database facts and belong to the review-scoped
+    tools.
+    """
+    return {
+        "revision": CAPABILITY_REVISION,
+        "feature": {
+            "feature_key": FEATURE_KEY,
+            "label": "Site & due diligence",
+            "summary": (
+                "A site, planning and building due-diligence workspace. Record a review against "
+                "a verified property, gather its planning, environmental, strata and building "
+                "evidence, and track the checks a buyer still needs a professional to confirm."
+            ),
+            "route": "/features/due-diligence/#site-reviews",
+        },
+        "tools": [
+            {
+                "name": "duediligence.capabilities.v1",
+                "purpose": "Explain this feature, its tools and its limits. Takes no arguments.",
+            },
+            {
+                "name": "duediligence.review.inspect.v1",
+                "purpose": (
+                    "Read one site review: property reference, address, status, disposition, "
+                    "checklist and notes."
+                ),
+            },
+            {
+                "name": "duediligence.evidence.summary.v1",
+                "purpose": (
+                    "Return the planning, environmental, strata and building evidence for a "
+                    "review's property, with record types, states, sources and confidence."
+                ),
+            },
+        ],
+        "limitations": list(_LIMITATIONS),
+        "suggested_questions": list(_SUGGESTED_QUESTIONS),
+    }
 
 
 def _problem(status: int, code: str, detail: str) -> tuple[Response, int]:
@@ -202,11 +257,13 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
 
     @blueprint.get(f"{_API}/assistant/capabilities")
     def assistant_capabilities() -> Response:
+        guide = capability_guide()
         return jsonify(
             {
                 "feature_key": FEATURE_KEY,
                 "tools": list(TOOL_ALLOWLIST),
-                "suggested_questions": list(_SUGGESTED_QUESTIONS),
+                "limitations": guide["limitations"],
+                "suggested_questions": guide["suggested_questions"],
                 "offline_safe": (
                     "Site-review CRUD, evidence and the map work without an AI credential."
                 ),
@@ -308,6 +365,11 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
             return _problem(503, "ai_mode_unavailable", str(exc))
 
     # Read-only tools the shared AI-mode service calls back into this backend.
+
+    @blueprint.post(f"{_API}/tools/duediligence.capabilities.v1")
+    def tool_capabilities() -> Response:
+        """Argument-free read-only tool: what this feature is for and what it refuses to do."""
+        return jsonify(capability_guide())
 
     @blueprint.post(f"{_API}/tools/duediligence.review.inspect.v1")
     def tool_review_inspect() -> Response | tuple[Response, int]:

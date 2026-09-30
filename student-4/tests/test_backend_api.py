@@ -303,6 +303,7 @@ def test_assistant_turn_creates_a_bounded_run():
     assert payload["tool_allowlist"] == [
         "duediligence.review.inspect.v1",
         "duediligence.evidence.summary.v1",
+        "duediligence.capabilities.v1",
     ]
 
 

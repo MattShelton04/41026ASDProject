@@ -4,6 +4,31 @@ services:
     base_url: http://f4-backend:5401
 tools:
   - definition:
+      name: duediligence.capabilities.v1
+      version: v1
+      feature_key: student-4-due-diligence
+      description: Explain the Site, Planning and Building Due Diligence area, its read-only tools, its limits and safe suggested questions from a bounded versioned guide. Takes no arguments and returns no site review, property or evidence record.
+      input_schema:
+        type: object
+        properties: {}
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          revision: {type: string}
+          feature: {type: object}
+          tools: {type: array, maxItems: 10, items: {type: object}}
+          limitations: {type: array, maxItems: 10, items: {type: string}}
+          suggested_questions: {type: array, maxItems: 10, items: {type: string}}
+        required: [revision, feature, tools, limitations, suggested_questions]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: propertyscope-due-diligence-backend
+    method: POST
+    path: /api/due-diligence/v1/tools/duediligence.capabilities.v1
+  - definition:
       name: duediligence.review.inspect.v1
       version: v1
       feature_key: student-4-due-diligence
