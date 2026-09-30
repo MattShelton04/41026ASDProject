@@ -22,6 +22,8 @@ onboarding:
   ai:
     tool_catalog: student-4/tool-catalog.yaml
     runtime_path: /etc/ai-mode/due-diligence-tools.yaml
+    rag_corpus: student-4/config/rag/corpus.json
+    rag_corpus_id: operator-guidance
   quality:
     python_test_paths:
       - student-4/tests

@@ -167,8 +167,8 @@
     },
     {
       "ai": {
-        "rag_corpus": null,
-        "rag_corpus_id": null,
+        "rag_corpus": "student-4/config/rag/corpus.json",
+        "rag_corpus_id": "operator-guidance",
         "runtime_path": "/etc/ai-mode/due-diligence-tools.yaml",
         "tool_catalog": "student-4/tool-catalog.yaml"
       },
