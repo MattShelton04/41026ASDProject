@@ -4,9 +4,9 @@
   "base": "bbd112dc0fe2981ba718b778f9c8214f9c6e5c16",
   "pr": 126,
   "prTitle": "feat(feature-4): add and register the due-diligence RAG guidance corpus",
-  "attempt": 1,
+  "attempt": 2,
   "title": "PR #126: feat(feature-4): add and register the due-diligence RAG guidance corpus",
-  "created": "2026-09-30T15:47:10+00:00",
+  "created": "2026-09-30T16:01:57+00:00",
   "summary": {
     "changed": 1,
     "subtle": 0,
