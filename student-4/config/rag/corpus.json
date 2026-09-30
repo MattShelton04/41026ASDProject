@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "feature_key": "student-4-due-diligence",
+  "corpus_id": "operator-guidance",
+  "documents": [
+    {
+      "document_id": "what-this-feature-does",
+      "title": "What Site and due diligence does and does not claim",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/what-this-feature-does.md",
+      "source_date": "2026-10-01",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: what-this-feature-does",
+      "path": "documents/what-this-feature-does.md"
+    },
+    {
+      "document_id": "evidence-limits",
+      "title": "What Site and due diligence evidence cannot establish",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-limits.md",
+      "source_date": "2026-10-01",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: evidence-limits",
+      "path": "documents/evidence-limits.md"
+    },
+    {
+      "document_id": "evidence-states",
+      "title": "How due-diligence evidence is classified and how confident that is",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-states.md",
+      "source_date": "2026-10-01",
+      "license": "CC0-1.0 (repository-authored operator guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Operator guidance: evidence-states",
+      "path": "documents/evidence-states.md"
+    }
+  ]
+}
