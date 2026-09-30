@@ -16,6 +16,7 @@ from propertyscope_due_diligence.clients import DependencyUnavailableError
 from propertyscope_due_diligence.map_layers import build_map
 from propertyscope_due_diligence.tool_inputs import review_identifier
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
+from shared_contracts.grounding import grounded_allowlist_variants
 
 _SERVICE = "propertyscope-due-diligence"
 _VERSION = "0.1.0"
@@ -23,6 +24,9 @@ _API = "/api/due-diligence/v1"
 _INTERNAL = "/internal/due-diligence/v1"
 FEATURE_KEY = "student-4-due-diligence"
 TOOL_ALLOWLIST = ("duediligence.review.inspect.v1", "duediligence.evidence.summary.v1")
+# AI-mode appends the retrieval tool to runs it grounds against a registered corpus, so an
+# exact comparison against TOOL_ALLOWLIST alone rejects this feature's own grounded runs.
+APPROVED_TOOL_ALLOWLISTS = grounded_allowlist_variants(TOOL_ALLOWLIST)
 _SUGGESTED_QUESTIONS = (
     "Generate professional-verification questions for this site review.",
     "What planning and environmental evidence still needs professional checking?",
@@ -259,10 +263,12 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
             return response, False
         payload = response.json()
         run = payload.get("run") if isinstance(payload, dict) else None
+        allowlist = run.get("tool_allowlist") if isinstance(run, dict) else None
         owned = (
             isinstance(run, dict)
             and run.get("feature_key") == FEATURE_KEY
-            and run.get("tool_allowlist") == list(TOOL_ALLOWLIST)
+            and isinstance(allowlist, list)
+            and tuple(allowlist) in APPROVED_TOOL_ALLOWLISTS
         )
         return response, owned
 

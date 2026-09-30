@@ -18,3 +18,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["backend/src", "database/src"]
+
+[tool.uv.sources]
+shared-testkit = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "shared-testkit",
+]

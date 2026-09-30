@@ -1704,6 +1704,11 @@ dependencies = [
     { name = "shared-contracts" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "shared-testkit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "flask", specifier = ">=3.1,<4" },
@@ -1713,6 +1718,9 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "shared-contracts", editable = "shared/contracts" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "shared-testkit", editable = "shared/testkit" }]
 
 [[package]]
 name = "student-5-feature"
