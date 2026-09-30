@@ -336,11 +336,14 @@ def test_corpus_scopes_come_from_enabled_declarations(
         if feature.get("ai") and feature["feature_key"].startswith("student-2"):
             feature["ai"]["rag_corpus"] = "student-1/config/rag/corpus.json"
             feature["ai"]["rag_corpus_id"] = "second-guidance"
+        elif feature.get("ai") and feature["feature_key"].startswith("student-4"):
+            feature["ai"]["rag_corpus"] = "student-1/config/rag/corpus.json"
     _write_projection(isolated, monkeypatch, projection)
 
     assert runtime._corpus_scopes() == (
         "student-1-propertyscope-data-platform:operator-guidance",
         "student-2-market-intelligence:second-guidance",
+        "student-4-due-diligence:operator-guidance",
     )
 
 
