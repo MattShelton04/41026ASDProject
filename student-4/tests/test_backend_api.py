@@ -8,7 +8,13 @@ from uuid import UUID
 import httpx
 import pytest
 
+from propertyscope_due_diligence.api import (
+    APPROVED_TOOL_ALLOWLISTS,
+    TOOL_ALLOWLIST,
+    TOOL_ALLOWLIST_V1,
+)
 from propertyscope_due_diligence.app import create_app
+from shared_testkit import assert_grounded_allowlist_accepted
 
 _API = "/api/due-diligence/v1"
 
@@ -303,6 +309,7 @@ def test_assistant_turn_creates_a_bounded_run():
     assert payload["tool_allowlist"] == [
         "duediligence.review.inspect.v1",
         "duediligence.evidence.summary.v1",
+        "duediligence.capabilities.v1",
     ]
 
 
@@ -369,6 +376,23 @@ def test_tool_evidence_summary_returns_constraints_and_buildings():
         f"{_API}/tools/duediligence.evidence.summary.v1", json={"site_review_id": review_id}
     ).get_json()
     assert body["constraints"] and body["buildings"]
+
+
+def test_tool_capabilities_returns_guide():
+    body = _client().post(f"{_API}/tools/duediligence.capabilities.v1").get_json()
+    assert body["revision"]
+    assert body["feature"]["feature_key"] == "student-4-due-diligence"
+    assert {tool["name"] for tool in body["tools"]} == set(TOOL_ALLOWLIST)
+    assert body["limitations"]
+    assert body["suggested_questions"]
+
+
+def test_grounded_runs_stay_readable():
+    def accepts(wire_allowlist: list[str]) -> bool:
+        return tuple(wire_allowlist) in APPROVED_TOOL_ALLOWLISTS
+
+    assert_grounded_allowlist_accepted(accepts, TOOL_ALLOWLIST_V1)
+    assert_grounded_allowlist_accepted(accepts, TOOL_ALLOWLIST)
 
 
 def test_unknown_route_returns_problem():
