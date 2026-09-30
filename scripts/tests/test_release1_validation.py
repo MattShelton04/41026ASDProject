@@ -241,7 +241,7 @@ def test_corpus_resolves_from_the_features_own_manifest() -> None:
 def test_feature_without_a_corpus_is_told_what_to_declare() -> None:
     # Any enabled feature that has not yet adopted RAG; features adopt independently.
     with pytest.raises(RuntimeError, match=r"declare ai\.rag_corpus"):
-        resolve_corpus("student-4-due-diligence")
+        resolve_corpus("student-5-buyer-journey")
 
 
 def test_unknown_feature_is_rejected() -> None:
