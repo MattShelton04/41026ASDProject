@@ -1,0 +1,700 @@
+<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; img-src &#x27;self&#x27; data:; style-src &#x27;sha256-kPHZrTtBdzf/vChI9UJym9x3ODmZgbYfCAyWNfkjvc8=&#x27;; script-src &#x27;sha256-w8xnqQ6KpMRO6/ObSKG90QWNHdegupt5XPcLXHk3htk=&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;"><meta name="referrer" content="no-referrer"><title>main @ bbd112d</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 32 32&#x27; aria-hidden=&#x27;true&#x27; color=&#x27;%23285442&#x27;%3E%3Cpath d=&#x27;M18 4H4v14M14 28h14V14&#x27; fill=&#x27;none&#x27; stroke=&#x27;currentColor&#x27; stroke-width=&#x27;2.5&#x27;/%3E%3Cpath d=&#x27;M10 10h12v8h-5v5h-7z&#x27; fill=&#x27;currentColor&#x27;/%3E%3C/svg%3E"><style>/* PropertyScope visual review. Colours and type follow shared/frontend/design-system/tokens.css. */
+:root {
+  --ink-950: #192d27; --ink-900: #263b33; --ink-700: #4c6056; --ink-500: #65736b; --ink-300: #b9c2ba;
+  --ink-200: #d6dcd5; --ink-100: #eef0e9; --ink-50: #f7f8f3;
+  --ocean-800: #1b4032; --ocean-700: #285442; --ocean-600: #34684f; --ocean-200: #c2d8c8;
+  --ocean-100: #e1ebe0; --ocean-50: #f0f5ee;
+  --sand-700: #7d6847; --sand-100: #f0e8db; --sand-50: #f8f4ed;
+  --coral-700: #a84f3d; --coral-100: #f9e3dd; --amber-700: #8a5a0a; --amber-100: #fbefd7;
+  --red-700: #9c3f45; --red-100: #f8e2e4; --blue-700: #275f89; --blue-100: #e1eef7;
+  --canvas: #f5f4ee; --paper: #ffffff; --paper-warm: #fffef9; --line: #dce1d8; --line-strong: #b9c4b8;
+  --highlight: #d62478;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif: Georgia, "Times New Roman", serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --shadow-sm: 0 3px 10px rgba(13, 38, 47, 0.07);
+  --radius: 8px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--canvas); color: var(--ink-900); font: 15px/1.5 var(--sans); }
+a { color: var(--ocean-700); text-underline-offset: 3px; }
+a:hover { color: var(--ocean-800); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--ocean-800); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* Header */
+.app-header { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between;
+  padding: 18px 28px 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--ink-950); text-decoration: none; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+.brand strong { display: block; font-size: 17px; letter-spacing: -0.01em; }
+.brand small { display: block; color: var(--ink-700); font-size: 12.5px; }
+.eyebrow { margin: 0 0 6px; color: var(--ink-700); font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+h1 { margin: 0; font: 400 clamp(1.6rem, 2.6vw, 2.35rem)/1.1 var(--serif); color: var(--ink-950); letter-spacing: -0.015em; }
+.header-meta { margin: 8px 0 0; color: var(--ink-700); font-size: 13px; }
+.header-side { display: grid; gap: 10px; justify-items: start; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+.header-links { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13.5px; font-weight: 600; }
+
+/* Status pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+  font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.changed { color: var(--coral-700); background: var(--coral-100); border-color: #efc7bc; }
+.pill.subtle { color: var(--amber-700); background: var(--amber-100); border-color: #eed9ae; }
+.pill.unchanged { color: var(--ocean-700); background: var(--ocean-50); border-color: var(--ocean-200); }
+.pill.base-unavailable { color: var(--blue-700); background: var(--blue-100); border-color: #bdd6ea; }
+.pill.incomplete { color: var(--red-700); background: var(--red-100); border-color: #eac3c7; }
+.pill.neutral { color: var(--ink-700); background: var(--ink-100); border-color: var(--line); }
+
+/* Workspace */
+.workspace { display: grid; grid-template-columns: 330px minmax(0, 1fr); min-height: calc(100vh - 150px); }
+.sidebar { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 20px 16px 24px;
+  background: var(--paper-warm); border-right: 1px solid var(--line); }
+.sidebar-label { margin: 18px 8px 8px; color: var(--ink-500); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.sidebar-label:first-child { margin-top: 0; }
+.sections { display: grid; gap: 2px; }
+.section-button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px 10px 9px 12px;
+  border: 0; border-left: 3px solid transparent; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.section-button:hover { background: var(--ink-100); }
+.section-button[aria-pressed="true"] { background: var(--ocean-50); border-left-color: var(--ocean-700); font-weight: 700; color: var(--ocean-800); }
+.section-counts { display: flex; gap: 4px; }
+.section-counts span { min-width: 22px; padding: 0 6px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-align: center; }
+.section-counts .c-changed { background: var(--coral-100); color: var(--coral-700); }
+.section-counts .c-limited { background: var(--blue-100); color: var(--blue-700); }
+.section-counts .c-total { background: var(--ink-100); color: var(--ink-700); }
+.filters { display: grid; gap: 10px; margin: 6px 4px 0; }
+.search { width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--ink-700); }
+.check input { accent-color: var(--ocean-700); width: 16px; height: 16px; }
+.view-list { display: grid; gap: 6px; margin-top: 4px; }
+.view-group { margin: 12px 8px 2px; font-size: 12px; font-weight: 700; color: var(--ink-700); }
+.view-link { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; padding: 7px;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.view-link:hover { background: var(--paper); border-color: var(--line); }
+.view-link[aria-current="true"] { background: var(--paper); border-color: var(--ocean-700); box-shadow: var(--shadow-sm); }
+.view-thumb { width: 76px; height: 50px; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 4px; background: var(--ink-100); }
+.view-name { display: block; overflow: hidden; font-size: 13.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.view-sub { display: block; overflow: hidden; color: var(--ink-500); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.view-link .pill { margin-top: 3px; padding: 0 8px; font-size: 11px; }
+.sidebar-footer { margin: 18px 8px 0; color: var(--ink-500); font-size: 12px; }
+
+/* Review panel */
+.review { min-width: 0; padding: 22px 28px 40px; }
+.view-heading { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; justify-content: space-between; }
+.view-heading h2 { margin: 0; font: 400 1.7rem/1.15 var(--serif); color: var(--ink-950); }
+.view-description { margin: 6px 0 0; color: var(--ink-700); }
+.view-description code { font: 12.5px var(--mono); padding: 1px 6px; border-radius: 4px; background: var(--ink-100); color: var(--ink-900); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; margin: 18px 0 10px; }
+.segmented { display: inline-flex; flex-wrap: wrap; padding: 3px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); }
+.segmented button { padding: 6px 12px; border: 0; border-radius: 5px; background: transparent; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--ink-700); }
+.segmented button:hover { color: var(--ink-950); background: var(--ink-50); }
+.segmented button[aria-pressed="true"] { background: var(--ocean-700); color: #fff; }
+.segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
+.zoom-value { min-width: 48px; align-self: center; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-700); }
+.adjustments { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; min-height: 34px; margin-bottom: 12px; font-size: 13.5px; color: var(--ink-700); }
+.adjustments label { display: inline-flex; gap: 8px; align-items: center; }
+.adjustments input[type="range"] { accent-color: var(--ocean-700); width: 180px; }
+.adjustments select { padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
+.hint { color: var(--ink-500); font-size: 12.5px; }
+
+.stage-viewport { position: relative; height: min(76vh, 1100px); overflow: auto; border: 1px solid var(--line); border-radius: var(--radius);
+  background: repeating-conic-gradient(var(--ink-50) 0 25%, var(--paper) 0 50%) 0 0 / 20px 20px; }
+.stage-viewport.can-pan { cursor: grab; }
+.stage-viewport.panning { cursor: grabbing; user-select: none; }
+.scaled-stage { position: relative; margin: 16px auto; }
+.image-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.panel { position: absolute; top: 0; }
+.panel img, .layer img { display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
+.panel-label { position: absolute; top: -26px; left: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-700); }
+.layer { position: absolute; top: 0; left: 0; }
+.shadowed { box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-sm); }
+.dimmed img { filter: grayscale(0.6) brightness(1.1) opacity(0.55); }
+.wipe-divider { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--highlight); cursor: ew-resize; }
+.wipe-divider span { position: absolute; top: 40px; left: -17px; width: 32px; height: 32px; border-radius: 50%; background: var(--highlight);
+  color: #fff; display: grid; place-items: center; font-size: 15px; box-shadow: var(--shadow-sm); }
+.region-box { position: absolute; border: 2px solid var(--highlight); border-radius: 3px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0); pointer-events: none; }
+.region-box.active { outline: 3px solid rgba(214, 36, 120, 0.35); }
+.missing { display: grid; place-items: center; width: 1440px; height: 600px; border: 2px dashed var(--line-strong); border-radius: 8px;
+  background: var(--paper); color: var(--ink-500); font: 400 28px var(--serif); text-align: center; }
+
+.metrics { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 0; color: var(--ink-700); font-size: 13.5px; }
+.metrics strong { color: var(--ink-950); }
+.regions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.regions button { padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--paper); font-size: 12.5px; cursor: pointer; }
+.regions button:hover, .regions button[aria-pressed="true"] { border-color: var(--highlight); color: var(--highlight); }
+.notes { margin-top: 16px; padding: 12px 16px; border: 1px solid var(--line); border-left: 4px solid var(--sand-700); border-radius: 6px; background: var(--sand-50); font-size: 13.5px; }
+.notes.problem { border-left-color: var(--red-700); background: #fdf6f6; }
+.notes h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+.notes ul { margin: 0; padding-left: 18px; }
+.notes code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.empty-filter { margin: 12px 8px; color: var(--ink-500); font-size: 13px; }
+
+/* History */
+.history-main { max-width: 1320px; margin: 0 auto; padding: 22px 28px 60px; }
+.history-bar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
+.history-search { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-700); min-width: min(360px, 100%); }
+.history-note { color: var(--ink-700); font-size: 14px; max-width: 80ch; }
+.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+.card { padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow-sm); }
+.card h3 { margin: 0; font: 400 1.3rem/1.2 var(--serif); }
+.card .meta { margin: 4px 0 10px; color: var(--ink-500); font-size: 12.5px; }
+.card .meta code { font: 12px var(--mono); }
+.section-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
+.chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--ink-50); font-size: 12px; color: var(--ink-700); text-decoration: none; }
+.chip b { color: var(--coral-700); }
+.previews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.preview { display: grid; gap: 4px; font-size: 11.5px; color: var(--ink-700); text-decoration: none; min-width: 0; }
+.preview img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 4px; background: var(--ink-100); }
+.preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card details { margin-top: 10px; font-size: 13px; }
+.card details ul { margin: 6px 0 0; padding-left: 18px; }
+.main-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.main-row { display: grid; grid-template-columns: 170px 110px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+.history-controls { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 12px; font-size: 13.5px; }
+.history-controls select { margin-left: 6px; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
+.timeline { display: grid; gap: 16px; }
+.timeline .card img { width: 100%; max-height: 420px; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 4px; }
+.collapsed { padding: 6px 12px; color: var(--ink-500); font-size: 12.5px; border-left: 3px dotted var(--line-strong); }
+
+/* Landing */
+.landing { max-width: 900px; margin: 0 auto; padding: 48px 28px; }
+.landing .card { margin-top: 18px; }
+.landing p { max-width: 70ch; }
+.button { display: inline-flex; padding: 10px 18px; border-radius: 6px; background: var(--ocean-800); color: #fff; font-weight: 700; text-decoration: none; }
+.button:hover { background: var(--ocean-700); color: #fff; }
+
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; }
+  .sidebar { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .review, .history-main { padding: 16px; }
+  .app-header { padding: 16px; }
+  .main-row { grid-template-columns: 1fr; }
+  .pr-grid { grid-template-columns: 1fr; }
+}
+</style></head><body><header class="app-header"><div><div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" aria-hidden="true" color="#285442"><path d="M18 4H4v14M14 28h14V14" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M10 10h12v8h-5v5h-7z" fill="currentColor"/></svg><span><strong>PropertyScope NSW</strong><small>Visual review</small></span></div>
+<p class="eyebrow">Visual comparison</p><h1>main @ bbd112d</h1>
+<p class="header-meta">Real frontends · Shared and Feature 1 on deterministic fixtures · Features 2–5 on an offline stack with seeded data · 1440px wide, full page · light theme · clock fixed at 2026-09-01 · base <code>6378d8be</code> → head <code>bbd112dc</code></p></div>
+<div class="header-side"><div class="counts"><span class="pill changed">0 changed</span><span class="pill subtle">0 subtle</span><span class="pill unchanged">41 identical</span><span class="pill incomplete">1 limitations</span></div><nav class="header-links" aria-label="Report links"><a href="../../">Screenshot history</a><a href="https://github.com/MattShelton04/41026ASDProject/actions/runs/36734488017">Capture run</a><a href="changes.json">changes.json</a></nav></div></header>
+<div class="workspace"><aside class="sidebar" aria-label="Captured views">
+<p class="sidebar-label">Areas</p><nav id="sections" class="sections" aria-label="Areas"></nav>
+<p class="sidebar-label">Views</p><div class="filters"><input id="search" class="search" type="search" placeholder="Find a view…" aria-label="Filter views in this area">
+<label class="check"><input id="only-changes" type="checkbox"> Hide identical and subtle views</label></div>
+<nav id="view-list" class="view-list" aria-label="Views"></nav>
+<p class="sidebar-footer"><span id="visible-count"></span><br>Pixel changes need human review; nothing here judges intent.</p></aside>
+<main class="review" id="main"><div class="view-heading"><div><h2 id="view-title"></h2><p id="view-description" class="view-description"></p></div><span id="view-status"></span></div>
+<div class="toolbar"><div class="segmented" role="group" aria-label="Comparison mode"><button type="button" data-mode="side" aria-pressed="false">Side by side</button><button type="button" data-mode="toggle" aria-pressed="false">Before / after</button><button type="button" data-mode="wipe" aria-pressed="false">Wipe</button><button type="button" data-mode="overlay" aria-pressed="false">Overlay</button><button type="button" data-mode="difference" aria-pressed="false">Difference</button></div>
+<div class="segmented" role="group" aria-label="Zoom"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-value" class="zoom-value"></span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-fit" type="button">Fit width</button><button id="zoom-actual" type="button">100%</button></div></div>
+<div class="adjustments"><span id="toggle-control" class="segmented" role="group" aria-label="Displayed side"><button type="button" data-side="base">Before</button><button type="button" data-side="head">After</button></span>
+<label id="wipe-control">Split <input id="wipe-range" type="range" min="0" max="100" value="50"><output id="wipe-value">50%</output></label>
+<label id="opacity-control">After opacity <input id="opacity" type="range" min="0" max="100" value="50"><output id="opacity-value">50%</output></label>
+<label id="threshold-control">Ignore channel differences up to <select id="threshold"><option value="0">0 (exact)</option><option value="8">8 / 255</option><option value="16">16 / 255</option><option value="32">32 / 255</option></select></label>
+<span id="mode-hint" class="hint"></span></div>
+<div id="viewport" class="stage-viewport" tabindex="0" aria-label="Screenshot comparison; drag or scroll to pan"><div id="scaled-stage" class="scaled-stage"><div id="image-stage" class="image-stage"></div></div></div>
+<div id="metrics" class="metrics" role="status" aria-live="polite"></div><div id="regions" class="regions" aria-label="Changed regions"></div>
+<section id="shared" class="notes" hidden></section><section id="problems" class="notes problem" hidden></section><section id="notes" class="notes" hidden></section>
+</main></div>
+<script id="report-data" type="application/json">{"schema":1,"title":"main @ bbd112d","rows":[{"id":"shared-home","section":"shared","provider":"fixture","path":"/#home","state":"populated home","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#home","state":"populated home","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#home","state":"populated home","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","baseHeight":5932,"headImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","headHeight":5932,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-research-areas","section":"shared","provider":"fixture","path":"/#features","state":"all five research areas","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#features","state":"all five research areas","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#features","state":"all five research areas","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"586b78f8a51c6589c1309eeefcf444eaefc03b3654b9749fb4fcf6ef20eda4c6.png","baseHeight":1392,"headImage":"586b78f8a51c6589c1309eeefcf444eaefc03b3654b9749fb4fcf6ef20eda4c6.png","headHeight":1392,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-data-status","section":"shared","provider":"fixture","path":"/#system-status","state":"every service healthy; measured response times masked","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#system-status","state":"every service healthy; measured response times masked","scenario":"populated","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"head":{"section":"shared","provider":"fixture","path":"/#system-status","state":"every service healthy; measured response times masked","scenario":"populated","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"baseImage":"2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png","baseHeight":1738,"headImage":"2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png","headHeight":1738,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-sources-history","section":"shared","provider":"fixture","path":"/#evidence","state":"published datasets and AI review history","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#evidence","state":"published datasets and AI review history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#evidence","state":"published datasets and AI review history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"6962f8d6881ceb2a04dcf650e5233f55bb1cc3ec260ad1c0a824309002af31e4.png","baseHeight":1618,"headImage":"6962f8d6881ceb2a04dcf650e5233f55bb1cc3ec260ad1c0a824309002af31e4.png","headHeight":1618,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-assistant","section":"shared","provider":"fixture","path":"/#assistant","state":"assistant start screen","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#assistant","state":"assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#assistant","state":"assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"7330d7919d7b8bd31258b9288ab3714c6f155b0396d6a9cf1964d8eff25580b5.png","baseHeight":1122,"headImage":"7330d7919d7b8bd31258b9288ab3714c6f155b0396d6a9cf1964d8eff25580b5.png","headHeight":1122,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-roadmap","section":"shared","provider":"fixture","path":"/#release-roadmap","state":"release roadmap","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#release-roadmap","state":"release roadmap","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#release-roadmap","state":"release roadmap","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png","baseHeight":1824,"headImage":"9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png","headHeight":1824,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-activity-history","section":"shared","provider":"fixture","path":"/operations/ai-mode/","state":"AI activity history","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/operations/ai-mode/","state":"AI activity history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/operations/ai-mode/","state":"AI activity history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"1fd8151fbe41d7beabf69624267a16ca0f29a0c5450e7d85450e3b7dc619618b.png","baseHeight":1000,"headImage":"1fd8151fbe41d7beabf69624267a16ca0f29a0c5450e7d85450e3b7dc619618b.png","headHeight":1000,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-home-empty","section":"shared","provider":"fixture","path":"/#home","state":"empty scenario: no published data","scenario":"empty","base":{"section":"shared","provider":"fixture","path":"/#home","state":"empty scenario: no published data","scenario":"empty","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#home","state":"empty scenario: no published data","scenario":"empty","status":"captured","errors":[],"notes":[]},"baseImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","baseHeight":5932,"headImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","headHeight":5932,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-data-status-error","section":"shared","provider":"fixture","path":"/#system-status","state":"error scenario: services unavailable","scenario":"error","base":{"section":"shared","provider":"fixture","path":"/#system-status","state":"error scenario: services unavailable","scenario":"error","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"head":{"section":"shared","provider":"fixture","path":"/#system-status","state":"error scenario: services unavailable","scenario":"error","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"baseImage":"34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png","baseHeight":1738,"headImage":"34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png","headHeight":1738,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-search","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties","state":"search prompt","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties","state":"search prompt","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties","state":"search prompt","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"1978e7edae81a8d47d88ac90b4154affafd6b7085908f0ba791a8c282b66362a.png","baseHeight":1013,"headImage":"1978e7edae81a8d47d88ac90b4154affafd6b7085908f0ba791a8c282b66362a.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-results","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"one matching property","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"one matching property","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"one matching property","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"38fddfa68e2fc8f1a911c709bb1fdc1c6ec70dba14adc6f0ffe9c29d6a5466a0.png","baseHeight":1013,"headImage":"38fddfa68e2fc8f1a911c709bb1fdc1c6ec70dba14adc6f0ffe9c29d6a5466a0.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties/11111111-1111-4111-8111-111111111111","state":"property record","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties/11111111-1111-4111-8111-111111111111","state":"property record","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties/11111111-1111-4111-8111-111111111111","state":"property record","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png","baseHeight":1219,"headImage":"86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png","headHeight":1219,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-assistant","section":"feature-1","provider":"fixture","path":"/features/data-platform/#assistant","state":"feature assistant start screen","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#assistant","state":"feature assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#assistant","state":"feature assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"e231948805cdebdf753feb62835d81d4c1b494c891218e3a2aa6a696e0fa58a8.png","baseHeight":1050,"headImage":"e231948805cdebdf753feb62835d81d4c1b494c891218e3a2aa6a696e0fa58a8.png","headHeight":1050,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-overview","section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"data overview","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"data overview","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"data overview","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"dd87ba1a62fc13faabc4c4700f4563207f2a3dd8505a08d713449c9aacaa9d46.png","baseHeight":1043,"headImage":"dd87ba1a62fc13faabc4c4700f4563207f2a3dd8505a08d713449c9aacaa9d46.png","headHeight":1043,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-jobs","section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs","state":"data update catalogue","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs","state":"data update catalogue","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs","state":"data update catalogue","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"a6e452bfb492b6deb586404016a2a38f48579aad27d40d9ea654b80f84fef0d1.png","baseHeight":1059,"headImage":"a6e452bfb492b6deb586404016a2a38f48579aad27d40d9ea654b80f84fef0d1.png","headHeight":1059,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-job-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001","state":"one data update definition","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001","state":"one data update definition","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001","state":"one data update definition","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"cb9e8ff636380707e3c98d668f5835469cfc5ad804906338a4a7983f3fa9e4bc.png","baseHeight":1013,"headImage":"cb9e8ff636380707e3c98d668f5835469cfc5ad804906338a4a7983f3fa9e4bc.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-runs","section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"update history","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"update history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"update history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"949d54edc62d6daa6c9ca31c464219a3bb56000aa6467832a7a43649bbe06299.png","baseHeight":1013,"headImage":"949d54edc62d6daa6c9ca31c464219a3bb56000aa6467832a7a43649bbe06299.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-run-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs/30000000-0000-0000-0000-000000000001","state":"completed update","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs/30000000-0000-0000-0000-000000000001","state":"completed update","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs/30000000-0000-0000-0000-000000000001","state":"completed update","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"36d1a712bf93af66701c63f473ad8db1b039093a9a2553099b4c91c35783ee60.png","baseHeight":1811,"headImage":"36d1a712bf93af66701c63f473ad8db1b039093a9a2553099b4c91c35783ee60.png","headHeight":1811,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-releases","section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"published data versions","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"published data versions","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"published data versions","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","baseHeight":1013,"headImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-release-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases/60000000-0000-0000-0000-000000000001","state":"accepted release","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases/60000000-0000-0000-0000-000000000001","state":"accepted release","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases/60000000-0000-0000-0000-000000000001","state":"accepted release","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png","baseHeight":2072,"headImage":"07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png","headHeight":2072,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-sources","section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources","state":"registered data sources","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources","state":"registered data sources","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources","state":"registered data sources","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"338de75fe25f7e78862aa3ca6d688bfc157c9a07e16bcb98dc6175feac71fad1.png","baseHeight":1013,"headImage":"338de75fe25f7e78862aa3ca6d688bfc157c9a07e16bcb98dc6175feac71fad1.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-source-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources/10000000-0000-0000-0000-000000000001","state":"one data source","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources/10000000-0000-0000-0000-000000000001","state":"one data source","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources/10000000-0000-0000-0000-000000000001","state":"one data source","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"6fa1ed4cd1dec56946d4667c5dbf7e5757aac048e28f2dd8a9d2315e5d43d53c.png","baseHeight":1013,"headImage":"6fa1ed4cd1dec56946d4667c5dbf7e5757aac048e28f2dd8a9d2315e5d43d53c.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-quality","section":"feature-1","provider":"fixture","path":"/features/data-platform/#quality","state":"data checks","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#quality","state":"data checks","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#quality","state":"data checks","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"cd51356b7193ac41c21072d194c7296c5ad9ffea1a2d8b0b307c60451f6f27ef.png","baseHeight":1013,"headImage":"cd51356b7193ac41c21072d194c7296c5ad9ffea1a2d8b0b307c60451f6f27ef.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-artifacts","section":"feature-1","provider":"fixture","path":"/features/data-platform/#artifacts","state":"files and history","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#artifacts","state":"files and history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#artifacts","state":"files and history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"251e982cd8897babd29dae15ca6e27543bd4b9c3c2b45a70b779a28c33741f44.png","baseHeight":1013,"headImage":"251e982cd8897babd29dae15ca6e27543bd4b9c3c2b45a70b779a28c33741f44.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-coverage","section":"feature-1","provider":"fixture","path":"/features/data-platform/#coverage","state":"published coverage","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#coverage","state":"published coverage","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#coverage","state":"published coverage","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png","baseHeight":1013,"headImage":"c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-results-empty","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"empty scenario: no matching property","scenario":"empty","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"empty scenario: no matching property","scenario":"empty","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"empty scenario: no matching property","scenario":"empty","status":"captured","errors":[],"notes":[]},"baseImage":"cbfa41ad6506770e170f25fcd82291787f6df2c197e32425110c2f91653c6d7f.png","baseHeight":1013,"headImage":"cbfa41ad6506770e170f25fcd82291787f6df2c197e32425110c2f91653c6d7f.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-overview-error","section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"error scenario: data service unavailable","scenario":"error","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"error scenario: data service unavailable","scenario":"error","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"error scenario: data service unavailable","scenario":"error","status":"captured","errors":[],"notes":[]},"baseImage":"4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png","baseHeight":1013,"headImage":"4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-releases-long-content","section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"long-content scenario: verbose names wrap","scenario":"long-content","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"long-content scenario: verbose names wrap","scenario":"long-content","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"long-content scenario: verbose names wrap","scenario":"long-content","status":"captured","errors":[],"notes":[]},"baseImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","baseHeight":1013,"headImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-runs-large","section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"large scenario: eighty rows","scenario":"large","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"large scenario: eighty rows","scenario":"large","status":"captured","errors":[],"notes":["page is 7509px tall; only the first 6000px are compared"]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"large scenario: eighty rows","scenario":"large","status":"captured","errors":[],"notes":["page is 7509px tall; only the first 6000px are compared"]},"baseImage":"e445d72e9ff16c80e781b7fe96adecac42abfcdb65309624ab29f4f23749d479.png","baseHeight":6000,"headImage":"e445d72e9ff16c80e781b7fe96adecac42abfcdb65309624ab29f4f23749d479.png","headHeight":6000,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-knowledge-sources","section":"shared","provider":"stack","path":"/operations/ai-mode/knowledge/","state":"knowledge sources with no ingested corpus","scenario":"populated","base":{"section":"shared","provider":"stack","path":"/operations/ai-mode/knowledge/","state":"knowledge sources with no ingested corpus","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"stack","path":"/operations/ai-mode/knowledge/","state":"knowledge sources with no ingested corpus","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"f74b2cadf651d8b2cf085aaeb0410ec8036f5239cbd50e0486051787008b1bee.png","baseHeight":1000,"headImage":"f74b2cadf651d8b2cf085aaeb0410ec8036f5239cbd50e0486051787008b1bee.png","headHeight":1000,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f2-market-cases","section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"seeded cases with the first case selected","scenario":"populated","base":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"seeded cases with the first case selected","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"seeded cases with the first case selected","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"9d3453eb75658658fd34f19131538aadb327d6664a75d11b13226f512edd170b.png","baseHeight":2747,"headImage":"9d3453eb75658658fd34f19131538aadb327d6664a75d11b13226f512edd170b.png","headHeight":2747,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f2-new-case-dialog","section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"new market case dialog","scenario":"populated","base":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"new market case dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"new market case dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"ec9c930db121f113d090cbf3895a76ab5e7f955181ab92cb1798315af483fd17.png","baseHeight":2747,"headImage":"ec9c930db121f113d090cbf3895a76ab5e7f955181ab92cb1798315af483fd17.png","headHeight":2747,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":3955680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f3-explore","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#explore","state":"overview, search and map","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#explore","state":"overview, search and map","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#explore","state":"overview, search and map","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"eb0afd9f5cff5af466650cec8dd327103eca1ea5627f2b209d14e2edf0fa4cb5.png","baseHeight":1395,"headImage":"eb0afd9f5cff5af466650cec8dd327103eca1ea5627f2b209d14e2edf0fa4cb5.png","headHeight":1395,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2008800,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2008800,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2008800,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2008800,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f3-trends","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#trends","state":"crime trend comparison","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#trends","state":"crime trend comparison","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#trends","state":"crime trend comparison","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"bc22c4f0d10589628d30061ff6169b09ac3aaebaf72ace6a71077667cfcba34b.png","baseHeight":1590,"headImage":"bc22c4f0d10589628d30061ff6169b09ac3aaebaf72ace6a71077667cfcba34b.png","headHeight":1590,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2289600,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2289600,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2289600,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2289600,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f3-published","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#published","state":"published evidence","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#published","state":"published evidence","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#published","state":"published evidence","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"c82130745caa6dc53b33caa393512bd1d2423ec18cbbf442f493879439f01c1e.png","baseHeight":1017,"headImage":"c82130745caa6dc53b33caa393512bd1d2423ec18cbbf442f493879439f01c1e.png","headHeight":1017,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1464480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1464480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1464480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1464480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f3-comparisons","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#comparisons","state":"saved comparisons","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#comparisons","state":"saved comparisons","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#comparisons","state":"saved comparisons","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"6fa03e6129d8616bf8d4a4d09094c802c79425d4e9e450c3feb2fd3f5e4e5933.png","baseHeight":1844,"headImage":"6fa03e6129d8616bf8d4a4d09094c802c79425d4e9e450c3feb2fd3f5e4e5933.png","headHeight":1844,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2655360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2655360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2655360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2655360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f3-assistant","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#assistant","state":"trend assistant","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#assistant","state":"trend assistant","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#assistant","state":"trend assistant","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"0cdb790d190582db19b712517697420c2df0218a2d5d060c0ff6cbad1721780b.png","baseHeight":1085,"headImage":"0cdb790d190582db19b712517697420c2df0218a2d5d060c0ff6cbad1721780b.png","headHeight":1085,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1562400,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1562400,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1562400,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1562400,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f4-site-reviews","section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"seeded site reviews","scenario":"populated","base":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"seeded site reviews","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"seeded site reviews","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"c10667306c2e9b5d93e7a6f350aa2f7e25f7f0a6806afe31d56645a6d23ba546.png","baseHeight":1076,"headImage":"c10667306c2e9b5d93e7a6f350aa2f7e25f7f0a6806afe31d56645a6d23ba546.png","headHeight":1076,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f4-review-detail","section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001","state":"one review with evidence","scenario":"populated","base":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001","state":"one review with evidence","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001","state":"one review with evidence","scenario":"populated","status":"failed","errors":["the view did not render identically twice within 5 captures"],"notes":[]},"baseImage":"a726b115cce49aa08b58f60e3a39b60d70614297ddf0e732db37e13d7f4284b9.png","baseHeight":2722,"change":"incomplete"},{"id":"f4-new-review-dialog","section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"new site review dialog","scenario":"populated","base":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"new site review dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"new site review dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"8b2f7d4aec9148025b65f6f63be56bf1953cbe559b3d9d6776d970ab4d08fd00.png","baseHeight":1076,"headImage":"8b2f7d4aec9148025b65f6f63be56bf1953cbe559b3d9d6776d970ab4d08fd00.png","headHeight":1076,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f5-buyer-cases","section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases","state":"seeded buyer cases","scenario":"populated","base":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases","state":"seeded buyer cases","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases","state":"seeded buyer cases","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"8b40e58af59e05c452d13f85e5ec73b5210af87fec8974ff094070d1fcfd338b.png","baseHeight":1075,"headImage":"8b40e58af59e05c452d13f85e5ec73b5210af87fec8974ff094070d1fcfd338b.png","headHeight":1075,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1548000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1548000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1548000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1548000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f5-case-detail","section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010","state":"one buyer case","scenario":"populated","base":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010","state":"one buyer case","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010","state":"one buyer case","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"cd629edcb5ab8a041b0d9ecb92932232b0b46dd97729271ad399468b47ef3cb5.png","baseHeight":3005,"headImage":"cd629edcb5ab8a041b0d9ecb92932232b0b46dd97729271ad399468b47ef3cb5.png","headHeight":3005,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":4327200,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":4327200,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":4327200,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":4327200,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}}],"sections":[{"id":"shared","label":"Shared"},{"id":"feature-1","label":"Feature 1 · Property data"},{"id":"feature-2","label":"Feature 2 · Sales \u0026 market"},{"id":"feature-3","label":"Feature 3 · Suburb context"},{"id":"feature-4","label":"Feature 4 · Site \u0026 planning"},{"id":"feature-5","label":"Feature 5 · Buyer workspace"}],"summary":{"changed":0,"subtle":0,"unchanged":41,"incomplete":1,"baseUnavailable":0,"total":42},"metadata":{"imageRoot":"../../img/","runUrl":"https://github.com/MattShelton04/41026ASDProject/actions/runs/36734488017","baseSha":"6378d8be5b1f418f72279e04b3de23d761b426d3","headSha":"bbd112dc0fe2981ba718b778f9c8214f9c6e5c16"}}</script><script>// PropertyScope visual review viewer. Every pixel metric and heatmap is precomputed by the trusted
+// reporter; this script only arranges images, so it works offline and never reads canvas pixels.
+(() => {
+  "use strict";
+  const report = JSON.parse(document.getElementById("report-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const IMAGE = /^[a-f0-9]{64}\.png$/;
+  const root = ["img/", "../../img/"].includes(report.metadata.imageRoot) ? report.metadata.imageRoot : "img/";
+  const url = (name) => (typeof name === "string" && IMAGE.test(name) ? root + name : "");
+  const WIDTH = 1440;
+  const GAP = 48;
+  const LABEL_SPACE = 30;
+  const MODES = ["side", "toggle", "wipe", "overlay", "difference"];
+  const THRESHOLDS = ["0", "8", "16", "32"];
+  const ORDER = ["changed", "incomplete", "base unavailable", "subtle", "unchanged"];
+  const LABELS = {
+    changed: "Changed",
+    incomplete: "Incomplete",
+    "base unavailable": "No baseline",
+    subtle: "Subtle",
+    unchanged: "Identical",
+  };
+  const statusClass = (status) => String(status).replace(/ /g, "-");
+  const number = (value) => Number(value || 0).toLocaleString("en-AU");
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  };
+  const pill = (status) => el("span", `pill ${statusClass(status)}`, LABELS[status] || status);
+
+  const rows = report.rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => ORDER.indexOf(a.row.change) - ORDER.indexOf(b.row.change) || a.index - b.index)
+    .map((item) => item.row);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const sections = report.sections.filter((section) => rows.some((row) => row.section === section.id));
+  const inSection = (id) => rows.filter((row) => row.section === id);
+  const attention = (row) => !["unchanged", "subtle"].includes(row.change);
+  const defaultSection = () =>
+    (sections.find((section) => inSection(section.id).some((row) => row.change === "changed")) ||
+      sections.find((section) => inSection(section.id).some(attention)) ||
+      sections[0] || { id: "" }).id;
+
+  const params = new URLSearchParams(location.hash.slice(1));
+  const state = {
+    section: sections.some((item) => item.id === params.get("section")) ? params.get("section") : defaultSection(),
+    row: null,
+    mode: MODES.includes(params.get("mode")) ? params.get("mode") : "side",
+    zoom: params.get("zoom") === "100" ? 1 : "fit",
+    threshold: THRESHOLDS.includes(params.get("threshold")) ? params.get("threshold") : "0",
+    side: "head",
+    wipe: 50,
+    opacity: 50,
+    region: -1,
+    scale: 1,
+  };
+  state.row = byId.get(params.get("view")) || inSection(state.section)[0] || rows[0] || null;
+  if (state.row) state.section = state.row.section;
+
+  const viewport = $("viewport");
+  const scaled = $("scaled-stage");
+  const stage = $("image-stage");
+  const buttons = new Map();
+
+  function saveUrl(push) {
+    if (!state.row) return;
+    const query = new URLSearchParams({ section: state.section, view: state.row.id, mode: state.mode });
+    if (state.zoom === 1) query.set("zoom", "100");
+    if (state.threshold !== "0") query.set("threshold", state.threshold);
+    history[push ? "pushState" : "replaceState"](null, "", `#${query}`);
+  }
+
+  // Sidebar: sections, filters and the grouped view list.
+  function renderSections() {
+    const container = $("sections");
+    container.replaceChildren();
+    for (const section of sections) {
+      const members = inSection(section.id);
+      const button = el("button", "section-button");
+      button.type = "button";
+      button.setAttribute("aria-pressed", String(section.id === state.section));
+      const counts = el("span", "section-counts");
+      const changed = members.filter((row) => row.change === "changed").length;
+      const limited = members.filter((row) => ["incomplete", "base unavailable"].includes(row.change)).length;
+      if (changed) counts.append(el("span", "c-changed", String(changed)));
+      if (limited) counts.append(el("span", "c-limited", String(limited)));
+      counts.append(el("span", "c-total", String(members.length)));
+      button.append(el("span", "", section.label), counts);
+      button.setAttribute(
+        "aria-label",
+        `${section.label}: ${changed} changed, ${limited} with limitations, ${members.length} views`,
+      );
+      button.addEventListener("click", () => {
+        state.section = section.id;
+        $("search").value = "";
+        select(inSection(section.id)[0], true);
+      });
+      container.append(button);
+    }
+  }
+
+  function renderList() {
+    const list = $("view-list");
+    list.replaceChildren();
+    buttons.clear();
+    const query = $("search").value.trim().toLowerCase();
+    const onlyChanges = $("only-changes").checked;
+    const visible = inSection(state.section).filter(
+      (row) =>
+        `${row.id} ${row.path} ${row.state}`.toLowerCase().includes(query) && (!onlyChanges || attention(row)),
+    );
+    for (const status of ORDER) {
+      const group = visible.filter((row) => row.change === status);
+      if (!group.length) continue;
+      list.append(el("h3", "view-group", `${LABELS[status]} · ${group.length}`));
+      for (const row of group) {
+        const button = el("button", "view-link");
+        button.type = "button";
+        button.setAttribute("aria-current", String(row === state.row));
+        const thumb = el("img", "view-thumb");
+        thumb.alt = "";
+        thumb.loading = "lazy";
+        const preview = url(row.review && row.review.preview) || url(row.headImage) || url(row.baseImage);
+        if (preview) thumb.src = preview;
+        const label = el("span", "");
+        label.append(el("span", "view-name", row.id), el("span", "view-sub", row.state), pill(row.change));
+        button.append(thumb, label);
+        button.addEventListener("click", () => select(row, true));
+        buttons.set(row.id, button);
+        list.append(button);
+      }
+    }
+    if (!visible.length) list.append(el("p", "empty-filter", "No views match these filters."));
+    const total = inSection(state.section).length;
+    $("visible-count").textContent = `${visible.length} of ${total} views in this section`;
+  }
+
+  // Stage: arrange the precomputed images for the selected mode.
+  const available = (row, side) => row && row[side] && row[side].status === "captured" && url(row[`${side}Image`]);
+  function image(side) {
+    const img = el("img");
+    img.src = available(state.row, side);
+    img.alt = `${side === "base" ? "Before" : "After"}: ${state.row.id}`;
+    img.width = WIDTH;
+    img.height = state.row[`${side}Height`] || 0;
+    img.draggable = false;
+    return img;
+  }
+  function layer(child, className) {
+    const node = el("div", `layer ${className || ""}`);
+    node.append(child);
+    return node;
+  }
+  function missing(text, height) {
+    const node = el("div", "missing", text);
+    node.style.height = `${Math.max(400, Math.min(height || 600, 1000))}px`;
+    return node;
+  }
+
+  function effectiveMode() {
+    const row = state.row;
+    return available(row, "base") && available(row, "head") ? state.mode : "single";
+  }
+
+  function renderStage() {
+    const row = state.row;
+    stage.replaceChildren();
+    const mode = effectiveMode();
+    const height = Math.max(row.baseHeight || 0, row.headHeight || 0, 400);
+    let width = WIDTH;
+    let top = 0;
+    if (mode === "single") {
+      const side = available(row, "head") ? "head" : available(row, "base") ? "base" : null;
+      const panel = el("div", "panel shadowed");
+      panel.append(side ? image(side) : missing("No usable screenshot was captured for this view.", height));
+      stage.append(panel);
+    } else if (mode === "side") {
+      width = WIDTH * 2 + GAP;
+      top = LABEL_SPACE;
+      for (const [side, left] of [["base", 0], ["head", WIDTH + GAP]]) {
+        const panel = el("div", "panel shadowed");
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
+        panel.append(el("span", "panel-label", side === "base" ? "Before" : "After"), image(side));
+        stage.append(panel);
+      }
+    } else if (mode === "toggle") {
+      stage.append(layer(image(state.side), "shadowed"));
+    } else if (mode === "wipe") {
+      stage.append(layer(image("head"), "shadowed"));
+      const before = layer(image("base"));
+      before.style.clipPath = `inset(0 ${100 - state.wipe}% 0 0)`;
+      stage.append(before);
+      const divider = el("div", "wipe-divider");
+      divider.style.left = `${(WIDTH * state.wipe) / 100}px`;
+      divider.tabIndex = 0;
+      divider.setAttribute("role", "slider");
+      divider.setAttribute("aria-label", "Before and after split");
+      divider.setAttribute("aria-valuemin", "0");
+      divider.setAttribute("aria-valuemax", "100");
+      divider.setAttribute("aria-valuenow", String(state.wipe));
+      divider.append(el("span", "", "⇆"));
+      divider.addEventListener("keydown", wipeKeys);
+      divider.addEventListener("pointerdown", wipeDrag);
+      stage.append(divider);
+    } else if (mode === "overlay") {
+      stage.append(layer(image("base"), "shadowed"));
+      const after = layer(image("head"));
+      after.style.opacity = String(state.opacity / 100);
+      stage.append(after);
+    } else {
+      stage.append(layer(image("head"), "shadowed dimmed"));
+      const analysis = (row.analyses || {})[state.threshold];
+      if (analysis && analysis.heat) {
+        const heat = el("img");
+        heat.src = url(analysis.heat);
+        heat.alt = "";
+        heat.width = WIDTH;
+        heat.height = height;
+        stage.append(layer(heat));
+      }
+      for (const [index, region] of ((analysis && analysis.regions) || []).entries()) {
+        const box = el("div", `region-box${index === state.region ? " active" : ""}`);
+        Object.assign(box.style, {
+          left: `${region.x - 3}px`,
+          top: `${region.y - 3}px`,
+          width: `${region.width + 6}px`,
+          height: `${region.height + 6}px`,
+        });
+        stage.append(box);
+      }
+    }
+    stage.dataset.width = String(width);
+    stage.dataset.height = String(height + top);
+    stage.dataset.top = String(top);
+    resize();
+  }
+
+  function fitScale() {
+    const width = Number(stage.dataset.width || WIDTH);
+    return Math.max(0.1, Math.min(1, (viewport.clientWidth - 34) / width));
+  }
+  function resize() {
+    const width = Number(stage.dataset.width || WIDTH);
+    const height = Number(stage.dataset.height || 600);
+    state.scale = state.zoom === "fit" ? fitScale() : state.zoom;
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+    stage.style.transform = `scale(${state.scale})`;
+    scaled.style.width = `${width * state.scale}px`;
+    scaled.style.height = `${height * state.scale}px`;
+    viewport.classList.toggle("can-pan", width * state.scale > viewport.clientWidth - 34);
+    $("zoom-value").textContent = `${Math.round(state.scale * 100)}%`;
+    $("zoom-fit").setAttribute("aria-pressed", String(state.zoom === "fit"));
+    $("zoom-actual").setAttribute("aria-pressed", String(state.zoom === 1));
+  }
+  function setZoom(value) {
+    const centreX = (viewport.scrollLeft + viewport.clientWidth / 2) / state.scale;
+    const centreY = (viewport.scrollTop + viewport.clientHeight / 2) / state.scale;
+    state.zoom = value;
+    resize();
+    viewport.scrollLeft = centreX * state.scale - viewport.clientWidth / 2;
+    viewport.scrollTop = centreY * state.scale - viewport.clientHeight / 2;
+    saveUrl(false);
+  }
+
+  function wipeKeys(event) {
+    const step = event.shiftKey ? 10 : 1;
+    const next = { ArrowLeft: state.wipe - step, ArrowRight: state.wipe + step, Home: 0, End: 100 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    setWipe(next, true);
+  }
+  function wipeDrag(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const move = (moveEvent) => {
+      const box = stage.getBoundingClientRect();
+      setWipe(((moveEvent.clientX - box.left) / (box.width || 1)) * 100, false);
+    };
+    const stop = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", stop);
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", stop);
+  }
+  function setWipe(value, focus) {
+    state.wipe = Math.round(Math.max(0, Math.min(100, value)));
+    $("wipe-range").value = String(state.wipe);
+    $("wipe-value").textContent = `${state.wipe}%`;
+    renderStage();
+    if (focus) stage.querySelector(".wipe-divider")?.focus();
+  }
+
+  // Details under the stage: metrics, regions, shared-change notes and capture limitations.
+  function renderDetails() {
+    const row = state.row;
+    $("view-title").textContent = row.id;
+    const description = $("view-description");
+    description.replaceChildren(el("code", "", row.path), ` · ${row.state} · ${row.provider === "stack" ? "offline stack" : `${row.scenario || "populated"} fixture`}`);
+    $("view-status").replaceChildren(pill(row.change));
+    const analysis = (row.analyses || {})[state.threshold];
+    const metrics = $("metrics");
+    metrics.replaceChildren();
+    if (analysis) {
+      const summary = el("span");
+      if (analysis.changed) {
+        summary.append(el("strong", "", `${number(analysis.changed)} px changed`), ` (${analysis.percent}%) in ${analysis.regionCount} ${analysis.regionCount === 1 ? "region" : "regions"}`);
+      } else {
+        summary.textContent = state.threshold === "0" ? "Decoded pixels are identical." : `No differences above ${state.threshold}/255.`;
+      }
+      metrics.append(summary);
+      if (analysis.bounds) {
+        const b = analysis.bounds;
+        metrics.append(el("span", "", `Bounds ${b.x}, ${b.y} · ${b.width} × ${b.height}`));
+      }
+    } else if (row.change === "base unavailable") {
+      metrics.append(el("span", "", "There is no baseline for this view: it is new, or the base revision could not render it."));
+    }
+    if (row.baseHeight && row.headHeight && row.baseHeight !== row.headHeight) {
+      metrics.append(el("span", "", `Page height ${number(row.baseHeight)} → ${number(row.headHeight)} px`));
+    }
+    const regions = $("regions");
+    regions.replaceChildren();
+    for (const [index, region] of ((analysis && analysis.regions) || []).entries()) {
+      const button = el("button", "", `${region.width}×${region.height} at ${region.x},${region.y}`);
+      button.type = "button";
+      button.setAttribute("aria-pressed", String(index === state.region));
+      button.addEventListener("click", () => focusRegion(index));
+      regions.append(button);
+    }
+    const shared = $("shared");
+    shared.replaceChildren();
+    const review = row.review || {};
+    const related = review.sameAs ? [review.sameAs] : review.sharedWith || [];
+    shared.hidden = !related.length;
+    if (related.length) {
+      shared.append(el("h3", "", review.sameAs ? "Same change as" : "Same changed areas in"));
+      const list = el("ul");
+      for (const id of related) {
+        const item = el("li");
+        const link = el("a", "", id);
+        link.href = `#view=${encodeURIComponent(id)}&mode=difference`;
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          select(byId.get(id), true);
+        });
+        item.append(link);
+        list.append(item);
+      }
+      shared.append(list);
+    }
+    const problems = ["base", "head"].flatMap((side) =>
+      ((row[side] && row[side].errors) || []).map((message) => `${side === "base" ? "Before" : "After"}: ${message}`),
+    );
+    const notes = ["base", "head"].flatMap((side) =>
+      ((row[side] && row[side].notes) || []).map((message) => `${side === "base" ? "Before" : "After"}: ${message}`),
+    );
+    for (const [id, items, title] of [["problems", problems, "Capture problems"], ["notes", notes, "Capture notes"]]) {
+      const box = $(id);
+      box.replaceChildren(el("h3", "", title));
+      const list = el("ul");
+      for (const message of [...new Set(items)]) list.append(el("li", "", message));
+      box.append(list);
+      box.hidden = !items.length;
+    }
+  }
+
+  function focusRegion(index) {
+    const analysis = (state.row.analyses || {})[state.threshold];
+    const region = analysis && analysis.regions[index];
+    if (!region) return;
+    state.region = index;
+    if (state.mode !== "difference" && effectiveMode() !== "single") state.mode = "difference";
+    if (state.zoom === "fit") state.zoom = 1;
+    renderAll(false);
+    const top = Number(stage.dataset.top || 0);
+    viewport.scrollLeft = (region.x + region.width / 2) * state.scale - viewport.clientWidth / 2;
+    viewport.scrollTop = (region.y + top + region.height / 2) * state.scale - viewport.clientHeight / 2;
+  }
+
+  function renderControls() {
+    const both = effectiveMode() !== "single";
+    for (const button of document.querySelectorAll("[data-mode]")) {
+      button.setAttribute("aria-pressed", String(both && button.dataset.mode === state.mode));
+      button.disabled = !both;
+    }
+    const mode = effectiveMode();
+    $("toggle-control").hidden = mode !== "toggle";
+    $("wipe-control").hidden = mode !== "wipe";
+    $("opacity-control").hidden = mode !== "overlay";
+    $("threshold-control").hidden = !state.row.analyses;
+    for (const button of document.querySelectorAll("[data-side]"))
+      button.setAttribute("aria-pressed", String(button.dataset.side === state.side));
+    $("threshold").value = state.threshold;
+    $("mode-hint").textContent = {
+      single: "Only one side has a usable screenshot.",
+      side: "Before on the left, after on the right.",
+      toggle: "Press T to flip between before and after.",
+      wipe: "Drag the divider, or focus it and use the arrow keys (Shift for 10%).",
+      overlay: "Fade the after screenshot over the before screenshot.",
+      difference: "After screenshot dimmed; changed pixels and regions highlighted.",
+    }[mode];
+  }
+
+  function renderAll(push) {
+    renderSections();
+    renderList();
+    renderControls();
+    renderStage();
+    renderDetails();
+    saveUrl(push);
+  }
+
+  function select(row, push) {
+    if (!row) return;
+    state.row = row;
+    state.section = row.section;
+    state.region = -1;
+    viewport.scrollTop = 0;
+    viewport.scrollLeft = 0;
+    renderAll(push);
+    buttons.get(row.id)?.scrollIntoView({ block: "nearest" });
+  }
+
+  // Wire static controls.
+  for (const button of document.querySelectorAll("[data-mode]")) {
+    button.addEventListener("click", () => {
+      state.mode = button.dataset.mode;
+      renderAll(false);
+    });
+  }
+  for (const button of document.querySelectorAll("[data-side]")) {
+    button.addEventListener("click", () => {
+      state.side = button.dataset.side;
+      renderControls();
+      renderStage();
+    });
+  }
+  $("zoom-fit").addEventListener("click", () => setZoom("fit"));
+  $("zoom-actual").addEventListener("click", () => setZoom(1));
+  $("zoom-in").addEventListener("click", () => setZoom(Math.min(4, Math.round((state.scale + 0.25) * 4) / 4)));
+  $("zoom-out").addEventListener("click", () => setZoom(Math.max(0.1, Math.round((state.scale - 0.25) * 4) / 4 || 0.1)));
+  $("wipe-range").addEventListener("input", (event) => setWipe(Number(event.target.value), false));
+  $("opacity").addEventListener("input", (event) => {
+    state.opacity = Number(event.target.value);
+    $("opacity-value").textContent = `${state.opacity}%`;
+    renderStage();
+  });
+  $("threshold").addEventListener("change", (event) => {
+    state.threshold = event.target.value;
+    state.region = -1;
+    renderStage();
+    renderDetails();
+    saveUrl(false);
+  });
+  $("search").addEventListener("input", renderList);
+  $("only-changes").addEventListener("change", renderList);
+  addEventListener("keydown", (event) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    if (event.key.toLowerCase() === "t" && effectiveMode() === "toggle") {
+      state.side = state.side === "head" ? "base" : "head";
+      renderControls();
+      renderStage();
+    }
+  });
+  addEventListener("resize", () => state.zoom === "fit" && resize());
+  addEventListener("popstate", () => {
+    const next = new URLSearchParams(location.hash.slice(1));
+    const row = byId.get(next.get("view"));
+    if (MODES.includes(next.get("mode"))) state.mode = next.get("mode");
+    if (row) select(row, false);
+  });
+
+  // Drag to pan when the image is larger than the viewport.
+  let pan = null;
+  viewport.addEventListener("pointerdown", (event) => {
+    if (!viewport.classList.contains("can-pan") && viewport.scrollHeight <= viewport.clientHeight) return;
+    pan = { x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+    viewport.classList.add("panning");
+  });
+  addEventListener("pointermove", (event) => {
+    if (!pan) return;
+    viewport.scrollLeft = pan.left - (event.clientX - pan.x);
+    viewport.scrollTop = pan.top - (event.clientY - pan.y);
+  });
+  addEventListener("pointerup", () => {
+    pan = null;
+    viewport.classList.remove("panning");
+  });
+
+  if (state.row) renderAll(false);
+  else $("view-title").textContent = "No views were captured.";
+})();
+</script></body></html>
