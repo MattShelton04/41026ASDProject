@@ -93,6 +93,10 @@ jobs:
       - name: Smoke CRUD, seed and frontend boundaries
         run: |
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5400/
+          curl --fail --silent --show-error --max-time 5 --write-out '%{content_type}' --output /tmp/ai-chat-index.js http://127.0.0.1:5400/ai-chat/index.js | grep -q javascript
+          grep -q createFeatureAssistant /tmp/ai-chat-index.js
+          curl --fail --silent --show-error --max-time 5 --write-out '%{content_type}' --output /tmp/ai-chat-styles.css http://127.0.0.1:5400/ai-chat/styles.css | grep -q 'text/css'
+          grep -q 'ps-ai-chat' /tmp/ai-chat-styles.css
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5400/api/due-diligence/v1/site-reviews --output /tmp/reviews.json
           python -c "import json; value=json.load(open('/tmp/reviews.json', encoding='utf-8')); assert len(value['items']) >= 10, value"
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f4-postgres psql -U due_diligence -d due_diligence -t -A -c "SELECT bool_and(c >= 10) FROM (SELECT count(*) AS c FROM due_diligence.site_review UNION ALL SELECT count(*) FROM due_diligence.constraint_observation UNION ALL SELECT count(*) FROM due_diligence.building_observation) AS counts" | tr -d '[:space:]' | grep -qx t
