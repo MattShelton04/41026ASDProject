@@ -34,7 +34,7 @@
       </nav>
 
   </header>
-  <div class="workspace-strip"><strong>Suburb context</strong><span>NSW demonstration coverage</span><span>Sources and limitations visible</span><span id="service-state" class="ps-badge ps-badge--planned" role="status">Checking service</span></div>
+  <div class="workspace-strip"><strong>Suburb context</strong><span>Feature 1 published evidence</span><span>Sources and limitations visible</span><span id="service-state" class="ps-badge ps-badge--planned" role="status">Checking service</span></div>
   <div class="shell">
     <aside class="sidebar" aria-label="Suburb analytics navigation">
       <p class="nav-label">Explore</p>
@@ -54,7 +54,7 @@
       <section id="published-view" class="view" data-view="published" aria-labelledby="published-title" hidden>
         <section class="ps-card" aria-labelledby="published-title"><div class="ps-card__body">
           <h2 id="published-title">Published evidence</h2>
-          <p>Published data updates automatically in the background. Browse the latest imported evidence here; no manual sync is needed. Overview &amp; map and Crime trends remain separate demonstration views.</p>
+          <p>Browse the accepted Feature 1 evidence used by Overview &amp; map and Crime trends. School locations are shown from the published schools release; catchment eligibility is not assessed.</p>
           <p id="published-availability" role="status">Checking available evidence…</p>
           <form id="published-search"><label for="published-query">Search imported NSW localities</label><input id="published-query" type="search" maxlength="100"><button class="ps-button" type="submit">Search imported data</button></form>
           <div id="published-localities"></div>
@@ -74,14 +74,8 @@
         </div></section>
       </section>
       <section id="explore-view" class="view" data-view="explore">
-        <div class="section-heading"><div><p class="ps-eyebrow">Supported localities</p><h2>Explore the current demonstration footprint</h2></div><p id="result-count">Loading suburbs…</p></div>
+        <div class="section-heading"><div><p class="ps-eyebrow">Published localities</p><h2>Explore Feature 1 evidence</h2></div><p id="result-count">Loading suburbs…</p></div>
         <div class="bookmark-toolbar"><button id="show-bookmarks" class="ps-button" type="button" aria-haspopup="dialog" aria-controls="bookmark-dialog">Bookmarked suburbs (0)</button></div>
-        <form id="search-form" class="ps-input-shell suburb-search" role="search" aria-label="Search overview suburbs">
-          <span aria-hidden="true">⌕</span><label class="ps-sr-only" for="search">Search suburb or postcode</label>
-          <input id="search" name="q" type="search" placeholder="Type a suburb or postcode…" maxlength="80" list="suburb-search-options" aria-describedby="search-status">
-          <datalist id="suburb-search-options"></datalist>
-          <button class="ps-button ps-button--primary" type="submit">Search</button>
-        </form>
         <section class="list-filter-bar" aria-labelledby="list-filter-title">
           <h3 id="list-filter-title">Filter and sort suburb results</h3>
           <label>Local government area<select id="lga-filter"><option value="">All areas</option></select></label>
@@ -102,15 +96,21 @@
           </div>
         </div>
         <section id="suburb-detail" class="suburb-detail ps-card" aria-live="polite" hidden></section>
+        <form id="search-form" class="ps-input-shell suburb-search" role="search" aria-label="Search overview suburbs">
+          <span aria-hidden="true">⌕</span><label class="ps-sr-only" for="search">Search suburb or postcode</label>
+          <input id="search" name="q" type="search" placeholder="Type a suburb or postcode…" maxlength="80" list="suburb-search-options" aria-describedby="search-status">
+          <datalist id="suburb-search-options"></datalist>
+          <button class="ps-button ps-button--primary" type="submit">Search</button>
+        </form>
         <div id="suburb-cards" class="suburb-grid" aria-live="polite"></div>
       </section>
       <section id="trends-view" class="view" data-view="trends" hidden>
         <div class="section-heading"><div><p class="ps-eyebrow">Recorded evidence</p><h2>Crime trend comparison</h2><p>Controls enforce one period and one measure across every selected suburb.</p></div></div>
         <form id="trend-form" class="ps-card control-bar"><div class="ps-card__body trend-controls">
           <label>Suburb A<select id="locality-a" required></select></label><label>Suburb B<select id="locality-b" required></select></label>
-          <label>From<input id="from-month" type="month" value="2026-01" min="2026-01" max="2026-06"></label><label>To<input id="to-month" type="month" value="2026-06" min="2026-01" max="2026-06"></label>
+          <label>From<input id="from-month" type="month" value="2025-07"></label><label>To<input id="to-month" type="month" value="2026-06"></label>
           <label>Measure<select id="measure"><option value="count">Recorded count</option><option value="rate">Calculated rate per 100,000</option></select></label>
-          <label>Category<select id="offence"><option value="all_recorded">All recorded fixture offences</option><option value="property">Property category</option><option value="person">Person category</option></select></label>
+          <label>Category<select id="offence"><option value="all_recorded">All recorded BOCSAR offences</option><option value="property">Property-related source categories</option><option value="person">Person-related source categories</option></select></label>
           <button class="ps-button ps-button--primary" type="submit">Compare trends</button>
         </div></form>
         <div id="trend-notice" class="notice" role="status">Choose two suburbs to compare the same period and measure.</div>
