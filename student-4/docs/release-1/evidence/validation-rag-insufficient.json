@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "mode": "rag",
+  "feature_key": "student-4-due-diligence",
+  "tool_name": "context.retrieve.v1",
+  "corpus_id": "operator-guidance",
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "3a729ee9-6251-4fce-b5bc-67e8e84b6c96",
+  "request_id": "r1-rag-5be99f67-f3f5-4b6a-9a26-47afffba034d",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "019bc64a-d410-4093-8d5b-92697fa0862b",
+      "outcome": "succeeded",
+      "content": {
+        "detail": "Similarity measures retrieval relevance, not factual confidence",
+        "status": "no_match"
+      },
+      "error": null,
+      "duration_ms": 110,
+      "retryable": false,
+      "evidence_references": [
+        "service:rag"
+      ],
+      "retrieval": {
+        "schema_version": "1.0",
+        "feature_key": "student-4-due-diligence",
+        "corpus_id": "operator-guidance",
+        "status": "no_match",
+        "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+        "citations": [],
+        "detail": "Similarity measures retrieval relevance, not factual confidence"
+      }
+    }
+  ],
+  "final_result": {
+    "citations": [],
+    "confidence": "insufficient",
+    "confidence_reason": "Relevant document context is unavailable or insufficient.",
+    "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+    "evidence_gaps": [
+      "Similarity measures retrieval relevance, not factual confidence"
+    ],
+    "findings": [],
+    "grounding_status": "no_match",
+    "next_step": "Review the linked source before acting.",
+    "safety_boundary": "Read-only guidance validation; no publication or approval.",
+    "summary": "Insufficient context to provide a grounded explanation."
+  },
+  "error": null
+}

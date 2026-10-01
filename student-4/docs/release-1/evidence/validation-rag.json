@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "mode": "rag",
+  "feature_key": "student-4-due-diligence",
+  "tool_name": "context.retrieve.v1",
+  "corpus_id": "operator-guidance",
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "04eecf9f-3df4-4377-ac33-5b91a6637a84",
+  "request_id": "r1-rag-5a044804-d478-47ea-85a5-069268dac58b",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "1d15a530-95ac-4032-b6e3-cb66bd3ae986",
+      "outcome": "succeeded",
+      "content": {
+        "detail": "Similarity measures retrieval relevance, not factual confidence",
+        "status": "ready"
+      },
+      "error": null,
+      "duration_ms": 77,
+      "retryable": false,
+      "evidence_references": [
+        "service:rag"
+      ],
+      "retrieval": {
+        "schema_version": "1.0",
+        "feature_key": "student-4-due-diligence",
+        "corpus_id": "operator-guidance",
+        "status": "ready",
+        "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+        "citations": [
+          {
+            "citation_id": "cite-35f0d56be896bbc1c536c75fd999a4918a8e072bc71000e8f260252b7c435ac3",
+            "feature_key": "student-4-due-diligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+            "document_id": "evidence-limits",
+            "chunk_id": "20082a8292aa3c175bb0c9aeb1bb5aff4efc9bd44370264fe8f387ec2c0d249b",
+            "title": "What Site and due diligence evidence cannot establish",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-limits.md",
+            "content_hash": "fa39bcde54beb407eff0f7ab1075843c5c4c856178c09eeda5fde375fb1a6645",
+            "location": "Operator guidance: evidence-limits; section What Site and due diligence cannot establish; chars 1-1098",
+            "ingested_at": "2026-10-01T12:33:17.040593Z",
+            "source_date": "2026-10-01",
+            "evidence_kind": "project_guidance",
+            "excerpt": "# What Site and due diligence cannot establish\n\nThe evidence here is a record of what was gathered for a property, not a determination about it.\nRecording that a control, hazard or building matter was checked is not the same as certifying the\nproperty against it. A site review is not a building inspection, a planning certificate, a survey\nor legal advice, however complete it looks.\n\n## Questions this feature cannot answer\n\nSite and due diligence cannot tell you whether a property complies with a planning control or the\nBuilding Code, whether it is safe or structurally sound, whether a past change was approved, or\nwhether it is a suitable purchase. It cannot value the property, assess contract terms, or say\nwhether a price is fair.\n\nThose determinations belong to the relevant authority or a licensed professional: a certifier or\ncouncil for compliance, a building inspector or engineer for condition, a surveyor for boundaries,\nand a conveyancer or lawyer for title and contract. Questions about recorded sale prices or market\nvalue belong to the Sales and market research area, not here.",
+            "score": 0.8040591843987841
+          },
+          {
+            "citation_id": "cite-43b06b7d17c903bc1c0661ea3636cfeb9b00cc46f09f07349e576b33affcebb8",
+            "feature_key": "student-4-due-diligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+            "document_id": "evidence-limits",
+            "chunk_id": "1e68b38c2d439d552aad7bb86247f710013bcb62f387dab5d2fce9780a9a2795",
+            "title": "What Site and due diligence evidence cannot establish",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-limits.md",
+            "content_hash": "065d6729e0848800ecd79ff02e70a9d7662a2317c4cc3c605178c36f66129b4b",
+            "location": "Operator guidance: evidence-limits; section Demonstration data; chars 1714-2085",
+            "ingested_at": "2026-10-01T12:33:17.040593Z",
+            "source_date": "2026-10-01",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## Demonstration data\n\nSome reviews include deterministic synthetic showcase evidence so the workflow can be demonstrated\nwithout real records. Where that is so, treat those figures as an illustration of the mechanics\nonly. They must never be quoted as evidence about a real property, and no conclusion about an\nactual site, building or approval should be drawn from them.",
+            "score": 0.7342587197358
+          },
+          {
+            "citation_id": "cite-e6fc15c9ff6a1585cfcb5237069d38e78244d3e9501301d66e39b04fd0410edf",
+            "feature_key": "student-4-due-diligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+            "document_id": "what-this-feature-does",
+            "chunk_id": "294b8c700942d3a4cb8a5255aff5565777933e49e726aac4be8b9933a42b4e6b",
+            "title": "What Site and due diligence does and does not claim",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/what-this-feature-does.md",
+            "content_hash": "2431a4d0537ce2bc45c455d4b357a3ffc427d1a41d629ec5aaea5bae882b38b4",
+            "location": "Operator guidance: what-this-feature-does; section How to record a site review; chars 1473-2072",
+            "ingested_at": "2026-10-01T12:33:17.040593Z",
+            "source_date": "2026-10-01",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## How to record a site review\n\nChoose New review, select the property by its address, confirm it is the one you meant, and give\nthe review a title. Set its status as you progress, for example draft while you are still gathering\nevidence.\n\nWork through the checklist for the planning, environmental, strata and building matters that apply,\nand add notes that explain what you found or still need to confirm. When you are ready, ask the\nassistant to generate professional-verification questions; it grounds them in the evidence states\nand prioritises whatever is unavailable or only partially covered.",
+            "score": 0.7249244998127576
+          },
+          {
+            "citation_id": "cite-d89d533936ae8b8ce726f049de1226ac083b92601c28912a99b17f60ec9080a9",
+            "feature_key": "student-4-due-diligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+            "document_id": "evidence-states",
+            "chunk_id": "84074989fc9d37ee0b81db15373af55bb8e0a87cd0bcd7efd3a5f54694009792",
+            "title": "How due-diligence evidence is classified and how confident that is",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-states.md",
+            "content_hash": "fe264ea18a076c460c290b2e40d395385506283c1226998d17dd288f040fa2fb",
+            "location": "Operator guidance: evidence-states; section Reading a due-diligence summary honestly; chars 1019-1627",
+            "ingested_at": "2026-10-01T12:33:17.040593Z",
+            "source_date": "2026-10-01",
+            "evidence_kind": "project_guidance",
+            "excerpt": "## Reading a due-diligence summary honestly\n\nRead confirmed evidence alongside what is unavailable or only partially covered. A review that\nlooks reassuring because little was flagged may simply have many unavailable sources, and those\ngaps are the priority to verify, not a clean result.\n\nFor that reason the assistant prioritises questions about unavailable and partial-coverage evidence\nwhen it builds a verification pack. A non-intersection result reduces concern about that specific\nhazard layer but does not close the matter, and it says nothing about controls or building records\nheld by other sources.",
+            "score": 0.6382277589741062
+          },
+          {
+            "citation_id": "cite-8cfb045bc4f0edd886bb51e17e1cc30a3bd80b3d767cd058a0716562ed7c3dba",
+            "feature_key": "student-4-due-diligence",
+            "corpus_id": "operator-guidance",
+            "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+            "document_id": "what-this-feature-does",
+            "chunk_id": "b4d704d639990d7f44fa2fdc08bafffa9e589039a8ff511cb7a6435dc6c3bd20",
+            "title": "What Site and due diligence does and does not claim",
+            "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/what-this-feature-does.md",
+            "content_hash": "1cfa65ee44d44713bbfe00a18573c61c557a42de039b3b6ae10fb62e552cda6b",
+            "location": "Operator guidance: what-this-feature-does; section What Site and due diligence does; chars 1-605",
+            "ingested_at": "2026-10-01T12:33:17.040593Z",
+            "source_date": "2026-10-01",
+            "evidence_kind": "project_guidance",
+            "excerpt": "# What Site and due diligence does\n\nSite and due diligence is a pre-purchase research workspace for one property at a time. You record\na site review against a verified property, gather the planning, environmental, strata and building\nevidence held for it, work through a due-diligence checklist, and turn the gaps into clear\nquestions a buyer can put to a suitably qualified professional.\n\nIt is research support. It does not certify that a property complies with any control, confirm it\nis safe or structurally sound, decide whether it is legally suitable, or replace advice from a\nlicensed professional.",
+            "score": 0.6806550119900645
+          }
+        ],
+        "detail": "Similarity measures retrieval relevance, not factual confidence"
+      }
+    }
+  ],
+  "final_result": {
+    "citations": [
+      {
+        "chunk_id": "20082a8292aa3c175bb0c9aeb1bb5aff4efc9bd44370264fe8f387ec2c0d249b",
+        "citation_id": "cite-35f0d56be896bbc1c536c75fd999a4918a8e072bc71000e8f260252b7c435ac3",
+        "content_hash": "fa39bcde54beb407eff0f7ab1075843c5c4c856178c09eeda5fde375fb1a6645",
+        "corpus_id": "operator-guidance",
+        "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+        "document_id": "evidence-limits",
+        "evidence_kind": "project_guidance",
+        "excerpt": "# What Site and due diligence cannot establish\n\nThe evidence here is a record of what was gathered for a property, not a determination about it.\nRecording that a control, hazard or building matter was checked is not the same as certifying the\nproperty against it. A site review is not a building inspection, a planning certificate, a survey\nor legal advice, however complete it looks.\n\n## Questions this feature cannot answer\n\nSite and due diligence cannot tell you whether a property complies with a planning control or the\nBuilding Code, whether it is safe or structurally sound, whether a past change was approved, or\nwhether it is a suitable purchase. It cannot value the property, assess contract terms, or say\nwhether a price is fair.\n\nThose determinations belong to the relevant authority or a licensed professional: a certifier or\ncouncil for compliance, a building inspector or engineer for condition, a surveyor for boundaries,\nand a conveyancer or lawyer for title and contract. Questions about recorded sale prices or market\nvalue belong to the Sales and market research area, not here.",
+        "feature_key": "student-4-due-diligence",
+        "ingested_at": "2026-10-01T12:33:17.040593Z",
+        "location": "Operator guidance: evidence-limits; section What Site and due diligence cannot establish; chars 1-1098",
+        "score": 0.8040591843987841,
+        "source_date": "2026-10-01",
+        "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-limits.md",
+        "title": "What Site and due diligence evidence cannot establish"
+      }
+    ],
+    "confidence": "moderate",
+    "confidence_reason": "Based on 1 cited guidance document; a single source supports the answer.",
+    "corpus_version": "64835d6f386e093066fa8b7f683195e8c95fa63750cbf071f56b59c0f19577c4",
+    "evidence_gaps": [],
+    "findings": [
+      {
+        "citation_ids": [
+          "cite-35f0d56be896bbc1c536c75fd999a4918a8e072bc71000e8f260252b7c435ac3"
+        ],
+        "kind": "guidance",
+        "text": "# What Site and due diligence cannot establish\n\nThe evidence here is a record of what was gathered for a property, not a determination about it.\nRecording that a control, hazard or building matter was checked is not the same as certifying the\nproperty against it. A site review is not a building inspection, a planning certificate, a survey\nor legal advice, however complete it looks.\n\n## Questions this feature cannot answer\n\nSite and due diligence cannot tell you whether a property complies with a planning control or the\nBuilding Code, whether it is safe or structurally sound, whether a past change was approved, or\nwhether it is a suitable purchase. It cannot value the property, assess contract terms, or say\nwhether a price is fair.\n\nThose determinations belong to the relevant authority or a licensed professional: a certifier or\ncouncil for compliance, a building inspector or engineer for condition, a surveyor for boundaries,\nand a conveyancer or lawyer for title and contract. Questions about recorded sale prices or market\nvalue belong to the Sales and market research area, not here.",
+        "tool_call_ids": []
+      }
+    ],
+    "grounding_status": "ready",
+    "next_step": "Review the linked source before acting.",
+    "safety_boundary": "Read-only guidance validation; no publication or approval.",
+    "summary": "Retrieved project guidance."
+  },
+  "error": null
+}

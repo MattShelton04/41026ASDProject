@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "mode": "mcp",
+  "feature_key": "student-4-due-diligence",
+  "tool_name": "duediligence.capabilities.v1",
+  "corpus_id": null,
+  "passed": true,
+  "decision_provider": "deterministic-validation",
+  "transport": "live-local-services",
+  "run_id": "e6c011f6-33d8-4a8f-a499-17ec6eb04fbf",
+  "request_id": "r1-mcp-756ad460-059e-4bff-b7bb-433551351edd",
+  "status": "succeeded",
+  "phases": [
+    "plan",
+    "act",
+    "observe",
+    "adapt"
+  ],
+  "tool_results": [
+    {
+      "call_id": "796648dc-2be4-43f2-a47c-9ea2820dd3eb",
+      "outcome": "succeeded",
+      "content": {
+        "feature": {
+          "feature_key": "student-4-due-diligence",
+          "label": "Site & due diligence",
+          "route": "/features/due-diligence/#site-reviews",
+          "summary": "A site, planning and building due-diligence workspace. Record a review against a verified property, gather its planning, environmental, strata and building evidence, and track the checks a buyer still needs a professional to confirm."
+        },
+        "limitations": [
+          "It is due-diligence research support, not professional, legal or building advice.",
+          "It does not certify compliance, safety, or the legal suitability of a property.",
+          "Planning and environmental evidence is indicative and needs professional confirmation.",
+          "Every record is returned by the data service; the model performs no assessment itself.",
+          "Answers cover one saved site review; it holds no live council or certificate data."
+        ],
+        "revision": "2026-09-30.v1",
+        "suggested_questions": [
+          "Generate professional-verification questions for this site review.",
+          "What planning and environmental evidence still needs professional checking?",
+          "Which strata or building matters should a buyer confirm before proceeding?"
+        ],
+        "tools": [
+          {
+            "name": "duediligence.capabilities.v1",
+            "purpose": "Explain this feature, its tools and its limits. Takes no arguments."
+          },
+          {
+            "name": "duediligence.review.inspect.v1",
+            "purpose": "Read one site review: property reference, address, status, disposition, checklist and notes."
+          },
+          {
+            "name": "duediligence.evidence.summary.v1",
+            "purpose": "Return the planning, environmental, strata and building evidence for a review's property, with record types, states, sources and confidence."
+          }
+        ]
+      },
+      "error": null,
+      "duration_ms": 16,
+      "retryable": false,
+      "evidence_references": [
+        "service:propertyscope-due-diligence-backend",
+        "status:200"
+      ],
+      "retrieval": null
+    }
+  ],
+  "final_result": {
+    "summary": "Registered MCP tool returned structured evidence."
+  },
+  "error": null
+}
