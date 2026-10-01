@@ -1,0 +1,700 @@
+<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; img-src &#x27;self&#x27; data:; style-src &#x27;sha256-kPHZrTtBdzf/vChI9UJym9x3ODmZgbYfCAyWNfkjvc8=&#x27;; script-src &#x27;sha256-w8xnqQ6KpMRO6/ObSKG90QWNHdegupt5XPcLXHk3htk=&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;"><meta name="referrer" content="no-referrer"><title>main @ 330e65f</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 32 32&#x27; aria-hidden=&#x27;true&#x27; color=&#x27;%23285442&#x27;%3E%3Cpath d=&#x27;M18 4H4v14M14 28h14V14&#x27; fill=&#x27;none&#x27; stroke=&#x27;currentColor&#x27; stroke-width=&#x27;2.5&#x27;/%3E%3Cpath d=&#x27;M10 10h12v8h-5v5h-7z&#x27; fill=&#x27;currentColor&#x27;/%3E%3C/svg%3E"><style>/* PropertyScope visual review. Colours and type follow shared/frontend/design-system/tokens.css. */
+:root {
+  --ink-950: #192d27; --ink-900: #263b33; --ink-700: #4c6056; --ink-500: #65736b; --ink-300: #b9c2ba;
+  --ink-200: #d6dcd5; --ink-100: #eef0e9; --ink-50: #f7f8f3;
+  --ocean-800: #1b4032; --ocean-700: #285442; --ocean-600: #34684f; --ocean-200: #c2d8c8;
+  --ocean-100: #e1ebe0; --ocean-50: #f0f5ee;
+  --sand-700: #7d6847; --sand-100: #f0e8db; --sand-50: #f8f4ed;
+  --coral-700: #a84f3d; --coral-100: #f9e3dd; --amber-700: #8a5a0a; --amber-100: #fbefd7;
+  --red-700: #9c3f45; --red-100: #f8e2e4; --blue-700: #275f89; --blue-100: #e1eef7;
+  --canvas: #f5f4ee; --paper: #ffffff; --paper-warm: #fffef9; --line: #dce1d8; --line-strong: #b9c4b8;
+  --highlight: #d62478;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif: Georgia, "Times New Roman", serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --shadow-sm: 0 3px 10px rgba(13, 38, 47, 0.07);
+  --radius: 8px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--canvas); color: var(--ink-900); font: 15px/1.5 var(--sans); }
+a { color: var(--ocean-700); text-underline-offset: 3px; }
+a:hover { color: var(--ocean-800); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--ocean-800); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* Header */
+.app-header { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between;
+  padding: 18px 28px 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--ink-950); text-decoration: none; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+.brand strong { display: block; font-size: 17px; letter-spacing: -0.01em; }
+.brand small { display: block; color: var(--ink-700); font-size: 12.5px; }
+.eyebrow { margin: 0 0 6px; color: var(--ink-700); font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+h1 { margin: 0; font: 400 clamp(1.6rem, 2.6vw, 2.35rem)/1.1 var(--serif); color: var(--ink-950); letter-spacing: -0.015em; }
+.header-meta { margin: 8px 0 0; color: var(--ink-700); font-size: 13px; }
+.header-side { display: grid; gap: 10px; justify-items: start; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+.header-links { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13.5px; font-weight: 600; }
+
+/* Status pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+  font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.changed { color: var(--coral-700); background: var(--coral-100); border-color: #efc7bc; }
+.pill.subtle { color: var(--amber-700); background: var(--amber-100); border-color: #eed9ae; }
+.pill.unchanged { color: var(--ocean-700); background: var(--ocean-50); border-color: var(--ocean-200); }
+.pill.base-unavailable { color: var(--blue-700); background: var(--blue-100); border-color: #bdd6ea; }
+.pill.incomplete { color: var(--red-700); background: var(--red-100); border-color: #eac3c7; }
+.pill.neutral { color: var(--ink-700); background: var(--ink-100); border-color: var(--line); }
+
+/* Workspace */
+.workspace { display: grid; grid-template-columns: 330px minmax(0, 1fr); min-height: calc(100vh - 150px); }
+.sidebar { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 20px 16px 24px;
+  background: var(--paper-warm); border-right: 1px solid var(--line); }
+.sidebar-label { margin: 18px 8px 8px; color: var(--ink-500); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.sidebar-label:first-child { margin-top: 0; }
+.sections { display: grid; gap: 2px; }
+.section-button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px 10px 9px 12px;
+  border: 0; border-left: 3px solid transparent; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.section-button:hover { background: var(--ink-100); }
+.section-button[aria-pressed="true"] { background: var(--ocean-50); border-left-color: var(--ocean-700); font-weight: 700; color: var(--ocean-800); }
+.section-counts { display: flex; gap: 4px; }
+.section-counts span { min-width: 22px; padding: 0 6px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-align: center; }
+.section-counts .c-changed { background: var(--coral-100); color: var(--coral-700); }
+.section-counts .c-limited { background: var(--blue-100); color: var(--blue-700); }
+.section-counts .c-total { background: var(--ink-100); color: var(--ink-700); }
+.filters { display: grid; gap: 10px; margin: 6px 4px 0; }
+.search { width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--ink-700); }
+.check input { accent-color: var(--ocean-700); width: 16px; height: 16px; }
+.view-list { display: grid; gap: 6px; margin-top: 4px; }
+.view-group { margin: 12px 8px 2px; font-size: 12px; font-weight: 700; color: var(--ink-700); }
+.view-link { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; padding: 7px;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.view-link:hover { background: var(--paper); border-color: var(--line); }
+.view-link[aria-current="true"] { background: var(--paper); border-color: var(--ocean-700); box-shadow: var(--shadow-sm); }
+.view-thumb { width: 76px; height: 50px; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 4px; background: var(--ink-100); }
+.view-name { display: block; overflow: hidden; font-size: 13.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.view-sub { display: block; overflow: hidden; color: var(--ink-500); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.view-link .pill { margin-top: 3px; padding: 0 8px; font-size: 11px; }
+.sidebar-footer { margin: 18px 8px 0; color: var(--ink-500); font-size: 12px; }
+
+/* Review panel */
+.review { min-width: 0; padding: 22px 28px 40px; }
+.view-heading { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; justify-content: space-between; }
+.view-heading h2 { margin: 0; font: 400 1.7rem/1.15 var(--serif); color: var(--ink-950); }
+.view-description { margin: 6px 0 0; color: var(--ink-700); }
+.view-description code { font: 12.5px var(--mono); padding: 1px 6px; border-radius: 4px; background: var(--ink-100); color: var(--ink-900); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; margin: 18px 0 10px; }
+.segmented { display: inline-flex; flex-wrap: wrap; padding: 3px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); }
+.segmented button { padding: 6px 12px; border: 0; border-radius: 5px; background: transparent; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--ink-700); }
+.segmented button:hover { color: var(--ink-950); background: var(--ink-50); }
+.segmented button[aria-pressed="true"] { background: var(--ocean-700); color: #fff; }
+.segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
+.zoom-value { min-width: 48px; align-self: center; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-700); }
+.adjustments { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; min-height: 34px; margin-bottom: 12px; font-size: 13.5px; color: var(--ink-700); }
+.adjustments label { display: inline-flex; gap: 8px; align-items: center; }
+.adjustments input[type="range"] { accent-color: var(--ocean-700); width: 180px; }
+.adjustments select { padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
+.hint { color: var(--ink-500); font-size: 12.5px; }
+
+.stage-viewport { position: relative; height: min(76vh, 1100px); overflow: auto; border: 1px solid var(--line); border-radius: var(--radius);
+  background: repeating-conic-gradient(var(--ink-50) 0 25%, var(--paper) 0 50%) 0 0 / 20px 20px; }
+.stage-viewport.can-pan { cursor: grab; }
+.stage-viewport.panning { cursor: grabbing; user-select: none; }
+.scaled-stage { position: relative; margin: 16px auto; }
+.image-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.panel { position: absolute; top: 0; }
+.panel img, .layer img { display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
+.panel-label { position: absolute; top: -26px; left: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-700); }
+.layer { position: absolute; top: 0; left: 0; }
+.shadowed { box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-sm); }
+.dimmed img { filter: grayscale(0.6) brightness(1.1) opacity(0.55); }
+.wipe-divider { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--highlight); cursor: ew-resize; }
+.wipe-divider span { position: absolute; top: 40px; left: -17px; width: 32px; height: 32px; border-radius: 50%; background: var(--highlight);
+  color: #fff; display: grid; place-items: center; font-size: 15px; box-shadow: var(--shadow-sm); }
+.region-box { position: absolute; border: 2px solid var(--highlight); border-radius: 3px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0); pointer-events: none; }
+.region-box.active { outline: 3px solid rgba(214, 36, 120, 0.35); }
+.missing { display: grid; place-items: center; width: 1440px; height: 600px; border: 2px dashed var(--line-strong); border-radius: 8px;
+  background: var(--paper); color: var(--ink-500); font: 400 28px var(--serif); text-align: center; }
+
+.metrics { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 0; color: var(--ink-700); font-size: 13.5px; }
+.metrics strong { color: var(--ink-950); }
+.regions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.regions button { padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--paper); font-size: 12.5px; cursor: pointer; }
+.regions button:hover, .regions button[aria-pressed="true"] { border-color: var(--highlight); color: var(--highlight); }
+.notes { margin-top: 16px; padding: 12px 16px; border: 1px solid var(--line); border-left: 4px solid var(--sand-700); border-radius: 6px; background: var(--sand-50); font-size: 13.5px; }
+.notes.problem { border-left-color: var(--red-700); background: #fdf6f6; }
+.notes h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+.notes ul { margin: 0; padding-left: 18px; }
+.notes code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.empty-filter { margin: 12px 8px; color: var(--ink-500); font-size: 13px; }
+
+/* History */
+.history-main { max-width: 1320px; margin: 0 auto; padding: 22px 28px 60px; }
+.history-bar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
+.history-search { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-700); min-width: min(360px, 100%); }
+.history-note { color: var(--ink-700); font-size: 14px; max-width: 80ch; }
+.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+.card { padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow-sm); }
+.card h3 { margin: 0; font: 400 1.3rem/1.2 var(--serif); }
+.card .meta { margin: 4px 0 10px; color: var(--ink-500); font-size: 12.5px; }
+.card .meta code { font: 12px var(--mono); }
+.section-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
+.chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--ink-50); font-size: 12px; color: var(--ink-700); text-decoration: none; }
+.chip b { color: var(--coral-700); }
+.previews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.preview { display: grid; gap: 4px; font-size: 11.5px; color: var(--ink-700); text-decoration: none; min-width: 0; }
+.preview img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 4px; background: var(--ink-100); }
+.preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card details { margin-top: 10px; font-size: 13px; }
+.card details ul { margin: 6px 0 0; padding-left: 18px; }
+.main-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.main-row { display: grid; grid-template-columns: 170px 110px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+.history-controls { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 12px; font-size: 13.5px; }
+.history-controls select { margin-left: 6px; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
+.timeline { display: grid; gap: 16px; }
+.timeline .card img { width: 100%; max-height: 420px; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 4px; }
+.collapsed { padding: 6px 12px; color: var(--ink-500); font-size: 12.5px; border-left: 3px dotted var(--line-strong); }
+
+/* Landing */
+.landing { max-width: 900px; margin: 0 auto; padding: 48px 28px; }
+.landing .card { margin-top: 18px; }
+.landing p { max-width: 70ch; }
+.button { display: inline-flex; padding: 10px 18px; border-radius: 6px; background: var(--ocean-800); color: #fff; font-weight: 700; text-decoration: none; }
+.button:hover { background: var(--ocean-700); color: #fff; }
+
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; }
+  .sidebar { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .review, .history-main { padding: 16px; }
+  .app-header { padding: 16px; }
+  .main-row { grid-template-columns: 1fr; }
+  .pr-grid { grid-template-columns: 1fr; }
+}
+</style></head><body><header class="app-header"><div><div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" aria-hidden="true" color="#285442"><path d="M18 4H4v14M14 28h14V14" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M10 10h12v8h-5v5h-7z" fill="currentColor"/></svg><span><strong>PropertyScope NSW</strong><small>Visual review</small></span></div>
+<p class="eyebrow">Visual comparison</p><h1>main @ 330e65f</h1>
+<p class="header-meta">Real frontends · Shared and Feature 1 on deterministic fixtures · Features 2–5 on an offline stack with seeded data · 1440px wide, full page · light theme · clock fixed at 2026-09-01 · base <code>b1181cdf</code> → head <code>330e65f8</code></p></div>
+<div class="header-side"><div class="counts"><span class="pill changed">6 changed</span><span class="pill subtle">0 subtle</span><span class="pill unchanged">35 identical</span><span class="pill incomplete">1 limitations</span></div><nav class="header-links" aria-label="Report links"><a href="../../">Screenshot history</a><a href="https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626518">Capture run</a><a href="changes.json">changes.json</a></nav></div></header>
+<div class="workspace"><aside class="sidebar" aria-label="Captured views">
+<p class="sidebar-label">Areas</p><nav id="sections" class="sections" aria-label="Areas"></nav>
+<p class="sidebar-label">Views</p><div class="filters"><input id="search" class="search" type="search" placeholder="Find a view…" aria-label="Filter views in this area">
+<label class="check"><input id="only-changes" type="checkbox"> Hide identical and subtle views</label></div>
+<nav id="view-list" class="view-list" aria-label="Views"></nav>
+<p class="sidebar-footer"><span id="visible-count"></span><br>Pixel changes need human review; nothing here judges intent.</p></aside>
+<main class="review" id="main"><div class="view-heading"><div><h2 id="view-title"></h2><p id="view-description" class="view-description"></p></div><span id="view-status"></span></div>
+<div class="toolbar"><div class="segmented" role="group" aria-label="Comparison mode"><button type="button" data-mode="side" aria-pressed="false">Side by side</button><button type="button" data-mode="toggle" aria-pressed="false">Before / after</button><button type="button" data-mode="wipe" aria-pressed="false">Wipe</button><button type="button" data-mode="overlay" aria-pressed="false">Overlay</button><button type="button" data-mode="difference" aria-pressed="false">Difference</button></div>
+<div class="segmented" role="group" aria-label="Zoom"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-value" class="zoom-value"></span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-fit" type="button">Fit width</button><button id="zoom-actual" type="button">100%</button></div></div>
+<div class="adjustments"><span id="toggle-control" class="segmented" role="group" aria-label="Displayed side"><button type="button" data-side="base">Before</button><button type="button" data-side="head">After</button></span>
+<label id="wipe-control">Split <input id="wipe-range" type="range" min="0" max="100" value="50"><output id="wipe-value">50%</output></label>
+<label id="opacity-control">After opacity <input id="opacity" type="range" min="0" max="100" value="50"><output id="opacity-value">50%</output></label>
+<label id="threshold-control">Ignore channel differences up to <select id="threshold"><option value="0">0 (exact)</option><option value="8">8 / 255</option><option value="16">16 / 255</option><option value="32">32 / 255</option></select></label>
+<span id="mode-hint" class="hint"></span></div>
+<div id="viewport" class="stage-viewport" tabindex="0" aria-label="Screenshot comparison; drag or scroll to pan"><div id="scaled-stage" class="scaled-stage"><div id="image-stage" class="image-stage"></div></div></div>
+<div id="metrics" class="metrics" role="status" aria-live="polite"></div><div id="regions" class="regions" aria-label="Changed regions"></div>
+<section id="shared" class="notes" hidden></section><section id="problems" class="notes problem" hidden></section><section id="notes" class="notes" hidden></section>
+</main></div>
+<script id="report-data" type="application/json">{"schema":1,"title":"main @ 330e65f","rows":[{"id":"shared-home","section":"shared","provider":"fixture","path":"/#home","state":"populated home","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#home","state":"populated home","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#home","state":"populated home","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","baseHeight":5932,"headImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","headHeight":5932,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-research-areas","section":"shared","provider":"fixture","path":"/#features","state":"all five research areas","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#features","state":"all five research areas","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#features","state":"all five research areas","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"586b78f8a51c6589c1309eeefcf444eaefc03b3654b9749fb4fcf6ef20eda4c6.png","baseHeight":1392,"headImage":"586b78f8a51c6589c1309eeefcf444eaefc03b3654b9749fb4fcf6ef20eda4c6.png","headHeight":1392,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2004480,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-data-status","section":"shared","provider":"fixture","path":"/#system-status","state":"every service healthy; measured response times masked","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#system-status","state":"every service healthy; measured response times masked","scenario":"populated","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"head":{"section":"shared","provider":"fixture","path":"/#system-status","state":"every service healthy; measured response times masked","scenario":"populated","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"baseImage":"2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png","baseHeight":1738,"headImage":"2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png","headHeight":1738,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-sources-history","section":"shared","provider":"fixture","path":"/#evidence","state":"published datasets and AI review history","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#evidence","state":"published datasets and AI review history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#evidence","state":"published datasets and AI review history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"6962f8d6881ceb2a04dcf650e5233f55bb1cc3ec260ad1c0a824309002af31e4.png","baseHeight":1618,"headImage":"6962f8d6881ceb2a04dcf650e5233f55bb1cc3ec260ad1c0a824309002af31e4.png","headHeight":1618,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2329920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-assistant","section":"shared","provider":"fixture","path":"/#assistant","state":"assistant start screen","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#assistant","state":"assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#assistant","state":"assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"7330d7919d7b8bd31258b9288ab3714c6f155b0396d6a9cf1964d8eff25580b5.png","baseHeight":1122,"headImage":"7330d7919d7b8bd31258b9288ab3714c6f155b0396d6a9cf1964d8eff25580b5.png","headHeight":1122,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1615680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-roadmap","section":"shared","provider":"fixture","path":"/#release-roadmap","state":"release roadmap","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/#release-roadmap","state":"release roadmap","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#release-roadmap","state":"release roadmap","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png","baseHeight":1824,"headImage":"9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png","headHeight":1824,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2626560,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-activity-history","section":"shared","provider":"fixture","path":"/operations/ai-mode/","state":"AI activity history","scenario":"populated","base":{"section":"shared","provider":"fixture","path":"/operations/ai-mode/","state":"AI activity history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/operations/ai-mode/","state":"AI activity history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"1fd8151fbe41d7beabf69624267a16ca0f29a0c5450e7d85450e3b7dc619618b.png","baseHeight":1000,"headImage":"1fd8151fbe41d7beabf69624267a16ca0f29a0c5450e7d85450e3b7dc619618b.png","headHeight":1000,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1440000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-home-empty","section":"shared","provider":"fixture","path":"/#home","state":"empty scenario: no published data","scenario":"empty","base":{"section":"shared","provider":"fixture","path":"/#home","state":"empty scenario: no published data","scenario":"empty","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"fixture","path":"/#home","state":"empty scenario: no published data","scenario":"empty","status":"captured","errors":[],"notes":[]},"baseImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","baseHeight":5932,"headImage":"63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png","headHeight":5932,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":8542080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-data-status-error","section":"shared","provider":"fixture","path":"/#system-status","state":"error scenario: services unavailable","scenario":"error","base":{"section":"shared","provider":"fixture","path":"/#system-status","state":"error scenario: services unavailable","scenario":"error","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"head":{"section":"shared","provider":"fixture","path":"/#system-status","state":"error scenario: services unavailable","scenario":"error","status":"captured","errors":[],"notes":["masked runtime values: .health-row__latency"]},"baseImage":"34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png","baseHeight":1738,"headImage":"34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png","headHeight":1738,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2502720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-search","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties","state":"search prompt","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties","state":"search prompt","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties","state":"search prompt","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"1978e7edae81a8d47d88ac90b4154affafd6b7085908f0ba791a8c282b66362a.png","baseHeight":1013,"headImage":"1978e7edae81a8d47d88ac90b4154affafd6b7085908f0ba791a8c282b66362a.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-results","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"one matching property","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"one matching property","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"one matching property","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"38fddfa68e2fc8f1a911c709bb1fdc1c6ec70dba14adc6f0ffe9c29d6a5466a0.png","baseHeight":1013,"headImage":"38fddfa68e2fc8f1a911c709bb1fdc1c6ec70dba14adc6f0ffe9c29d6a5466a0.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties/11111111-1111-4111-8111-111111111111","state":"property record","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties/11111111-1111-4111-8111-111111111111","state":"property record","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties/11111111-1111-4111-8111-111111111111","state":"property record","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png","baseHeight":1219,"headImage":"86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png","headHeight":1219,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1755360,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-assistant","section":"feature-1","provider":"fixture","path":"/features/data-platform/#assistant","state":"feature assistant start screen","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#assistant","state":"feature assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#assistant","state":"feature assistant start screen","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"e231948805cdebdf753feb62835d81d4c1b494c891218e3a2aa6a696e0fa58a8.png","baseHeight":1050,"headImage":"e231948805cdebdf753feb62835d81d4c1b494c891218e3a2aa6a696e0fa58a8.png","headHeight":1050,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1512000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-overview","section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"data overview","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"data overview","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"data overview","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"dd87ba1a62fc13faabc4c4700f4563207f2a3dd8505a08d713449c9aacaa9d46.png","baseHeight":1043,"headImage":"dd87ba1a62fc13faabc4c4700f4563207f2a3dd8505a08d713449c9aacaa9d46.png","headHeight":1043,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1501920,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-jobs","section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs","state":"data update catalogue","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs","state":"data update catalogue","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs","state":"data update catalogue","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"a6e452bfb492b6deb586404016a2a38f48579aad27d40d9ea654b80f84fef0d1.png","baseHeight":1059,"headImage":"a6e452bfb492b6deb586404016a2a38f48579aad27d40d9ea654b80f84fef0d1.png","headHeight":1059,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1524960,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-job-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001","state":"one data update definition","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001","state":"one data update definition","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001","state":"one data update definition","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"cb9e8ff636380707e3c98d668f5835469cfc5ad804906338a4a7983f3fa9e4bc.png","baseHeight":1013,"headImage":"cb9e8ff636380707e3c98d668f5835469cfc5ad804906338a4a7983f3fa9e4bc.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-runs","section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"update history","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"update history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"update history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"949d54edc62d6daa6c9ca31c464219a3bb56000aa6467832a7a43649bbe06299.png","baseHeight":1013,"headImage":"949d54edc62d6daa6c9ca31c464219a3bb56000aa6467832a7a43649bbe06299.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-run-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs/30000000-0000-0000-0000-000000000001","state":"completed update","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs/30000000-0000-0000-0000-000000000001","state":"completed update","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs/30000000-0000-0000-0000-000000000001","state":"completed update","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"36d1a712bf93af66701c63f473ad8db1b039093a9a2553099b4c91c35783ee60.png","baseHeight":1811,"headImage":"36d1a712bf93af66701c63f473ad8db1b039093a9a2553099b4c91c35783ee60.png","headHeight":1811,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2607840,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-releases","section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"published data versions","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"published data versions","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"published data versions","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","baseHeight":1013,"headImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-release-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases/60000000-0000-0000-0000-000000000001","state":"accepted release","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases/60000000-0000-0000-0000-000000000001","state":"accepted release","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases/60000000-0000-0000-0000-000000000001","state":"accepted release","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png","baseHeight":2072,"headImage":"07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png","headHeight":2072,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2983680,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-sources","section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources","state":"registered data sources","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources","state":"registered data sources","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources","state":"registered data sources","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"338de75fe25f7e78862aa3ca6d688bfc157c9a07e16bcb98dc6175feac71fad1.png","baseHeight":1013,"headImage":"338de75fe25f7e78862aa3ca6d688bfc157c9a07e16bcb98dc6175feac71fad1.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-source-detail","section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources/10000000-0000-0000-0000-000000000001","state":"one data source","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources/10000000-0000-0000-0000-000000000001","state":"one data source","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#sources/10000000-0000-0000-0000-000000000001","state":"one data source","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"6fa1ed4cd1dec56946d4667c5dbf7e5757aac048e28f2dd8a9d2315e5d43d53c.png","baseHeight":1013,"headImage":"6fa1ed4cd1dec56946d4667c5dbf7e5757aac048e28f2dd8a9d2315e5d43d53c.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-quality","section":"feature-1","provider":"fixture","path":"/features/data-platform/#quality","state":"data checks","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#quality","state":"data checks","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#quality","state":"data checks","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"cd51356b7193ac41c21072d194c7296c5ad9ffea1a2d8b0b307c60451f6f27ef.png","baseHeight":1013,"headImage":"cd51356b7193ac41c21072d194c7296c5ad9ffea1a2d8b0b307c60451f6f27ef.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-artifacts","section":"feature-1","provider":"fixture","path":"/features/data-platform/#artifacts","state":"files and history","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#artifacts","state":"files and history","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#artifacts","state":"files and history","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"251e982cd8897babd29dae15ca6e27543bd4b9c3c2b45a70b779a28c33741f44.png","baseHeight":1013,"headImage":"251e982cd8897babd29dae15ca6e27543bd4b9c3c2b45a70b779a28c33741f44.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-coverage","section":"feature-1","provider":"fixture","path":"/features/data-platform/#coverage","state":"published coverage","scenario":"populated","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#coverage","state":"published coverage","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#coverage","state":"published coverage","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png","baseHeight":1013,"headImage":"c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-property-results-empty","section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"empty scenario: no matching property","scenario":"empty","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"empty scenario: no matching property","scenario":"empty","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#properties?q=11%20Example%20Street","state":"empty scenario: no matching property","scenario":"empty","status":"captured","errors":[],"notes":[]},"baseImage":"cbfa41ad6506770e170f25fcd82291787f6df2c197e32425110c2f91653c6d7f.png","baseHeight":1013,"headImage":"cbfa41ad6506770e170f25fcd82291787f6df2c197e32425110c2f91653c6d7f.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-overview-error","section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"error scenario: data service unavailable","scenario":"error","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"error scenario: data service unavailable","scenario":"error","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#overview","state":"error scenario: data service unavailable","scenario":"error","status":"captured","errors":[],"notes":[]},"baseImage":"4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png","baseHeight":1013,"headImage":"4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-releases-long-content","section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"long-content scenario: verbose names wrap","scenario":"long-content","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"long-content scenario: verbose names wrap","scenario":"long-content","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#releases","state":"long-content scenario: verbose names wrap","scenario":"long-content","status":"captured","errors":[],"notes":[]},"baseImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","baseHeight":1013,"headImage":"f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png","headHeight":1013,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1458720,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f1-runs-large","section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"large scenario: eighty rows","scenario":"large","base":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"large scenario: eighty rows","scenario":"large","status":"captured","errors":[],"notes":["page is 7509px tall; only the first 6000px are compared"]},"head":{"section":"feature-1","provider":"fixture","path":"/features/data-platform/#runs","state":"large scenario: eighty rows","scenario":"large","status":"captured","errors":[],"notes":["page is 7509px tall; only the first 6000px are compared"]},"baseImage":"e445d72e9ff16c80e781b7fe96adecac42abfcdb65309624ab29f4f23749d479.png","baseHeight":6000,"headImage":"e445d72e9ff16c80e781b7fe96adecac42abfcdb65309624ab29f4f23749d479.png","headHeight":6000,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":8640000,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"shared-knowledge-sources","section":"shared","provider":"stack","path":"/operations/ai-mode/knowledge/","state":"knowledge sources with no ingested corpus","scenario":"populated","base":{"section":"shared","provider":"stack","path":"/operations/ai-mode/knowledge/","state":"knowledge sources with no ingested corpus","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"shared","provider":"stack","path":"/operations/ai-mode/knowledge/","state":"knowledge sources with no ingested corpus","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"6990764c93d4505b214bed0561b1b2b9d14ecfa37d51adc62dbeee9fa4799994.png","baseHeight":1000,"headImage":"c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png","headHeight":1000,"change":"changed","analyses":{"0":{"threshold":0,"changed":39844,"total":1440000,"percent":2.7669,"bounds":{"x":268,"y":275,"width":1119,"height":224,"pixels":39844},"regions":[{"x":543,"y":383,"width":279,"height":116,"pixels":32338},{"x":1141,"y":275,"width":246,"height":52,"pixels":5404},{"x":268,"y":403,"width":87,"height":31,"pixels":1237},{"x":1142,"y":336,"width":92,"height":13,"pixels":865}],"regionCount":4,"heat":"6284c475fb1dc4786b999692eabee1599575b9affae261652997358e605d8f86.png"},"8":{"threshold":8,"changed":11962,"total":1440000,"percent":0.8307,"bounds":{"x":268,"y":275,"width":1119,"height":224,"pixels":11962},"regions":[{"x":1142,"y":275,"width":245,"height":52,"pixels":5055},{"x":695,"y":407,"width":110,"height":20,"pixels":2090},{"x":559,"y":404,"width":124,"height":51,"pixels":1621},{"x":268,"y":403,"width":87,"height":31,"pixels":1149},{"x":1142,"y":336,"width":92,"height":13,"pixels":790},{"x":543,"y":383,"width":279,"height":116,"pixels":758},{"x":560,"y":468,"width":92,"height":9,"pixels":499}],"regionCount":7,"heat":"e2c17fc1f40a47ff4ec02f25683e6f2277634f202b6482c2eb5234f6ad87c6cc.png"},"16":{"threshold":16,"changed":9087,"total":1440000,"percent":0.631,"bounds":{"x":268,"y":275,"width":1118,"height":202,"pixels":9087},"regions":[{"x":1142,"y":275,"width":244,"height":52,"pixels":4714},{"x":559,"y":404,"width":123,"height":51,"pixels":1547},{"x":268,"y":403,"width":87,"height":31,"pixels":1065},{"x":1142,"y":336,"width":92,"height":13,"pixels":711},{"x":702,"y":413,"width":95,"height":8,"pixels":580},{"x":560,"y":468,"width":92,"height":9,"pixels":470}],"regionCount":6,"heat":"3d8c3313c43c63c28bd8dd7890a27030cf781b42dabdc511af907cb6dde9fbf1.png"},"32":{"threshold":32,"changed":7087,"total":1440000,"percent":0.4922,"bounds":{"x":269,"y":275,"width":1110,"height":202,"pixels":7087},"regions":[{"x":1142,"y":275,"width":186,"height":52,"pixels":2717},{"x":560,"y":404,"width":122,"height":51,"pixels":1333},{"x":269,"y":403,"width":86,"height":31,"pixels":892},{"x":1285,"y":281,"width":94,"height":12,"pixels":673},{"x":1142,"y":336,"width":92,"height":13,"pixels":599},{"x":703,"y":413,"width":94,"height":8,"pixels":498},{"x":561,"y":468,"width":91,"height":9,"pixels":375}],"regionCount":7,"heat":"b0add36dfa6d9fb300e11f09ead59431ecf60dbcea115d187cee8aba98525bd2.png"}},"review":{"areas":[{"x":543,"y":383,"width":279,"height":116,"pixels":32338},{"x":1141,"y":275,"width":246,"height":74,"pixels":6269},{"x":268,"y":403,"width":87,"height":31,"pixels":1237}],"areaCount":3,"difference":"bf82850305f977ed1bdcaeade640ef04ff588769676ac2b7791fc9dac30bea80.png","preview":"bf82850305f977ed1bdcaeade640ef04ff588769676ac2b7791fc9dac30bea80.png","previewRect":{"x":0,"y":0,"width":1440,"height":1000,"pixels":0},"focus":[{"area":{"x":543,"y":383,"width":279,"height":116,"pixels":32338},"rect":{"x":442,"y":341,"width":480,"height":200,"pixels":0},"base":"adf5511d02e98f3a5506544d4457a6d820dd9f75a77d7992c4e734cde3ac166e.png","head":"8cd0c22ec81ded9f6709a9bcb6eb39a179b6654569462c81fca2136deadd55a9.png"},{"area":{"x":1141,"y":275,"width":246,"height":74,"pixels":6269},"rect":{"x":960,"y":212,"width":480,"height":200,"pixels":0},"base":"8863842e1cc6d0f0060fe53b2ad323e999c6716079e2d35bc6b51825b59afc30.png","head":"d2d9220b7aecf40bffbed1cfdc12cbd463aed2ce81fba1c32a6f711e4dfe6912.png"}],"key":"143,34,31,9;34,50,11,4;68,48,35,14"}},{"id":"f2-market-cases","section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"seeded cases with the first case selected","scenario":"populated","base":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"seeded cases with the first case selected","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"seeded cases with the first case selected","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"982ee92251e6a92d704cdb412df0ae9058ff4beeb037e0c34acdb65509d09e89.png","baseHeight":1982,"headImage":"982ee92251e6a92d704cdb412df0ae9058ff4beeb037e0c34acdb65509d09e89.png","headHeight":1982,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f2-new-case-dialog","section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"new market case dialog","scenario":"populated","base":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"new market case dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-2","provider":"stack","path":"/features/market-intelligence/","state":"new market case dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"ba4a413b058d95f5dd7a83bd8740ff97e175f91ddb9df1b6a7a3f58f9d6db00f.png","baseHeight":1982,"headImage":"ba4a413b058d95f5dd7a83bd8740ff97e175f91ddb9df1b6a7a3f58f9d6db00f.png","headHeight":1982,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":2854080,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f3-explore","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#explore","state":"overview, search and map","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#explore","state":"overview, search and map","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#explore","state":"overview, search and map","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"deaf5f0bc6364aa04b48c1e000c1224e557160d759aba85ccbc83cf564a929c5.png","baseHeight":1161,"headImage":"2d5c63f7802028d93a5090c4b3f437c71eb7c95e4cadcc4c5b4bcc22f5f5d040.png","headHeight":1173,"change":"changed","analyses":{"0":{"threshold":0,"changed":136890,"total":1689120,"percent":8.1042,"bounds":{"x":0,"y":405,"width":1440,"height":768,"pixels":136890},"regions":[{"x":256,"y":1025,"width":1152,"height":108,"pixels":64950},{"x":532,"y":947,"width":876,"height":66,"pixels":20856},{"x":0,"y":1161,"width":1440,"height":12,"pixels":17280},{"x":532,"y":641,"width":876,"height":112,"pixels":12707},{"x":280,"y":841,"width":211,"height":119,"pixels":7819},{"x":281,"y":670,"width":210,"height":52,"pixels":3677},{"x":256,"y":641,"width":260,"height":20,"pixels":3406},{"x":256,"y":993,"width":260,"height":20,"pixels":3406},{"x":294,"y":789,"width":81,"height":26,"pixels":1160},{"x":294,"y":737,"width":71,"height":25,"pixels":1060},{"x":67,"y":405,"width":79,"height":11,"pixels":569}],"regionCount":11,"heat":"7688eb4550d95bee258f69ab33f08f810d270dbe7217e4cb0d19589064bbebe1.png"},"8":{"threshold":8,"changed":109050,"total":1689120,"percent":6.456,"bounds":{"x":0,"y":405,"width":1440,"height":768,"pixels":109050},"regions":[{"x":256,"y":1025,"width":1152,"height":108,"pixels":39488},{"x":532,"y":951,"width":876,"height":62,"pixels":19176},{"x":0,"y":1161,"width":1440,"height":12,"pixels":17280},{"x":532,"y":641,"width":876,"height":112,"pixels":12610},{"x":281,"y":841,"width":210,"height":119,"pixels":7488},{"x":281,"y":670,"width":210,"height":52,"pixels":3601},{"x":256,"y":641,"width":260,"height":19,"pixels":3386},{"x":256,"y":994,"width":260,"height":19,"pixels":3386},{"x":294,"y":789,"width":81,"height":26,"pixels":1100},{"x":294,"y":737,"width":71,"height":25,"pixels":1000},{"x":67,"y":405,"width":79,"height":11,"pixels":535}],"regionCount":11,"heat":"d60e3cb177819af7701e362472e6aa25dd0e57c8b06af04ab7163238ad8f798c.png"},"16":{"threshold":16,"changed":87211,"total":1689120,"percent":5.1631,"bounds":{"x":0,"y":405,"width":1440,"height":768,"pixels":87211},"regions":[{"x":256,"y":1025,"width":1152,"height":108,"pixels":39180},{"x":0,"y":1161,"width":1440,"height":12,"pixels":17280},{"x":532,"y":951,"width":876,"height":62,"pixels":9282},{"x":281,"y":841,"width":209,"height":119,"pixels":6798},{"x":256,"y":641,"width":260,"height":18,"pixels":3362},{"x":256,"y":995,"width":260,"height":18,"pixels":3362},{"x":281,"y":670,"width":210,"height":52,"pixels":3235},{"x":532,"y":641,"width":876,"height":112,"pixels":2209},{"x":294,"y":789,"width":81,"height":26,"pixels":1050},{"x":294,"y":737,"width":71,"height":25,"pixels":942},{"x":67,"y":405,"width":79,"height":11,"pixels":511}],"regionCount":11,"heat":"dd1c0fcd11f81de7ae07bc858150aa58d2769e87a5437a5fd164f12b1c8646c1.png"},"32":{"threshold":32,"changed":42485,"total":1689120,"percent":2.5152,"bounds":{"x":0,"y":405,"width":1440,"height":768,"pixels":42485},"regions":[{"x":0,"y":1161,"width":1440,"height":12,"pixels":17280},{"x":256,"y":1025,"width":1152,"height":74,"pixels":9464},{"x":281,"y":841,"width":209,"height":119,"pixels":6181},{"x":281,"y":670,"width":210,"height":52,"pixels":3047},{"x":548,"y":962,"width":173,"height":30,"pixels":2530},{"x":294,"y":789,"width":80,"height":26,"pixels":972},{"x":294,"y":737,"width":70,"height":25,"pixels":872},{"x":1367,"y":650,"width":31,"height":91,"pixels":602},{"x":1318,"y":968,"width":79,"height":34,"pixels":564},{"x":67,"y":405,"width":79,"height":11,"pixels":473},{"x":257,"y":653,"width":258,"height":5,"pixels":250},{"x":257,"y":996,"width":258,"height":5,"pixels":250}],"regionCount":12,"heat":"4fa991e8467e9b685628d2965e975db0935ad01822aad150e4769c1ecd03f6c1.png"}},"review":{"areas":[{"x":256,"y":841,"width":1152,"height":292,"pixels":97031},{"x":256,"y":641,"width":1152,"height":121,"pixels":20850},{"x":0,"y":1161,"width":1440,"height":12,"pixels":17280},{"x":294,"y":789,"width":81,"height":26,"pixels":1160},{"x":67,"y":405,"width":79,"height":11,"pixels":569}],"areaCount":5,"difference":"e602da248a5cafd65fb73fd5f4e7a45b837c7baa5538345f267ab754777f30fc.png","preview":"54ec4a9cceaeaaaa0f89ee9f5377f4b5cf0b711029fd1fe0966cd650f90e949b.png","previewRect":{"x":0,"y":173,"width":1440,"height":1000,"pixels":0},"focus":[{"area":{"x":256,"y":841,"width":1152,"height":292,"pixels":97031},"rect":{"x":224,"y":809,"width":1216,"height":356,"pixels":0},"base":"4802842b9e681f745e2c67330a2948fd2a4808611333c18579f156e7454d20eb.png","head":"8cfefeb89f96f30906d117d2b18eaf3d022aa32e2fcae2452ce81e20ed032fa5.png"},{"area":{"x":256,"y":641,"width":1152,"height":121,"pixels":20850},"rect":{"x":224,"y":602,"width":1216,"height":200,"pixels":0},"base":"3ca23dcb1bf4be159a58e8588ba1305a6cdf19fa56c8816f6d8b449958df7af5.png","head":"9463e385e01ffdd5c37ca5b65b949ade2835cf96bf00a86e86cb44a4550d4f55.png"}],"key":"0,145,180,2;32,105,144,36;32,80,144,15;37,99,10,3;8,51,10,1"}},{"id":"f3-trends","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#trends","state":"crime trend comparison","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#trends","state":"crime trend comparison","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#trends","state":"crime trend comparison","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"49dbd1bf54058d7ff628c61c819340ba11c955903f09cc02398420e18bac5b97.png","baseHeight":1148,"headImage":"448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png","headHeight":1148,"change":"changed","analyses":{"0":{"threshold":0,"changed":569,"total":1653120,"percent":0.0344,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":569},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":569}],"regionCount":1,"heat":"9cdf7314157b0cba6db98ec738e2eb6cc03815ce6ee5b3efd69967d83f421cfa.png"},"8":{"threshold":8,"changed":535,"total":1653120,"percent":0.0324,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":535},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":535}],"regionCount":1,"heat":"1b04a9150ed08882ed3f486b435969c7ccfe61719112b3da17feb0c373c156bb.png"},"16":{"threshold":16,"changed":511,"total":1653120,"percent":0.0309,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":511},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":511}],"regionCount":1,"heat":"f1976a0048c70cdf7a8d1d7ac4404934fc8dbbc770ab01ee0d53d78d97355e0a.png"},"32":{"threshold":32,"changed":473,"total":1653120,"percent":0.0286,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":473},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":473}],"regionCount":1,"heat":"35c3d8e91999d39839aab7916d969b960f652efaa7e03b0305c60e8313ab3b31.png"}},"review":{"areas":[{"x":67,"y":405,"width":79,"height":11,"pixels":569}],"areaCount":1,"difference":"afa44cf0a759c74769018920d3eae29cfe836bcac313dcbb6f2b4a2d9475ca67.png","preview":"b8bef80d61395c2c2c98b5874b6e92f80a3c0eba8335388b9f42491441a5fd75.png","previewRect":{"x":0,"y":0,"width":1440,"height":1000,"pixels":0},"focus":[{"area":{"x":67,"y":405,"width":79,"height":11,"pixels":569},"rect":{"x":0,"y":310,"width":480,"height":200,"pixels":0},"base":"3c2a4b3df77fa111682eca83a839754cb46bf599e6445018cd293f79c1a027c8.png","head":"f35987f37294de7a906519df9a2e5b761087ce0f31ae1ddf0a2cc23147221898.png"}],"key":"8,51,10,1","sharedWith":["f3-published"]}},{"id":"f3-published","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#published","state":"published evidence","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#published","state":"published evidence","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#published","state":"published evidence","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"170290f66f1701a171284e341b8ebb62ad139c1894cfb87af055fff1c11ebde9.png","baseHeight":1017,"headImage":"958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png","headHeight":1017,"change":"changed","analyses":{"0":{"threshold":0,"changed":569,"total":1464480,"percent":0.0389,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":569},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":569}],"regionCount":1,"heat":"5658772806c7fa49dc051e7fbc946a2867172808d62b44be00412eaf3109e2af.png"},"8":{"threshold":8,"changed":535,"total":1464480,"percent":0.0365,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":535},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":535}],"regionCount":1,"heat":"7577a9a0284315c299b50fdb526fb1279baa2ba6ac65d9cebd6c0ecce4e60c23.png"},"16":{"threshold":16,"changed":511,"total":1464480,"percent":0.0349,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":511},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":511}],"regionCount":1,"heat":"2d4ccb71d0da2b7c2329533113a2f0f67451d8468440859b7b39f2a277386e93.png"},"32":{"threshold":32,"changed":473,"total":1464480,"percent":0.0323,"bounds":{"x":67,"y":405,"width":79,"height":11,"pixels":473},"regions":[{"x":67,"y":405,"width":79,"height":11,"pixels":473}],"regionCount":1,"heat":"2fdac0ee1c9474b5f52d7e3b3ea91356aaaceffc453883ce8e326989131c956d.png"}},"review":{"areas":[{"x":67,"y":405,"width":79,"height":11,"pixels":569}],"areaCount":1,"difference":"d30130d9adbcb636398fd195cc55bcdb10036a0dcb4d467e0fe4c480eab97420.png","preview":"6182f22c5ae48bc37428e3b006784a2d7474867728b9cef7781ee4c0905afdf0.png","previewRect":{"x":0,"y":0,"width":1440,"height":1000,"pixels":0},"focus":[{"area":{"x":67,"y":405,"width":79,"height":11,"pixels":569},"rect":{"x":0,"y":310,"width":480,"height":200,"pixels":0},"base":"82825886001ef867e2a78bcd0af8e37b364a31655b8f069130905aa7c30724fd.png","head":"c95fc2adcbfc4dd2b51161c05df187c529557e4b9e579d858557bb09d1a1b4e7.png"}],"key":"8,51,10,1","sameAs":"f3-trends"}},{"id":"f3-comparisons","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#comparisons","state":"saved comparisons","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#comparisons","state":"saved comparisons","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#comparisons","state":"saved comparisons","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"e01d9c9733f70e49ae94fefba598996cc2e89a6a66065a0a191cc9c6ea4fd305.png","baseHeight":1844,"headImage":"4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png","headHeight":1844,"change":"changed","analyses":{"0":{"threshold":0,"changed":59824,"total":2655360,"percent":2.253,"bounds":{"x":67,"y":405,"width":545,"height":1380,"pixels":59824},"regions":[{"x":274,"y":517,"width":328,"height":56,"pixels":6414},{"x":281,"y":1460,"width":310,"height":56,"pixels":5002},{"x":272,"y":1325,"width":340,"height":38,"pixels":4827},{"x":273,"y":813,"width":312,"height":30,"pixels":4299},{"x":280,"y":1082,"width":304,"height":30,"pixels":4221},{"x":274,"y":947,"width":308,"height":30,"pixels":4190},{"x":272,"y":1216,"width":303,"height":30,"pixels":4185},{"x":280,"y":1755,"width":296,"height":30,"pixels":4102},{"x":280,"y":1620,"width":295,"height":30,"pixels":4095},{"x":273,"y":678,"width":320,"height":9,"pixels":2345},{"x":273,"y":1191,"width":216,"height":15,"pixels":2082},{"x":283,"y":1729,"width":198,"height":15,"pixels":1937}],"regionCount":21,"heat":"14e5976d3d616de1b88d0a6b99c38cdb61eb0af18c8fd41bc9b1a6b2d20f3bdb.png"},"8":{"threshold":8,"changed":57581,"total":2655360,"percent":2.1685,"bounds":{"x":67,"y":405,"width":545,"height":1380,"pixels":57581},"regions":[{"x":274,"y":517,"width":328,"height":56,"pixels":6194},{"x":281,"y":1460,"width":310,"height":56,"pixels":4806},{"x":273,"y":1325,"width":339,"height":38,"pixels":4671},{"x":273,"y":813,"width":312,"height":30,"pixels":4127},{"x":280,"y":1082,"width":304,"height":30,"pixels":4055},{"x":273,"y":1216,"width":302,"height":30,"pixels":4020},{"x":274,"y":947,"width":308,"height":30,"pixels":3992},{"x":281,"y":1755,"width":295,"height":30,"pixels":3941},{"x":281,"y":1620,"width":294,"height":30,"pixels":3928},{"x":273,"y":678,"width":320,"height":9,"pixels":2264},{"x":273,"y":1191,"width":215,"height":15,"pixels":2021},{"x":273,"y":787,"width":199,"height":12,"pixels":1876}],"regionCount":21,"heat":"d273dbc45a8fcd99c885a07d52ff35ff7ce41347d62602f4b26906c64459a7e7.png"},"16":{"threshold":16,"changed":54958,"total":2655360,"percent":2.0697,"bounds":{"x":67,"y":405,"width":545,"height":1380,"pixels":54958},"regions":[{"x":274,"y":517,"width":328,"height":56,"pixels":5937},{"x":281,"y":1460,"width":310,"height":56,"pixels":4558},{"x":273,"y":1325,"width":339,"height":38,"pixels":4471},{"x":273,"y":813,"width":312,"height":30,"pixels":3925},{"x":280,"y":1082,"width":304,"height":30,"pixels":3854},{"x":273,"y":1216,"width":302,"height":30,"pixels":3828},{"x":274,"y":947,"width":308,"height":30,"pixels":3782},{"x":281,"y":1755,"width":295,"height":30,"pixels":3733},{"x":281,"y":1620,"width":294,"height":30,"pixels":3713},{"x":273,"y":678,"width":320,"height":9,"pixels":2152},{"x":273,"y":1191,"width":215,"height":15,"pixels":1959},{"x":283,"y":1729,"width":198,"height":15,"pixels":1817}],"regionCount":21,"heat":"cc3d81692e8244cb7ade949c1bca1ecd4dea27844a83828aedb236db73b8e92a.png"},"32":{"threshold":32,"changed":50205,"total":2655360,"percent":1.8907,"bounds":{"x":67,"y":405,"width":545,"height":1380,"pixels":50205},"regions":[{"x":274,"y":517,"width":328,"height":56,"pixels":5409},{"x":282,"y":1460,"width":308,"height":56,"pixels":4128},{"x":273,"y":1325,"width":339,"height":38,"pixels":4125},{"x":273,"y":813,"width":312,"height":30,"pixels":3533},{"x":273,"y":1216,"width":302,"height":30,"pixels":3469},{"x":281,"y":1082,"width":302,"height":30,"pixels":3465},{"x":274,"y":947,"width":308,"height":30,"pixels":3379},{"x":281,"y":1755,"width":294,"height":30,"pixels":3348},{"x":281,"y":1620,"width":294,"height":30,"pixels":3322},{"x":273,"y":678,"width":320,"height":9,"pixels":1965},{"x":273,"y":1191,"width":215,"height":15,"pixels":1870},{"x":284,"y":1729,"width":196,"height":15,"pixels":1735}],"regionCount":21,"heat":"db2182f90da7980f190d647b40f523914be6d30c08d87e4feb5973286a17b8b8.png"}},"review":{"areas":[{"x":274,"y":517,"width":328,"height":56,"pixels":6414},{"x":272,"y":1191,"width":303,"height":55,"pixels":6267},{"x":280,"y":1729,"width":296,"height":56,"pixels":6039},{"x":281,"y":1460,"width":310,"height":56,"pixels":5002},{"x":272,"y":1325,"width":340,"height":38,"pixels":4827},{"x":273,"y":813,"width":312,"height":30,"pixels":4299},{"x":280,"y":1082,"width":304,"height":30,"pixels":4221},{"x":274,"y":947,"width":308,"height":30,"pixels":4190},{"x":280,"y":1620,"width":295,"height":30,"pixels":4095},{"x":273,"y":678,"width":320,"height":9,"pixels":2345}],"areaCount":10,"difference":"b308fe4892ceafd69a83393b71677159cb256f392aebfec865bdf8094a288395.png","preview":"1614acfb8314bc01dd6ada61085d90b14c7d93d81c60150e32db8b950e270c81.png","previewRect":{"x":0,"y":45,"width":1440,"height":1000,"pixels":0},"focus":[{"area":{"x":274,"y":517,"width":328,"height":56,"pixels":6414},"rect":{"x":198,"y":445,"width":480,"height":200,"pixels":0},"base":"26f92fbeb84a766dd35642adbbc6fe936744717c053d17b28743351d587532a9.png","head":"6d340d7f0dae09cbae3a6cc70bb91dc538ea1328ddaf5a025196052e1deed3ac.png"},{"area":{"x":272,"y":1191,"width":303,"height":55,"pixels":6267},"rect":{"x":184,"y":1118,"width":480,"height":200,"pixels":0},"base":"59eada331d9a2e0bbb44a963951a9f5791cd0cbef50969508dabb5f674cf9c58.png","head":"b91981efac1e68ddb9705ff874ab0c847533a0831abbebd3cdb1e2a74b8b1004.png"}],"key":"34,118,38,4;34,149,38,7;34,166,42,5;34,65,41,7;34,85,40,1;34,98,39,7;35,135,38,4;35,182,39,7;35,202,37,4;35,219,37,4"}},{"id":"f3-assistant","section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#assistant","state":"trend assistant","scenario":"populated","base":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#assistant","state":"trend assistant","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-3","provider":"stack","path":"/features/suburb-analytics/#assistant","state":"trend assistant","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"0a3ec6a8b40a0a4fc03de500d78b80cceeb18de480b66058c6023d499874f208.png","baseHeight":1085,"headImage":"55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png","headHeight":1085,"change":"changed","analyses":{"0":{"threshold":0,"changed":29444,"total":1562400,"percent":1.8845,"bounds":{"x":70,"y":381,"width":1158,"height":594,"pixels":29444},"regions":[{"x":854,"y":525,"width":374,"height":33,"pixels":5625},{"x":636,"y":629,"width":363,"height":33,"pixels":5227},{"x":589,"y":410,"width":486,"height":43,"pixels":4489},{"x":587,"y":381,"width":490,"height":15,"pixels":4031},{"x":512,"y":772,"width":384,"height":15,"pixels":3525},{"x":418,"y":525,"width":262,"height":33,"pixels":2751},{"x":416,"y":961,"width":312,"height":14,"pixels":2303},{"x":688,"y":525,"width":107,"height":11,"pixels":829},{"x":70,"y":405,"width":86,"height":11,"pixels":664}],"regionCount":9,"heat":"b769f37e87f725a5fa925f59a017a4ed5aebe13890503b1dc560eca7ecb9c141.png"},"8":{"threshold":8,"changed":27944,"total":1562400,"percent":1.7885,"bounds":{"x":70,"y":381,"width":1158,"height":594,"pixels":27944},"regions":[{"x":854,"y":525,"width":374,"height":33,"pixels":5341},{"x":636,"y":629,"width":363,"height":33,"pixels":4968},{"x":589,"y":410,"width":486,"height":43,"pixels":4214},{"x":587,"y":381,"width":490,"height":15,"pixels":3776},{"x":512,"y":772,"width":384,"height":15,"pixels":3352},{"x":418,"y":525,"width":261,"height":33,"pixels":2648},{"x":417,"y":961,"width":310,"height":14,"pixels":2223},{"x":688,"y":525,"width":107,"height":11,"pixels":783},{"x":70,"y":405,"width":86,"height":11,"pixels":639}],"regionCount":9,"heat":"d9268ffb8dc7e66083148ec406c49280d3d43ad48edfa5b5a062e53c3bc365b9.png"},"16":{"threshold":16,"changed":26671,"total":1562400,"percent":1.7071,"bounds":{"x":71,"y":381,"width":1157,"height":594,"pixels":26671},"regions":[{"x":854,"y":525,"width":374,"height":33,"pixels":5182},{"x":636,"y":629,"width":363,"height":33,"pixels":4825},{"x":589,"y":410,"width":486,"height":43,"pixels":3893},{"x":587,"y":381,"width":490,"height":15,"pixels":3529},{"x":512,"y":772,"width":384,"height":15,"pixels":3175},{"x":418,"y":525,"width":261,"height":33,"pixels":2557},{"x":417,"y":961,"width":310,"height":14,"pixels":2158},{"x":690,"y":525,"width":105,"height":11,"pixels":747},{"x":71,"y":405,"width":85,"height":11,"pixels":605}],"regionCount":9,"heat":"7471453c7002c77ecc4f4e4615b1230913941c2e5dec12cb429da2103af4a1b7.png"},"32":{"threshold":32,"changed":24036,"total":1562400,"percent":1.5384,"bounds":{"x":71,"y":381,"width":1157,"height":594,"pixels":24036},"regions":[{"x":854,"y":525,"width":374,"height":33,"pixels":4720},{"x":636,"y":629,"width":363,"height":33,"pixels":4433},{"x":589,"y":410,"width":486,"height":43,"pixels":3429},{"x":587,"y":381,"width":490,"height":15,"pixels":3096},{"x":512,"y":772,"width":383,"height":15,"pixels":2794},{"x":418,"y":525,"width":261,"height":33,"pixels":2346},{"x":417,"y":961,"width":310,"height":14,"pixels":1987},{"x":691,"y":525,"width":103,"height":11,"pixels":667},{"x":71,"y":405,"width":85,"height":11,"pixels":564}],"regionCount":9,"heat":"a26d9e2e6cf42009c6ba9819fe45ccf5097355607c9e1f7d73d13084b7bb8f7d.png"}},"review":{"areas":[{"x":587,"y":381,"width":490,"height":72,"pixels":8520},{"x":854,"y":525,"width":374,"height":33,"pixels":5625},{"x":636,"y":629,"width":363,"height":33,"pixels":5227},{"x":418,"y":525,"width":377,"height":33,"pixels":3580},{"x":512,"y":772,"width":384,"height":15,"pixels":3525},{"x":416,"y":961,"width":312,"height":14,"pixels":2303},{"x":70,"y":405,"width":86,"height":11,"pixels":664}],"areaCount":7,"difference":"d8808c60050dc12d4c141a5185a4d504cfb93368afaed5fea7252e01e146bb50.png","preview":"b0bf2f40c909483be249cd46624b976f39d59da97ef8e4881d73f815ff96e71d.png","previewRect":{"x":0,"y":0,"width":1440,"height":1000,"pixels":0},"focus":[{"area":{"x":587,"y":381,"width":490,"height":72,"pixels":8520},"rect":{"x":555,"y":317,"width":554,"height":200,"pixels":0},"base":"7d0266cededd0e8ee057c2e094e3c5e0d4bc086d9db6e934758d0033bc7e6462.png","head":"042e1d37b76bd4567a2baaa9730d0e6a76b765e20e466018ddaf80e50eea6815.png"},{"area":{"x":854,"y":525,"width":374,"height":33,"pixels":5625},"rect":{"x":801,"y":442,"width":480,"height":200,"pixels":0},"base":"37f00f3bf8be76ce4525e85f52f8356944ce41c2f5dcfbe7383ed52d7a288ef5.png","head":"6851b70fd729e7a2a0ad1ccf9f2ef3413d92a453d16faf7062d394969df17385.png"}],"key":"107,66,47,4;52,120,39,2;52,66,47,4;64,96,48,2;73,48,61,9;80,79,45,4;9,51,11,1"}},{"id":"f4-site-reviews","section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"seeded site reviews","scenario":"populated","base":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"seeded site reviews","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"seeded site reviews","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"c10667306c2e9b5d93e7a6f350aa2f7e25f7f0a6806afe31d56645a6d23ba546.png","baseHeight":1076,"headImage":"c10667306c2e9b5d93e7a6f350aa2f7e25f7f0a6806afe31d56645a6d23ba546.png","headHeight":1076,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f4-review-detail","section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001","state":"one review with evidence","scenario":"populated","base":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001","state":"one review with evidence","scenario":"populated","status":"failed","errors":["the view did not render identically twice within 5 captures"],"notes":[]},"head":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001","state":"one review with evidence","scenario":"populated","status":"failed","errors":["the view did not render identically twice within 5 captures"],"notes":[]},"change":"incomplete"},{"id":"f4-new-review-dialog","section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"new site review dialog","scenario":"populated","base":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"new site review dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-4","provider":"stack","path":"/features/due-diligence/#site-reviews","state":"new site review dialog","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"8b2f7d4aec9148025b65f6f63be56bf1953cbe559b3d9d6776d970ab4d08fd00.png","baseHeight":1076,"headImage":"8b2f7d4aec9148025b65f6f63be56bf1953cbe559b3d9d6776d970ab4d08fd00.png","headHeight":1076,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":1549440,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f5-buyer-cases","section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases","state":"seeded buyer cases","scenario":"populated","base":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases","state":"seeded buyer cases","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases","state":"seeded buyer cases","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"56b3cf71225c8a575af056bc39a2c4f6c29d4f15525fd5dfc96f41446f69b726.png","baseHeight":2103,"headImage":"56b3cf71225c8a575af056bc39a2c4f6c29d4f15525fd5dfc96f41446f69b726.png","headHeight":2103,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":3028320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":3028320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":3028320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":3028320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}},{"id":"f5-case-detail","section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010","state":"one buyer case","scenario":"populated","base":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010","state":"one buyer case","scenario":"populated","status":"captured","errors":[],"notes":[]},"head":{"section":"feature-5","provider":"stack","path":"/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010","state":"one buyer case","scenario":"populated","status":"captured","errors":[],"notes":[]},"baseImage":"cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png","baseHeight":4453,"headImage":"cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png","headHeight":4453,"change":"unchanged","analyses":{"0":{"threshold":0,"changed":0,"total":6412320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"8":{"threshold":0,"changed":0,"total":6412320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"16":{"threshold":0,"changed":0,"total":6412320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null},"32":{"threshold":0,"changed":0,"total":6412320,"percent":0.0,"bounds":null,"regions":[],"regionCount":0,"heat":null}}}],"sections":[{"id":"shared","label":"Shared"},{"id":"feature-1","label":"Feature 1 · Property data"},{"id":"feature-2","label":"Feature 2 · Sales \u0026 market"},{"id":"feature-3","label":"Feature 3 · Suburb context"},{"id":"feature-4","label":"Feature 4 · Site \u0026 planning"},{"id":"feature-5","label":"Feature 5 · Buyer workspace"}],"summary":{"changed":6,"subtle":0,"unchanged":35,"incomplete":1,"baseUnavailable":0,"total":42},"metadata":{"imageRoot":"../../img/","runUrl":"https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626518","baseSha":"b1181cdf9fffd4b8494bcf4a5635b1ade59e73e6","headSha":"330e65f890c6c5615c6fd720e3894cd4822e748b"}}</script><script>// PropertyScope visual review viewer. Every pixel metric and heatmap is precomputed by the trusted
+// reporter; this script only arranges images, so it works offline and never reads canvas pixels.
+(() => {
+  "use strict";
+  const report = JSON.parse(document.getElementById("report-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const IMAGE = /^[a-f0-9]{64}\.png$/;
+  const root = ["img/", "../../img/"].includes(report.metadata.imageRoot) ? report.metadata.imageRoot : "img/";
+  const url = (name) => (typeof name === "string" && IMAGE.test(name) ? root + name : "");
+  const WIDTH = 1440;
+  const GAP = 48;
+  const LABEL_SPACE = 30;
+  const MODES = ["side", "toggle", "wipe", "overlay", "difference"];
+  const THRESHOLDS = ["0", "8", "16", "32"];
+  const ORDER = ["changed", "incomplete", "base unavailable", "subtle", "unchanged"];
+  const LABELS = {
+    changed: "Changed",
+    incomplete: "Incomplete",
+    "base unavailable": "No baseline",
+    subtle: "Subtle",
+    unchanged: "Identical",
+  };
+  const statusClass = (status) => String(status).replace(/ /g, "-");
+  const number = (value) => Number(value || 0).toLocaleString("en-AU");
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  };
+  const pill = (status) => el("span", `pill ${statusClass(status)}`, LABELS[status] || status);
+
+  const rows = report.rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => ORDER.indexOf(a.row.change) - ORDER.indexOf(b.row.change) || a.index - b.index)
+    .map((item) => item.row);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const sections = report.sections.filter((section) => rows.some((row) => row.section === section.id));
+  const inSection = (id) => rows.filter((row) => row.section === id);
+  const attention = (row) => !["unchanged", "subtle"].includes(row.change);
+  const defaultSection = () =>
+    (sections.find((section) => inSection(section.id).some((row) => row.change === "changed")) ||
+      sections.find((section) => inSection(section.id).some(attention)) ||
+      sections[0] || { id: "" }).id;
+
+  const params = new URLSearchParams(location.hash.slice(1));
+  const state = {
+    section: sections.some((item) => item.id === params.get("section")) ? params.get("section") : defaultSection(),
+    row: null,
+    mode: MODES.includes(params.get("mode")) ? params.get("mode") : "side",
+    zoom: params.get("zoom") === "100" ? 1 : "fit",
+    threshold: THRESHOLDS.includes(params.get("threshold")) ? params.get("threshold") : "0",
+    side: "head",
+    wipe: 50,
+    opacity: 50,
+    region: -1,
+    scale: 1,
+  };
+  state.row = byId.get(params.get("view")) || inSection(state.section)[0] || rows[0] || null;
+  if (state.row) state.section = state.row.section;
+
+  const viewport = $("viewport");
+  const scaled = $("scaled-stage");
+  const stage = $("image-stage");
+  const buttons = new Map();
+
+  function saveUrl(push) {
+    if (!state.row) return;
+    const query = new URLSearchParams({ section: state.section, view: state.row.id, mode: state.mode });
+    if (state.zoom === 1) query.set("zoom", "100");
+    if (state.threshold !== "0") query.set("threshold", state.threshold);
+    history[push ? "pushState" : "replaceState"](null, "", `#${query}`);
+  }
+
+  // Sidebar: sections, filters and the grouped view list.
+  function renderSections() {
+    const container = $("sections");
+    container.replaceChildren();
+    for (const section of sections) {
+      const members = inSection(section.id);
+      const button = el("button", "section-button");
+      button.type = "button";
+      button.setAttribute("aria-pressed", String(section.id === state.section));
+      const counts = el("span", "section-counts");
+      const changed = members.filter((row) => row.change === "changed").length;
+      const limited = members.filter((row) => ["incomplete", "base unavailable"].includes(row.change)).length;
+      if (changed) counts.append(el("span", "c-changed", String(changed)));
+      if (limited) counts.append(el("span", "c-limited", String(limited)));
+      counts.append(el("span", "c-total", String(members.length)));
+      button.append(el("span", "", section.label), counts);
+      button.setAttribute(
+        "aria-label",
+        `${section.label}: ${changed} changed, ${limited} with limitations, ${members.length} views`,
+      );
+      button.addEventListener("click", () => {
+        state.section = section.id;
+        $("search").value = "";
+        select(inSection(section.id)[0], true);
+      });
+      container.append(button);
+    }
+  }
+
+  function renderList() {
+    const list = $("view-list");
+    list.replaceChildren();
+    buttons.clear();
+    const query = $("search").value.trim().toLowerCase();
+    const onlyChanges = $("only-changes").checked;
+    const visible = inSection(state.section).filter(
+      (row) =>
+        `${row.id} ${row.path} ${row.state}`.toLowerCase().includes(query) && (!onlyChanges || attention(row)),
+    );
+    for (const status of ORDER) {
+      const group = visible.filter((row) => row.change === status);
+      if (!group.length) continue;
+      list.append(el("h3", "view-group", `${LABELS[status]} · ${group.length}`));
+      for (const row of group) {
+        const button = el("button", "view-link");
+        button.type = "button";
+        button.setAttribute("aria-current", String(row === state.row));
+        const thumb = el("img", "view-thumb");
+        thumb.alt = "";
+        thumb.loading = "lazy";
+        const preview = url(row.review && row.review.preview) || url(row.headImage) || url(row.baseImage);
+        if (preview) thumb.src = preview;
+        const label = el("span", "");
+        label.append(el("span", "view-name", row.id), el("span", "view-sub", row.state), pill(row.change));
+        button.append(thumb, label);
+        button.addEventListener("click", () => select(row, true));
+        buttons.set(row.id, button);
+        list.append(button);
+      }
+    }
+    if (!visible.length) list.append(el("p", "empty-filter", "No views match these filters."));
+    const total = inSection(state.section).length;
+    $("visible-count").textContent = `${visible.length} of ${total} views in this section`;
+  }
+
+  // Stage: arrange the precomputed images for the selected mode.
+  const available = (row, side) => row && row[side] && row[side].status === "captured" && url(row[`${side}Image`]);
+  function image(side) {
+    const img = el("img");
+    img.src = available(state.row, side);
+    img.alt = `${side === "base" ? "Before" : "After"}: ${state.row.id}`;
+    img.width = WIDTH;
+    img.height = state.row[`${side}Height`] || 0;
+    img.draggable = false;
+    return img;
+  }
+  function layer(child, className) {
+    const node = el("div", `layer ${className || ""}`);
+    node.append(child);
+    return node;
+  }
+  function missing(text, height) {
+    const node = el("div", "missing", text);
+    node.style.height = `${Math.max(400, Math.min(height || 600, 1000))}px`;
+    return node;
+  }
+
+  function effectiveMode() {
+    const row = state.row;
+    return available(row, "base") && available(row, "head") ? state.mode : "single";
+  }
+
+  function renderStage() {
+    const row = state.row;
+    stage.replaceChildren();
+    const mode = effectiveMode();
+    const height = Math.max(row.baseHeight || 0, row.headHeight || 0, 400);
+    let width = WIDTH;
+    let top = 0;
+    if (mode === "single") {
+      const side = available(row, "head") ? "head" : available(row, "base") ? "base" : null;
+      const panel = el("div", "panel shadowed");
+      panel.append(side ? image(side) : missing("No usable screenshot was captured for this view.", height));
+      stage.append(panel);
+    } else if (mode === "side") {
+      width = WIDTH * 2 + GAP;
+      top = LABEL_SPACE;
+      for (const [side, left] of [["base", 0], ["head", WIDTH + GAP]]) {
+        const panel = el("div", "panel shadowed");
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
+        panel.append(el("span", "panel-label", side === "base" ? "Before" : "After"), image(side));
+        stage.append(panel);
+      }
+    } else if (mode === "toggle") {
+      stage.append(layer(image(state.side), "shadowed"));
+    } else if (mode === "wipe") {
+      stage.append(layer(image("head"), "shadowed"));
+      const before = layer(image("base"));
+      before.style.clipPath = `inset(0 ${100 - state.wipe}% 0 0)`;
+      stage.append(before);
+      const divider = el("div", "wipe-divider");
+      divider.style.left = `${(WIDTH * state.wipe) / 100}px`;
+      divider.tabIndex = 0;
+      divider.setAttribute("role", "slider");
+      divider.setAttribute("aria-label", "Before and after split");
+      divider.setAttribute("aria-valuemin", "0");
+      divider.setAttribute("aria-valuemax", "100");
+      divider.setAttribute("aria-valuenow", String(state.wipe));
+      divider.append(el("span", "", "⇆"));
+      divider.addEventListener("keydown", wipeKeys);
+      divider.addEventListener("pointerdown", wipeDrag);
+      stage.append(divider);
+    } else if (mode === "overlay") {
+      stage.append(layer(image("base"), "shadowed"));
+      const after = layer(image("head"));
+      after.style.opacity = String(state.opacity / 100);
+      stage.append(after);
+    } else {
+      stage.append(layer(image("head"), "shadowed dimmed"));
+      const analysis = (row.analyses || {})[state.threshold];
+      if (analysis && analysis.heat) {
+        const heat = el("img");
+        heat.src = url(analysis.heat);
+        heat.alt = "";
+        heat.width = WIDTH;
+        heat.height = height;
+        stage.append(layer(heat));
+      }
+      for (const [index, region] of ((analysis && analysis.regions) || []).entries()) {
+        const box = el("div", `region-box${index === state.region ? " active" : ""}`);
+        Object.assign(box.style, {
+          left: `${region.x - 3}px`,
+          top: `${region.y - 3}px`,
+          width: `${region.width + 6}px`,
+          height: `${region.height + 6}px`,
+        });
+        stage.append(box);
+      }
+    }
+    stage.dataset.width = String(width);
+    stage.dataset.height = String(height + top);
+    stage.dataset.top = String(top);
+    resize();
+  }
+
+  function fitScale() {
+    const width = Number(stage.dataset.width || WIDTH);
+    return Math.max(0.1, Math.min(1, (viewport.clientWidth - 34) / width));
+  }
+  function resize() {
+    const width = Number(stage.dataset.width || WIDTH);
+    const height = Number(stage.dataset.height || 600);
+    state.scale = state.zoom === "fit" ? fitScale() : state.zoom;
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+    stage.style.transform = `scale(${state.scale})`;
+    scaled.style.width = `${width * state.scale}px`;
+    scaled.style.height = `${height * state.scale}px`;
+    viewport.classList.toggle("can-pan", width * state.scale > viewport.clientWidth - 34);
+    $("zoom-value").textContent = `${Math.round(state.scale * 100)}%`;
+    $("zoom-fit").setAttribute("aria-pressed", String(state.zoom === "fit"));
+    $("zoom-actual").setAttribute("aria-pressed", String(state.zoom === 1));
+  }
+  function setZoom(value) {
+    const centreX = (viewport.scrollLeft + viewport.clientWidth / 2) / state.scale;
+    const centreY = (viewport.scrollTop + viewport.clientHeight / 2) / state.scale;
+    state.zoom = value;
+    resize();
+    viewport.scrollLeft = centreX * state.scale - viewport.clientWidth / 2;
+    viewport.scrollTop = centreY * state.scale - viewport.clientHeight / 2;
+    saveUrl(false);
+  }
+
+  function wipeKeys(event) {
+    const step = event.shiftKey ? 10 : 1;
+    const next = { ArrowLeft: state.wipe - step, ArrowRight: state.wipe + step, Home: 0, End: 100 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    setWipe(next, true);
+  }
+  function wipeDrag(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const move = (moveEvent) => {
+      const box = stage.getBoundingClientRect();
+      setWipe(((moveEvent.clientX - box.left) / (box.width || 1)) * 100, false);
+    };
+    const stop = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", stop);
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", stop);
+  }
+  function setWipe(value, focus) {
+    state.wipe = Math.round(Math.max(0, Math.min(100, value)));
+    $("wipe-range").value = String(state.wipe);
+    $("wipe-value").textContent = `${state.wipe}%`;
+    renderStage();
+    if (focus) stage.querySelector(".wipe-divider")?.focus();
+  }
+
+  // Details under the stage: metrics, regions, shared-change notes and capture limitations.
+  function renderDetails() {
+    const row = state.row;
+    $("view-title").textContent = row.id;
+    const description = $("view-description");
+    description.replaceChildren(el("code", "", row.path), ` · ${row.state} · ${row.provider === "stack" ? "offline stack" : `${row.scenario || "populated"} fixture`}`);
+    $("view-status").replaceChildren(pill(row.change));
+    const analysis = (row.analyses || {})[state.threshold];
+    const metrics = $("metrics");
+    metrics.replaceChildren();
+    if (analysis) {
+      const summary = el("span");
+      if (analysis.changed) {
+        summary.append(el("strong", "", `${number(analysis.changed)} px changed`), ` (${analysis.percent}%) in ${analysis.regionCount} ${analysis.regionCount === 1 ? "region" : "regions"}`);
+      } else {
+        summary.textContent = state.threshold === "0" ? "Decoded pixels are identical." : `No differences above ${state.threshold}/255.`;
+      }
+      metrics.append(summary);
+      if (analysis.bounds) {
+        const b = analysis.bounds;
+        metrics.append(el("span", "", `Bounds ${b.x}, ${b.y} · ${b.width} × ${b.height}`));
+      }
+    } else if (row.change === "base unavailable") {
+      metrics.append(el("span", "", "There is no baseline for this view: it is new, or the base revision could not render it."));
+    }
+    if (row.baseHeight && row.headHeight && row.baseHeight !== row.headHeight) {
+      metrics.append(el("span", "", `Page height ${number(row.baseHeight)} → ${number(row.headHeight)} px`));
+    }
+    const regions = $("regions");
+    regions.replaceChildren();
+    for (const [index, region] of ((analysis && analysis.regions) || []).entries()) {
+      const button = el("button", "", `${region.width}×${region.height} at ${region.x},${region.y}`);
+      button.type = "button";
+      button.setAttribute("aria-pressed", String(index === state.region));
+      button.addEventListener("click", () => focusRegion(index));
+      regions.append(button);
+    }
+    const shared = $("shared");
+    shared.replaceChildren();
+    const review = row.review || {};
+    const related = review.sameAs ? [review.sameAs] : review.sharedWith || [];
+    shared.hidden = !related.length;
+    if (related.length) {
+      shared.append(el("h3", "", review.sameAs ? "Same change as" : "Same changed areas in"));
+      const list = el("ul");
+      for (const id of related) {
+        const item = el("li");
+        const link = el("a", "", id);
+        link.href = `#view=${encodeURIComponent(id)}&mode=difference`;
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          select(byId.get(id), true);
+        });
+        item.append(link);
+        list.append(item);
+      }
+      shared.append(list);
+    }
+    const problems = ["base", "head"].flatMap((side) =>
+      ((row[side] && row[side].errors) || []).map((message) => `${side === "base" ? "Before" : "After"}: ${message}`),
+    );
+    const notes = ["base", "head"].flatMap((side) =>
+      ((row[side] && row[side].notes) || []).map((message) => `${side === "base" ? "Before" : "After"}: ${message}`),
+    );
+    for (const [id, items, title] of [["problems", problems, "Capture problems"], ["notes", notes, "Capture notes"]]) {
+      const box = $(id);
+      box.replaceChildren(el("h3", "", title));
+      const list = el("ul");
+      for (const message of [...new Set(items)]) list.append(el("li", "", message));
+      box.append(list);
+      box.hidden = !items.length;
+    }
+  }
+
+  function focusRegion(index) {
+    const analysis = (state.row.analyses || {})[state.threshold];
+    const region = analysis && analysis.regions[index];
+    if (!region) return;
+    state.region = index;
+    if (state.mode !== "difference" && effectiveMode() !== "single") state.mode = "difference";
+    if (state.zoom === "fit") state.zoom = 1;
+    renderAll(false);
+    const top = Number(stage.dataset.top || 0);
+    viewport.scrollLeft = (region.x + region.width / 2) * state.scale - viewport.clientWidth / 2;
+    viewport.scrollTop = (region.y + top + region.height / 2) * state.scale - viewport.clientHeight / 2;
+  }
+
+  function renderControls() {
+    const both = effectiveMode() !== "single";
+    for (const button of document.querySelectorAll("[data-mode]")) {
+      button.setAttribute("aria-pressed", String(both && button.dataset.mode === state.mode));
+      button.disabled = !both;
+    }
+    const mode = effectiveMode();
+    $("toggle-control").hidden = mode !== "toggle";
+    $("wipe-control").hidden = mode !== "wipe";
+    $("opacity-control").hidden = mode !== "overlay";
+    $("threshold-control").hidden = !state.row.analyses;
+    for (const button of document.querySelectorAll("[data-side]"))
+      button.setAttribute("aria-pressed", String(button.dataset.side === state.side));
+    $("threshold").value = state.threshold;
+    $("mode-hint").textContent = {
+      single: "Only one side has a usable screenshot.",
+      side: "Before on the left, after on the right.",
+      toggle: "Press T to flip between before and after.",
+      wipe: "Drag the divider, or focus it and use the arrow keys (Shift for 10%).",
+      overlay: "Fade the after screenshot over the before screenshot.",
+      difference: "After screenshot dimmed; changed pixels and regions highlighted.",
+    }[mode];
+  }
+
+  function renderAll(push) {
+    renderSections();
+    renderList();
+    renderControls();
+    renderStage();
+    renderDetails();
+    saveUrl(push);
+  }
+
+  function select(row, push) {
+    if (!row) return;
+    state.row = row;
+    state.section = row.section;
+    state.region = -1;
+    viewport.scrollTop = 0;
+    viewport.scrollLeft = 0;
+    renderAll(push);
+    buttons.get(row.id)?.scrollIntoView({ block: "nearest" });
+  }
+
+  // Wire static controls.
+  for (const button of document.querySelectorAll("[data-mode]")) {
+    button.addEventListener("click", () => {
+      state.mode = button.dataset.mode;
+      renderAll(false);
+    });
+  }
+  for (const button of document.querySelectorAll("[data-side]")) {
+    button.addEventListener("click", () => {
+      state.side = button.dataset.side;
+      renderControls();
+      renderStage();
+    });
+  }
+  $("zoom-fit").addEventListener("click", () => setZoom("fit"));
+  $("zoom-actual").addEventListener("click", () => setZoom(1));
+  $("zoom-in").addEventListener("click", () => setZoom(Math.min(4, Math.round((state.scale + 0.25) * 4) / 4)));
+  $("zoom-out").addEventListener("click", () => setZoom(Math.max(0.1, Math.round((state.scale - 0.25) * 4) / 4 || 0.1)));
+  $("wipe-range").addEventListener("input", (event) => setWipe(Number(event.target.value), false));
+  $("opacity").addEventListener("input", (event) => {
+    state.opacity = Number(event.target.value);
+    $("opacity-value").textContent = `${state.opacity}%`;
+    renderStage();
+  });
+  $("threshold").addEventListener("change", (event) => {
+    state.threshold = event.target.value;
+    state.region = -1;
+    renderStage();
+    renderDetails();
+    saveUrl(false);
+  });
+  $("search").addEventListener("input", renderList);
+  $("only-changes").addEventListener("change", renderList);
+  addEventListener("keydown", (event) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    if (event.key.toLowerCase() === "t" && effectiveMode() === "toggle") {
+      state.side = state.side === "head" ? "base" : "head";
+      renderControls();
+      renderStage();
+    }
+  });
+  addEventListener("resize", () => state.zoom === "fit" && resize());
+  addEventListener("popstate", () => {
+    const next = new URLSearchParams(location.hash.slice(1));
+    const row = byId.get(next.get("view"));
+    if (MODES.includes(next.get("mode"))) state.mode = next.get("mode");
+    if (row) select(row, false);
+  });
+
+  // Drag to pan when the image is larger than the viewport.
+  let pan = null;
+  viewport.addEventListener("pointerdown", (event) => {
+    if (!viewport.classList.contains("can-pan") && viewport.scrollHeight <= viewport.clientHeight) return;
+    pan = { x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+    viewport.classList.add("panning");
+  });
+  addEventListener("pointermove", (event) => {
+    if (!pan) return;
+    viewport.scrollLeft = pan.left - (event.clientX - pan.x);
+    viewport.scrollTop = pan.top - (event.clientY - pan.y);
+  });
+  addEventListener("pointerup", () => {
+    pan = null;
+    viewport.classList.remove("panning");
+  });
+
+  if (state.row) renderAll(false);
+  else $("view-title").textContent = "No views were captured.";
+})();
+</script></body></html>
