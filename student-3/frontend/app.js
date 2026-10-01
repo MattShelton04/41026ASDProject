@@ -127,6 +127,29 @@ function renderSuburbs(items) {
   $$("[data-locality]").forEach((button) => button.addEventListener("click", () => chooseSuburb(button.dataset.locality)));
 }
 
+function localityItems(payload) {
+  return (payload.items || []).map((entry) => {
+    const locality = typeof entry === "string" ? entry : entry.locality;
+    return locality ? { id: locality.toLowerCase().replaceAll(" ", "-"), locality, state: "NSW", postcode: "", lga: "", coverage_status: "published" } : null;
+  }).filter(Boolean);
+}
+
+async function fetchAllPublishedSuburbs(query = "") {
+  const items = [];
+  let offset = 0;
+  const seenOffsets = new Set();
+  do {
+    if (seenOffsets.has(offset)) break;
+    seenOffsets.add(offset);
+    const params = new URLSearchParams({ q: query, offset: String(offset) });
+    const payload = await api(`/published/suburbs?${params}`);
+    items.push(...localityItems(payload));
+    if (payload.next_offset === null || payload.next_offset === undefined) break;
+    offset = Number(payload.next_offset);
+  } while (Number.isSafeInteger(offset) && offset >= 0 && seenOffsets.size < 1000);
+  return items;
+}
+
 function selectedPlaceTypes() { return new Set($$(".map-filters input:checked").map((input) => input.value)); }
 
 function suburbFeatures(items) {
@@ -182,7 +205,7 @@ async function selectSuburb(locality) {
     longitude: school.longitude,
     coverage_status: school.operational_status,
     source_release: school.provenance?.release_id,
-  }));
+  })).filter((place) => place.name && Number.isFinite(place.latitude) && Number.isFinite(place.longitude));
   state.places = places.filter((place) => selectedPlaceTypes().has(place.place_type));
   renderSuburbDetail(suburb, { schools: { value: places.length }, seifa: context.population?.[0] }, context);
   state.assistant?.controller.setContext({ route: "suburbs/detail", locality });
@@ -256,10 +279,8 @@ async function filterSuburbs(query = $("#search").value.trim()) {
   const generation = ++suburbFilterGeneration;
   $("#search-status").textContent = "Updating suburb results…";
   try {
-  const params = new URLSearchParams({ q: query, offset: "0" });
-  const published = await api(`/published/suburbs?${params}`);
-  const items = (published.items || []).map((entry) => typeof entry === "string" ? entry : entry.locality).filter(Boolean);
-  const payload = { items: items.map((locality) => ({ id: locality.toLowerCase().replaceAll(" ", "-"), locality, state: "NSW", postcode: "", lga: "", coverage_status: "published" })), count: items.length, page: { total: items.length } };
+  const items = await fetchAllPublishedSuburbs(query);
+  const payload = { items, count: items.length, page: { total: items.length } };
   if (generation !== suburbFilterGeneration) return;
   renderSuburbs(payload.items);
   $("#search-status").textContent = payload.items.length
@@ -415,7 +436,7 @@ async function init() {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
     if (current) chooseSuburb(current);
   }));
-  try { const [health, published] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), api("/published/suburbs?offset=0")]); state.suburbs = published.items.map((locality) => ({ id: locality.toLowerCase().replaceAll(" ", "-"), locality, state: "NSW", postcode: "", lga: "", coverage_status: "published" })); $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Published data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
+  try { const [health, suburbs] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), fetchAllPublishedSuburbs()]); state.suburbs = suburbs; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Published data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
   addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
   route();
 }
