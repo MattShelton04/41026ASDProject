@@ -34,7 +34,7 @@ main { min-width:0}
 .map { min-height:360px;overflow:hidden;border:1px solid var(--ps-line);border-radius:var(--ps-radius-lg);background:var(--ps-ink-100)}
 .map-fallback { overflow-wrap:anywhere;min-width:0;min-height:360px;display:grid;place-items:center;padding:2rem;border:1px solid var(--ps-line);border-radius:var(--ps-radius-lg);background:var(--ps-color-surface-subtle);text-align:center}
 .map-legend { position:absolute;z-index:2;left:1rem;bottom:1rem;display:flex;gap:var(--ps-space-2);padding:var(--ps-space-2);border-radius:8px;background:var(--ps-color-surface);box-shadow:var(--ps-shadow-sm);font-size:var(--ps-text-caption)}
-.suburb-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--ps-space-3);margin-top:1rem}
+.suburb-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--ps-space-3);max-height:32rem;overflow-y:auto;align-content:start;margin-top:1rem;padding:var(--ps-space-2);border:1px solid var(--ps-line);border-radius:var(--ps-radius-lg);background:var(--ps-color-surface-subtle)}
 .suburb-card { padding:1rem;border:1px solid var(--ps-line);border-radius:12px;background:var(--ps-color-surface);box-shadow:var(--ps-shadow-xs)}
 .suburb-card button { width:100%;padding:0;border:0;background:none;text-align:left;cursor:pointer}
 .suburb-card h3 { margin:var(--ps-space-1) 0}
