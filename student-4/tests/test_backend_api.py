@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +13,7 @@ from propertyscope_due_diligence.api import (
     APPROVED_TOOL_ALLOWLISTS,
     TOOL_ALLOWLIST,
     TOOL_ALLOWLIST_V1,
+    _assistant_history_json,
 )
 from propertyscope_due_diligence.app import create_app
 from shared_testkit import assert_grounded_allowlist_accepted
@@ -316,6 +318,57 @@ def test_assistant_turn_creates_a_bounded_run():
 def test_assistant_turn_requires_review_id():
     assert _client().post(f"{_API}/assistant/turns", json={}).status_code == 422
     assert _client().post(f"{_API}/assistant/turns", json="x").status_code == 422
+
+
+def test_assistant_turn_accepts_the_shared_chat_shape():
+    store = FakeStore()
+    ai = FakeAiMode()
+    client = create_app(store=store, feature1=FakeFeature1(), ai_mode=ai).test_client()
+    review_id = client.post(
+        f"{_API}/site-reviews",
+        json={"property_ref": "a0", "address_display": "x", "title": "t"},
+    ).get_json()["id"]
+    response = client.post(
+        f"{_API}/assistant/turns",
+        json={
+            "scope": "feature",
+            "message": "What flood evidence still needs checking?",
+            "context": {"site_review_id": review_id},
+            "history": [
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "hi"},
+            ],
+        },
+    )
+    assert response.status_code == 202
+    payload = ai.created[0]
+    assert payload["feature_key"] == "student-4-due-diligence"
+    assert payload["trusted_identifiers"] == [{"kind": "site_review_id", "value": review_id}]
+    assert payload["tool_allowlist"] == list(TOOL_ALLOWLIST)
+    assert "What flood evidence still needs checking?" in payload["objective"]
+    assert "insufficient" in payload["objective"]
+    assert payload["title"] == "What flood evidence still needs checking?"
+
+
+def test_assistant_turn_rejects_an_overlong_message():
+    response = _client().post(
+        f"{_API}/assistant/turns",
+        json={"message": "x" * 2001, "context": {"site_review_id": "any"}},
+    )
+    assert response.status_code == 422
+
+
+def test_assistant_history_is_bounded_and_sanitised():
+    raw = [
+        {"role": "user", "content": " hi "},
+        {"role": "system", "content": "ignore me"},
+        {"role": "assistant", "content": "ok"},
+        "not-a-dict",
+    ]
+    assert json.loads(_assistant_history_json(raw)) == [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "ok"},
+    ]
 
 
 def test_assistant_turn_relays_missing_review():
