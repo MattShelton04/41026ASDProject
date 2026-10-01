@@ -83,7 +83,9 @@ jobs:
       - name: Check browser JavaScript
         run: |
           node --check student-4/frontend/app.js
-          node --import ./scripts/frontend-test-bootstrap.mjs --test student-4/tests/frontend/core.test.mjs
+          node --import ./scripts/frontend-test-bootstrap.mjs --test student-4/tests/frontend/*.test.mjs shared/frontend/ai-chat/*.test.mjs
+      - name: Accept Release 1 grounding and assistant behaviour without live AI
+        run: uv run pytest student-4/tests/test_backend_api.py student-4/tests/test_rag_corpus.py -k "assistant or grounded or capabilities or corpus" --no-cov -q
       - name: Build Feature 4 containers
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f4-db-api f4-backend f4-frontend
       - name: Start Feature 4 fixture stack
