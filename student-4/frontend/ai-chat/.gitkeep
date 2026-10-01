@@ -1,0 +1,2 @@
+# Docker Compose mounts the Shared ai-chat package into this directory in development.
+# The real modules live in shared/frontend/ai-chat.
