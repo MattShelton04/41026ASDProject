@@ -5,6 +5,7 @@ import test from "node:test";
 const page = readFileSync("student-2/frontend/index.html", "utf8");
 const app = readFileSync("student-2/frontend/app.js", "utf8");
 const fragment = readFileSync("student-2/frontend/integration/research-area.html", "utf8");
+const styles = readFileSync("student-2/frontend/styles.css", "utf8");
 
 test("market page exposes CRUD, evidence and AI regions", () => {
   for (const marker of ["case-list", "case-form", "volume-chart", "sales-body", "assistant-root"]) {
@@ -48,4 +49,18 @@ test("the assistant is withheld until a market case is bound", () => {
   // Creating the assistant lazily is what removes the load-order race with loadCases().
   assert.match(app, /if \(!state\.assistant\) initialiseAssistant\(\)/);
   assert.doesNotMatch(app, /^initialiseAssistant\(\);$/m);
+});
+
+test("the assistant is its own workspace column, not nested in the case detail", () => {
+  // Nested in the detail panel it scrolled out of view on a long case.
+  const workspace = page.slice(page.indexOf('id="market-cases"'));
+  const detailEnd = workspace.indexOf('class="assistant-panel"');
+  assert.ok(detailEnd > 0, "assistant-panel must exist inside the workspace");
+  assert.ok(
+    workspace.indexOf('class="detail-panel"') < detailEnd,
+    "assistant-panel must be a sibling that follows the detail panel",
+  );
+  assert.doesNotMatch(page, /two-column/);
+  assert.match(styles, /\.assistant-panel \{[^}]*position: sticky/);
+  assert.match(styles, /--f2-assistant/);
 });

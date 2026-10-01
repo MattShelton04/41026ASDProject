@@ -90,20 +90,11 @@
             <div id="volume-chart" class="volume-chart"></div>
           </section>
 
-          <section class="two-column">
-            <div class="card">
-              <p class="eyebrow">QUALITY NOTES</p>
-              <h3>What this summary excludes</h3>
-              <ul id="limitations" class="limitations"></ul>
-              <details><summary>Exclusion counts</summary><dl id="exclusion-reasons" class="reason-list"></dl></details>
-            </div>
-            <div class="card ai-card">
-              <p class="eyebrow">CASE-SCOPED ASSISTANT</p>
-              <h3>Ask about this evidence</h3>
-              <p>The shared AI service can inspect this case through two read-only tools and the feature's published guidance. It cannot alter this case. The figures above are calculated by the data service, not the model.</p>
-              <p id="assistant-requires-case" class="muted" hidden>Select a market case to ask about its recorded sales, exclusions and limits.</p>
-              <div id="assistant-root" hidden></div>
-            </div>
+          <section class="card">
+            <p class="eyebrow">QUALITY NOTES</p>
+            <h3>What this summary excludes</h3>
+            <ul id="limitations" class="limitations"></ul>
+            <details><summary>Exclusion counts</summary><dl id="exclusion-reasons" class="reason-list"></dl></details>
           </section>
 
           <section class="card sales-card" aria-labelledby="sales-title">
@@ -112,6 +103,16 @@
           </section>
         </div>
       </section>
+
+      <aside class="assistant-panel" aria-label="Case-scoped assistant">
+        <div class="assistant-panel-intro">
+          <p class="eyebrow">CASE-SCOPED ASSISTANT</p>
+          <h2>Ask about this evidence</h2>
+          <p>The shared AI service can inspect this case through two read-only tools and the feature's published guidance. It cannot alter this case. The figures beside it are calculated by the data service, not the model.</p>
+        </div>
+        <p id="assistant-requires-case" class="muted" hidden>Select a market case to ask about its recorded sales, exclusions and limits.</p>
+        <div id="assistant-root" hidden></div>
+      </aside>
     </section>
   </main>
 
