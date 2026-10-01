@@ -31,6 +31,7 @@ main { min-width:0}
 .map-filters select,label input,label select,label textarea { width:100%;padding:var(--ps-space-3);border:1px solid var(--ps-line-strong);border-radius:8px;background:var(--ps-color-surface)}
 .fine-print { font-size:var(--ps-text-caption);line-height:1.5}
 .map-stack { position:relative;min-width:0}
+.map-research-column { min-width:0;display:grid;gap:var(--ps-space-5)}
 .map { min-height:360px;overflow:hidden;border:1px solid var(--ps-line);border-radius:var(--ps-radius-lg);background:var(--ps-ink-100)}
 .map-fallback { overflow-wrap:anywhere;min-width:0;min-height:360px;display:grid;place-items:center;padding:2rem;border:1px solid var(--ps-line);border-radius:var(--ps-radius-lg);background:var(--ps-color-surface-subtle);text-align:center}
 .map-legend { position:absolute;z-index:2;left:1rem;bottom:1rem;display:flex;gap:var(--ps-space-2);padding:var(--ps-space-2);border-radius:8px;background:var(--ps-color-surface);box-shadow:var(--ps-shadow-sm);font-size:var(--ps-text-caption)}

@@ -113,8 +113,8 @@
     },
     {
       "ai": {
-        "rag_corpus": null,
-        "rag_corpus_id": null,
+        "rag_corpus": "student-3/config/rag/corpus.json",
+        "rag_corpus_id": "suburb-analytics-guidance",
         "runtime_path": "/etc/ai-mode/suburb-analytics-tools.yaml",
         "tool_catalog": "student-3/tool-catalog.yaml"
       },

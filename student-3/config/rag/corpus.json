@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "feature_key": "student-3-suburb-analytics",
+  "corpus_id": "suburb-analytics-guidance",
+  "documents": [
+    {
+      "document_id": "feature-scope",
+      "title": "What Suburb analytics does and does not claim",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/feature-scope.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: feature scope",
+      "path": "documents/feature-scope.md"
+    },
+    {
+      "document_id": "published-evidence",
+      "title": "Published evidence and demonstration data",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/published-evidence.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: published evidence",
+      "path": "documents/published-evidence.md"
+    },
+    {
+      "document_id": "crime-methodology",
+      "title": "How to interpret recorded crime evidence",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/crime-methodology.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: crime methodology",
+      "path": "documents/crime-methodology.md"
+    },
+    {
+      "document_id": "schools-and-places",
+      "title": "How to interpret schools and nearby places",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/schools-and-places.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: schools and places",
+      "path": "documents/schools-and-places.md"
+    },
+    {
+      "document_id": "geography-and-coverage",
+      "title": "Geographic matching and evidence coverage limits",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/geography-and-coverage.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: geography and coverage",
+      "path": "documents/geography-and-coverage.md"
+    },
+    {
+      "document_id": "unsupported-questions",
+      "title": "Questions Suburb analytics cannot answer",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/unsupported-questions.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: unsupported questions",
+      "path": "documents/unsupported-questions.md"
+    }
+  ]
+}

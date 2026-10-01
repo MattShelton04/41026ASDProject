@@ -1681,6 +1681,11 @@ dependencies = [
     { name = "shared-contracts" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "shared-testkit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "gunicorn", specifier = ">=23,<24" },
@@ -1690,6 +1695,9 @@ requires-dist = [
     { name = "shared-consumer-protocol", editable = "shared/consumer-protocol" },
     { name = "shared-contracts", editable = "shared/contracts" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "shared-testkit", editable = "shared/testkit" }]
 
 [[package]]
 name = "student-4-feature"

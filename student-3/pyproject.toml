@@ -17,3 +17,9 @@ package = false
 
 [tool.uv.sources]
 shared-consumer-protocol = { workspace = true }
+shared-testkit = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "shared-testkit",
+]

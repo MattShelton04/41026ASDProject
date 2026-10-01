@@ -43,7 +43,7 @@
       <a href="#published" data-route="published">Published evidence</a>
       <p class="nav-label">Your research</p>
       <a href="#comparisons" data-route="comparisons">Saved comparisons</a>
-      <a href="#assistant" data-route="assistant">Ask AI about trends</a>
+      <a href="#assistant" data-route="assistant">Ask AI</a>
       <div class="sidebar-note"><strong>Responsible context</strong><span>This feature reports recorded evidence. It does not label suburbs safe, unsafe, good or bad.</span></div>
     </aside>
     <main id="main" tabindex="-1">
@@ -83,19 +83,23 @@
           <label>Sort suburbs<select id="sort-filter"><option value="locality">Name</option><option value="postcode">Postcode</option><option value="lga">Local government area</option></select></label>
         </section>
         <p id="search-status" class="fine-print" role="status">Results update as you type. Clear the search to show all suburbs matching your filters.</p>
-        <div class="explore-grid">
-          <section class="ps-card map-filters" aria-labelledby="filter-title"><div class="ps-card__body">
-            <h3 id="filter-title">Map display</h3>
-            <fieldset><legend>Places to show</legend><label><input type="checkbox" value="school" checked> Schools</label><label><input type="checkbox" value="transport" checked> Transport</label><label><input type="checkbox" value="park" checked> Parks</label></fieldset>
-            <p class="fine-print">Place proximity is straight-line context only. Nearby schools do not imply catchment eligibility.</p>
-          </div></section>
-          <div class="map-stack">
-            <div id="map" class="map" role="region" aria-label="Map of supported suburbs and places"></div>
-            <div id="map-fallback" class="map-fallback" hidden></div>
-            <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
+        <div id="map-assistant-layout" class="ps-ai-context-layout">
+          <div class="map-research-column">
+            <div class="explore-grid">
+              <section class="ps-card map-filters" aria-labelledby="filter-title"><div class="ps-card__body">
+                <h3 id="filter-title">Map display</h3>
+                <fieldset><legend>Places to show</legend><label><input type="checkbox" value="school" checked> Schools</label><label><input type="checkbox" value="transport" checked> Transport</label><label><input type="checkbox" value="park" checked> Parks</label></fieldset>
+                <p class="fine-print">Place proximity is straight-line context only. Nearby schools do not imply catchment eligibility.</p>
+              </div></section>
+              <div class="map-stack">
+                <div id="map" class="map" role="region" aria-label="Map of supported suburbs and places"></div>
+                <div id="map-fallback" class="map-fallback" hidden></div>
+                <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
+              </div>
+            </div>
+            <section id="suburb-detail" class="suburb-detail ps-card" aria-live="polite" hidden></section>
           </div>
         </div>
-        <section id="suburb-detail" class="suburb-detail ps-card" aria-live="polite" hidden></section>
         <form id="search-form" class="ps-input-shell suburb-search" role="search" aria-label="Search overview suburbs">
           <span aria-hidden="true">⌕</span><label class="ps-sr-only" for="search">Search suburb or postcode</label>
           <input id="search" name="q" type="search" placeholder="Type a suburb or postcode…" maxlength="80" list="suburb-search-options" aria-describedby="search-status">

@@ -310,6 +310,7 @@ test("readiness follows the feature ingress on both direct and shared hosts", ()
 
 test("frontend exposes map, chart table, CRUD and responsible-use language", () => {
   assert.match(html, /id="map"/);
+  assert.match(html, /id="map-assistant-layout"/);
   assert.match(html, /id="suburb-detail"/);
   assert.match(html, /id="offence"/);
   assert.match(html, /id="assistant-root"/);
@@ -320,6 +321,10 @@ test("frontend exposes map, chart table, CRUD and responsible-use language", () 
   assert.match(js, /crime\/compare/);
   assert.match(js, /area-series/);
   assert.match(js, /createFeatureAssistant/);
+  assert.match(js, /createAssistantSidecar/);
+  assert.match(js, /Ask about \$\{escapeHtml\(suburb\.locality\)\}/);
+  assert.doesNotMatch(js, /Compare recorded offence trends for Parramatta and Newtown/);
+  assert.match(js, /Crime comparisons stay in the deterministic Crime trends workspace/);
   assert.match(js, /\(missing\)/);
   assert.doesNotMatch(js, /setLayerData\("suburbs"/);
   assert.match(js, /createMap/);

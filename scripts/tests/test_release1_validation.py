@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -234,7 +235,7 @@ def test_unknown_feature_and_tool_are_reported_distinctly(tmp_path: Path) -> Non
         resolve_mcp_tool(paths, FEATURE, "absent.v1")
 
 
-@pytest.mark.parametrize("number", [1, 2, 4, 5])
+@pytest.mark.parametrize("number", [1, 2, 3, 4, 5])
 def test_corpus_resolves_from_the_features_own_manifest(number: int) -> None:
     root = Path(__file__).resolve().parents[2]
     manifest = yaml.safe_load((root / f"student-{number}/feature.yaml").read_text("utf-8"))
@@ -242,10 +243,16 @@ def test_corpus_resolves_from_the_features_own_manifest(number: int) -> None:
     assert resolve_corpus(manifest["feature_key"]) == manifest["onboarding"]["ai"]["rag_corpus_id"]
 
 
-def test_feature_without_a_corpus_is_told_what_to_declare() -> None:
-    # Any enabled feature that has not yet adopted RAG; features adopt independently.
+def test_feature_without_a_corpus_is_told_what_to_declare(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Every current feature has adopted RAG, so retain the negative contract with a bounded double.
+    import scripts.release1_validation as validation
+
+    feature = SimpleNamespace(feature_key="student-9-no-corpus", ai=None)
+    monkeypatch.setattr(
+        validation, "_enabled_projection", lambda: SimpleNamespace(features=[feature])
+    )
     with pytest.raises(RuntimeError, match=r"declare ai\.rag_corpus"):
-        resolve_corpus("student-3-suburb-analytics")
+        resolve_corpus(feature.feature_key)
 
 
 def test_unknown_feature_is_rejected() -> None:
