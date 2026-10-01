@@ -166,7 +166,7 @@ def test_assistant_turn_is_bounded_to_neutral_feature_tools() -> None:
     assert ai.payload is not None
     assert ai.payload["tool_allowlist"] == list(TOOL_ALLOWLIST)
     assert "crime.compare.v1" not in ai.payload["tool_allowlist"]
-    assert ai.payload["trusted_identifiers"] == [{"kind": "locality", "value": "Parramatta"}]
+    assert "trusted_identifiers" not in ai.payload
     objective = ai.payload["objective"]
     assert "do not infer crime causes" in objective.casefold()
     assert "Do not compare or rank suburbs" in objective

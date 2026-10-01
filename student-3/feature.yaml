@@ -25,6 +25,7 @@ onboarding:
     runtime_path: /etc/ai-mode/suburb-analytics-tools.yaml
     rag_corpus: student-3/config/rag/corpus.json
     rag_corpus_id: suburb-analytics-guidance
+    rag_evidence_kinds: [project_guidance, fixture, official]
   quality:
     python_test_paths:
       - student-3/tests

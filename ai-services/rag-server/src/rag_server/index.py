@@ -137,6 +137,7 @@ class CorpusIndex:
         embedder: Embedder,
         allowed_corpora: frozenset[tuple[str, str]],
         *,
+        official_evidence_corpora: frozenset[tuple[str, str]] = frozenset(),
         retained_versions: int = 3,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
@@ -146,6 +147,9 @@ class CorpusIndex:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.embedder = embedder
         self.allowed_corpora = allowed_corpora
+        if not official_evidence_corpora.issubset(allowed_corpora):
+            raise ValueError("official evidence corpora must also be registered corpora")
+        self.official_evidence_corpora = official_evidence_corpora
         self.retained_versions = retained_versions
         self.clock = clock
         self._lock = threading.RLock()
@@ -211,10 +215,16 @@ class CorpusIndex:
 
     def ingest(self, request: CorpusIngestRequest) -> CorpusVersion:
         self.check_scope(request.feature_key, request.corpus_id)
-        # R1 admits authored public guidance and clearly labelled fixtures only.
-        if any(document.evidence_kind == "official" for document in request.documents):
+        if (
+            any(document.evidence_kind == "official" for document in request.documents)
+            and (
+                request.feature_key,
+                request.corpus_id,
+            )
+            not in self.official_evidence_corpora
+        ):
             raise CorpusScopeDeniedError(
-                "Official evidence requires a separately approved source adapter"
+                "Official evidence requires an explicitly approved corpus source adapter"
             )
         documents = sorted(
             (document.evolve(text=normalize(document.text)) for document in request.documents),

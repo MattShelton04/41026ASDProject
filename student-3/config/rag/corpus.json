@@ -62,6 +62,26 @@
       "evidence_kind": "project_guidance",
       "location": "Suburb analytics guidance: unsupported questions",
       "path": "documents/unsupported-questions.md"
+    },
+    {
+      "document_id": "amenities-and-transport",
+      "title": "How to interpret amenities and transport evidence",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/amenities-and-transport.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: amenities and transport",
+      "path": "documents/amenities-and-transport.md"
+    },
+    {
+      "document_id": "locality-projection",
+      "title": "Geometry-free locality evidence for the assistant",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/locality-projection.md",
+      "source_date": "2026-10-02",
+      "license": "CC0-1.0 (repository-authored project guidance only)",
+      "evidence_kind": "project_guidance",
+      "location": "Suburb analytics guidance: locality projection",
+      "path": "documents/locality-projection.md"
     }
   ]
 }

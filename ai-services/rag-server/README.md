@@ -2,8 +2,9 @@
 
 This local Flask service owns a bounded SQLite vector/metadata index. Feature backends reach it
 through authenticated AI-mode retrieval; no feature database is opened and no document URL is fetched.
-Only registered public project-guidance corpora are admitted. Private notes, case documents and raw
-warehouse records require a future owner-scoped contract and are rejected today.
+Registered public project-guidance corpora are admitted by default. Official evidence requires an
+exact-corpus opt-in plus a reviewed source adapter; private notes, case documents and raw warehouse
+records remain rejected.
 
 The launcher runs RAG only as a non-containerised host process on loopback, with its index and
 model cache under `.propertyscope-runtime/host/rag/`. See the
@@ -45,6 +46,7 @@ alternatively contain inline `text`; its HTTP payload is the normalized `CorpusI
 | `RAG_MODEL_CACHE_PATH` | `.propertyscope-runtime/host/rag/models`; prepared local assets |
 | `RAG_EMBEDDING_MODE` | `semantic`; explicit `fixture` enables deterministic lexical hashing |
 | `RAG_ALLOWED_CORPORA` | `student-1-propertyscope-data-platform:operator-guidance`; comma-separated exact pairs |
+| `RAG_OFFICIAL_EVIDENCE_CORPORA` | Empty; exact registered corpus pairs whose reviewed adapters may submit `official` documents |
 
 Fixture mode validates mechanics and must never be reported as semantic quality. Changing embedding
 identity requires complete reingestion; an old-model index reports unavailable until refreshed.
@@ -84,8 +86,9 @@ complete active version. Reingesting an earlier complete batch reactivates its c
   defaults to 5,000 characters (maximum 12,000). Complete excerpts that cannot fit are omitted.
 - SQLite exclusive locking prevents a second service owner. In-process requests serialize index
   mutations and searches. This bounded local teaching deployment is not a multi-replica search service.
-- Only project-authored guidance and labelled fixture evidence are currently ingestible; an official
-  evidence adapter requires separate source/permission review. HTTP(S) citations are references only.
+- Project-authored guidance and labelled fixtures are ingestible by default. Official evidence is
+  accepted only for exact corpus scopes projected from a feature's reviewed source-adapter opt-in.
+  HTTP(S) citations are references only.
 - Fixed character chunking can split prose and dense-vector relevance does not prove entailment.
   Evaluation and server-side grounded-claim validation remain necessary.
 

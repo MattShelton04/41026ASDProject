@@ -324,6 +324,9 @@ def test_derived_corpus_scope_matches_the_literal_it_replaced(isolated: Path) ->
     assert "student-1-propertyscope-data-platform:operator-guidance" in scope
     assert len(scope) == len(set(scope))
     assert resolved["AI_MODE_RAG_CORPORA"] == resolved["RAG_ALLOWED_CORPORA"]
+    assert resolved["RAG_OFFICIAL_EVIDENCE_CORPORA"] == (
+        "student-3-suburb-analytics:suburb-analytics-guidance"
+    )
 
 
 def test_corpus_scopes_come_from_enabled_declarations(

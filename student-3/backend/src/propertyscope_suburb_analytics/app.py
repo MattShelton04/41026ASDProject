@@ -618,11 +618,6 @@ def create_app(
                         "feature_key": FEATURE_KEY,
                         "objective": objective,
                         "title": message[:160],
-                        **(
-                            {"trusted_identifiers": [{"kind": "locality", "value": locality}]}
-                            if locality
-                            else {}
-                        ),
                         "prompt_set": "default.v7",
                         "tool_allowlist": list(TOOL_ALLOWLIST),
                         "limits": {

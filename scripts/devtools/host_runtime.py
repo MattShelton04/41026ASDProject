@@ -366,6 +366,14 @@ def prepare_environment(
             "No enabled feature declares a RAG corpus; add ai.rag_corpus and "
             "ai.rag_corpus_id to a feature.yaml, or start AI in direct or mcp mode"
         )
+    projection = DeploymentProjectionV1.model_validate_json(
+        (REPOSITORY_ROOT / "deployment/enabled-features.v1.json").read_text(encoding="utf-8")
+    )
+    official_corpora = ",".join(projection.official_evidence_corpus_scopes())
+    if official_corpora:
+        result.setdefault("RAG_OFFICIAL_EVIDENCE_CORPORA", official_corpora)
+    else:
+        result.pop("RAG_OFFICIAL_EVIDENCE_CORPORA", None)
     return result
 
 
