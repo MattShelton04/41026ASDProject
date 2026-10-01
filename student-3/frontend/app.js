@@ -1,10 +1,10 @@
 import { trendPath } from "./trend.js";
 import { escapeHtml, requestJsonResponse, createLatestTask } from "./browser/index.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "./mapping/index.js";
-import { createFeatureAssistant } from "./ai-chat/index.js";
+import { createAssistantClient, createAssistantSidecar, createFeatureAssistant, featureActivityHref } from "./ai-chat/index.js";
 
 const API = "/api/suburb-analytics/v1";
-const state = { suburbs: [], places: [], map: null, comparisons: [], assistant: null, selectedLocality: "" };
+const state = { suburbs: [], places: [], map: null, comparisons: [], assistant: null, mapAssistant: null, selectedLocality: "" };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 let suburbSelection = 0;
@@ -179,6 +179,8 @@ async function selectSuburb(locality) {
   const selectedSuburb = state.suburbs.find((item) => item.locality === locality);
   if (!selectedSuburb) return;
   const selection = ++suburbSelection;
+  state.mapAssistant?.destroy();
+  state.mapAssistant = null;
   state.selectedLocality = locality;
   state.places = [];
   $("#suburb-detail").hidden = false;
@@ -246,7 +248,7 @@ function renderSuburbDetail(suburb, metrics, context = {}) {
   const detail = $("#suburb-detail");
   detail.hidden = false;
   detail.setAttribute("aria-busy", "false");
-  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
+  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button><button class="ps-button ps-button--small ps-button--primary" type="button" data-ask-locality="${escapeHtml(suburb.locality)}">Ask about ${escapeHtml(suburb.locality)}</button></div></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
   detail.querySelector?.("[data-compare-locality]")?.addEventListener("click", () => {
     $("#locality-a").value = suburb.locality;
     location.hash = "#trends";
@@ -259,6 +261,36 @@ function renderSuburbDetail(suburb, metrics, context = {}) {
   bookmark.addEventListener("click", () => toggleBookmark(suburb.locality));
   detail.querySelector?.(".suburb-detail__heading")?.append(bookmark);
   updateBookmarkControls();
+  mountMapAssistant(suburb.locality, detail.querySelector("[data-ask-locality]"));
+}
+
+function mountMapAssistant(locality, trigger) {
+  state.mapAssistant?.destroy();
+  const client = createAssistantClient({ apiRoot: `${API}/assistant` });
+  state.mapAssistant = createAssistantSidecar({
+    root: $("#map-assistant-layout"),
+    trigger,
+    client,
+    context: { route: "suburbs/detail", locality },
+    scopes: [{ id: "feature", label: locality, description: `Published evidence for ${locality}.` }],
+    suggestions: [
+      `What published evidence is available for ${locality}?`,
+      `Which evidence is missing for ${locality}?`,
+      "What do the nearby school records establish?",
+    ],
+    activityHref: featureActivityHref({
+      featureKey: "student-3-suburb-analytics",
+      featureLabel: "Suburb context",
+      returnTo: "/features/suburb-analytics/#explore",
+    }),
+    draftKey: `propertyscope:suburb-map-assistant:${locality}`,
+    title: `Ask about ${locality}`,
+    description: "Answers use published locality evidence and reviewed Feature 3 guidance.",
+    welcomeTitle: `Questions about ${locality}`,
+    welcomeMessage: "I can explain the evidence shown here, its sources and its limits. Crime comparisons stay in the deterministic Crime trends workspace.",
+    placeholder: `Ask about the evidence available for ${locality}…`,
+    announce,
+  });
 }
 
 async function search(event) {
@@ -399,21 +431,21 @@ function initialiseAssistant() {
     featureKey: "student-3-suburb-analytics",
     featureLabel: "Suburb context",
     returnTo: "/features/suburb-analytics/#assistant",
-    scopes: [{ id: "feature", label: "Suburb context", description: "Supported suburb facts, amenities, indicators and recorded crime trends." }],
+    scopes: [{ id: "feature", label: "Suburb context", description: "Published suburb evidence, sources, methodology and limitations." }],
     contextOptions: [
-      { id: "general", label: "General suburb question", description: "Ask across the supported demonstration footprint.", context: {} },
-      { id: "locality", label: "Selected suburb", description: "Ground the question in an exact supported NSW locality.", context: { route: "suburbs/detail" }, parameter: { name: "locality", label: "Locality", placeholder: "Parramatta", help: "Enter one suburb shown in the supported locality list." } },
+      { id: "general", label: "General guidance", description: "Ask what Feature 3 covers, how evidence should be interpreted, or what it cannot establish.", context: { route: "assistant" } },
+      { id: "locality", label: "Selected suburb", description: "Ground the question in one exact supported NSW locality.", context: { route: "suburbs/detail" }, parameter: { name: "locality", label: "Locality", placeholder: "Parramatta", help: "Enter one suburb shown in the supported locality list." } },
     ],
     suggestions: [
-      "Compare recorded offence trends for Parramatta and Newtown.",
-      "What amenity evidence is available for the selected suburb?",
-      "Which practical questions should I verify before comparing these suburbs?",
+      "What is the difference between published and demonstration data?",
+      "How does Feature 3 distinguish recorded zero from missing evidence?",
+      "What can nearby-school evidence establish?",
     ],
     title: "Ask about suburb evidence",
-    description: "Ask questions about supported suburb statistics, amenities, liveability context and recorded trends. Every answer is a bounded, reviewable AI activity run.",
+    description: "Ask about one supported locality, Feature 3 methodology, sources and evidence limits. Use Crime trends for deterministic suburb comparisons.",
     welcomeTitle: "What would you like to understand?",
-    welcomeMessage: "I use allowlisted suburb evidence tools, keep counts and rates distinct, and will not rank suburb safety or desirability.",
-    placeholder: "Ask about a suburb statistic, trend, amenity or practical next step…",
+    welcomeMessage: "I use published locality evidence and reviewed guidance. I do not compare or rank suburbs, predict crime or recommend where to buy.",
+    placeholder: "Ask about a locality, source, methodology or evidence limitation…",
     announce,
   });
 }
@@ -437,7 +469,7 @@ async function init() {
     if (current) chooseSuburb(current);
   }));
   try { const [health, suburbs] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), fetchAllPublishedSuburbs()]); state.suburbs = suburbs; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Published data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
-  addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
+  addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.mapAssistant?.destroy?.(); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
   route();
 }
 

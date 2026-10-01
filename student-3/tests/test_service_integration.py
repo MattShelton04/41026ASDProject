@@ -12,7 +12,7 @@ from wsgiref.simple_server import make_server
 
 import pytest
 
-from propertyscope_suburb_analytics.app import create_app
+from propertyscope_suburb_analytics.app import FEATURE_KEY, TOOL_ALLOWLIST, create_app
 from propertyscope_suburb_analytics.clients import HttpClient, ServiceError
 from propertyscope_suburb_store.app import create_app as create_store
 from propertyscope_suburb_store.repository import Repository
@@ -36,6 +36,17 @@ def optional_service(environ: dict[str, Any], start: Any) -> list[bytes]:
     path = environ["PATH_INFO"]
     if path.endswith("/map-context"):
         result = {"latitude": -33.815, "longitude": 151.001}
+    elif path == "/api/v1/agent-runs/run-1":
+        result = {
+            "run": {
+                "id": "run-1",
+                "feature_key": FEATURE_KEY,
+                "tool_allowlist": list(TOOL_ALLOWLIST),
+                "status": "succeeded",
+            }
+        }
+    elif path.endswith("/events"):
+        result = {"items": []}
     else:
         result = {"id": "run-1", "status": "queued", "items": []}
     start("200 OK", [("Content-Type", "application/json")])
@@ -69,7 +80,7 @@ def services(tmp_path: Path) -> Iterator[tuple[HttpClient, HttpClient]]:
         (f"{BASE}/crime/compare?localities=Parramatta,Newtown&measure=count", "series"),
         (f"{BASE}/crime/methodology", "zero_missing_rule"),
         (f"{BASE}/assistant/capabilities", "tools"),
-        (f"{BASE}/assistant/turns/run-1", "id"),
+        (f"{BASE}/assistant/turns/run-1", "run"),
         (f"{BASE}/assistant/turns/run-1/events?after=0", "items"),
     ],
 )
@@ -108,7 +119,9 @@ def test_comparison_crud_persists_through_the_database_api(
     with pytest.raises(ServiceError) as error:
         backend.request("PUT", path, payload | {"version": 1})
     assert error.value.status == 409
-    assert backend.request("POST", f"{path}/agent-runs", {})["id"] == "run-1"
+    with pytest.raises(ServiceError) as error:
+        backend.request("POST", f"{path}/agent-runs", {})
+    assert error.value.status == 404
     assert backend.request("DELETE", path) == {"deleted": True}
     for method in ("GET", "DELETE", "PUT"):
         with pytest.raises(ServiceError) as error:
@@ -119,6 +132,7 @@ def test_comparison_crud_persists_through_the_database_api(
 @pytest.mark.parametrize(
     "tool,payload,key",
     [
+        ("suburb.published-context.v1", {"locality": "Parramatta"}, "status"),
         ("suburb.snapshot.v1", {"locality": "Parramatta"}, "suburb"),
         ("crime.methodology.v1", {}, "rate_method"),
         (

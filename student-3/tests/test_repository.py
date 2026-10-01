@@ -5,7 +5,12 @@ from typing import Any
 
 import pytest
 
-from propertyscope_suburb_store.repository import DEMO_AMENITIES, SUBURBS, Repository
+from propertyscope_suburb_store.repository import (
+    DEMO_AMENITIES,
+    SEEDED_COMPARISONS,
+    SUBURBS,
+    Repository,
+)
 
 
 @pytest.fixture
@@ -21,11 +26,17 @@ def test_seeded_tables_meet_assessed_minimum(repository: Repository) -> None:
 
 
 def test_seeded_comparisons_are_loadable(repository: Repository) -> None:
-    supported = {locality for _key, locality, *_rest in SUBURBS}
     comparisons = repository.comparisons()
-    assert len(comparisons) == len(SUBURBS)
+    expected_localities = {
+        locality for _, localities, _ in SEEDED_COMPARISONS for locality in localities
+    }
+    assert len(comparisons) == len(SEEDED_COMPARISONS) == 10
     assert all(len(item["localities"]) == 2 for item in comparisons)
-    assert all(set(item["localities"]) <= supported for item in comparisons)
+    assert {
+        locality for item in comparisons for locality in item["localities"]
+    } == expected_localities
+    assert all(item["from_month"] == "2025-07" for item in comparisons)
+    assert all(item["to_month"] == "2026-06" for item in comparisons)
     assert {item["measure"] for item in comparisons} == {"count", "rate"}
 
 

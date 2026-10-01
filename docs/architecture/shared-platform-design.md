@@ -993,11 +993,18 @@ The implemented index is single-owner SQLite with bounded local CPU FastEmbed
 model artifacts; ordinary startup loads prepared files offline and never substitutes fixtures.
 Fixture embeddings are injected only for tests or explicitly labelled mechanical validation.
 Ingestion accepts a complete approved feature/corpus batch; URLs are display metadata and never
-fetched. Unicode/newline normalization, bounded character chunks, source metadata, model hashes
+fetched. Authored guidance and labelled fixtures remain the default. A feature may explicitly
+register its exact corpus scope for `official` evidence when it owns a bounded source adapter that
+verifies accepted artifacts before producing text. Student 3 uses that opt-in for a geometry-free
+projection of selected localities: ABS/NSW geometry is used transiently for association, while the
+indexed documents retain only names, bounded facility observations, limitations and accepted
+release provenance. Other corpora continue to reject official evidence by default.
+Unicode/newline normalization, bounded character chunks, source metadata, model hashes
 and preprocessing identity determine the immutable corpus version. Identical replay preserves the
 original ingestion timestamp; changed content activates atomically; failed refresh retains the
-previous active version; omitted documents are withdrawn. Only registered public project guidance
-is admitted. See [the RAG bounds and HTTP contract](../../ai-services/rag-server/README.md).
+previous active version; omitted documents are withdrawn. Only registered public context admitted
+by that corpus's evidence-kind policy is accepted. See
+[the RAG bounds and HTTP contract](../../ai-services/rag-server/README.md).
 
 ### 11.3 Grounded completion and evidence limits
 

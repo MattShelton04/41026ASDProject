@@ -34,6 +34,7 @@ class RagSettings:
     allowed_corpora: frozenset[tuple[str, str]] = frozenset(
         {("student-1-propertyscope-data-platform", "operator-guidance")}
     )
+    official_evidence_corpora: frozenset[tuple[str, str]] = frozenset()
 
     def __post_init__(self) -> None:
         if len(self.token) < 16:
@@ -44,6 +45,10 @@ class RagSettings:
             raise ValueError("RAG_ALLOWED_CORPORA must register 1-20 bounded corpora")
         for feature, corpus in self.allowed_corpora:
             RetrievalRequest(feature_key=feature, corpus_id=corpus, query="configuration")
+        if not self.official_evidence_corpora.issubset(self.allowed_corpora):
+            raise ValueError(
+                "RAG_OFFICIAL_EVIDENCE_CORPORA must be registered in RAG_ALLOWED_CORPORA"
+            )
 
     @classmethod
     def from_environment(cls) -> RagSettings:
@@ -54,6 +59,12 @@ class RagSettings:
             if len(parts) != 2:
                 raise ValueError("RAG_ALLOWED_CORPORA requires feature:corpus pairs")
             allowed.add((parts[0], parts[1]))
+        official: set[tuple[str, str]] = set()
+        for pair in filter(None, os.getenv("RAG_OFFICIAL_EVIDENCE_CORPORA", "").split(",")):
+            parts = pair.strip().split(":")
+            if len(parts) != 2:
+                raise ValueError("RAG_OFFICIAL_EVIDENCE_CORPORA requires feature:corpus pairs")
+            official.add((parts[0], parts[1]))
         return cls(
             token=os.getenv("RAG_SERVICE_TOKEN", ""),
             database_path=os.getenv(
@@ -64,6 +75,7 @@ class RagSettings:
             ),
             embedding_mode=os.getenv("RAG_EMBEDDING_MODE", "semantic"),
             allowed_corpora=frozenset(allowed),
+            official_evidence_corpora=frozenset(official),
         )
 
 
@@ -82,7 +94,12 @@ def create_app(
                 embedder = LocalEmbedder(settings.model_cache_path)
             except EmbeddingUnavailableError:
                 embedder = UnavailableEmbedder()
-    index = index or CorpusIndex(settings.database_path, embedder, settings.allowed_corpora)
+    index = index or CorpusIndex(
+        settings.database_path,
+        embedder,
+        settings.allowed_corpora,
+        official_evidence_corpora=settings.official_evidence_corpora,
+    )
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
     app.extensions["rag_index"] = index

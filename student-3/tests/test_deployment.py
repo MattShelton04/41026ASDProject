@@ -30,6 +30,13 @@ def test_suburb_frontend_is_enabled_on_a_unique_host_port() -> None:
         item for item in projection["features"] if item["frontend"]["service"] == "f3-frontend"
     )
     assert feature["ai"]["tool_catalog"] == "student-3/tool-catalog.yaml"
+    assert feature["ai"]["rag_corpus"] == "student-3/config/rag/corpus.json"
+    assert feature["ai"]["rag_corpus_id"] == "suburb-analytics-guidance"
+    assert feature["ai"]["rag_evidence_kinds"] == [
+        "project_guidance",
+        "fixture",
+        "official",
+    ]
 
 
 def test_suburb_services_use_http_and_exclusively_owned_storage() -> None:

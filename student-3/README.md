@@ -48,7 +48,9 @@ demonstration fixture; it is not represented as current official crime or liveab
   comparison projection, property map-context integration, AI-mode client and allowlisted tools.
 - `database/`: the only process that opens the feature-owned SQLite file; migrations, five assessed
   tables, ten-plus deterministic records per table and internal CRUD endpoints.
-- `tool-catalog.yaml`: read-only AI tools for suburb snapshots, crime comparison and methodology.
+- `tool-catalog.yaml`: read-only MCP tools for published locality evidence and methodology; the
+  deterministic crime-comparison tool remains outside the current assistant allowlist.
+- `config/rag/`: reviewed public guidance about evidence, interpretation and unsupported claims.
 - `tests/`: persistence, version-conflict, responsible-comparison, AI-degradation and frontend
   contract checks.
 
@@ -180,6 +182,9 @@ replaced while implementing the consumer.
   direct and shared-shell origins have separate lists. Clearing site data removes the shortlist.
 - Nearby-place distances are straight-line distances. School proximity never implies catchment or
   enrolment eligibility.
+- The grounded assistant is available only in the dedicated Ask AI workspace and as a selected-
+  locality sidecar on Overview & map. Crime Trends and Saved Comparisons remain deterministic and
+  expose no AI action. The assistant cannot call the crime-comparison tool.
 
 ## Responsible analytics constraints
 

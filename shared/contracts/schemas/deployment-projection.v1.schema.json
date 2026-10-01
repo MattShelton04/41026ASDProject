@@ -32,6 +32,22 @@
           "default": null,
           "title": "Rag Corpus Id"
         },
+        "rag_evidence_kinds": {
+          "default": [
+            "project_guidance",
+            "fixture"
+          ],
+          "items": {
+            "enum": [
+              "project_guidance",
+              "fixture",
+              "official"
+            ],
+            "type": "string"
+          },
+          "title": "Rag Evidence Kinds",
+          "type": "array"
+        },
         "runtime_path": {
           "maxLength": 300,
           "minLength": 2,

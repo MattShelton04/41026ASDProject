@@ -487,6 +487,48 @@ def test_projection_derives_scopes_only_for_declaring_features() -> None:
     assert projection.corpus_scopes() == ("student-1-example:operator-guidance",)
 
 
+def test_official_evidence_requires_an_explicit_feature_corpus_opt_in() -> None:
+    official = _manifest(
+        owner="student-1",
+        onboarding=_corpus_onboarding(
+            rag_corpus="student-1/config/rag/corpus.json",
+            rag_corpus_id="operator-guidance",
+            rag_evidence_kinds=["project_guidance", "official"],
+        ),
+    )
+    default = _manifest(owner="student-2", onboarding=_onboarding("student-2"))
+    projection = build_deployment_projection(
+        (official, default),
+        DeploymentSelectionV1.model_validate(
+            {
+                "features": [
+                    {"feature_key": "student-1-example", "enabled": True},
+                    {"feature_key": "student-2-example", "enabled": True},
+                ]
+            }
+        ),
+    )
+    assert projection.official_evidence_corpus_scopes() == ("student-1-example:operator-guidance",)
+
+
+@pytest.mark.parametrize(
+    "kinds",
+    [
+        ["official"],
+        ["project_guidance", "official", "official"],
+    ],
+)
+def test_rag_evidence_kinds_reject_unsafe_declarations(kinds: list[str]) -> None:
+    with pytest.raises(ValidationError, match=r"rag_evidence_kinds|project_guidance|duplicates"):
+        _manifest(
+            onboarding=_corpus_onboarding(
+                rag_corpus="student-1/config/rag/corpus.json",
+                rag_corpus_id="operator-guidance",
+                rag_evidence_kinds=kinds,
+            )
+        )
+
+
 def test_repository_projection_matches_declared_corpora() -> None:
     """The shipped projection is what the host launcher scopes RAG with."""
     projection = build_deployment_projection(

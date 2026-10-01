@@ -72,6 +72,10 @@ class AiOnboarding(ContractModel):
     runtime_path: str = Field(min_length=2, max_length=300)
     rag_corpus: str | None = Field(default=None, min_length=1, max_length=300)
     rag_corpus_id: str | None = Field(default=None, pattern=_CORPUS_IDENTIFIER, max_length=100)
+    rag_evidence_kinds: tuple[Literal["project_guidance", "fixture", "official"], ...] = (
+        "project_guidance",
+        "fixture",
+    )
 
     @field_validator("tool_catalog")
     @classmethod
@@ -104,6 +108,10 @@ class AiOnboarding(ContractModel):
         """A registered corpus needs both its manifest and the identifier RAG scopes on."""
         if (self.rag_corpus is None) != (self.rag_corpus_id is None):
             raise ValueError("rag_corpus and rag_corpus_id must be declared together")
+        if len(self.rag_evidence_kinds) != len(set(self.rag_evidence_kinds)):
+            raise ValueError("rag_evidence_kinds must not contain duplicates")
+        if "project_guidance" not in self.rag_evidence_kinds:
+            raise ValueError("rag_evidence_kinds must retain project_guidance")
         return self
 
 
@@ -277,6 +285,16 @@ class DeploymentProjectionV1(ContractModel):
             f"{feature.feature_key}:{feature.ai.rag_corpus_id}"
             for feature in self.features
             if feature.ai is not None and feature.ai.rag_corpus_id is not None
+        )
+
+    def official_evidence_corpus_scopes(self) -> tuple[str, ...]:
+        """Return registered corpus scopes explicitly approved for official evidence."""
+        return tuple(
+            f"{feature.feature_key}:{feature.ai.rag_corpus_id}"
+            for feature in self.features
+            if feature.ai is not None
+            and feature.ai.rag_corpus_id is not None
+            and "official" in feature.ai.rag_evidence_kinds
         )
 
 

@@ -4,6 +4,35 @@ services:
     base_url: http://f3-backend:5301
 tools:
   - definition:
+      name: suburb.published-context.v1
+      version: v1
+      feature_key: student-3-suburb-analytics
+      description: Inspect accepted Feature 1 evidence for one exact NSW locality, including bounded population, school, crime-coverage and source metadata without comparing or ranking suburbs.
+      input_schema:
+        type: object
+        properties:
+          locality: {type: string, minLength: 2, maxLength: 80}
+        required: [locality]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          locality: {type: string}
+          status: {enum: [available, ambiguous, unavailable]}
+          population: {type: [object, "null"]}
+          schools: {type: array, maxItems: 20, items: {type: object}}
+          crime_coverage: {type: array, maxItems: 20, items: {type: object}}
+          sources: {type: array, maxItems: 10, items: {type: object}}
+          limitations: {type: array, maxItems: 10, items: {type: string}}
+        required: [locality, status, population, schools, crime_coverage, sources, limitations]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 4000
+      requires_approval: false
+    service: suburb-analytics-backend
+    method: POST
+    path: /api/suburb-analytics/v1/tools/suburb.published-context.v1
+  - definition:
       name: suburb.snapshot.v1
       version: v1
       feature_key: student-3-suburb-analytics

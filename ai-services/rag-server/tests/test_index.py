@@ -149,6 +149,21 @@ def test_scope_and_initial_evidence_class(index: CorpusIndex) -> None:
         index.ingest(batch(document(evidence_kind="official")))
 
 
+def test_registered_official_source_adapter_can_ingest_official_evidence() -> None:
+    index = CorpusIndex(
+        ":memory:",
+        FixtureEmbedder(),
+        SCOPE,
+        official_evidence_corpora=SCOPE,
+    )
+    try:
+        version = index.ingest(batch(document(evidence_kind="official")))
+        assert version.document_count == 1
+        assert index.retrieve(query()).citations[0].evidence_kind == "official"
+    finally:
+        index.close()
+
+
 def test_empty_no_match_top_k_and_context_budget(index: CorpusIndex) -> None:
     assert index.retrieve(query()).status == "empty"
     index.ingest(batch(*(document(f"doc-{number}") for number in range(10))))
