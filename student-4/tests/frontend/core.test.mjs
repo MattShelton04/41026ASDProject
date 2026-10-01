@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
@@ -204,4 +205,22 @@ test("default checklists are not shared mutable state between reviews", () => {
   const first = buildReviewPayload({title: "first"});
   first.checklist[0].done = true;
   assert.equal(buildReviewPayload({title: "second"}).checklist[0].done, false);
+});
+
+const appSource = readFileSync("student-4/frontend/app.js", "utf8");
+const pageSource = readFileSync("student-4/frontend/index.html", "utf8");
+
+test("the review detail view mounts the shared grounded assistant scoped to the review", () => {
+  assert.match(appSource, /createFeatureAssistant/);
+  assert.match(appSource, /from "\.\/ai-chat\/index\.js"/);
+  assert.match(appSource, /apiRoot: `\$\{API_BASE\}\/assistant`/);
+  assert.match(appSource, /featureKey: "student-4-due-diligence"/);
+  // The selected review must reach the turn as context, or every answer is unscoped.
+  assert.match(appSource, /setContext\(/);
+  assert.match(appSource, /site_review_id: review\.id/);
+});
+
+test("the due-diligence page serves the shared grounded renderer styles", () => {
+  // Criterion 4 is marked on citations and confidence, which the shared renderer owns.
+  assert.match(pageSource, /ai-chat\/styles\.css/);
 });

@@ -1,4 +1,5 @@
 import { el, requestJsonResponse, createLatestTask, pollUntilSettled } from "./browser/index.js";
+import { createFeatureAssistant } from "./ai-chat/index.js";
 
 // Student 4 - Site, Planning & Building Due Diligence frontend.
 // Dependency-free ES module with a tiny hash router (#site-reviews list,
@@ -14,6 +15,7 @@ const routeTask = createLatestTask();
 const questionTask = createLatestTask();
 const propertySearchTask = createLatestTask();
 let activeMap = null;
+let activeAssistant = null;
 
 export const API_BASE = "/api/due-diligence/v1";
 
@@ -512,6 +514,67 @@ async function renderDetailView(view, id, task) {
   if (review.notes) stack.append(notesCard(review.notes));
   view.append(stack, questionsCard(review));
 
+  const assistantRoot = el("div", "review-assistant");
+  view.append(assistantSection(assistantRoot));
+  mountReviewAssistant(assistantRoot, review);
+}
+
+function assistantSection(root) {
+  const card = el("article", "ps-card");
+  const body = el("div", "ps-card__body");
+  body.append(el("h2", "card-title", "Ask about this review"));
+  body.append(
+    el(
+      "p",
+      "questions-help",
+      "Ask about this review\u2019s planning, environmental, strata and building evidence. "
+        + "Answers are grounded in this feature\u2019s published guidance with source citations "
+        + "and a confidence category. Verify AI suggestions with a qualified professional.",
+    ),
+  );
+  body.append(root);
+  card.append(body);
+  return card;
+}
+
+function mountReviewAssistant(root, review) {
+  activeAssistant?.destroy();
+  activeAssistant = createFeatureAssistant({
+    root,
+    apiRoot: `${API_BASE}/assistant`,
+    featureKey: "student-4-due-diligence",
+    featureLabel: "Site & due diligence",
+    returnTo: "/features/due-diligence/#site-reviews",
+    scopes: [
+      {
+        id: "feature",
+        label: "Site & due diligence",
+        description:
+          "Planning, environmental, strata and building evidence for a verified property, "
+          + "plus this feature\u2019s published guidance.",
+      },
+    ],
+    suggestions: [
+      "What planning and environmental evidence still needs professional checking?",
+      "Which strata or building matters should a buyer confirm before proceeding?",
+      "What can this review\u2019s evidence not establish about the property?",
+    ],
+    title: "Ask about this review",
+    description:
+      "Ask about this review\u2019s evidence, its gaps and its limits. Every answer is a "
+      + "bounded, reviewable AI activity run with source citations and a confidence category.",
+    welcomeTitle: "What would you like to understand?",
+    welcomeMessage:
+      "I read this review through read-only tools and this feature\u2019s published guidance. "
+      + "I do not certify compliance, safety or legal suitability, and I flag where evidence "
+      + "is unavailable.",
+    placeholder: "Ask about the evidence, gaps or limits of this review\u2026",
+    announce: (message) => showToast(message),
+  });
+  activeAssistant.controller.setContext({
+    site_review_id: review.id,
+    display_label: review.address_display || review.title || `Review ${review.id}`,
+  });
 }
 
 // --- create / edit / delete dialogs ---
@@ -793,6 +856,8 @@ async function route(options) {
   questionTask.cancel();
   activeMap?.destroy();
   activeMap = null;
+  activeAssistant?.destroy();
+  activeAssistant = null;
   const view = document.querySelector("#view");
   if (!view) return;
   const parsed = parseRoute(location.hash);
@@ -819,7 +884,7 @@ function initialise() {
     });
   }
   window.addEventListener("hashchange", () => route({ focus: true }));
-  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
+  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); activeAssistant?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
 
   const dialog = document.querySelector("#review-dialog");
   if (dialog) {
