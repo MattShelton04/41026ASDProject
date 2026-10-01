@@ -24,6 +24,112 @@ ALLOWED_MEASURES = {"count", "rate"}
 ALLOWED_OFFENCES = {"all_recorded", "property", "person"}
 
 
+def _published_suburb(context: dict[str, Any]) -> dict[str, Any]:
+    """Project Feature 1 evidence into the neutral suburb shape used by the UI."""
+    population = context.get("population") or []
+    schools = context.get("schools") or []
+    first_population = population[0] if len(population) == 1 else {}
+    coordinates = [
+        (float(item["latitude"]), float(item["longitude"]))
+        for item in schools
+        if isinstance(item.get("latitude"), (int, float))
+        and isinstance(item.get("longitude"), (int, float))
+    ]
+    locality = (
+        first_population.get("sal_name")
+        or schools[0].get("locality_original")
+        or context.get("locality", "")
+    )
+    sources = context.get("sources") or []
+    release_ids = sorted(
+        {str(item.get("release_id")) for item in sources if item.get("release_id")}
+    )
+    return {
+        "id": locality.casefold().replace(" ", "-"),
+        "state": first_population.get("state") or "NSW",
+        "locality": locality,
+        "postcode": "",
+        "lga": schools[0].get("lga", "") if schools else "",
+        "latitude": sum(item[0] for item in coordinates) / len(coordinates)
+        if coordinates
+        else None,
+        "longitude": sum(item[1] for item in coordinates) / len(coordinates)
+        if coordinates
+        else None,
+        "source_release": ", ".join(release_ids) or "published-feature-1",
+        "coverage_status": "published",
+        "population": first_population.get("usual_resident_population"),
+        "area_km2": None,
+        "description": (
+            "Published Feature 1 evidence for this NSW locality. "
+            "Review the source coverage and limitations before making decisions."
+        ),
+        "observed_at": max(
+            (str(item.get("source_retrieved_at", "")) for item in sources),
+            default="",
+        ),
+        "seifa": first_population,
+        "school_count": len(schools),
+        "catchment_status": "not_assessed",
+    }
+
+
+def _published_crime_series(
+    context: dict[str, Any], measure: str, offence: str, start: str, end: str
+) -> list[dict[str, Any]]:
+    """Aggregate published BOCSAR category rows without inventing missing months."""
+    rows = context.get("crime") or []
+    if offence != "all_recorded":
+        terms = {
+            "property": ("theft", "robbery", "arson", "property", "fraud", "damage"),
+            "person": ("assault", "homicide", "sexual", "abduction", "intimidation", "person"),
+        }[offence]
+        rows = [
+            row
+            for row in rows
+            if any(term in str(row.get("source_category_key", "")).casefold() for term in terms)
+        ]
+    observed: dict[str, float] = {}
+    observed_months: set[str] = set()
+    for row in rows:
+        observed_months.update(str(value)[:7] for value in row.get("observed_months", []))
+        for item in row.get("observations", []):
+            month = str(item.get("month", ""))[:7]
+            if start <= month <= end and isinstance(item.get("count"), (int, float)):
+                observed[month] = observed.get(month, 0) + float(item["count"])
+    months = sorted({month for month in observed if start <= month <= end})
+    if not months:
+        months = sorted(month for month in observed_months if start <= month <= end)
+    population = (context.get("population") or [{}])[0].get("usual_resident_population")
+    result = []
+    for month in months:
+        value = observed.get(month)
+        if measure == "rate":
+            value = (
+                round(value / population * 100000, 1) if value is not None and population else None
+            )
+        result.append(
+            {
+                "month": month,
+                "value": value,
+                "unit": "per 100,000" if measure == "rate" else "count",
+                "zero_missing_state": "recorded_zero" if value == 0 else "observed",
+                "measure_source": "bocsar_published_count"
+                if measure == "count"
+                else "calculated_from_seifa_population",
+                "source_release": next(
+                    (
+                        str(source.get("release_id"))
+                        for source in context.get("sources", [])
+                        if source.get("dataset_id") == "bocsar-crime"
+                    ),
+                    "published-feature-1",
+                ),
+            }
+        )
+    return result
+
+
 def _response(
     start: StartResponse, status: int, payload: object, content_type: str = "application/json"
 ) -> Iterable[bytes]:
@@ -159,6 +265,61 @@ def create_app(
                     data.request(
                         "GET", "/internal/v1/" + path.removeprefix(BASE + "/") + "?" + raw_query
                     ),
+                )
+            if path == f"{BASE}/published/crime/compare" and method == "GET":
+                localities = [
+                    item.strip() for item in query.get("localities", "").split(",") if item.strip()
+                ]
+                measure = query.get("measure", "count")
+                offence = query.get("offence", "all_recorded")
+                if (
+                    not 2 <= len(localities) <= 5
+                    or measure not in ALLOWED_MEASURES
+                    or offence not in ALLOWED_OFFENCES
+                ):
+                    return _problem(
+                        start,
+                        422,
+                        "incomparable_selection",
+                        "Choose two to five localities and one common published measure.",
+                    )
+                start_month = query.get("from", "2025-07")
+                end_month = query.get("to", "2026-06")
+                if not re.fullmatch(r"[0-9]{4}-[0-9]{2}", start_month) or not re.fullmatch(
+                    r"[0-9]{4}-[0-9]{2}", end_month
+                ):
+                    raise ValueError("from and to must be YYYY-MM months")
+                series = []
+                for locality in localities:
+                    context = data.request(
+                        "GET", f"/internal/v1/published/context?locality={quote(locality)}"
+                    )
+                    series.append(
+                        {
+                            "locality": locality,
+                            "items": _published_crime_series(
+                                context, measure, offence, start_month, end_month
+                            ),
+                        }
+                    )
+                return _response(
+                    start,
+                    200,
+                    {
+                        "series": series,
+                        "measure": measure,
+                        "offence": offence,
+                        "from_month": start_month,
+                        "to_month": end_month,
+                        "limitations": [
+                            "BOCSAR observations are published Feature 1 evidence "
+                            "at suburb geography.",
+                            "Rates use the 2021 SEIFA usual-resident population context "
+                            "and are not current denominators.",
+                            "Missing evidence is unavailable, not zero; this comparison "
+                            "is not a safety ranking.",
+                        ],
+                    },
                 )
             if path in {"/health/live", "/health/ready"}:
                 health = data.request("GET", "/health/ready")

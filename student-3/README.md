@@ -125,8 +125,10 @@ commit together; unverified staging is hidden. Failed imports retain the previou
 Unknown commit outcomes reconcile durable state before lease recovery. Explicit retry retains the
 previous failure receipt; it does not silently retry terminal failures forever.
 
-Open the **Published evidence** sidebar tab at `http://localhost:5600/#published`. It is separate
-from **Overview & map**, and contains imported-locality search and collapsed operator controls.
+Open the **Published evidence** sidebar tab at `http://localhost:5600/#published` to inspect the
+accepted releases. **Overview & map** and **Crime trends** now use those same published records;
+the map shows published school locations after selecting a locality and the trend comparison uses
+published BOCSAR observations.
 The backend checks already
 accepted releases at startup and every fifteen minutes, independently of browser traffic. Repeated
 checks retain the same import identity and do not re-download imported releases. The visible page
@@ -152,7 +154,10 @@ are zero only inside the declared observation universe when the source permits i
 retained but never relabelled as suburbs. Exact normalised name matching does not resolve boundary
 differences; duplicate ABS locality matches are shown as ambiguous. No rates are calculated from
 2021 population against recent crime. Missing amenities/area/LGA boundaries are not invented.
-Existing demo maps, comparisons and AI tools remain explicitly fixture-based and separate.
+School catchment boundaries are not part of the accepted Feature 1 releases, so the UI labels
+catchment status as `not_assessed` and never infers eligibility from school proximity. Saved
+comparisons and AI tools retain their existing bounded behavior while their evidence calls are
+being migrated to the published projection.
 
 The owned record index includes `(operation_id, locality, record_key)` so locality context can
 filter and return records in order without scanning an entire imported release. Startup upgrades

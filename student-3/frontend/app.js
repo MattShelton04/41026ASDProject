@@ -111,7 +111,7 @@ function route() {
 }
 
 function optionMarkup(selected = "") {
-  return state.suburbs.map((item) => `<option value="${escapeHtml(item.locality)}" ${item.locality === selected ? "selected" : ""}>${escapeHtml(item.locality)} · ${escapeHtml(item.postcode)}</option>`).join("");
+  return state.suburbs.map((item) => `<option value="${escapeHtml(item.locality)}" ${item.locality === selected ? "selected" : ""}>${escapeHtml(item.locality)}${item.postcode ? ` · ${escapeHtml(item.postcode)}` : ""}</option>`).join("");
 }
 
 function populateSelectors() {
@@ -123,14 +123,14 @@ function populateSelectors() {
 
 function renderSuburbs(items) {
   $("#result-count").textContent = `${items.length} supported ${items.length === 1 ? "suburb" : "suburbs"}`;
-  $("#suburb-cards").innerHTML = items.map((item) => `<article class="suburb-card"><button type="button" data-locality="${escapeHtml(item.locality)}"><span class="ps-badge ps-badge--partial">Partial fixture</span><h3>${escapeHtml(item.locality)}</h3><span class="suburb-meta"><span>${escapeHtml(item.postcode)}</span><span>${escapeHtml(item.lga)}</span></span></button></article>`).join("");
+  $("#suburb-cards").innerHTML = items.map((item) => `<article class="suburb-card"><button type="button" data-locality="${escapeHtml(item.locality)}"><span class="ps-badge ps-badge--confirmed">Published Feature 1</span><h3>${escapeHtml(item.locality)}</h3><span class="suburb-meta"><span>${escapeHtml(item.postcode || "Locality source")}</span><span>${escapeHtml(item.lga || "LGA shown after selection")}</span></span></button></article>`).join("");
   $$("[data-locality]").forEach((button) => button.addEventListener("click", () => chooseSuburb(button.dataset.locality)));
 }
 
 function selectedPlaceTypes() { return new Set($$(".map-filters input:checked").map((input) => input.value)); }
 
 function suburbFeatures(items) {
-  return featureCollection(items.map((item) => pointFeature(
+  return featureCollection(items.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => pointFeature(
     item.longitude,
     item.latitude,
     { name: item.locality, postcode: item.postcode, kind: "Supported suburb" },
@@ -153,8 +153,8 @@ async function initialiseMap() {
 }
 
 async function selectSuburb(locality) {
-  const suburb = state.suburbs.find((item) => item.locality === locality);
-  if (!suburb) return;
+  const selectedSuburb = state.suburbs.find((item) => item.locality === locality);
+  if (!selectedSuburb) return;
   const selection = ++suburbSelection;
   state.selectedLocality = locality;
   state.places = [];
@@ -162,45 +162,69 @@ async function selectSuburb(locality) {
   $("#suburb-detail").setAttribute("aria-busy", "true");
   $("#suburb-detail").innerHTML = `<div class="suburb-detail__body"><h3>Loading ${escapeHtml(locality)}</h3><p role="status">Reading the available suburb and amenity evidence…</p><div class="ps-skeleton-lines" aria-hidden="true"><span class="ps-skeleton"></span><span class="ps-skeleton"></span></div></div>`;
   state.map?.setLayerData("places", featureCollection([]));
-  state.map?.flyTo({ longitude: suburb.longitude, latitude: suburb.latitude, zoom: 14 });
-  announce(`Loading amenities for ${locality}…`);
-  const [payload, summary, density, amenityCount, schoolCount, transportCount] = await Promise.all([
-    api(`/suburbs/NSW/${encodeURIComponent(locality)}/places?limit=50`),
-    api(`/suburbs/NSW/${encodeURIComponent(locality)}`),
-    api(`/suburbs/NSW/${encodeURIComponent(locality)}/area-series?metric=population_density`),
-    api(`/suburbs/NSW/${encodeURIComponent(locality)}/area-series?metric=amenity_observations`),
-    api(`/suburbs/NSW/${encodeURIComponent(locality)}/area-series?metric=school_observations`),
-    api(`/suburbs/NSW/${encodeURIComponent(locality)}/area-series?metric=transport_observations`),
-  ]);
+  if (Number.isFinite(selectedSuburb.longitude) && Number.isFinite(selectedSuburb.latitude)) {
+    state.map?.flyTo({ longitude: selectedSuburb.longitude, latitude: selectedSuburb.latitude, zoom: 14 });
+  }
+  announce(`Loading published Feature 1 evidence for ${locality}…`);
+  // Published context replaces the legacy demo area-series projections.
+  const context = await api(`/published/context?locality=${encodeURIComponent(locality)}`);
   if (selection !== suburbSelection) return;
   state.selectedLocality = locality;
-  state.places = payload.items.filter((place) => selectedPlaceTypes().has(place.place_type));
-  renderSuburbDetail(summary.suburb, {
-    density: density.items[0],
-    amenities: amenityCount.items[0],
-    schools: schoolCount.items[0],
-    transport: transportCount.items[0],
-  });
-  state.assistant?.controller.setContext({ route: "suburbs/detail", locality });
-  if (state.map) {
-    const points = featureCollection(state.places.map((place) => pointFeature(place.longitude, place.latitude, { name: place.name, type: place.place_type }, place.id)));
-    state.map.setLayerData("places", points);
+  const suburb = publishedSuburb(context);
+  if (Number.isFinite(suburb.longitude) && Number.isFinite(suburb.latitude)) {
+    state.map?.flyTo({ longitude: suburb.longitude, latitude: suburb.latitude, zoom: 14 });
   }
+  const places = (context.schools || context.items || []).map((school) => ({
+    id: school.school_code,
+    name: school.school_name,
+    place_type: "school",
+    latitude: school.latitude,
+    longitude: school.longitude,
+    coverage_status: school.operational_status,
+    source_release: school.provenance?.release_id,
+  }));
+  state.places = places.filter((place) => selectedPlaceTypes().has(place.place_type));
+  renderSuburbDetail(suburb, { schools: { value: places.length }, seifa: context.population?.[0] }, context);
+  state.assistant?.controller.setContext({ route: "suburbs/detail", locality });
+  const points = featureCollection(state.places.map((place) => pointFeature(place.longitude, place.latitude, { name: place.name, type: place.place_type }, place.id)));
+  state.map?.setLayerData("places", points);
   announce(`${state.places.length} filtered places shown for ${locality}.`);
 }
 
-function renderSuburbDetail(suburb, metrics) {
+function publishedSuburb(context) {
+  const population = context.population?.length === 1 ? context.population[0] : {};
+  const schools = context.schools || context.items || [];
+  const coordinates = schools.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+  const locality = population.sal_name || schools[0]?.locality_original || context.locality || "Selected locality";
+  return {
+    id: locality.toLowerCase().replaceAll(" ", "-"),
+    state: population.state || "NSW",
+    locality,
+    postcode: "",
+    lga: schools[0]?.lga || "Not available",
+    latitude: coordinates.length ? coordinates.reduce((sum, item) => sum + item.latitude, 0) / coordinates.length : null,
+    longitude: coordinates.length ? coordinates.reduce((sum, item) => sum + item.longitude, 0) / coordinates.length : null,
+    source_release: (context.sources || []).map((item) => item.release_id).filter(Boolean).join(", ") || "published-feature-1",
+    coverage_status: "published",
+    population: population.usual_resident_population,
+    area_km2: null,
+    description: "Published Feature 1 evidence for this NSW locality. Review source coverage and limitations before making decisions.",
+    observed_at: (context.sources || []).map((item) => item.source_retrieved_at).filter(Boolean).sort().at(-1) || "",
+  };
+}
+
+function renderSuburbDetail(suburb, metrics, context = {}) {
   const values = [
-    [Number.isFinite(suburb.population) ? suburb.population.toLocaleString("en-AU") : "Not available", "Fixture population"],
-    [`${suburb.area_km2} km²`, "Recorded area"],
-    [metrics.density?.value?.toLocaleString?.("en-AU") ?? "—", metrics.density?.unit || "Population density"],
-    [`${metrics.amenities?.value ?? "Not available"}`, "Mapped amenity observations"],
+    [Number.isFinite(suburb.population) ? suburb.population.toLocaleString("en-AU") : "Not available", "2021 usual residents"],
+    [suburb.lga || "Not available", "School-source LGA"],
+    [metrics.seifa?.irsad_australia_decile ? `Decile ${metrics.seifa.irsad_australia_decile}` : "Not available", "SEIFA IRSAD decile"],
+    [`${metrics.schools?.value ?? 0}`, "Published school locations"],
   ];
   const detail = $("#suburb-detail");
   detail.hidden = false;
   detail.setAttribute("aria-busy", "false");
-  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected suburb</p><h3>${escapeHtml(suburb.locality)} · ${escapeHtml(suburb.postcode)}</h3><p>${escapeHtml(suburb.description)}</p></div><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--partial">${escapeHtml(suburb.coverage_status)} coverage</span><span>Source release ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml(suburb.observed_at.slice(0, 10))}</span><span>${metrics.schools?.value ?? 0} school and ${metrics.transport?.value ?? 0} transport observations; no catchment claim</span></div></div>`;
-  detail.querySelector("[data-compare-locality]").addEventListener("click", () => {
+  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
+  detail.querySelector?.("[data-compare-locality]")?.addEventListener("click", () => {
     $("#locality-a").value = suburb.locality;
     location.hash = "#trends";
   });
@@ -210,7 +234,7 @@ function renderSuburbDetail(suburb, metrics) {
   bookmark.className = "ps-button ps-button--small";
   bookmark.dataset.locality = suburb.locality;
   bookmark.addEventListener("click", () => toggleBookmark(suburb.locality));
-  detail.querySelector(".suburb-detail__heading").append(bookmark);
+  detail.querySelector?.(".suburb-detail__heading")?.append(bookmark);
   updateBookmarkControls();
 }
 
@@ -232,10 +256,10 @@ async function filterSuburbs(query = $("#search").value.trim()) {
   const generation = ++suburbFilterGeneration;
   $("#search-status").textContent = "Updating suburb results…";
   try {
-  const params = new URLSearchParams({ q: query, limit: "50", sort: $("#sort-filter").value });
-  if ($("#lga-filter").value) params.set("lga", $("#lga-filter").value);
-  if ($("#amenity-filter").value) params.set("amenity", $("#amenity-filter").value);
-  const payload = await api(`/suburbs?${params}`);
+  const params = new URLSearchParams({ q: query, offset: "0" });
+  const published = await api(`/published/suburbs?${params}`);
+  const items = (published.items || []).map((entry) => typeof entry === "string" ? entry : entry.locality).filter(Boolean);
+  const payload = { items: items.map((locality) => ({ id: locality.toLowerCase().replaceAll(" ", "-"), locality, state: "NSW", postcode: "", lga: "", coverage_status: "published" })), count: items.length, page: { total: items.length } };
   if (generation !== suburbFilterGeneration) return;
   renderSuburbs(payload.items);
   $("#search-status").textContent = payload.items.length
@@ -261,7 +285,7 @@ async function compareTrends(event) {
   chart.setAttribute("aria-busy", "true");
   notice.textContent = "Loading the requested comparison. Any chart still visible is the previously applied result.";
   try {
-    const payload = await api(`/crime/compare?localities=${encodeURIComponent(values.a + "," + values.b)}&from=${values.from}&to=${values.to}&measure=${values.measure}&offence=${values.offence}`, { signal: task.signal });
+    const payload = await api(`/published/crime/compare?localities=${encodeURIComponent(values.a + "," + values.b)}&from=${values.from}&to=${values.to}&measure=${values.measure}&offence=${values.offence}`, { signal: task.signal });
     if (!task.isCurrent()) return;
     if (!Array.isArray(payload.series) || payload.series.length < 2) throw new Error("The service did not return both requested suburb series.");
     renderTrend(payload);
@@ -391,7 +415,7 @@ async function init() {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
     if (current) chooseSuburb(current);
   }));
-  try { const [health, suburbs] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), api("/suburbs?limit=50")]); state.suburbs = suburbs.items; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
+  try { const [health, published] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), api("/published/suburbs?offset=0")]); state.suburbs = published.items.map((locality) => ({ id: locality.toLowerCase().replaceAll(" ", "-"), locality, state: "NSW", postcode: "", lga: "", coverage_status: "published" })); $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Published data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
   addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
   route();
 }

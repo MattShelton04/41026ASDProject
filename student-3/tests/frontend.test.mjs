@@ -93,14 +93,14 @@ test("live search filters only the suburb list, preserves selection and ignores 
   assert.deepEqual(selections, [], "filtering must not change the selected suburb");
 });
 
-test("suburb search belongs only to overview, before the map and suburb cards", () => {
+test("suburb search belongs only to overview, below the selected locality and above suburb cards", () => {
   const overview = html.split('id="explore-view"')[1].split('id="trends-view"')[0];
   const hero = html.split('<section class="hero">')[1].split('</section>')[0];
   assert.doesNotMatch(hero, /id="search-form"/);
   assert.equal(html.match(/id="search-form"/g).length, 1);
-  assert.ok(overview.indexOf('id="search-form"') < overview.indexOf('id="suburb-detail"'));
+  assert.ok(overview.indexOf('id="search-form"') > overview.indexOf('id="suburb-detail"'));
   assert.ok(overview.indexOf('id="search-form"') < overview.indexOf('id="suburb-cards"'));
-  assert.ok(overview.indexOf('id="lga-filter"') > overview.indexOf('id="search-form"'));
+  assert.ok(overview.indexOf('id="lga-filter"') < overview.indexOf('id="search-form"'));
   assert.ok(overview.indexOf('id="sort-filter"') < overview.indexOf('id="suburb-cards"'));
   assert.match(overview, /class="list-filter-bar" aria-labelledby="list-filter-title"/);
   const mapFilters = overview.split('class="ps-card map-filters"')[1].split('class="map-stack"')[0];
@@ -201,7 +201,7 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
     createOpenFreeMapProvider: () => ({}),
     featureCollection: (features) => ({features}),
     pointFeature: (longitude, latitude, properties, id) => ({geometry: {coordinates: [longitude, latitude]}, properties, id}),
-    fetch: async (url) => ({ok: true, json: async () => url.includes("/places?") ? {items: [{id: "school", name: "School", place_type: "school", longitude: 151, latitude: -33.8}, {id: "park", place_type: "park"}]} : {suburb: {}, items: []}}),
+    fetch: async (url) => ({ok: true, json: async () => url.includes("/published/context?") ? {locality: "Parramatta", schools: [{school_code: "school", school_name: "School", latitude: -33.8, longitude: 151, operational_status: "Open"}], population: [], sources: []} : {items: []}}),
   });
   vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, "") + '\nrenderSuburbDetail = () => {}; state.suburbs = [{id:"parramatta",locality:"Parramatta",longitude:151,latitude:-33.8}];', context);
   await vm.runInContext("initialiseMap()", context);
@@ -218,7 +218,7 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
   const pending = [];
   context.fetch = async (url) => {
     if (url.includes("Parramatta")) await new Promise((resolve) => pending.push(resolve));
-    return {ok: true, json: async () => url.includes("/places?") ? {items: [{id:"latest",name:"Latest school",place_type:"school",longitude:151.1,latitude:-33.9}]} : {suburb: {},items: []}};
+    return {ok: true, json: async () => url.includes("/published/context?") ? {locality: "Newtown", schools: [{school_code: "latest", school_name: "Latest school", latitude: -33.9, longitude: 151.1, operational_status: "Open"}], population: [], sources: []} : {items: []}};
   };
   const older = layer.onSelect({properties: {name: "Parramatta"}});
   await layer.onSelect({properties: {name: "Newtown"}});
