@@ -123,7 +123,7 @@ function populateSelectors() {
 
 function renderSuburbs(items) {
   $("#result-count").textContent = `${items.length} supported ${items.length === 1 ? "suburb" : "suburbs"}`;
-  $("#suburb-cards").innerHTML = items.map((item) => `<article class="suburb-card"><button type="button" data-locality="${escapeHtml(item.locality)}"><span class="ps-badge ps-badge--confirmed">Published Feature 1</span><h3>${escapeHtml(item.locality)}</h3><span class="suburb-meta"><span>${escapeHtml(item.postcode || "Locality source")}</span><span>${escapeHtml(item.lga || "LGA shown after selection")}</span></span></button></article>`).join("");
+  $("#suburb-cards").innerHTML = items.map((item) => `<article class="suburb-card"><button type="button" data-locality="${escapeHtml(item.locality)}"><span class="ps-badge ps-badge--confirmed">Published evidence</span><h3>${escapeHtml(item.locality)}</h3><span class="suburb-meta"><span>${escapeHtml(item.postcode || "Locality source")}</span><span>${escapeHtml(item.lga || "LGA shown after selection")}</span></span></button></article>`).join("");
   $$("[data-locality]").forEach((button) => button.addEventListener("click", () => chooseSuburb(button.dataset.locality)));
 }
 
@@ -190,7 +190,7 @@ async function selectSuburb(locality) {
   if (Number.isFinite(selectedSuburb.longitude) && Number.isFinite(selectedSuburb.latitude)) {
     state.map?.flyTo({ longitude: selectedSuburb.longitude, latitude: selectedSuburb.latitude, zoom: 14 });
   }
-  announce(`Loading published Feature 1 evidence for ${locality}…`);
+  announce(`Loading published suburb evidence for ${locality}…`);
   // Published context replaces the legacy demo area-series projections.
   const context = await api(`/published/context?locality=${encodeURIComponent(locality)}`);
   if (selection !== suburbSelection) return;
@@ -229,11 +229,11 @@ function publishedSuburb(context) {
     lga: schools[0]?.lga || "Not available",
     latitude: coordinates.length ? coordinates.reduce((sum, item) => sum + item.latitude, 0) / coordinates.length : null,
     longitude: coordinates.length ? coordinates.reduce((sum, item) => sum + item.longitude, 0) / coordinates.length : null,
-    source_release: (context.sources || []).map((item) => item.release_id).filter(Boolean).join(", ") || "published-feature-1",
+    source_release: (context.sources || []).map((item) => item.release_id).filter(Boolean).join(", ") || "published-source",
     coverage_status: "published",
     population: population.usual_resident_population,
     area_km2: null,
-    description: "Published Feature 1 evidence for this NSW locality. Review source coverage and limitations before making decisions.",
+    description: "Published evidence for this NSW locality. Review source coverage and limitations before making decisions.",
     observed_at: (context.sources || []).map((item) => item.source_retrieved_at).filter(Boolean).sort().at(-1) || "",
   };
 }
@@ -248,7 +248,7 @@ function renderSuburbDetail(suburb, metrics, context = {}) {
   const detail = $("#suburb-detail");
   detail.hidden = false;
   detail.setAttribute("aria-busy", "false");
-  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button><button class="ps-button ps-button--small ps-button--primary" type="button" data-ask-locality="${escapeHtml(suburb.locality)}">Ask about ${escapeHtml(suburb.locality)}</button></div></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
+  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button><button class="ps-button ps-button--small ps-button--primary" type="button" data-ask-locality="${escapeHtml(suburb.locality)}">Ask about ${escapeHtml(suburb.locality)}</button></div></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Source releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
   detail.querySelector?.("[data-compare-locality]")?.addEventListener("click", () => {
     $("#locality-a").value = suburb.locality;
     location.hash = "#trends";
@@ -285,7 +285,7 @@ function mountMapAssistant(locality, trigger) {
     }),
     draftKey: `propertyscope:suburb-map-assistant:${locality}`,
     title: `Ask about ${locality}`,
-    description: "Answers use published locality evidence and reviewed Feature 3 guidance.",
+    description: "Answers use published locality evidence and reviewed suburb guidance.",
     welcomeTitle: `Questions about ${locality}`,
     welcomeMessage: "I can explain the evidence shown here, its sources and its limits. Crime comparisons stay in the deterministic Crime trends workspace.",
     placeholder: `Ask about the evidence available for ${locality}…`,
@@ -433,16 +433,16 @@ function initialiseAssistant() {
     returnTo: "/features/suburb-analytics/#assistant",
     scopes: [{ id: "feature", label: "Suburb context", description: "Published suburb evidence, sources, methodology and limitations." }],
     contextOptions: [
-      { id: "general", label: "General guidance", description: "Ask what Feature 3 covers, how evidence should be interpreted, or what it cannot establish.", context: { route: "assistant" } },
+      { id: "general", label: "General guidance", description: "Ask what suburb analytics covers, how evidence should be interpreted, or what it cannot establish.", context: { route: "assistant" } },
       { id: "locality", label: "Selected suburb", description: "Ground the question in one exact supported NSW locality.", context: { route: "suburbs/detail" }, parameter: { name: "locality", label: "Locality", placeholder: "Parramatta", help: "Enter one suburb shown in the supported locality list." } },
     ],
     suggestions: [
       "What is the difference between published and demonstration data?",
-      "How does Feature 3 distinguish recorded zero from missing evidence?",
+      "How does suburb analytics distinguish recorded zero from missing evidence?",
       "What can nearby-school evidence establish?",
     ],
     title: "Ask about suburb evidence",
-    description: "Ask about one supported locality, Feature 3 methodology, sources and evidence limits. Use Crime trends for deterministic suburb comparisons.",
+    description: "Ask about one supported locality, Suburb context methodology, sources and evidence limits. Use Crime trends for deterministic suburb comparisons.",
     welcomeTitle: "What would you like to understand?",
     welcomeMessage: "I use published locality evidence and reviewed guidance. I do not compare or rank suburbs, predict crime or recommend where to buy.",
     placeholder: "Ask about a locality, source, methodology or evidence limitation…",

@@ -68,12 +68,12 @@ def _published_suburb(context: dict[str, Any]) -> dict[str, Any]:
         "longitude": sum(item[1] for item in coordinates) / len(coordinates)
         if coordinates
         else None,
-        "source_release": ", ".join(release_ids) or "published-feature-1",
+        "source_release": ", ".join(release_ids) or "published-source",
         "coverage_status": "published",
         "population": first_population.get("usual_resident_population"),
         "area_km2": None,
         "description": (
-            "Published Feature 1 evidence for this NSW locality. "
+            "Published evidence for this NSW locality. "
             "Review the source coverage and limitations before making decisions."
         ),
         "observed_at": max(
@@ -202,7 +202,7 @@ def _published_crime_series(
                         for source in context.get("sources", [])
                         if source.get("dataset_id") == "bocsar-crime"
                     ),
-                    "published-feature-1",
+                    "published-source",
                 ),
             }
         )
@@ -391,7 +391,7 @@ def create_app(
                         "from_month": start_month,
                         "to_month": end_month,
                         "limitations": [
-                            "BOCSAR observations are published Feature 1 evidence "
+                            "BOCSAR observations are published source evidence "
                             "at suburb geography.",
                             "Rates use the 2021 SEIFA usual-resident population context "
                             "and are not current denominators.",
@@ -600,7 +600,7 @@ def create_app(
                 history_json = json.dumps(history, ensure_ascii=False, separators=(",", ":"))
                 objective = (
                     "Suburb analytics assistant turn. Use only the allowlisted published-locality "
-                    "and methodology tools plus retrieved Feature 3 guidance. "
+                    "and methodology tools plus retrieved suburb analytics guidance. "
                     + (f"Validated selected locality: {json.dumps(locality)}. " if locality else "")
                     + "Do not compare or rank suburbs; direct comparison requests to the "
                     "deterministic Crime trends workspace. Clearly distinguish recorded zero from "
@@ -765,7 +765,7 @@ def create_app(
                 503 if exc.response.status_code >= 500 else 409,
                 "published_source_unavailable",
                 "An accepted downloadable source release is not available. "
-                "Review it in Feature 1 first.",
+                "Review it in the data platform first.",
             )
         except httpx.HTTPError:
             return _problem(
