@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-3-mcp",
+  "captured_at": "2026-10-03T02:27:37.975917+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "mcp",
+  "feature_key": "student-3-suburb-analytics",
+  "run_id": "820c8083-5ce7-47fb-9212-c94f455f74c2",
+  "request_id": "61778aab-80d6-4ec6-a645-8ea319162e64",
+  "run_created_at": "2026-10-03T02:27:26.518788Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "db347f8a64a37d30bb76620bad8173a6862e71b9ce1603ea81e2453a3049a7ae"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "7a7290a1-7226-4f95-ac4d-575a6685789a",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "80d16462-43cb-4759-bf26-7a534200c5ca",
+      "tool_name": "crime.methodology.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "suburb-analytics-guidance",
+  "corpus_version": "8db8f59a9c9daa8ffd5126f157fa0097a1a83bf9208a2a6c9d81f41321ba3b4a",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "moderate",
+  "citation_count": 4,
+  "evidence_gap_count": 1,
+  "citations": [
+    {
+      "citation_id": "cite-0683379ae5154e3bd1f25d280eef436c9609d34af5a59b039d3b8c4546544280",
+      "document_id": "published-evidence",
+      "chunk_id": "648d04dcc523918917b369129452a8673f44bfe58db6cf7222b76dc408a24ada",
+      "title": "Published evidence and demonstration data",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/published-evidence.md",
+      "source_date": "2026-10-02",
+      "content_hash": "f94847e188670399aadfb8f7c53abe0eaf6a4f6e079aef731869a8ed780a7910",
+      "score": 0.7059538665553071
+    },
+    {
+      "citation_id": "cite-1ba53d6262ea64ce9b5a200b9d02bedec4231df4e225bc7e8da2cf6b21e65a47",
+      "document_id": "crime-methodology",
+      "chunk_id": "454002b8ce681cb06eab0023edd13ac757dc8781f0763788a22d448a2bb5c24d",
+      "title": "How to interpret recorded crime evidence",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/crime-methodology.md",
+      "source_date": "2026-10-02",
+      "content_hash": "f6c34c70ee3990754b221ff9fd1f6aba2f3d116d608e995846ed31924409efde",
+      "score": 0.8189195616955908
+    },
+    {
+      "citation_id": "cite-4b6532f0f2b18d74818b8536fbd5e02385f03555291331846f8d7b47cb55fd4d",
+      "document_id": "published-evidence",
+      "chunk_id": "754126e77fbcb0b9e973a7c3e6b123b9474ab7ab3a8270e736301a1c50d2a0dc",
+      "title": "Published evidence and demonstration data",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/published-evidence.md",
+      "source_date": "2026-10-02",
+      "content_hash": "b44bfe2e347c30b9d6ee07091a2592f6ee0059548656a413df019a05fd52cbde",
+      "score": 0.7617463461628694
+    },
+    {
+      "citation_id": "cite-fa6a65c0273dfe7983c0243c08504025952b5ff20f9e59054c16ae6a057ea5ac",
+      "document_id": "crime-methodology",
+      "chunk_id": "b819b159ebf9018575a839703004063cee48c3a3579b90c4c0013bcc5504ef5f",
+      "title": "How to interpret recorded crime evidence",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/crime-methodology.md",
+      "source_date": "2026-10-02",
+      "content_hash": "654e8b9a9bf99084233aeaae77b8b3b5566778a55e67750da1798885885176a7",
+      "score": 0.7161961024525937
+    }
+  ],
+  "context": {
+    "route": "suburbs/detail",
+    "locality": "PARRAMATTA"
+  },
+  "backend_route": "/api/suburb-analytics/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-3-mcp.png",
+      "sha256": "c5f8984093d04f2a5c70de4be5741f4f1a98c01f83f613dd438f1cb746f4ce4f",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-3-mcp.sources.png",
+      "sha256": "38c1ae303e0f74f261420f1c36627e51c0eaa47811b155fd8fd980e6911a65d7",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-3-mcp.answer.png",
+      "sha256": "7ac01649e39fffc60bc4a4d763f40caaf1dfc46f9863bb5787e65da74d1bd187",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1312
+      },
+      "element_size": {
+        "width": 812,
+        "height": 1072
+      }
+    }
+  ]
+}

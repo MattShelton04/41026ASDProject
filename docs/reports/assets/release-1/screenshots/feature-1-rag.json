@@ -1,0 +1,130 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-1-rag",
+  "captured_at": "2026-10-03T02:26:12.978639+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "rag",
+  "feature_key": "student-1-propertyscope-data-platform",
+  "run_id": "421e03a2-8a0f-40b7-a7f0-c3aa8eec1ba4",
+  "request_id": "87b01001-d8f3-4b17-9f54-28d515b7c949",
+  "run_created_at": "2026-10-03T02:26:03.134480Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "435eae86aa773ee1c6cb5b4b18bb78fde54dc6e0eb89fb86c3c6330eb1b97247"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "e85a8a57-b002-49ae-b0d3-1830bea9b1da",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "72e8fd2f-7aae-435e-a15f-5c2cd4cb1fc5",
+      "tool_name": "platform.capabilities.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "da29fbf773df88ce8a0939cae9f8ade1ca094441e368ac3fba2ac6c9c1cb1fed",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "moderate",
+  "citation_count": 2,
+  "evidence_gap_count": 1,
+  "citations": [
+    {
+      "citation_id": "cite-80627c2139edd24320e0b5386b9f008d43b5ec2302743830964cf1db0d8a0733",
+      "document_id": "property-page",
+      "chunk_id": "dc018ca24d4410a7be8d07a82b24b337b664076d73e0e51bfd2ca92c002534a4",
+      "title": "Reading a property record",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-1/config/rag/documents/property-page.md",
+      "source_date": "2026-09-26",
+      "content_hash": "eb0087ccef04827076b0914e1bdedc689f27b68c09639b0c3db84878036cffac",
+      "score": 0.7107365575033437
+    },
+    {
+      "citation_id": "cite-f4c9c4313f6a963f1897eace96cc3f316c1bcaa0a501cf9194e4052c416391b7",
+      "document_id": "sales-history",
+      "chunk_id": "314ac51b545f054de3370a284397d237513cd50947e6323c3e0f1a0217c80018",
+      "title": "NSW property sales (PSI)",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-1/config/rag/documents/sales-history.md",
+      "source_date": "2026-09-26",
+      "content_hash": "a2a23bd56b60ca531cd994565d677166838979584ec34c474d74106bff31d7ef",
+      "score": 0.7313887938852918
+    }
+  ],
+  "context": {},
+  "backend_route": "/api/data-platform/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-1-rag.png",
+      "sha256": "4c27f40e851f847f8156c6d4797cb5f6c70dd4a25ad309433d44fe6f4483ac67",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-1-rag.sources.png",
+      "sha256": "27aeca1d3456a24ee47d620d6994e902284b0e87e55196fb639da6dea2eb4edf",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-1-rag.answer.png",
+      "sha256": "b49a9370d1e420aed622e90f7aa6ea33f071402d705551850739e47ecc4e1541",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1030
+      },
+      "element_size": {
+        "width": 793,
+        "height": 789
+      }
+    },
+    {
+      "file": "feature-1-rag.citation.png",
+      "sha256": "f33d1871820eaad51f69d4191fe3bf1b23ccf81799e308e90ce24c2a6bbbe11f",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1276
+      },
+      "element_size": {
+        "width": 751,
+        "height": 1035
+      }
+    }
+  ]
+}

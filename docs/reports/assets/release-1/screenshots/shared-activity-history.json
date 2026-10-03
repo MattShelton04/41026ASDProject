@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "shot": "shared-activity-history",
+  "captured_at": "2026-10-03T02:30:01.477673+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "public-operations-projection",
+  "mode": "shared",
+  "run_id": "421e03a2-8a0f-40b7-a7f0-c3aa8eec1ba4",
+  "run_created_at": "2026-10-03T02:26:03.134480Z",
+  "status": "succeeded",
+  "feature_key": "student-1-propertyscope-data-platform",
+  "images": [
+    {
+      "file": "shared-activity-history.png",
+      "sha256": "0db356611410b8c63fea8dd31d30fa18cd1eb7ab2f93889c212ba981437f7bf2",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    }
+  ]
+}

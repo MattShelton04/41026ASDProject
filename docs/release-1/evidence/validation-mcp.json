@@ -1,11 +1,15 @@
 {
   "schema_version": "1.0",
   "mode": "mcp",
+  "feature_key": "student-1-propertyscope-data-platform",
+  "tool_name": "platform.capabilities.v1",
+  "corpus_id": null,
   "passed": true,
   "decision_provider": "deterministic-validation",
   "transport": "live-local-services",
-  "run_id": "56776025-5b0f-4388-978e-f89e850b6137",
-  "request_id": "r1-mcp-db22febd-569a-46e9-bf50-c7105d60b1da",
+  "evidence_boundary": "Production runner and local services; deterministic model decisions, not provider answer quality.",
+  "run_id": "97ea140e-2a1c-4f23-a1bf-c1a4f6715432",
+  "request_id": "r1-mcp-654a814d-bab5-4b34-9d09-7eac0adf450d",
   "status": "succeeded",
   "phases": [
     "plan",
@@ -15,7 +19,7 @@
   ],
   "tool_results": [
     {
-      "call_id": "682da423-2244-4f70-898a-11509761cbfb",
+      "call_id": "f5b53440-94a7-4730-b3a2-d8b397e969e0",
       "outcome": "succeeded",
       "content": {
         "application": {
@@ -125,17 +129,18 @@
         "suggested_questions": [
           "What can PropertyScope help me research?",
           "Which datasets and sources are available?",
-          "How does AI activity stay reviewable?",
-          "Find an accepted property record in Parramatta.",
+          "How can I check what the assistant looked up?",
+          "Find a property record in Parramatta.",
           "How many registered addresses are in Sutherland 2232?"
         ]
       },
       "error": null,
-      "duration_ms": 16,
+      "duration_ms": 15,
       "retryable": false,
       "evidence_references": [
         "service:propertyscope-data-platform-backend",
-        "status:200"
+        "status:200",
+        "transport:mcp"
       ],
       "retrieval": null
     }
@@ -143,6 +148,5 @@
   "final_result": {
     "summary": "Registered MCP tool returned structured evidence."
   },
-  "error": null,
-  "evidence_boundary": "Actual local service and production four-phase runner; deterministic extractive-validation.v1 model decisions. Not live model or semantic-quality evidence."
+  "error": null
 }

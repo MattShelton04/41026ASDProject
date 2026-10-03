@@ -56,6 +56,46 @@ def test_headings_keep_visual_and_bookmark_hierarchy(tmp_path: Path) -> None:
     assert [getattr(item, "_heading_level", None) for item in headings] == [None, 0, 1, 2]
 
 
+@pytest.mark.parametrize("ordered", [False, True])
+@pytest.mark.parametrize("indent", ["  ", ""])
+def test_wrapped_list_items_keep_their_text_and_rendered_order(
+    tmp_path: Path, ordered: bool, indent: str
+) -> None:
+    first, second = ("1.", "2.") if ordered else ("-", "-")
+    source = _write(
+        tmp_path,
+        "# Report\n\n## 8 Limitations\n\nBefore the list.\n\n"
+        f"{first} First limitation begins\n"
+        f"{indent}and continues with [retained evidence](https://example.org/evidence).\n"
+        f"{second} Second limitation begins\n"
+        f"{indent}and ends here.\n\nAfter the list.\n",
+    )
+    paragraphs = [
+        item.getPlainText()
+        for item in engine.parse_markdown(source, BASELINE, SPEC)
+        if isinstance(item, Paragraph)
+    ]
+    assert paragraphs == [
+        "Report",
+        "8 Limitations",
+        "Before the list.",
+        f"{first} First limitation begins and continues with retained evidence.",
+        f"{second} Second limitation begins and ends here.",
+        "After the list.",
+    ]
+    output = tmp_path / "wrapped-list.pdf"
+    engine.build(source, output, BASELINE, SPEC)
+    rendered = " ".join(" ".join(page.extract_text().split()) for page in PdfReader(output).pages)
+    fragments = (
+        "Before the list.",
+        "First limitation begins and continues with retained evidence.",
+        "Second limitation begins and ends here.",
+        "After the list.",
+    )
+    positions = [rendered.index(fragment) for fragment in fragments]
+    assert positions == sorted(positions)
+
+
 @pytest.mark.parametrize("changed", ["source", "asset"])
 def test_rejects_stale_diagram_sources_and_assets(tmp_path: Path, changed: str) -> None:
     source, asset = tmp_path / "diagram.mmd", tmp_path / "diagram.png"
@@ -152,6 +192,45 @@ def test_word_count_covers_the_assessed_body_only(tmp_path: Path) -> None:
     # Heading "1 Overview" (2) + prose (3) + list (2) + table header (2) + row (2).
     assert words.sections == (("1 Overview", 11),)
     assert words.total == 11
+
+
+def test_conservative_count_includes_generated_tables_code_and_appendices(tmp_path: Path) -> None:
+    spec = replace(
+        SPEC,
+        count_appendices_and_code=True,
+        directives={
+            "RESULTS": lambda _: ["| Check | Result |", "|---|---|", "| retrieval | passed |"]
+        },
+    )
+    source = _write(
+        tmp_path,
+        "# Cover\n\n## 1 Results\n\n[[RESULTS]]\n\n"
+        "```text\nrequest r1 status succeeded\n```\n\n"
+        "## Appendix A Contributions\n\nOne two three.\n",
+    )
+    words = engine.count_words(source, spec)
+    assert words.sections == (("1 Results", 10), ("Appendix A Contributions", 6))
+    assert words.total == 16
+    assert "code and appendices included" in engine.format_status(engine.review(source, spec), spec)
+
+
+def test_inline_baseline_resolves_in_cover_table(tmp_path: Path) -> None:
+    source = _write(tmp_path, "# Report\n\n| Commit reference | `[[BASELINE]]` |\n|---|---|\n")
+    story = engine.parse_markdown(source, BASELINE, SPEC)
+    table = next(item for item in story if isinstance(item, Table))
+    assert table._cellvalues[0][1].getPlainText() == BASELINE
+
+
+def test_full_text_count_includes_cover_and_image_captions(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path,
+        "# Cover title\n\nTwo words\n\n[[TOC]]\n\n## 1 Scope\n\n"
+        "Three body words.\n\n![Figure one cited evidence](answer.png)\n",
+    )
+    spec = replace(SPEC, count_appendices_and_code=True, count_cover_and_captions=True)
+    assert engine.count_words(source, spec).sections == (("Cover", 4), ("1 Scope", 9))
+    assert engine.count_words(source, spec).total == 13
+    assert "cover and captions included" in engine.format_status(engine.review(source, spec), spec)
 
 
 def test_draft_renders_todos_and_missing_images_but_final_blocks(tmp_path: Path) -> None:

@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-5-rag",
+  "captured_at": "2026-10-03T02:29:49.675318+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "rag",
+  "feature_key": "student-5-buyer-journey",
+  "run_id": "3a3e52a1-e6e4-4c7a-b8d7-42bd6f4fd8af",
+  "request_id": "22647825-94d2-4309-a51d-5cc3ab12c0a6",
+  "run_created_at": "2026-10-03T02:29:31.348692Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "6094d41e273438daf4dcc6121b7ca7ec9d373ec4dc84d2f657ffb6e540e551a9"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "8e066582-7d36-430d-82f1-78c05f74cd87",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "e724ba09-98ad-4d44-9adf-ce74aa60fd73",
+      "tool_name": "buyer.capabilities.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "8d8955d8-38bb-4e45-a98a-9683c45d3a44",
+      "tool_name": "buyer.cases.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "e048db41-19ac-4b60-a132-5933b4f05af6",
+      "tool_name": "buyer.notes.list.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "2c324cad-a651-4abc-9048-bc22358be582",
+      "tool_name": "buyer.tasks.list.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "baeb3d10-1d59-4d13-bd35-f06c6889fde1",
+      "tool_name": "buyer.evidence.collect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "f35d5f4e808222012131b29f3e220cdacc03d823c127700a1224ea2663ed91bd",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "moderate",
+  "citation_count": 2,
+  "evidence_gap_count": 2,
+  "citations": [
+    {
+      "citation_id": "cite-16b2808ae622811dbad79ccc297a518a1770091ee7e5c24c4586e2fbd9b9637d",
+      "document_id": "notes-and-tasks",
+      "chunk_id": "37bcd6d7d5ebc42230ba9b783d1f3caeee1b81051562858bebea6f2356af1bb5",
+      "title": "Buyer notes and tasks",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/notes-and-tasks.md",
+      "source_date": "2026-10-01",
+      "content_hash": "c62e9801c932b0ddadcd32c3aee6961bdb83c2e12328d682cb8d2301a84d41ad",
+      "score": 0.6353474199363495
+    },
+    {
+      "citation_id": "cite-3be027f428f29748c4104a8993443c0353d41555a997218b8aa8e0aea9af6994",
+      "document_id": "shortlist-and-stages",
+      "chunk_id": "0ff0b395d60cc9be05a549eecef82a6c36b79d3771c17de97baeb84923c27d74",
+      "title": "Shortlists and journey stages",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+      "source_date": "2026-10-01",
+      "content_hash": "cef37a0b2527fcfb1e1fe7770f2b79c1aa2af1770b0aa7ab396335d0f07df50b",
+      "score": 0.8113659256194499
+    }
+  ],
+  "context": {
+    "buyer_case_id": "b5000000-0000-4000-8000-000000000001"
+  },
+  "backend_route": "/api/buyer-workspaces/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-5-rag.png",
+      "sha256": "731d5e4cdf26ba33c77a87c7518d11e6b06cc24e681b347e59b6d5b3c24638c4",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-5-rag.sources.png",
+      "sha256": "6b537aa7a7d40b4028c24636530cb130f4c924609d06fa809404d3c946b985da",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-5-rag.answer.png",
+      "sha256": "f9ca6ba92779842c939fd22b35cc62e322e9876816c93a742ffa2a91a89cea56",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1499
+      },
+      "element_size": {
+        "width": 860,
+        "height": 1289
+      }
+    },
+    {
+      "file": "feature-5-rag.citation.png",
+      "sha256": "bbbdd258323cc32346961519437802f4b04c28a1fe757a4d96ac3fc397f2acff",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1194
+      },
+      "element_size": {
+        "width": 818,
+        "height": 954
+      }
+    }
+  ]
+}

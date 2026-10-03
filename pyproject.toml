@@ -97,6 +97,7 @@ skip_covered = true
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["Temp", "temp", "tmp"]
 src = [
     "shared/contracts/python",
     "shared/consumer-protocol/python",

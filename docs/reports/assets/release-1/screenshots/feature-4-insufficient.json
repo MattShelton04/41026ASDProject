@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-4-insufficient",
+  "captured_at": "2026-10-03T02:36:25.901538+00:00",
+  "software_sha": "bbcbd2520c4c93690821a64e8f6131f689e3fda8",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "insufficient",
+  "feature_key": "student-4-due-diligence",
+  "run_id": "45b06a7c-1be5-4cbd-9a2f-4f30ff93c5a9",
+  "request_id": "3203d687-2e46-4bf5-a796-40fe53dae17b",
+  "run_created_at": "2026-10-03T02:36:12.040131Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "9c6d4cd712d17dc4c7595755bcbaeb4fd6e773815665d2b6d96b017242a69eb6"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "b12471bd-9c2e-4db7-be98-dfdba050786f",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "721af92b-f436-430d-ba12-709c94abd432",
+      "tool_name": "duediligence.capabilities.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "98f813dc-59a7-4cc6-9385-5f378a6ab7f4",
+      "tool_name": "duediligence.review.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "9c97848a-811c-4667-a680-96770b9e2150",
+      "tool_name": "duediligence.evidence.summary.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "b50761eebb33c163daecab4e0ab7fc4dbf662c69a64728d509f740479036c60e",
+  "retrieval_status": "no_match",
+  "grounding_status": "no_match",
+  "confidence": "insufficient",
+  "citation_count": 0,
+  "evidence_gap_count": 2,
+  "citations": [],
+  "context": {
+    "site_review_id": "d4000000-0000-0000-0000-000000000001"
+  },
+  "backend_route": "/api/due-diligence/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-4-insufficient.png",
+      "sha256": "6ab505648ca7450d6793cc6a43d800224b57ef3a74038576f8b127a3ca55cf8f",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-4-insufficient.sources.png",
+      "sha256": "d7f4312d2dd0e8fbda0453af160d940f4ab3d5be50cb273ffcea0c91cc92263d",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-4-insufficient.answer.png",
+      "sha256": "05e4f9b890063f89c572d458ff179535c977a18f9431defa2a42b269697646f3",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 746,
+        "height": 619
+      }
+    }
+  ]
+}

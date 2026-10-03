@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "shot": "shared-knowledge-sources",
+  "captured_at": "2026-10-03T02:30:00.678920+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "public-operations-projection",
+  "mode": "shared",
+  "corpora": [
+    {
+      "feature_key": "student-1-propertyscope-data-platform",
+      "corpus_id": "operator-guidance",
+      "corpus_version": "da29fbf773df88ce8a0939cae9f8ade1ca094441e368ac3fba2ac6c9c1cb1fed",
+      "document_count": 19
+    },
+    {
+      "feature_key": "student-2-market-intelligence",
+      "corpus_id": "operator-guidance",
+      "corpus_version": "fc79eb7f58187a25419ecc32b714dfb061d7e9c4e3233358bad4c98101b881d2",
+      "document_count": 3
+    },
+    {
+      "feature_key": "student-3-suburb-analytics",
+      "corpus_id": "suburb-analytics-guidance",
+      "corpus_version": "8db8f59a9c9daa8ffd5126f157fa0097a1a83bf9208a2a6c9d81f41321ba3b4a",
+      "document_count": 8
+    },
+    {
+      "feature_key": "student-4-due-diligence",
+      "corpus_id": "operator-guidance",
+      "corpus_version": "b50761eebb33c163daecab4e0ab7fc4dbf662c69a64728d509f740479036c60e",
+      "document_count": 3
+    },
+    {
+      "feature_key": "student-5-buyer-journey",
+      "corpus_id": "operator-guidance",
+      "corpus_version": "f35d5f4e808222012131b29f3e220cdacc03d823c127700a1224ea2663ed91bd",
+      "document_count": 5
+    }
+  ],
+  "images": [
+    {
+      "file": "shared-knowledge-sources.png",
+      "sha256": "01bd317677f63ff1362ca37496aeb11641c5517c2b8f961082ae0dd50260c7a3",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    }
+  ]
+}

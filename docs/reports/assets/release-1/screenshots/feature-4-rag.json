@@ -1,0 +1,156 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-4-rag",
+  "captured_at": "2026-10-03T02:36:11.311937+00:00",
+  "software_sha": "bbcbd2520c4c93690821a64e8f6131f689e3fda8",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "rag",
+  "feature_key": "student-4-due-diligence",
+  "run_id": "68f55947-9d88-4e4f-9ffd-d1b1e0854163",
+  "request_id": "e946e05b-5dd0-4521-bb0f-e378ffd23bf0",
+  "run_created_at": "2026-10-03T02:35:54.645882Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "9c6d4cd712d17dc4c7595755bcbaeb4fd6e773815665d2b6d96b017242a69eb6"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "8c464262-2b9c-4743-933d-854af581ed44",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "7b4304fe-0bf5-4142-a742-eca876e0a818",
+      "tool_name": "duediligence.capabilities.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "a93869bf-0487-4bfa-b617-048d833b52ea",
+      "tool_name": "duediligence.review.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "0560c26a-3b62-4d91-ab47-0b70365815fc",
+      "tool_name": "duediligence.evidence.summary.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "b50761eebb33c163daecab4e0ab7fc4dbf662c69a64728d509f740479036c60e",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "high",
+  "citation_count": 3,
+  "evidence_gap_count": 0,
+  "citations": [
+    {
+      "citation_id": "cite-670b34f073e817dd67b87c675ae7240f35cc43ff60e7f6c2393de999a5882e5b",
+      "document_id": "evidence-states",
+      "chunk_id": "c4e8665526d09b2dc445bd1f879670eddd2329a65c1c5b8df06600ce6866770c",
+      "title": "How due-diligence evidence is classified and how confident that is",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-states.md",
+      "source_date": "2026-10-01",
+      "content_hash": "78e1d7f2add1676ca291128d18a1f0e01900dc77f3fa6738f850d3babbed0851",
+      "score": 0.7964049176308964
+    },
+    {
+      "citation_id": "cite-b08180bd693193b592bd4df358e4b5e041c6752b98f5af30f47669f5141ab008",
+      "document_id": "evidence-states",
+      "chunk_id": "84074989fc9d37ee0b81db15373af55bb8e0a87cd0bcd7efd3a5f54694009792",
+      "title": "How due-diligence evidence is classified and how confident that is",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-states.md",
+      "source_date": "2026-10-01",
+      "content_hash": "fe264ea18a076c460c290b2e40d395385506283c1226998d17dd288f040fa2fb",
+      "score": 0.7863341268044848
+    },
+    {
+      "citation_id": "cite-fb9a0468004ae398d9dcff7010437b2e95747a2c8527621628a74827b850c2c6",
+      "document_id": "evidence-limits",
+      "chunk_id": "bfedd1d5a2ab54949977779f0dc3342f754363639595936753f19180e64c587a",
+      "title": "What Site and due diligence evidence cannot establish",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-limits.md",
+      "source_date": "2026-10-01",
+      "content_hash": "f57b126d393a33b4284adbed4c75aea92c1f614e708c6d4dd2ea3b7f8a5674ff",
+      "score": 0.7793553986391439
+    }
+  ],
+  "context": {
+    "site_review_id": "d4000000-0000-0000-0000-000000000001"
+  },
+  "backend_route": "/api/due-diligence/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-4-rag.png",
+      "sha256": "44e7aeea6965b5058dc6e88c1ca5f3231b284cbbba09e067536317425049df62",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-4-rag.sources.png",
+      "sha256": "86007ddd44462626147cf49fec7f70dcd7e7517079a4fc8c8e33e686230cc118",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-4-rag.answer.png",
+      "sha256": "c1b7a39a2b6b133c2db388c1b6037d6c9b7fb057c1810c67ea162ab4b1375c78",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1484
+      },
+      "element_size": {
+        "width": 746,
+        "height": 1244
+      }
+    },
+    {
+      "file": "feature-4-rag.citation.png",
+      "sha256": "a27fe30d946e6291ca0c13956d7a22d7ad1dbcc10d3c406a2ba5c7b2227640f5",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1548
+      },
+      "element_size": {
+        "width": 704,
+        "height": 1307
+      }
+    }
+  ]
+}

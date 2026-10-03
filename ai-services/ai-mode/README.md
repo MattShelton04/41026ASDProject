@@ -110,7 +110,8 @@ rolling deployment of this boundary change, or allow those runs to fail safely a
 run with explicit identifier context. Prompt-default and run-limit upgrades change the canonical
 create-request hash: an exact retry of a pre-deployment idempotency key can therefore conflict.
 Retrieve an existing run by ID rather than replaying an old create command across this contract
-upgrade; new callers should use the parallel-ready v7 default.
+upgrade. Ungrounded requests retain the parallel-ready `default.v7` contract default; eligible
+feature requests use the configured corpus and `default.v9` grounding policy described below.
 
 The run index refreshes every two seconds while active work is loaded and every ten seconds
 when the page is terminal; hidden tabs back off further. Selected active runs keep the measured
@@ -179,7 +180,7 @@ Pydantic contract and drift-checked by `scripts/generate_contracts.py --check` i
 The managed host runtime uses the bundled registry unless `AI_MODE_MODEL_REGISTRY_PATH`
 names another host file.
 
-The default `default.v7` prompt set keeps explicit generic output skeletons, maps every
+The ungrounded `default.v7` prompt set keeps explicit generic output skeletons, maps every
 objective requirement to observable success criteria, and keeps untrusted objective prose
 separate from the persisted typed identifier ledger. Its immutable developer prefix contains the
 canonical allowlisted tool definitions and JSON Schemas before any per-run data, while dynamic
@@ -188,8 +189,22 @@ independent reads to a shared execution stage and keeps effects sequential. Repl
 a bounded history of
 prior tool attempts whose identifier types come from the persisted tool output schemas. Its
 final result is an evidence-backed brief with findings, a safe next step, a safety boundary, and
-exact evidence references. Immutable `default.v1` through `default.v6` remain accepted for
+exact evidence references. Immutable `default.v1` through `default.v8` remain accepted for
 replaying runs created with earlier prompt assets; callers must select them explicitly.
+
+When RAG is enabled for a manifest-registered feature, the HTTP create boundary fixes its corpus,
+adds mandatory retrieval and selects `default.v9` (planner v8, adapter v9). The adapter distinguishes
+cited project guidance from successful owning-tool facts. It can retain a direct tool-supported
+answer when document context is insufficient; this does not turn missing guidance into a cited
+RAG answer. The named MCP/RAG validation commands deliberately retain `default.v8` and deterministic
+extractive decisions, separately from actual-provider feature turns.
+
+Grounding validates citation/call identities, feature/corpus scope and current corpus version.
+It derives confidence from recorded support: high requires no gaps, a strongly matching citation
+for each guidance finding and at least two distinct document/tool supports; weak matches, a single
+support or reported gaps produce moderate. A model's low category is preserved. Missing relevant
+document context produces insufficient confidence. These checks bind evidence references; they
+do not prove semantic entailment or express a numeric probability of correctness.
 
 Planner and adapter are roles in one persisted orchestrator, not separate long-lived
 agents. Each role is a separate stateless OpenAI request with its own versioned system
@@ -238,6 +253,14 @@ and maps failures to safe typed results without response-body leakage.
 
 An optional `/development/agent-runs/{id}` evidence view exists only when a bearer token
 of at least 16 characters is configured. It HTML-escapes content and redacts sensitive
-field names. Feature 1 provides the integrated real-HTTP boundary evidence; future feature
-manifests, endpoints, and Compose topology still require approved ownership decisions.
-MCP, RAG, and multi-agent runtime services remain release-gated.
+field names. All five enabled features now register owned tool catalogues and RAG corpora in
+`deployment/enabled-features.v1.json`; the managed host runtime projects those registrations.
+Registration establishes configuration, not a claim that a local corpus is ingested or that all
+five provider/UI flows have been validated. Current release evidence is tracked separately in
+[`docs/release-1/`](../../docs/release-1/README.md).
+
+MCP and RAG run as authenticated loopback host processes, with the loop inside host AI-mode.
+They are absent from Compose and disabled in CI; the current Release 1 brief also requires
+AI-mode to remain disabled during CI/CD. Multi-agent runtime and Azure deployment remain
+Release 2 work. See the [host runtime guide](../../docs/release-1/host-runtime.md) for local
+lifecycle, model preparation, explicit corpus ingestion and named validation commands.

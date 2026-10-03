@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-1-insufficient",
+  "captured_at": "2026-10-03T02:26:22.978255+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "insufficient",
+  "feature_key": "student-1-propertyscope-data-platform",
+  "run_id": "78ca25c8-7439-45c0-96f2-3f77602ce9ed",
+  "request_id": "cbc527da-9f69-4a7a-965c-1e6580315c66",
+  "run_created_at": "2026-10-03T02:26:14.471624Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "435eae86aa773ee1c6cb5b4b18bb78fde54dc6e0eb89fb86c3c6330eb1b97247"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "61389317-8546-423f-a578-75a8a5346668",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "08d411c7-daa8-4e1b-a226-db27c52c980c",
+      "tool_name": "platform.capabilities.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "da29fbf773df88ce8a0939cae9f8ade1ca094441e368ac3fba2ac6c9c1cb1fed",
+  "retrieval_status": "no_match",
+  "grounding_status": "no_match",
+  "confidence": "insufficient",
+  "citation_count": 0,
+  "evidence_gap_count": 2,
+  "citations": [],
+  "context": {},
+  "backend_route": "/api/data-platform/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-1-insufficient.png",
+      "sha256": "0a77b617cab2906ab0fdae28da3f437879de180a1f1255f362f92548ce29e030",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-1-insufficient.sources.png",
+      "sha256": "d20b8f01de89f21c77026a3d514d2ec97fe8ecb804623b4bc7b9c4c3a9572950",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-1-insufficient.answer.png",
+      "sha256": "9e626fa16da2b6748be2855bfb3a418a5b384de08a2be3fac114c64c946e6767",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 793,
+        "height": 619
+      }
+    }
+  ]
+}

@@ -33,9 +33,12 @@ uv run python scripts/build_release1_report.py --status   # word budget, TODOs, 
 uv run python scripts/build_release1_report.py            # rebuild submissions/release-1/group-20.pdf
 ```
 
-Counted: chapter headings, prose, lists and tables from chapter 1 up to the first `## Appendix`.
-Not counted: the cover, contents, figures and captions, fenced code (captured terminal output),
-TODO callouts, `<!-- -->` author notes and appendices.
+Counted: chapter headings, prose, lists, generated tables, fenced evidence output and substantive
+appendices from the first chapter onwards. The brief grants no appendix or terminal-output
+exemption. Cover text and figure captions also count. Only generated contents, diagram pixels,
+TODO callouts and hidden author notes are excluded. Moving a table or log into an appendix does
+not reduce the count. Release 0 retains
+its historical counting policy and frozen submission.
 
 The Markdown supports a few extras on top of the Release 0 syntax:
 
@@ -48,6 +51,7 @@ The Markdown supports a few extras on top of the Release 0 syntax:
 | `[[CORPUS_TABLE]]` | RAG knowledge sources, generated from each registered `config/rag/corpus.json` |
 | `[[RETRIEVAL_SUMMARY path]]` | Summary of a committed retrieval evaluation baseline |
 | `[[LOOP_OUTPUT path]]` | Terminal-style summary of a `dev.py ai validate` JSON capture |
+| `[[BASELINE]]` within prose or a table | The selected `--baseline`, including the cover commit row |
 
 Generated tables change as soon as a feature registers tools or a corpus, so nobody hand-copies them.
 
@@ -61,11 +65,82 @@ To fill in your part:
 4. Rebuild the PDF, look at every page you changed, and commit it with your Markdown changes.
 
 To submit, rebuild with the submission commit. `--final` writes the same file, but refuses to run
-while any TODO, pending image, unpinned baseline or word-limit overrun remains:
+while any TODO, pending image, unresolved baseline, incomplete evidence index or word-limit
+overrun remains:
 
 ```text
 uv run python scripts/build_release1_report.py --final --baseline <40-character commit SHA>
 ```
+
+The SHA must resolve to a real commit. It identifies the software and retained evidence being
+assessed; the later PDF commit does not need to refer to itself. Local indexed evidence must be
+tracked and unchanged at that baseline (Git's line-ending normalisation is respected). Successful
+CI runs may use an earlier traceable commit when the relevant
+feature and workflow have not changed; the report must explain the evidence's scope.
+
+### Submission evidence index
+
+Include one hidden YAML block in the Markdown source. It references content already in the PDF;
+it adds no rendered text. `--status` lists missing references without preventing a draft build.
+Use `[[BASELINE]]` in both this block and the cover's `Commit reference` row, and give the cover
+the same repository and video URLs. For example:
+
+```yaml
+<!-- RELEASE1_METADATA
+schema_version: 1
+baseline: '[[BASELINE]]'
+repository_url: https://github.com/MattShelton04/41026ASDProject
+showcase_url: https://youtu.be/0Z0Rt146lD0
+sections:
+  scope: '1 Project overview and Release 1 scope'
+  requirements: '2 Functional requirements'
+  nonfunctional: '3 Non-functional requirements'
+  architecture: '4 Architecture and repository structure'
+  design: '5 MCP and RAG design'
+  validation: '6 Validation and results'
+  integration: '7 Integration summary'
+  limitations: '8 Known issues and limitations'
+  contributions: '9 Contributions, repository and showcase'
+  planning: '1.2 Delivery plan and risks'
+evidence:
+  - kind: loop-rag
+    section: '6.2 Shared agentic loop'
+    path: docs/release-1/evidence/validation-rag.json
+    boundary: Real local services with deterministic model decisions.
+  - kind: ci
+    student: 1
+    section: '6.5 GitHub Actions'
+    workflow: student-1.yml
+    url: https://github.com/MattShelton04/41026ASDProject/actions/runs/36293980721
+    boundary: Retained successful run; report states the commit and checks covered.
+contributions:
+  - student: 1
+    section: 'Student 1 Matthew Shelton'
+    commits: [1e109ac]
+attendance:
+  1: 'Actual participation statement, or a clear statement that it is unconfirmed.'
+-->
+```
+
+This example is partial. Supply these evidence kinds:
+
+- Shared: `terminal`, `deployment`, `loop-mcp`, `loop-rag`.
+- For each enabled student: `feature-mcp`, `feature-rag`, `feature-crud`, `ci`.
+- One contribution entry and attendance statement per enabled student (currently 1–5).
+
+Each evidence entry requires a populated exact heading in `section`, a factual `boundary`, and
+either a root-relative repository `path` or an HTTPS `url`. Link or display it in that section:
+Markdown links, screenshot images, `LOOP_OUTPUT` and `RETRIEVAL_SUMMARY` count as references.
+CI URLs must identify a run of this repository and declare the matching `student-N.yml` workflow.
+Loop entries must reference successful four-phase validation JSON with feature, tool, corpus,
+run, request and tool-result identities; RAG output must include its corpus version and status.
+Contribution commits must resolve, belong to the baseline's history and appear in that student's
+nonempty log. Attendance statements must also appear in the contributions chapter; recording an
+unconfirmed attendance limitation keeps the report honest and does not establish compliance.
+
+The guard checks the evidence index's structure and traceability. Authors still need to inspect
+screenshots, confirm CI results, review provider answers and verify video access, duration and
+coverage. A final build does not establish the quality of those observations or guarantee marks.
 
 ## Diagrams
 

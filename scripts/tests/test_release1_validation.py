@@ -80,6 +80,8 @@ def test_rag_mode_runs_four_phases_and_does_not_mask_outage(
     result = execute_validation("rag", store, retrieval_definition(), RetrievalDouble(status))
     assert result["passed"] is passed, result
     assert result["phases"] == ["plan", "act", "observe", "adapt"]
+    assert result["decision_provider"] == "deterministic-validation"
+    assert "not provider answer quality" in str(result["evidence_boundary"])
     final = result["final_result"]
     assert isinstance(final, dict)
     assert final["grounding_status"] == status

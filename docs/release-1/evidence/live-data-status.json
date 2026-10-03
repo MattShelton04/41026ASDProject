@@ -1,0 +1,237 @@
+[
+  {
+    "dataset_id": "abs-cpi",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 680
+      }
+    ]
+  },
+  {
+    "dataset_id": "abs-geography-2021",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "d91279f1-5628-44ea-a037-f8de0a0ad4ff",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 4675
+      }
+    ]
+  },
+  {
+    "dataset_id": "abs-seifa-2021",
+    "accepted_release_id": "0320c071-6ee7-451e-83a6-8a7870252be4",
+    "accepted_records": 4320,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+        "status": "candidate",
+        "version": 3,
+        "records": 4320
+      }
+    ]
+  },
+  {
+    "dataset_id": "fixture-property",
+    "accepted_release_id": "60000000-0000-0000-0000-000000000010",
+    "accepted_records": 3,
+    "accepted_is_seeded_demo": true,
+    "open_releases": [
+      {
+        "id": "f4a48747-0a65-40ef-ab82-720266fd6e7c",
+        "status": "candidate",
+        "version": 3,
+        "records": 10
+      }
+    ]
+  },
+  {
+    "dataset_id": "gnaf-nsw",
+    "accepted_release_id": "291863ec-a12d-4a03-a80c-8f334feae2d0",
+    "accepted_records": 5190134,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "cad26be0-c1cf-43db-9b86-0336ffe83dda",
+        "status": "candidate",
+        "version": 3,
+        "records": 5190134
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-amenities",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "36460dde-c3fe-4ca4-8e5e-f3c12c645bcd",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 9866
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-bushfire-prone-land",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "e8fc243a-068d-46d7-8e4b-44d596e9c993",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 235550
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-cadastre",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "0ce38fb3-dabf-4248-a6b0-c315d0ba746a",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 3355160
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-flood-planning",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "3949d345-2310-4205-b2d6-f3c350cbaf9d",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 622
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-planning-controls",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "b42dd939-de0a-4b6c-8eee-cdac7ccc68a7",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 235350
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-school-catchments",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "ab41d18a-fa19-4cdd-aae7-312052da814c",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 2191
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-strata-schemes",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "1b4b88b0-07f3-4e8d-a8f2-90e588b1d52a",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 88926
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-suburb-boundaries",
+    "accepted_release_id": null,
+    "accepted_records": null,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "a5a79703-da08-47e0-b281-c37d531263c5",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 4607
+      }
+    ]
+  },
+  {
+    "dataset_id": "nsw-psi-sales",
+    "accepted_release_id": "a7078066-1bde-4b31-8b4d-4acab03939e6",
+    "accepted_records": 7402643,
+    "accepted_is_seeded_demo": false,
+    "open_releases": [
+      {
+        "id": "5c90aa91-3ae7-4481-bba1-964a9f6ed822",
+        "status": "candidate",
+        "version": 3,
+        "records": 638125
+      },
+      {
+        "id": "0037b5e8-9c16-4c00-8b10-63b56bec8ff6",
+        "status": "candidate",
+        "version": 3,
+        "records": 237661
+      },
+      {
+        "id": "1d8fca70-33f6-47e3-91fd-994c4d07c06e",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 7402643
+      }
+    ]
+  },
+  {
+    "dataset_id": "bocsar-crime",
+    "accepted_release_id": "71537336-0c2d-4f2b-9d2e-dbabc29fa9f9",
+    "accepted_records": 318122,
+    "accepted_is_seeded_demo": false,
+    "open_releases": []
+  },
+  {
+    "dataset_id": "nsw-government-schools",
+    "accepted_release_id": "60000000-0000-0000-0000-000000000004",
+    "accepted_records": 10,
+    "accepted_is_seeded_demo": true,
+    "open_releases": [
+      {
+        "id": "a6ffd6c2-fd5e-4696-85c2-bb228059373b",
+        "status": "candidate",
+        "version": 3,
+        "records": 2210
+      },
+      {
+        "id": "47e3fab4-4b4d-4588-9e70-79e4e04cb372",
+        "status": "awaiting_review",
+        "version": 4,
+        "records": 2210
+      }
+    ]
+  }
+]

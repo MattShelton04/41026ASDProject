@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-1-mcp",
+  "captured_at": "2026-10-03T02:26:01.913836+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "mcp",
+  "feature_key": "student-1-propertyscope-data-platform",
+  "run_id": "b0b2b2b0-060c-48fe-b892-4dc63c1a5436",
+  "request_id": "14253dc5-3fe5-482e-9e81-e6e2356245ed",
+  "run_created_at": "2026-10-03T02:25:50.798864Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "435eae86aa773ee1c6cb5b4b18bb78fde54dc6e0eb89fb86c3c6330eb1b97247"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "c708a4f8-c7a6-46cb-a42b-b23762687057",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "c8fcc755-d33d-4013-8f2f-22ea97f00006",
+      "tool_name": "data.releases.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "da29fbf773df88ce8a0939cae9f8ade1ca094441e368ac3fba2ac6c9c1cb1fed",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "high",
+  "citation_count": 2,
+  "evidence_gap_count": 0,
+  "citations": [
+    {
+      "citation_id": "cite-4b85726f7bde75d2b81eeb42b44f793a105ecc9ee3a64854cecd799f3379fbec",
+      "document_id": "provenance",
+      "chunk_id": "cf171ada24a5082c7797222bb3e19809a49fd3ddc2b63f8cd905d0eeecb10d65",
+      "title": "Where a value came from",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-1/config/rag/documents/provenance.md",
+      "source_date": "2026-09-26",
+      "content_hash": "51f809a3e1b931192219926e18f2b1315758664a533fd3d3ea18ad9cec407954",
+      "score": 0.6666218495155749
+    },
+    {
+      "citation_id": "cite-9a2953f582b6fe26f85bd1c3bd5ffd56f32c5ddf8c9ed11a3d05361417fc728d",
+      "document_id": "publication",
+      "chunk_id": "40add3c8a7c1f5dde38044384535d30998432fcd038e0429b549887d584ab8e6",
+      "title": "Publishing a version",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-1/config/rag/documents/publication.md",
+      "source_date": "2026-09-26",
+      "content_hash": "90da9bb67a52f82ed11a005bc668f11aed8f980f613175af1a4153bec3231b54",
+      "score": 0.6500993092118776
+    }
+  ],
+  "context": {},
+  "backend_route": "/api/data-platform/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-1-mcp.png",
+      "sha256": "13b5a6b218c43ca64776e05a8a4d565b23861f8bb26fdd0fafbae4b79cdf9a0f",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-1-mcp.sources.png",
+      "sha256": "9b2a4aeddc4e330f7c4169f395e38646ecfed7f1450689af2b7545e3d2d4e818",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-1-mcp.answer.png",
+      "sha256": "b490f18229c24134242ccb866eda7fef1846544c43da6b76323078d7c955ea95",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 793,
+        "height": 647
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "url": "https://youtu.be/0Z0Rt146lD0",
+  "checked_on": "2026-10-03",
+  "method": "Unauthenticated HTTPS GET of the YouTube watch page; parsed player metadata only",
+  "http_status": 200,
+  "title": "ASD Release 1 Full Demo",
+  "duration_seconds": 575,
+  "within_ten_minutes": true,
+  "coverage_reviewed": false,
+  "attendance_source": "Matthew Shelton confirmed all five attended and participated in the 2 October showcase on 3 October 2026",
+  "technology_approval_source": "Matthew Shelton reconfirmed tutor approval for OpenAI and PostgreSQL on 3 October 2026; original written artifact not supplied"
+}

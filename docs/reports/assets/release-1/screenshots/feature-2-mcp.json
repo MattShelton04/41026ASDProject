@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-2-mcp",
+  "captured_at": "2026-10-03T02:26:35.917502+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "mcp",
+  "feature_key": "student-2-market-intelligence",
+  "run_id": "a31a499d-ad45-4439-92a6-ae780c72f29b",
+  "request_id": "5c380126-6823-4f68-a47b-713a253e5e5a",
+  "run_created_at": "2026-10-03T02:26:23.865767Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "e5c27fb981853b4b0854db2d057357f8bd55912a54675f0cd14f8938ef24359a"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "e9d35e1d-0eeb-4a46-a0cf-947a3a11bbcb",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "021edb98-f5da-47a7-994b-ffd80720dbbb",
+      "tool_name": "market.cases.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "84efc5c6-073c-42d2-8ba1-4cf673f3ade3",
+      "tool_name": "market.sales.summary.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "fc79eb7f58187a25419ecc32b714dfb061d7e9c4e3233358bad4c98101b881d2",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "high",
+  "citation_count": 0,
+  "evidence_gap_count": 0,
+  "citations": [],
+  "context": {
+    "market_case_id": "60000000-0000-4000-8000-000000000001"
+  },
+  "backend_route": "/api/market-intelligence/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-2-mcp.png",
+      "sha256": "8df77a3cbb499f642b23e3650606969afc9945365e51d1832a0ef4c40fb5e411",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-2-mcp.sources.png",
+      "sha256": "329e172d493eabaa212d56c600b60b3b098f4e13784c675bc94c16b91efd0e22",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-2-mcp.answer.png",
+      "sha256": "36b055b8fe064fa83fdb43798b9e8d57158023faf32ce1c6040474690879ee7c",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 860,
+        "height": 702
+      }
+    }
+  ]
+}

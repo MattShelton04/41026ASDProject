@@ -261,6 +261,7 @@ def test_orchestrator_client_round_trip_over_inprocess_sdk(monkeypatch) -> None:
     assert result.call_id == invocation.id
     assert result.content == {"value": 7}
     assert result.outcome == "succeeded"
+    assert "transport:mcp" in result.evidence_references
     assert len(requests) == 1
     client.close()
 
@@ -341,6 +342,8 @@ def test_client_policy_and_deadline_fail_before_transport() -> None:
     from ai_mode.adapters.mcp_tools import McpToolExecutor
 
     client = McpToolExecutor(base_url="http://127.0.0.1:5011", service_token=TOKEN)
+    rejected = client.execute(call("delete"), catalog().tools[2].definition, timeout_ms=1000)
+    assert "transport:mcp" not in rejected.evidence_references
     assert (
         client.execute(call("delete"), catalog().tools[2].definition, timeout_ms=1000).error.code
         == "mcp_request_rejected"
