@@ -80,6 +80,41 @@ def test_loop_capture_renders_as_terminal_output() -> None:
     assert any(line.startswith("boundary") for line in lines)
 
 
+def test_operations_table_has_a_row_per_feature_with_its_database_operation() -> None:
+    rows = report.operations_table("docs/release-1/evidence/live-feature-operations.json")
+    assert len(rows) == 2 + len(report._feature_manifests())
+    assert [row.split("|")[1].strip()[0] for row in rows[2:]] == ["1", "2", "3", "4", "5"]
+    assert "read after delete 404" in rows[2] and "Rows: market_case" in rows[3]
+    missing = report.operations_table("docs/release-1/evidence/does-not-exist.json")
+    assert report_pdf.TODO_PATTERN.fullmatch(missing[0])
+
+
+def test_capture_matrix_shows_only_successful_mcp_tools_and_answer_outcomes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(report, "SCREENSHOT_DIR", tmp_path)
+    tools = [
+        {"tool_name": "context.retrieve.v1", "transport": "rag", "outcome": "succeeded"},
+        {"tool_name": "data.releases.v1", "transport": "mcp", "outcome": "succeeded"},
+        {"tool_name": "data.runs.v1", "transport": "mcp", "outcome": "failed"},
+    ]
+    captures = {
+        "mcp": {"status": "succeeded", "tools": tools},
+        "rag": {"status": "succeeded", "confidence": "moderate", "citation_count": 2},
+        "insufficient": {"status": "succeeded", "confidence": "insufficient", "citation_count": 0},
+    }
+    for mode, capture in captures.items():
+        (tmp_path / f"feature-1-{mode}.json").write_text(json.dumps(capture), encoding="utf-8")
+
+    rows = report.capture_matrix("")
+
+    assert len(rows) == 2 + len(report._feature_manifests())
+    assert rows[2] == (
+        "| 1 | `data.releases.v1` | Moderate, 2 citations | Insufficient, 0 citations |"
+    )
+    assert rows[3] == "| 2 | None recorded | Not captured | Not captured |"
+
+
 def test_knowledge_sources_link_to_local_documents_with_provenance() -> None:
     rows = report.corpus_table("")
     assert any("project guidance" in row for row in rows)

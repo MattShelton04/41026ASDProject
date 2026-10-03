@@ -276,3 +276,38 @@ def test_code_columns_widen_to_fit_identifiers() -> None:
     widths = engine._fit_code_columns([60.0, engine.CONTENT_WIDTH - 60.0], rows)
     assert widths[0] > 60.0
     assert abs(sum(widths) - engine.CONTENT_WIDTH) < 0.01
+
+
+def test_fitted_figure_shrinks_within_its_limit_or_moves_whole() -> None:
+    figure_path = SPEC.asset_dir / "feature-2-runtime.png"
+    caption = Paragraph("Figure 1 Runtime", engine._styles()["caption"])
+    figure = engine.FittedFigure(figure_path, 400.0, 400.0, caption, 0.7)
+
+    _, full = figure.wrap(engine.CONTENT_WIDTH, 1000.0)
+    assert figure.scale == 1.0
+    _, shrunk = figure.wrap(engine.CONTENT_WIDTH, full - 60.0)
+    assert 0.7 <= figure.scale < 1.0 and shrunk <= full - 60.0
+    figure.wrap(engine.CONTENT_WIDTH, full / 2)
+    assert figure.scale == 1.0  # Too small even at 70%: keep full size for the next page.
+    assert figure.split(engine.CONTENT_WIDTH, full / 2) == []
+
+
+def test_subsection_heading_reserves_room_for_its_first_figure(tmp_path: Path) -> None:
+    figure = (SPEC.asset_dir / "feature-2-runtime.png").as_posix()
+    source = _write(
+        tmp_path,
+        f"# Report\n\n## Evidence\n\n### Feature 2\n\nIntro.\n\n![Figure 1 Runtime]({figure})\n\n"
+        "### Notes\n\nNo figure.\n",
+    )
+    spec = replace(SPEC, figure_min_scale=0.7, subsection_min_space=35 * engine.mm)
+    story = engine.parse_markdown(source, BASELINE, spec)
+    breaks = [item for item in story if type(item) is engine.CondPageBreak]
+    fitted = next(item for item in story if isinstance(item, engine.FittedFigure))
+    # The chapter break, then one per subsection: the figure's grows, the text-only one does not.
+    assert breaks[1].height == pytest.approx(
+        min(
+            35 * engine.mm + fitted.full_height * 0.7 + 12 * engine.mm,
+            engine.FRAME_HEIGHT - engine.mm,
+        )
+    )
+    assert breaks[2].height == 35 * engine.mm
