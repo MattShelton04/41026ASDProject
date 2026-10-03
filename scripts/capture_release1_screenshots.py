@@ -344,6 +344,9 @@ def _focused_image(page: Page, target: Locator, destination: Path) -> dict[str, 
         or box["y"] + box["height"] > viewport["height"]
     ):
         raise CaptureError("focused evidence would be clipped by its browser viewport")
+    # Feature announcements are real fixed-position toasts. Let them disappear naturally
+    # so the photograph contains the evidence rather than a transient status overlay.
+    page.locator('.ps-toast[data-visible="true"]').first.wait_for(state="detached", timeout=6000)
     target.screenshot(path=str(destination), animations="disabled")
     return {
         "capture": "element",
