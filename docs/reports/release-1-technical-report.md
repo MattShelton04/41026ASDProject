@@ -256,20 +256,20 @@ recall measures document retrieval, not factual correctness of a generated answe
 ### 6.5 GitHub Actions
 
 All assigned workflows set `AI_MODE_MCP_ENABLED=false` and `AI_MODE_RAG_ENABLED=false` and test
-contracts with doubles. The following successful runs cover integrated baseline `330e65f`,
-1 October UTC, including all five merged Release 1 implementations. They precede this report-update
-branch; [run metadata](../release-1/evidence/github-workflow-runs.json) preserves their full SHAs.
+contracts with doubles. These successful 3 October runs cover report-update commit `d2d0cd7`;
+subsequent edits change report evidence only.
+[Run metadata](../release-1/evidence/github-workflow-runs.json) preserves their full SHAs.
 Student 5 starts offline direct AI-mode; MCP/RAG remain disabled. Its owner should reconcile this
 with the brief's broader AI-mode-disabled instruction.
 
 | Workflow | Successful run |
 |---|---|
-| Student 1 | [36905626023](https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626023) |
-| Student 2 | [36905626184](https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626184) |
-| Student 3 | [36905625989](https://github.com/MattShelton04/41026ASDProject/actions/runs/36905625989) |
-| Student 4 | [36905626030](https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626030) |
-| Student 5 | [36905626058](https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626058) |
-| Integration | [36905626020](https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626020) |
+| Student 1 | [37091436973](https://github.com/MattShelton04/41026ASDProject/actions/runs/37091436973) |
+| Student 2 | [37091437027](https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437027) |
+| Student 3 | [37091436984](https://github.com/MattShelton04/41026ASDProject/actions/runs/37091436984) |
+| Student 4 | [37091437048](https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437048) |
+| Student 5 | [37091437064](https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437064) |
+| Integration | [37091437045](https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437045) |
 
 ### 6.6 Docker Compose deployment
 
@@ -422,8 +422,8 @@ evidence:
   student: 1
   section: 6.5 GitHub Actions
   workflow: student-1.yml
-  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626023
-  boundary: Successful retained integrated baseline330e65f run; precedes report-update branch; MCP/RAG disabled.
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/37091436973
+  boundary: Successful report-update code d2d0cd7 run; later report-only edits; MCP/RAG disabled.
 - kind: feature-mcp
   student: 2
   section: Feature 2 Market cases
@@ -443,8 +443,8 @@ evidence:
   student: 2
   section: 6.5 GitHub Actions
   workflow: student-2.yml
-  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626184
-  boundary: Successful retained integrated baseline330e65f run; precedes report-update branch; MCP/RAG disabled.
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437027
+  boundary: Successful report-update code d2d0cd7 run; later report-only edits; MCP/RAG disabled.
 - kind: feature-mcp
   student: 3
   section: Feature 3 Suburb analytics
@@ -464,8 +464,8 @@ evidence:
   student: 3
   section: 6.5 GitHub Actions
   workflow: student-3.yml
-  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/36905625989
-  boundary: Successful retained integrated baseline330e65f run; precedes report-update branch; MCP/RAG disabled.
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/37091436984
+  boundary: Successful report-update code d2d0cd7 run; later report-only edits; MCP/RAG disabled.
 - kind: feature-mcp
   student: 4
   section: Feature 4 Due diligence
@@ -485,8 +485,8 @@ evidence:
   student: 4
   section: 6.5 GitHub Actions
   workflow: student-4.yml
-  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626030
-  boundary: Successful retained integrated baseline330e65f run; precedes report-update branch; MCP/RAG disabled.
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437048
+  boundary: Successful report-update code d2d0cd7 run; later report-only edits; MCP/RAG disabled.
 - kind: feature-mcp
   student: 5
   section: Feature 5 Buyer workspace
@@ -506,8 +506,8 @@ evidence:
   student: 5
   section: 6.5 GitHub Actions
   workflow: student-5.yml
-  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/36905626058
-  boundary: Successful retained integrated baseline330e65f run; precedes report-update branch; MCP/RAG disabled.
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/37091437064
+  boundary: Successful report-update code d2d0cd7 run; later report-only edits; MCP/RAG disabled.
 contributions:
 - student: 1
   section: Student 1 Matthew Shelton
