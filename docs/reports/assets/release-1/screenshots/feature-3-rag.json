@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-3-rag",
+  "captured_at": "2026-10-03T02:28:02.912944+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "rag",
+  "feature_key": "student-3-suburb-analytics",
+  "run_id": "cc21e6f6-4997-47f6-aa2d-9a87e6061b4a",
+  "request_id": "685ae626-ed2b-413e-bb91-29752089d42c",
+  "run_created_at": "2026-10-03T02:27:52.431219Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "db347f8a64a37d30bb76620bad8173a6862e71b9ce1603ea81e2453a3049a7ae"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "5aa4a7a8-928a-4b48-84f8-e4c338c975db",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "cce6f0ef-5a52-4177-9bff-0a640f35d602",
+      "tool_name": "crime.methodology.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "suburb-analytics-guidance",
+  "corpus_version": "8db8f59a9c9daa8ffd5126f157fa0097a1a83bf9208a2a6c9d81f41321ba3b4a",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "high",
+  "citation_count": 2,
+  "evidence_gap_count": 0,
+  "citations": [
+    {
+      "citation_id": "cite-1ba53d6262ea64ce9b5a200b9d02bedec4231df4e225bc7e8da2cf6b21e65a47",
+      "document_id": "crime-methodology",
+      "chunk_id": "454002b8ce681cb06eab0023edd13ac757dc8781f0763788a22d448a2bb5c24d",
+      "title": "How to interpret recorded crime evidence",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/crime-methodology.md",
+      "source_date": "2026-10-02",
+      "content_hash": "f6c34c70ee3990754b221ff9fd1f6aba2f3d116d608e995846ed31924409efde",
+      "score": 0.8111595559054058
+    },
+    {
+      "citation_id": "cite-4b6532f0f2b18d74818b8536fbd5e02385f03555291331846f8d7b47cb55fd4d",
+      "document_id": "published-evidence",
+      "chunk_id": "754126e77fbcb0b9e973a7c3e6b123b9474ab7ab3a8270e736301a1c50d2a0dc",
+      "title": "Published evidence and demonstration data",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-3/config/rag/documents/published-evidence.md",
+      "source_date": "2026-10-02",
+      "content_hash": "b44bfe2e347c30b9d6ee07091a2592f6ee0059548656a413df019a05fd52cbde",
+      "score": 0.7429840038778627
+    }
+  ],
+  "context": {
+    "route": "suburbs/detail",
+    "locality": "PARRAMATTA"
+  },
+  "backend_route": "/api/suburb-analytics/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-3-rag.png",
+      "sha256": "e3ed5e26f8eed57b28c1163e81f5c9de73e456c64d674a1b5432ab106e860027",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-3-rag.sources.png",
+      "sha256": "86a304b41812228dcd4ffc03028944f7ef5ed8b2bd24eb09d254306a9b9ea6cc",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-3-rag.answer.png",
+      "sha256": "b90ea9c1c2529d3b516b3daeb67c8bd8d1ed167d05f0941355160e27ca364d17",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 812,
+        "height": 729
+      }
+    },
+    {
+      "file": "feature-3-rag.citation.png",
+      "sha256": "dfb60ecd41022f565f399533a5b5308e0790da8b7c190db01619d4c02c23e65e",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1221
+      },
+      "element_size": {
+        "width": 770,
+        "height": 981
+      }
+    }
+  ]
+}

@@ -16,7 +16,7 @@ flowchart LR
         up --> hostsvc
         dc -->|service token| hostsvc
     end
-    ci -.->|same Compose files, AI services off| local
+    ci -.->|same Compose files, MCP and RAG disabled| local
 
     classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
     classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;

@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-5-insufficient",
+  "captured_at": "2026-10-03T02:29:59.929899+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "insufficient",
+  "feature_key": "student-5-buyer-journey",
+  "run_id": "4ae48dda-6bb6-486e-a322-028842ad3b34",
+  "request_id": "10ed5142-05da-4465-8df5-79c4d24d6a79",
+  "run_created_at": "2026-10-03T02:29:50.500136Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "6094d41e273438daf4dcc6121b7ca7ec9d373ec4dc84d2f657ffb6e540e551a9"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "c1e95f66-bf11-474a-8d2a-5185b9b64d28",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "9bf59134-6bc6-4d18-980b-101c09184c9e",
+      "tool_name": "buyer.cases.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "a1adf885-a74b-439e-bf05-49f983e09ef0",
+      "tool_name": "buyer.notes.list.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "58bba61a-78a5-4847-ab72-a07726db80ad",
+      "tool_name": "buyer.tasks.list.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "d7109162-1152-4ae2-bea6-f03415c6a854",
+      "tool_name": "buyer.evidence.collect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "f35d5f4e808222012131b29f3e220cdacc03d823c127700a1224ea2663ed91bd",
+  "retrieval_status": "no_match",
+  "grounding_status": "no_match",
+  "confidence": "insufficient",
+  "citation_count": 0,
+  "evidence_gap_count": 2,
+  "citations": [],
+  "context": {
+    "buyer_case_id": "b5000000-0000-4000-8000-000000000001"
+  },
+  "backend_route": "/api/buyer-workspaces/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-5-insufficient.png",
+      "sha256": "a105b4257673cb029f69cf7ffb96010af58939b8f6a563c271b0404394b3f84e",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-5-insufficient.sources.png",
+      "sha256": "1e1aac4a760ae5b822ea46c3a14e2b5a9d01782b959a4b953e1afa19adcc46da",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-5-insufficient.answer.png",
+      "sha256": "54498a3da76d0d0432e3f9d50e5af6776b55cb38a996858369a6f060c29dca2e",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 860,
+        "height": 423
+      }
+    }
+  ]
+}

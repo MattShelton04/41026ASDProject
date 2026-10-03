@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-4-mcp",
+  "captured_at": "2026-10-03T02:35:53.880753+00:00",
+  "software_sha": "bbcbd2520c4c93690821a64e8f6131f689e3fda8",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "mcp",
+  "feature_key": "student-4-due-diligence",
+  "run_id": "9fce0ba9-8dfe-419c-84d6-0fd0292d0d53",
+  "request_id": "9f847cc1-cf36-4d69-af60-6a45bfa056c7",
+  "run_created_at": "2026-10-03T02:35:37.272828Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "9c6d4cd712d17dc4c7595755bcbaeb4fd6e773815665d2b6d96b017242a69eb6"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "85573cb9-ad50-4d8a-ae40-e64e32b5e742",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "950b7f2a-4b60-4b46-bf1c-a74e59da6537",
+      "tool_name": "duediligence.capabilities.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "6ac1127e-fe92-47d5-8914-8908d9c2ee32",
+      "tool_name": "duediligence.review.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "6f0a0eb2-afc3-4adf-9676-4f1a3b3e9773",
+      "tool_name": "duediligence.evidence.summary.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "b50761eebb33c163daecab4e0ab7fc4dbf662c69a64728d509f740479036c60e",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "moderate",
+  "citation_count": 2,
+  "evidence_gap_count": 1,
+  "citations": [
+    {
+      "citation_id": "cite-670b34f073e817dd67b87c675ae7240f35cc43ff60e7f6c2393de999a5882e5b",
+      "document_id": "evidence-states",
+      "chunk_id": "c4e8665526d09b2dc445bd1f879670eddd2329a65c1c5b8df06600ce6866770c",
+      "title": "How due-diligence evidence is classified and how confident that is",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-states.md",
+      "source_date": "2026-10-01",
+      "content_hash": "78e1d7f2add1676ca291128d18a1f0e01900dc77f3fa6738f850d3babbed0851",
+      "score": 0.6548930571865024
+    },
+    {
+      "citation_id": "cite-f74bff8d5e45e3a20ca0f43f8d03b4ccfeec0a0bba62efa12f98920f15fb15ef",
+      "document_id": "evidence-limits",
+      "chunk_id": "20082a8292aa3c175bb0c9aeb1bb5aff4efc9bd44370264fe8f387ec2c0d249b",
+      "title": "What Site and due diligence evidence cannot establish",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-4/config/rag/documents/evidence-limits.md",
+      "source_date": "2026-10-01",
+      "content_hash": "fa39bcde54beb407eff0f7ab1075843c5c4c856178c09eeda5fde375fb1a6645",
+      "score": 0.6928689371573322
+    }
+  ],
+  "context": {
+    "site_review_id": "d4000000-0000-0000-0000-000000000001"
+  },
+  "backend_route": "/api/due-diligence/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-4-mcp.png",
+      "sha256": "88b8c803edd489c5260b363e04e0187f484ff2a5b731090ef16331a1a8d8d460",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-4-mcp.sources.png",
+      "sha256": "b6012180725fe981ae671bfbccae822fdaf8c43646e168ce910710c2b42e3ef1",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-4-mcp.answer.png",
+      "sha256": "60f3c78d14c7d3955e6cf4e8fd4cb1592e7db6253688d6c8f277ea0a1d5f828e",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1504
+      },
+      "element_size": {
+        "width": 746,
+        "height": 1264
+      }
+    }
+  ]
+}

@@ -1,0 +1,179 @@
+{
+  "schema_version": "1.0",
+  "passed": true,
+  "services": {
+    "ai-mode": "http://127.0.0.1:5005",
+    "mcp": "http://127.0.0.1:5011/mcp",
+    "rag": "http://127.0.0.1:5012"
+  },
+  "checks": [
+    {
+      "service": "ai-mode",
+      "check": "liveness",
+      "passed": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "service": "ai-mode",
+      "check": "rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "service": "ai-mode",
+      "check": "accepts the service token",
+      "passed": true,
+      "detail": "HTTP 200; service token accepted; readiness healthy"
+    },
+    {
+      "service": "mcp",
+      "check": "rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "service": "mcp",
+      "check": "health",
+      "passed": true,
+      "detail": "HTTP 200; 29 tools registered"
+    },
+    {
+      "service": "mcp",
+      "check": "tools/list",
+      "passed": true,
+      "detail": "29 tools exposed"
+    },
+    {
+      "service": "mcp",
+      "check": "student-1-propertyscope-data-platform tools",
+      "passed": true,
+      "detail": "14 listed"
+    },
+    {
+      "service": "mcp",
+      "check": "student-2-market-intelligence tools",
+      "passed": true,
+      "detail": "3 listed"
+    },
+    {
+      "service": "mcp",
+      "check": "student-3-suburb-analytics tools",
+      "passed": true,
+      "detail": "4 listed"
+    },
+    {
+      "service": "mcp",
+      "check": "student-4-due-diligence tools",
+      "passed": true,
+      "detail": "3 listed"
+    },
+    {
+      "service": "mcp",
+      "check": "student-5-buyer-journey tools",
+      "passed": true,
+      "detail": "5 listed"
+    },
+    {
+      "service": "rag",
+      "check": "rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "service": "rag",
+      "check": "embedding model ready",
+      "passed": true,
+      "detail": "HTTP 200; BAAI/bge-small-en-v1.5@0511f78a94d45299a943282bdc513475ededebbcefcf156b39758f5fe7a1945b"
+    },
+    {
+      "service": "rag",
+      "check": "student-1-propertyscope-data-platform corpus",
+      "passed": true,
+      "detail": "operator-guidance da29fbf773df: 19 documents, 46 chunks"
+    },
+    {
+      "service": "rag",
+      "check": "student-1-propertyscope-data-platform grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'Searching for an address' score 0.9714718595924011"
+    },
+    {
+      "service": "rag",
+      "check": "student-1-propertyscope-data-platform insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)"
+    },
+    {
+      "service": "rag",
+      "check": "student-2-market-intelligence corpus",
+      "passed": true,
+      "detail": "operator-guidance fc79eb7f5818: 3 documents, 8 chunks"
+    },
+    {
+      "service": "rag",
+      "check": "student-2-market-intelligence grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'What Sales and market evidence cannot establish' score 0.971083220269766"
+    },
+    {
+      "service": "rag",
+      "check": "student-2-market-intelligence insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)"
+    },
+    {
+      "service": "rag",
+      "check": "student-3-suburb-analytics corpus",
+      "passed": true,
+      "detail": "suburb-analytics-guidance 8db8f59a9c9d: 8 documents, 16 chunks"
+    },
+    {
+      "service": "rag",
+      "check": "student-3-suburb-analytics grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'How to interpret amenities and transport evidence' score 0.9805379543736715"
+    },
+    {
+      "service": "rag",
+      "check": "student-3-suburb-analytics insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)"
+    },
+    {
+      "service": "rag",
+      "check": "student-4-due-diligence corpus",
+      "passed": true,
+      "detail": "operator-guidance b50761eebb33: 3 documents, 8 chunks"
+    },
+    {
+      "service": "rag",
+      "check": "student-4-due-diligence grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'What Site and due diligence evidence cannot establish' score 0.9372916432370861"
+    },
+    {
+      "service": "rag",
+      "check": "student-4-due-diligence insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)"
+    },
+    {
+      "service": "rag",
+      "check": "student-5-buyer-journey corpus",
+      "passed": true,
+      "detail": "operator-guidance f35d5f4e8082: 5 documents, 5 chunks"
+    },
+    {
+      "service": "rag",
+      "check": "student-5-buyer-journey grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'Manage buyer cases' score 0.9674645042742"
+    },
+    {
+      "service": "rag",
+      "check": "student-5-buyer-journey insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)"
+    }
+  ]
+}

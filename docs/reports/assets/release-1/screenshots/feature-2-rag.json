@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-2-rag",
+  "captured_at": "2026-10-03T02:26:57.538061+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "rag",
+  "feature_key": "student-2-market-intelligence",
+  "run_id": "c6f47a81-b3fb-46fc-93ef-eea815bfa5f7",
+  "request_id": "db0b88ab-c9b6-486f-8d26-e6629e306b50",
+  "run_created_at": "2026-10-03T02:26:36.894009Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "e5c27fb981853b4b0854db2d057357f8bd55912a54675f0cd14f8938ef24359a"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "2e684a28-9066-408b-880f-4f3ce836b449",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "44e82e7a-054c-4a3e-93c7-fe1c5a924845",
+      "tool_name": "market.cases.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "e59ce3fb-a501-41f6-bf7f-6acedfd08b1d",
+      "tool_name": "market.sales.summary.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "fc79eb7f58187a25419ecc32b714dfb061d7e9c4e3233358bad4c98101b881d2",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "moderate",
+  "citation_count": 2,
+  "evidence_gap_count": 1,
+  "citations": [
+    {
+      "citation_id": "cite-2ba852d410890670dda96b6d8ff32a3da3d0c917acb67ff24b6be02a89b2efb3",
+      "document_id": "match-quality",
+      "chunk_id": "c7b55943999bc0190c06343e321bd4ce3abc4ecd2547cc61b412d54e9fe6ab1e",
+      "title": "How sales are attributed to a property and how confident that is",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/match-quality.md",
+      "source_date": "2026-09-28",
+      "content_hash": "742225e8a5e41789956da86e56fd0dcad978386333a238d2e5e7f69c085c6a94",
+      "score": 0.7575298409983438
+    },
+    {
+      "citation_id": "cite-c70c0ee60171876d19c9f70e65ddc7be023393abc58337a9b19395058faac697",
+      "document_id": "evidence-limits",
+      "chunk_id": "ecd74b4739d4def521295212538ff53ccf38197be842e39ec94e3622e67cd369",
+      "title": "What Sales and market evidence cannot establish",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-2/config/rag/documents/evidence-limits.md",
+      "source_date": "2026-09-28",
+      "content_hash": "22a036de43173fa7388afdd5b2072a4844c459d69209a081d7439d7be7e78d29",
+      "score": 0.8223370286868166
+    }
+  ],
+  "context": {
+    "market_case_id": "60000000-0000-4000-8000-000000000001"
+  },
+  "backend_route": "/api/market-intelligence/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-2-rag.png",
+      "sha256": "48c71bb3f9098feec37b6cc061c8c5d4bbc8bc00e4214666c7a056ffb52ae8f1",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-2-rag.sources.png",
+      "sha256": "5ef804f0b15c7368d68744afaf8035d9b188a7f0568f483c276c4573f9edf096",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-2-rag.answer.png",
+      "sha256": "7b1657d4ea32ddd4c1811ce0404c4b5aac7a021591ab77e263c93929da6df103",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1282
+      },
+      "element_size": {
+        "width": 860,
+        "height": 1041
+      }
+    },
+    {
+      "file": "feature-2-rag.citation.png",
+      "sha256": "a80f78c1417f7f541ad61ac81529e90cc7c7d8d268a7876fcde74b2b9995ab66",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1276
+      },
+      "element_size": {
+        "width": 818,
+        "height": 1035
+      }
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+{
+  "schema_version": "1.0",
+  "captured_at": "2026-10-03T02:13:52.223496+00:00",
+  "compose_project": "ps-dev",
+  "transport": "live-local-feature-and-owning-store-http",
+  "evidence_boundary": "Actual HTTP operations on the existing developer stack. Seeded demonstration records may remain; counts do not prove official data coverage. No model, browser interaction, container restart or source acquisition was exercised.",
+  "passed": true,
+  "shared_home": {
+    "url": "http://127.0.0.1:5100/",
+    "http_status": 200,
+    "content_type": "text/html",
+    "title": "PropertyScope NSW",
+    "passed": true
+  },
+  "features": [
+    {
+      "feature_key": "student-1-propertyscope-data-platform",
+      "passed": true,
+      "frontend": {
+        "url": "http://127.0.0.1:5200/",
+        "http_status": 200,
+        "content_type": "text/html",
+        "title": "PropertyScope | Property data",
+        "passed": true
+      },
+      "api": {
+        "url": "http://127.0.0.1:5200/api/data-platform/v1/sources?limit=10",
+        "http_status": 200,
+        "returned_items": 10,
+        "passed": true
+      },
+      "database": {
+        "service": "f1-db-api",
+        "interface": "Owning database service HTTP API, via selected Compose project",
+        "path": "/health/ready",
+        "http_status": 200,
+        "passed": true
+      },
+      "transient_crud": {
+        "scope": "Only a uniquely labelled record created by this capture",
+        "stages": [
+          {
+            "operation": "create",
+            "http_status": 201
+          },
+          {
+            "operation": "read-created",
+            "http_status": 200,
+            "identity_and_value_match": true
+          },
+          {
+            "operation": "update",
+            "http_status": 200,
+            "identity_and_value_match": true
+          },
+          {
+            "operation": "read-updated",
+            "http_status": 200,
+            "identity_and_value_match": true
+          },
+          {
+            "operation": "delete",
+            "http_status": 204
+          },
+          {
+            "operation": "read-after-delete",
+            "http_status": 404
+          }
+        ],
+        "passed": true,
+        "cleanup_passed": true,
+        "record_id": "c5434deb-9a2d-445e-97cd-af868eb57aaa"
+      }
+    },
+    {
+      "feature_key": "student-2-market-intelligence",
+      "passed": true,
+      "frontend": {
+        "url": "http://127.0.0.1:5300/",
+        "http_status": 200,
+        "content_type": "text/html",
+        "title": "Sales and market \u00b7 PropertyScope NSW",
+        "passed": true
+      },
+      "api": {
+        "url": "http://127.0.0.1:5300/api/market-intelligence/v1/market-cases?limit=10",
+        "http_status": 200,
+        "returned_items": 10,
+        "passed": true
+      },
+      "database": {
+        "service": "f2-db-api",
+        "interface": "Owning database service HTTP API, via selected Compose project",
+        "path": "/internal/market-intelligence/v1/seed-report",
+        "http_status": 200,
+        "passed": true,
+        "tables": {
+          "market_case": 10,
+          "sale_observation": 26
+        },
+        "minimum_observed_table_count": 10
+      }
+    },
+    {
+      "feature_key": "student-3-suburb-analytics",
+      "passed": true,
+      "frontend": {
+        "url": "http://127.0.0.1:5600/",
+        "http_status": 200,
+        "content_type": "text/html",
+        "title": "PropertyScope | Suburb analytics",
+        "passed": true
+      },
+      "api": {
+        "url": "http://127.0.0.1:5600/api/suburb-analytics/v1/suburbs?limit=10",
+        "http_status": 200,
+        "returned_items": 10,
+        "passed": true
+      },
+      "database": {
+        "service": "f3-database",
+        "interface": "Owning database service HTTP API, via selected Compose project",
+        "path": "/health/ready",
+        "http_status": 200,
+        "passed": true,
+        "tables": {
+          "suburb_info": 10,
+          "suburb_indicators": 400,
+          "suburb_amenity": 38,
+          "suburb_overview": 10,
+          "user_suburbs": 10
+        },
+        "minimum_observed_table_count": 10
+      }
+    },
+    {
+      "feature_key": "student-4-due-diligence",
+      "passed": true,
+      "frontend": {
+        "url": "http://127.0.0.1:5400/",
+        "http_status": 200,
+        "content_type": "text/html",
+        "title": "PropertyScope | Site and planning",
+        "passed": true
+      },
+      "api": {
+        "url": "http://127.0.0.1:5400/api/due-diligence/v1/site-reviews?limit=10",
+        "http_status": 200,
+        "returned_items": 10,
+        "passed": true
+      },
+      "database": {
+        "service": "f4-db-api",
+        "interface": "Owning database service HTTP API, via selected Compose project",
+        "path": "/health/ready",
+        "http_status": 200,
+        "passed": true
+      },
+      "transient_crud": {
+        "scope": "Only a uniquely labelled record created by this capture",
+        "stages": [
+          {
+            "operation": "create",
+            "http_status": 201
+          },
+          {
+            "operation": "read-created",
+            "http_status": 200,
+            "identity_and_value_match": true
+          },
+          {
+            "operation": "update",
+            "http_status": 200,
+            "identity_and_value_match": true
+          },
+          {
+            "operation": "read-updated",
+            "http_status": 200,
+            "identity_and_value_match": true
+          },
+          {
+            "operation": "delete",
+            "http_status": 200
+          },
+          {
+            "operation": "read-after-delete",
+            "http_status": 404
+          }
+        ],
+        "passed": true,
+        "cleanup_passed": true,
+        "record_id": "f3778b6b-16c4-48a6-a939-378f5bd6b4a9"
+      }
+    },
+    {
+      "feature_key": "student-5-buyer-journey",
+      "passed": true,
+      "frontend": {
+        "url": "http://127.0.0.1:5500/",
+        "http_status": 200,
+        "content_type": "text/html",
+        "title": "PropertyScope | Buyer workspace",
+        "passed": true
+      },
+      "api": {
+        "url": "http://127.0.0.1:5500/api/buyer-workspaces/v1/buyer-cases?page_size=10",
+        "http_status": 200,
+        "returned_items": 10,
+        "passed": true
+      },
+      "database": {
+        "service": "f5-db-api",
+        "interface": "Owning database service HTTP API, via selected Compose project",
+        "path": "/internal/buyer-workspaces/v1/seed-report",
+        "http_status": 200,
+        "passed": true,
+        "tables": {
+          "buyer_case": 10,
+          "case_note": 11,
+          "case_property": 12,
+          "case_task": 12
+        },
+        "minimum_observed_table_count": 10
+      }
+    }
+  ],
+  "software_sha": "9cab8aa76160fa9a36e2be636273ea298a8745ca",
+  "tracked_worktree_dirty": true
+}

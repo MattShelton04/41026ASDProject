@@ -1,0 +1,130 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-5-mcp",
+  "captured_at": "2026-10-03T02:29:30.484880+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "mcp",
+  "feature_key": "student-5-buyer-journey",
+  "run_id": "294a29c7-0116-4741-ad6e-0440d5b57667",
+  "request_id": "a4473fc9-81fd-4070-9776-f3d1dc615e4a",
+  "run_created_at": "2026-10-03T02:29:14.807643Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "6094d41e273438daf4dcc6121b7ca7ec9d373ec4dc84d2f657ffb6e540e551a9"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "77b1d5d9-0bf1-425e-ad84-1a85ec10800a",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    },
+    {
+      "call_id": "9cc3ae7d-5355-4206-997b-88a5da221ef2",
+      "tool_name": "buyer.cases.inspect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "e08ce6a5-0862-488d-934a-b34a77a92ea5",
+      "tool_name": "buyer.notes.list.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "8fb25831-be6c-4908-a0d5-0874ec1e3349",
+      "tool_name": "buyer.tasks.list.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    },
+    {
+      "call_id": "1a8512f7-657a-4a75-ab8d-1c0e09e6f7be",
+      "tool_name": "buyer.evidence.collect.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "mcp"
+    }
+  ],
+  "corpus_id": "operator-guidance",
+  "corpus_version": "f35d5f4e808222012131b29f3e220cdacc03d823c127700a1224ea2663ed91bd",
+  "retrieval_status": "ready",
+  "grounding_status": "ready",
+  "confidence": "moderate",
+  "citation_count": 1,
+  "evidence_gap_count": 1,
+  "citations": [
+    {
+      "citation_id": "cite-3be027f428f29748c4104a8993443c0353d41555a997218b8aa8e0aea9af6994",
+      "document_id": "shortlist-and-stages",
+      "chunk_id": "0ff0b395d60cc9be05a549eecef82a6c36b79d3771c17de97baeb84923c27d74",
+      "title": "Shortlists and journey stages",
+      "source_uri": "https://github.com/MattShelton04/41026ASDProject/blob/main/student-5/config/rag/documents/shortlist-and-stages.md",
+      "source_date": "2026-10-01",
+      "content_hash": "cef37a0b2527fcfb1e1fe7770f2b79c1aa2af1770b0aa7ab396335d0f07df50b",
+      "score": 0.642686830968269
+    }
+  ],
+  "context": {
+    "buyer_case_id": "b5000000-0000-4000-8000-000000000001"
+  },
+  "backend_route": "/api/buyer-workspaces/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-5-mcp.png",
+      "sha256": "dd1d9b971c319cbcd1402ed3c2b474acf2ddfb989cae2291a6dd2e42ca6d3802",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-5-mcp.sources.png",
+      "sha256": "83b8df19b00ccd2bc31e2a4c92ae129ae9d983413e3d8e5bc84f4d8192fea0b7",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-5-mcp.answer.png",
+      "sha256": "772209b70e7ae03ec02f4f8f59684eb62b28095f25a6afb005d5c72bc3126bf9",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1217
+      },
+      "element_size": {
+        "width": 860,
+        "height": 976
+      }
+    }
+  ]
+}

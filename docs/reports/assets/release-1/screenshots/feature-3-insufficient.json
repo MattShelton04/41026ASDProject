@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "shot": "feature-3-insufficient",
+  "captured_at": "2026-10-03T02:28:27.630746+00:00",
+  "software_sha": "937389aaee77daa209e2d791eaf3511edd134add",
+  "tracked_worktree_dirty": true,
+  "origin": "http://localhost:5100",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "decision_provider": "live-configured-provider",
+  "mode": "insufficient",
+  "feature_key": "student-3-suburb-analytics",
+  "run_id": "75389ab8-5d89-4a3a-87cd-636236888b41",
+  "request_id": "8560adfc-81ac-4dd1-8852-4b1a9aa32345",
+  "run_created_at": "2026-10-03T02:28:17.529951Z",
+  "status": "succeeded",
+  "model_profile": "remote-standard.v1",
+  "prompt_set": "default.v9",
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "prompt_id": "planner",
+      "prompt_version": "v8",
+      "prompt_hash": "db347f8a64a37d30bb76620bad8173a6862e71b9ce1603ea81e2453a3049a7ae"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "prompt_id": "adapter",
+      "prompt_version": "v9",
+      "prompt_hash": "658d2e02d26cf7e3b5524ee4663f9109c3d16d2bf90b67b83428d5797fbdaa71"
+    }
+  ],
+  "tools": [
+    {
+      "call_id": "015585ec-d599-47f9-a06d-5bb36f75c879",
+      "tool_name": "context.retrieve.v1",
+      "tool_version": "v1",
+      "outcome": "succeeded",
+      "transport": "rag"
+    }
+  ],
+  "corpus_id": "suburb-analytics-guidance",
+  "corpus_version": "8db8f59a9c9daa8ffd5126f157fa0097a1a83bf9208a2a6c9d81f41321ba3b4a",
+  "retrieval_status": "no_match",
+  "grounding_status": "no_match",
+  "confidence": "insufficient",
+  "citation_count": 0,
+  "evidence_gap_count": 2,
+  "citations": [],
+  "context": {
+    "route": "suburbs/detail",
+    "locality": "PARRAMATTA"
+  },
+  "backend_route": "/api/suburb-analytics/v1/assistant/turns",
+  "images": [
+    {
+      "file": "feature-3-insufficient.png",
+      "sha256": "d7cb4fcec2c89d43d05476b4e2bc09a37888a97b59ade2363a5a8204c030e08f",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-3-insufficient.sources.png",
+      "sha256": "a147ca79a8fedcf8f57687b51356a693ceecf03e00442c68fb29491ce00df3c7",
+      "capture": "viewport",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "file": "feature-3-insufficient.answer.png",
+      "sha256": "3e79cff5d7e0cf559ace5c967d6982b431fa8d16903555fd168a2aa94b85ae90",
+      "capture": "element",
+      "viewport": {
+        "width": 1100,
+        "height": 1000
+      },
+      "element_size": {
+        "width": 812,
+        "height": 405
+      }
+    }
+  ]
+}

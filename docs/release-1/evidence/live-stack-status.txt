@@ -1,0 +1,42 @@
+AI runtime: host processes (not containerised; Compose defines no AI service)
+[
+  {
+    "service": "ai-mode",
+    "state": "running",
+    "url": "http://127.0.0.1:5005"
+  },
+  {
+    "service": "mcp",
+    "state": "running",
+    "url": "http://127.0.0.1:5011/mcp"
+  },
+  {
+    "service": "rag",
+    "state": "running",
+    "url": "http://127.0.0.1:5012"
+  }
+]
+> docker info --format 'Docker Engine {{.ServerVersion}} is ready'
+Docker Engine 29.8.0 is ready
+> docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --file docker-compose.dev.yml --profile release-0 ps
+NAME                       IMAGE                               COMMAND                  SERVICE           CREATED        STATUS                    PORTS
+ps-dev-f1-backend-1        propertyscope/f1-backend:dev        "gunicorn --bind=0.0…"   f1-backend        4 days ago     Up 34 minutes (healthy)   5201/tcp
+ps-dev-f1-db-api-1         propertyscope/f1-db-api:dev         "gunicorn --bind=0.0…"   f1-db-api         4 days ago     Up 34 minutes (healthy)   5202/tcp
+ps-dev-f1-db-loader-1      propertyscope/f1-db-loader:dev      "python -m propertys…"   f1-db-loader      4 days ago     Up 34 minutes
+ps-dev-f1-frontend-1       propertyscope/f1-frontend:dev       "/docker-entrypoint.…"   f1-frontend       4 days ago     Up 34 minutes (healthy)   127.0.0.1:5200->8080/tcp
+ps-dev-f1-postgres-1       postgis/postgis:16-3.4              "docker-entrypoint.s…"   f1-postgres       3 weeks ago    Up 34 minutes (healthy)   5432/tcp
+ps-dev-f1-runner-1         propertyscope/f1-runner:dev         "python -m propertys…"   f1-runner         4 days ago     Up 34 minutes
+ps-dev-f2-backend-1        propertyscope/f2-backend:dev        "gunicorn --bind=0.0…"   f2-backend        4 days ago     Up 34 minutes (healthy)   5301/tcp
+ps-dev-f2-db-api-1         propertyscope/f2-db-api:dev         "gunicorn --bind=0.0…"   f2-db-api         4 days ago     Up 34 minutes (healthy)   5302/tcp
+ps-dev-f2-frontend-1       propertyscope/f2-frontend:dev       "/docker-entrypoint.…"   f2-frontend       4 days ago     Up 34 minutes (healthy)   127.0.0.1:5300->8080/tcp
+ps-dev-f3-backend-1        propertyscope/f3-backend:dev        "gunicorn --bind=0.0…"   f3-backend        4 days ago     Up 34 minutes (healthy)   5301/tcp
+ps-dev-f3-database-1       propertyscope/f3-database:dev       "gunicorn --bind=0.0…"   f3-database       4 days ago     Up 34 minutes (healthy)   5302/tcp
+ps-dev-f3-frontend-1       propertyscope/f3-frontend:dev       "/docker-entrypoint.…"   f3-frontend       4 days ago     Up 34 minutes (healthy)   127.0.0.1:5600->8080/tcp
+ps-dev-f4-backend-1        propertyscope/f4-backend:dev        "gunicorn --bind=0.0…"   f4-backend        4 days ago     Up 34 minutes (healthy)   5401/tcp
+ps-dev-f4-db-api-1         propertyscope/f4-db-api:dev         "gunicorn --bind=0.0…"   f4-db-api         4 days ago     Up 34 minutes (healthy)   5402/tcp
+ps-dev-f4-frontend-1       propertyscope/f4-frontend:dev       "/docker-entrypoint.…"   f4-frontend       41 hours ago   Up 34 minutes (healthy)   127.0.0.1:5400->8080/tcp
+ps-dev-f4-postgres-1       postgis/postgis:16-3.4              "docker-entrypoint.s…"   f4-postgres       3 weeks ago    Up 34 minutes (healthy)   5432/tcp
+ps-dev-f5-backend-1        propertyscope/f5-backend:dev        "gunicorn --bind=0.0…"   f5-backend        4 days ago     Up 34 minutes (healthy)   5501/tcp
+ps-dev-f5-db-api-1         propertyscope/f5-db-api:dev         "gunicorn --bind=0.0…"   f5-db-api         4 days ago     Up 34 minutes (healthy)   5502/tcp
+ps-dev-f5-frontend-1       propertyscope/f5-frontend:dev       "/docker-entrypoint.…"   f5-frontend       41 hours ago   Up 34 minutes (healthy)   127.0.0.1:5500->8080/tcp
+ps-dev-shared-frontend-1   propertyscope/shared-frontend:dev   "/docker-entrypoint.…"   shared-frontend   4 days ago     Up 34 minutes (healthy)   127.0.0.1:5100->8080/tcp
