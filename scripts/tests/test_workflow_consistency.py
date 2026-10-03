@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import tomllib
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import pytest
@@ -66,3 +68,82 @@ def test_newer_feature_jobs_install_node_and_disable_persisted_credentials(numbe
         )
         assert checkout["with"]["persist-credentials"] is False
         assert any(step.get("uses", "").startswith("actions/setup-node@") for step in steps)
+
+
+@pytest.mark.parametrize("number", range(1, 6))
+def test_feature_workflow_triggers_cover_workspace_and_compose_build_inputs(number: int) -> None:
+    """A manifest-only or workflow-only change must still test affected images."""
+    workflow_path = f".github/workflows/student-{number}.yml"
+    workflow = yaml.safe_load((ROOT / workflow_path).read_text(encoding="utf-8"))
+    workspace = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    build_inputs = {
+        workflow_path,
+        ".dockerignore",
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock",
+        "docker-compose.yml",
+        "docker-compose.dev.yml",
+        "deployment/enabled-features.compose.yml",
+        *(f"{member}/pyproject.toml" for member in workspace["tool"]["uv"]["workspace"]["members"]),
+    }
+    for event in ("push", "pull_request"):
+        # PyYAML's YAML 1.1 loader interprets the Actions `on` key as True.
+        patterns = workflow[True][event]["paths"]
+        missing = sorted(
+            path
+            for path in build_inputs
+            if not any(fnmatchcase(path, pattern) for pattern in patterns)
+        )
+        assert not missing, f"{workflow_path} {event} omits build inputs: {missing}"
+
+
+def test_feature_3_smoke_uses_images_loaded_by_the_managed_builder() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/student-3.yml").read_text())
+    steps = workflow["jobs"]["feature-stack"]["steps"]
+    builder_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("uses", "").startswith("docker/setup-buildx-action@")
+    )
+    build_index = next(index for index, step in enumerate(steps) if step.get("id") == "build")
+    assert builder_index < build_index
+    build = steps[build_index]
+    assert build["uses"].startswith("docker/bake-action@")
+    assert build["with"]["load"] is True
+    targets = set(build["with"]["targets"].split(","))
+    assert targets == {"f3-database", "f3-backend", "f3-frontend"}
+    cache_options = build["with"]["set"].splitlines()
+    for target in targets:
+        assert any(option.startswith(f"{target}.cache-from=type=gha,") for option in cache_options)
+        assert any(option.startswith(f"{target}.cache-to=type=gha,") for option in cache_options)
+    start = next(
+        step["run"] for step in steps if step["name"] == "Start the Feature 3 fixture stack"
+    )
+    assert "--no-build" in start.split()
+    assert targets <= set(start.split())
+    diagnostics = next(
+        step for step in steps if step["name"] == "Capture Docker builder diagnostics"
+    )
+    assert diagnostics["if"] == "failure() && steps.build.outcome == 'failure'"
+    assert "docker logs" in diagnostics["run"]
+
+
+@pytest.mark.parametrize("number", (1, 3))
+def test_build_cache_exports_are_optional_and_bounded(number: int) -> None:
+    workflow = yaml.safe_load((ROOT / f".github/workflows/student-{number}.yml").read_text())
+    builds = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if step.get("uses", "").startswith("docker/bake-action@")
+    ]
+    assert builds
+    for build in builds:
+        options = build["with"]["set"].splitlines()
+        imports = [option for option in options if ".cache-from=" in option]
+        exports = [option for option in options if ".cache-to=" in option]
+        assert imports and exports
+        assert all("timeout=2m" in option for option in [*imports, *exports])
+        assert all("ignore-error=true" in option for option in exports)
+        assert build.get("continue-on-error", False) is False

@@ -12,6 +12,7 @@ import pytest
 from scripts.visual import comment, publish
 from scripts.visual.extract import extract
 from scripts.visual.refs import comparison_refs
+from scripts.visual.report import Report
 
 BASE, MAIN_TIP, HEAD, MERGE = ("1" * 40, "2" * 40, "3" * 40, "4" * 40)
 
@@ -182,3 +183,140 @@ def test_comments_by_other_users_are_never_edited() -> None:
     impostor = {"id": 1, "user": {"login": "someone"}, "body": comment.MARKER}
     github = FakeGitHub({("GET", "/issues/7/comments"): [impostor]})
     assert publish.post_comment(github, 7, comment.MARKER, run_id=1, attempt=1) == "created"  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("status", ["queued", "building", "built"])
+def test_pages_build_is_not_requested_when_the_push_already_queued_one(status: str) -> None:
+    github = FakeGitHub({("GET", "/pages/builds"): [{"commit": HEAD, "status": status}]})
+    publish.ensure_pages_build(github, HEAD)  # type: ignore[arg-type]
+    assert [method for method, _, _ in github.calls] == ["GET"]
+
+
+def test_pages_api_fallback_remains_for_token_pushes_that_do_not_trigger_a_build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github = FakeGitHub({("GET", "/pages/builds"): [{"commit": BASE, "status": "built"}]})
+    delays: list[int] = []
+    monkeypatch.setattr(publish.time, "sleep", delays.append)
+    publish.ensure_pages_build(github, HEAD)  # type: ignore[arg-type]
+    assert delays == [5, 5]
+    assert [method for method, _, _ in github.calls] == ["GET", "GET", "GET", "POST"]
+
+
+def test_pages_push_trigger_can_appear_after_the_first_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github = FakeGitHub({("GET", "/pages/builds"): []})
+    monkeypatch.setattr(
+        publish.time,
+        "sleep",
+        lambda _delay: github.routes.update(
+            {("GET", "/pages/builds"): [{"commit": HEAD, "status": "building"}]}
+        ),
+    )
+    publish.ensure_pages_build(github, HEAD)  # type: ignore[arg-type]
+    assert [method for method, _, _ in github.calls] == ["GET", "GET"]
+
+
+def test_closed_or_stale_pull_request_metadata_can_be_retained_in_history() -> None:
+    github = FakeGitHub(
+        {("GET", "/pulls/7"): {"state": "closed", "head": {"sha": BASE}, "title": "Source PR"}}
+    )
+    run = _run(pull_requests=[{"number": 7}])["workflow_run"]
+    assert publish.find_pull_request(github, run) is None  # type: ignore[arg-type]
+    assert publish.find_pull_request(github, run, current_head_only=False) == {  # type: ignore[arg-type]
+        "number": 7,
+        "title": "Source PR",
+    }
+
+
+def test_branch_lookup_cannot_associate_a_reused_fork_branch_with_a_different_pr() -> None:
+    github = FakeGitHub(
+        {
+            ("GET", "/pulls"): [{"number": 7}],
+            ("GET", "/pulls/7"): {"state": "open", "head": {"sha": BASE}, "title": "Other PR"},
+        }
+    )
+    run = _run(head_repository={"owner": {"login": "fork"}}, head_branch="topic")["workflow_run"]
+    assert publish.find_pull_request(github, run, current_head_only=False) is None  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("move_during_deploy", [False, True])
+def test_stale_pr_gallery_is_published_as_a_pr_without_commenting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, move_during_deploy: bool
+) -> None:
+    github = FakeGitHub(
+        {
+            ("GET", "/actions/runs/99"): {"run_attempt": 1},
+            ("GET", "/pulls/7"): {
+                "state": "open",
+                "head": {"sha": HEAD if move_during_deploy else BASE},
+                "title": "Source PR",
+            },
+            ("GET", "/pages"): {"html_url": "https://owner.github.io/repo/"},
+        }
+    )
+    report = Report(
+        rows=[],
+        summary={},
+        metadata={"headSha": HEAD, "baseSha": BASE},
+        files=[],
+    )
+    builds: list[dict[str, Any]] = []
+    publications: list[dict[str, Any]] = []
+    monkeypatch.setattr(publish, "GitHub", lambda _repo, _token: github)
+    monkeypatch.setattr(
+        publish,
+        "download",
+        lambda _github, _run, _work: (
+            tmp_path / "base",
+            tmp_path / "head",
+            ["visual-head-fixture"],
+        ),
+    )
+
+    def build(**kwargs: Any) -> Report:
+        builds.append(kwargs)
+        return report
+
+    def push(_site: Path, **kwargs: Any) -> str:
+        publications.append(kwargs)
+        return MERGE
+
+    monkeypatch.setattr(publish, "build_report", build)
+    monkeypatch.setattr(publish, "push_pages", push)
+    monkeypatch.setattr(publish, "ensure_pages_build", lambda _github, _commit: None)
+
+    def deployed(_url: str) -> bool:
+        github.routes[("GET", "/pulls/7")]["head"]["sha"] = BASE
+        return True
+
+    monkeypatch.setattr(publish, "wait_until_served", deployed)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    result = publish.publish(
+        tmp_path / "site",
+        tmp_path / "work",
+        event=_run(pull_requests=[{"number": 7}], conclusion="failure"),
+        repo="owner/repo",
+        token="unused",
+    )
+    assert result == 0
+    assert publications[0]["entry"]["pr"] == 7
+    assert publications[0]["title"] == "PR #7: Source PR"
+    assert builds[0]["expected_providers"] == ("fixture", "stack")
+    assert builds[0]["metadata"]["captureConclusion"] == "failure"
+    assert all(method == "GET" for method, _, _ in github.calls)
+
+
+def test_unidentified_pr_runs_are_not_mislabelled_as_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    github = FakeGitHub({("GET", "/actions/runs/99"): {"run_attempt": 1}})
+    monkeypatch.setattr(publish, "GitHub", lambda _repo, _token: github)
+    assert (
+        publish.publish(
+            tmp_path / "site", tmp_path / "work", event=_run(), repo="owner/repo", token="unused"
+        )
+        == 0
+    )
+    assert "source pull request could not be identified" in capsys.readouterr().out

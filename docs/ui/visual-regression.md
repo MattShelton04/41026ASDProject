@@ -35,7 +35,7 @@ intended. Nothing in the system fails a pull request because pixels changed.
   Docker, starts in about a second, and every scenario is reproducible.
 - Features 2–5 have no fixture server, but each seeds fixed demonstration records into its own
   database on start. The **stack** provider starts the offline Compose stack
-  (`uv run scripts/dev.py stack up --offline`, with no model key, MCP or RAG) and captures those
+  (`uv run scripts/dev.py stack up --offline --no-reload --build`, with no model key, MCP or RAG) and captures those
   pages through the shared edge on port 5100. It covers the real backends and nginx routing too.
 
 ## Architecture
@@ -48,8 +48,8 @@ Visual Capture (untrusted, contents: read)          4 jobs: {base, head} × {fix
   1. check out the harness at github.sha (the PR merge commit)
   2. scripts/visual/refs.py → base = merge base, head = PR head (push: before → after)
   3. check out the base or head revision into app/
-  4. uv sync both; install lockfile-pinned Chromium
-  5. stack jobs: dev.py stack up --offline inside app/
+  4. uv sync both; install lockfile-pinned Chromium headless shell and system dependencies
+  5. stack jobs: dev.py stack up --offline --no-reload --build inside app/
   6. python -m scripts.visual capture --target ../app → PNG + capture-<provider>.json
   7. upload artifact visual-<revision>-<provider> (14 days)
         │ workflow_run: completed
@@ -57,15 +57,25 @@ Visual Capture (untrusted, contents: read)          4 jobs: {base, head} × {fix
 Visual Report (trusted, default branch only)
   1. validate the event (source workflow path, repository, conclusion, attempt)
   2. download the four artifacts; extract flat, bounded *.png / capture-*.json only
-  3. find the open PR whose head is this exact commit (forks included)
-  4. build_report: validate PNGs, diff pixels, write the gallery
+  3. identify the source PR (forks included); retain its identity even if its head moved
+  4. build_report: require both provider inventories, validate PNGs, diff pixels, write the gallery
   5. publish to gh-pages (rebase-and-retry, prune, squash long history)
-  6. write the job summary; wait for Pages; create or update the sticky comment
+  6. write the job summary; ensure one Pages build; comment only on an open PR at this exact head
 ```
 
 The harness always comes from the workflow revision, so a base commit that predates a new case or
 policy is still captured with today's rules. A view the base doesn't have yet is reported as
 **base unavailable**, not as a failure.
+
+CI renders built application images without the development source-mount overlay. Overlapping
+read-only frontend mounts can fail during container creation when a shared asset needs a new
+mountpoint. Both application revisions are explicitly built before capture. Local development
+can continue using the reloadable stack.
+
+A successful *Visual Report* means the gallery was published. Its summary separately records the
+capture workflow's conclusion. Missing provider artifacts and omitted head cases appear as
+**incomplete**; a failed stack startup cannot silently remove that feature section from the gallery.
+Local comparisons remain scoped to the providers and cases that were actually selected.
 
 ### Trust boundary
 
@@ -101,9 +111,10 @@ every source of variation it knows about (`scripts/visual/policy.py`, `capture.p
 | Clock | Playwright clock fixed at `2026-09-01T10:00:00+10:00`; `Australia/Sydney`, `en-AU` |
 | Randomness | seeded `Math.random`; `crypto.randomUUID` returns a counter-based v4 UUID |
 | Animation | reduced motion, a same-origin stylesheet that disables animations, transitions, smooth scrolling and carets, and Playwright's `animations="disabled"` |
+| WebGL maps | preserve the drawing buffer, then replace the settled canvas with a bitmap of its actual pixels before full-page capture; controls and viewport geometry stay intact |
 | Network | same-origin only; the Feature 3 map style is replaced by a blank style; everything else is aborted and listed in the view's notes |
 | Rendering | Chromium flags `--disable-partial-raster --disable-skia-runtime-opts --force-color-profile=srgb --font-render-hinting=none`; light colour scheme; service workers blocked |
-| Readiness | the case's ready selector → network idle → no visible `[aria-busy=true]` or `.ps-skeleton` → fonts loaded → two animation frames |
+| Readiness | the case's ready selector → network idle → no visible `[aria-busy=true]`, `.ps-skeleton` or loading map status → fonts loaded → two animation frames |
 | Stability | screenshots are repeated until two consecutive captures are byte-identical (at most 5) |
 | Measured values | per-case `mask` selectors paint genuinely measured values (only health-check latency today) in a flat colour |
 
@@ -111,9 +122,17 @@ The "still" stylesheet is served from the page's own origin through request inte
 stack's strict `style-src 'self'` CSP stays enforced. A CSP regression still shows up as a console
 error instead of being bypassed.
 
+WebGL snapshots prevent Chromium's full-page compositor from intermittently blanking canvases
+below the viewport. They preserve the renderer's real pixels, including feature geometry, and
+apply only in the disposable capture context. The screenshot still uses the 1440 × 1000 viewport,
+the original page layout and the same requirement for two byte-identical consecutive frames.
+
 Unexpected console errors, failed requests or a timed-out ready selector fail the view. The
 screenshot is kept as `<id>.failed.png` in the capture artifact for diagnosis, and the gallery
 lists the view as **incomplete** with its first errors.
+
+The capture job requires its real MapLibre browser canary (`VISUAL_REQUIRE_BROWSER=1`). In the
+ordinary source-quality gate it skips only when the Playwright browser executable is absent.
 
 ## Reading a comparison
 
@@ -204,7 +223,9 @@ A new case appears in pull request comparisons as **base unavailable** until the
 GitHub Pages is served from the `gh-pages` branch root. Deploying from a branch is simpler than an
 Actions deployment here: each publication is an ordinary commit, content-addressed images are
 reused across runs, and there's no deployment artifact size or environment protection to manage.
-One-time setup:
+The publisher first checks whether Pages already queued or built its pushed commit, then requests
+a build only if none appears within ten seconds. The API fallback remains necessary for workflow
+token pushes that do not trigger a build. One-time setup:
 
 ```text
 git switch --orphan gh-pages
@@ -218,8 +239,9 @@ gh api -X PUT repos/<owner>/<repo>/pages -f "source[branch]=gh-pages" -f "source
 The repository's default workflow token can stay read-only. The report workflow requests
 `contents`, `pull-requests` and `pages` write access in its own `permissions:` block, and the
 capture workflow asks only for `contents: read`. Free Actions minutes and
-Pages hosting on this public repository cover it: a run uses four capture jobs (about 15–25
-runner-minutes in total, mostly building stack images) and one short publish job.
+Pages hosting on this public repository cover it: a run uses four capture jobs and one short publish
+job. The [October 3 Actions review](../reviews/actions-reliability-2026-10-03.md) records measured
+durations, failures and the system-package download outliers.
 
 **Bootstrap limitation.** GitHub runs `workflow_run` workflows only from the default branch. The
 pull request that introduces this setup can capture and upload artifacts, but no gallery or comment

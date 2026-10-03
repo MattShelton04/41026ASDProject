@@ -17,8 +17,8 @@ permissions:
   pull-requests: write
   pages: write
 
-# Publishers serialise per pull request or branch; concurrent pushes to gh-pages are rebased and
-# retried by the publisher, so no run is ever dropped from a shared queue.
+# Publishers serialise per source branch; concurrent gh-pages pushes are rebased and retried.
+# GitHub can replace an older pending run in this group when another completion arrives.
 concurrency:
   group: visual-report-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false

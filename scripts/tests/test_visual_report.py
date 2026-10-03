@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pytest
 from scripts.visual import comment, history, pages
+from scripts.visual import report as visual_report
 from scripts.visual.gallery import render_gallery, render_history, script_json
 from scripts.visual.pngsafe import encode_png
 from scripts.visual.policy import VIEWPORT_WIDTH
@@ -275,3 +276,62 @@ def test_comment_run_stamps_prevent_older_reruns_overwriting() -> None:
     assert not comment.is_newer(stamped, run_id=10, attempt=3)
     assert not comment.is_newer(stamped, run_id=11, attempt=1)
     assert not comment.is_newer("no stamp", run_id=1, attempt=1)
+
+
+def test_ci_report_exposes_missing_provider_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.visual.cases import VisualCase
+
+    monkeypatch.setattr(
+        visual_report,
+        "CASES",
+        (
+            VisualCase("shared-home", "fixture", "/", "home"),
+            VisualCase("f2-cases", "stack", "/features/market/", "cases"),
+        ),
+    )
+    base = _side(tmp_path / "base", "base", BASE_SHA, {"shared-home": _png()})
+    head = _side(tmp_path / "head", "head", HEAD_SHA, {"shared-home": _png()})
+    report = build_report(
+        base_dir=base,
+        head_dir=head,
+        output=tmp_path / "out",
+        expected_providers=("fixture", "stack"),
+    )
+    assert report.summary["total"] == 2
+    assert report.summary["incomplete"] == 1
+    stack = report.rows[1]
+    assert stack["change"] == "incomplete"
+    assert "stack capture artifact missing" in stack["head"]["errors"][0]
+    assert "stack capture artifact missing" in stack["base"]["errors"][0]
+    changes = json.loads((tmp_path / "out" / "changes.json").read_text())
+    assert changes["views"][1]["limitations"][1].startswith("head: stack capture artifact missing")
+
+
+def test_ci_report_exposes_views_omitted_from_head_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.visual.cases import VisualCase
+
+    monkeypatch.setattr(
+        visual_report, "CASES", (VisualCase("shared-home", "fixture", "/", "home"),)
+    )
+    base = _side(tmp_path / "base", "base", BASE_SHA, {"shared-home": _png()})
+    head = _side(tmp_path / "head", "head", HEAD_SHA, {})
+    report = build_report(
+        base_dir=base,
+        head_dir=head,
+        output=tmp_path / "out",
+        expected_providers=("fixture",),
+    )
+    assert report.rows[0]["change"] == "incomplete"
+    assert report.rows[0]["head"]["errors"] == ["view missing from the capture manifest"]
+
+
+def test_local_report_retains_its_selected_case_scope(tmp_path: Path) -> None:
+    base = _side(tmp_path / "base", "base", BASE_SHA, {"shared-home": _png()})
+    head = _side(tmp_path / "head", "head", HEAD_SHA, {"shared-home": _png()})
+    report = build_report(base_dir=base, head_dir=head, output=tmp_path / "out")
+    assert report.summary["total"] == 1
+    assert report.summary["incomplete"] == 0

@@ -25,6 +25,7 @@ from typing import Any
 from scripts.visual import comment, pages
 from scripts.visual.extract import extract
 from scripts.visual.github import GitHub, valid_sha, wait_until_served
+from scripts.visual.policy import PROVIDERS
 from scripts.visual.report import Report, build_report
 
 CAPTURE_WORKFLOW = ".github/workflows/visual-capture.yml"
@@ -90,23 +91,30 @@ def download(github: GitHub, run_id: int, work: Path) -> tuple[Path, Path, list[
     return base, head, found
 
 
-def find_pull_request(github: GitHub, run: Mapping[str, Any]) -> dict[str, Any] | None:
-    """The open pull request whose current head is this run's head, if any."""
+def find_pull_request(
+    github: GitHub, run: Mapping[str, Any], *, current_head_only: bool = True
+) -> dict[str, Any] | None:
+    """Find the source PR, optionally requiring an open PR whose current head matches the run."""
     if run.get("event") != "pull_request":
         return None
     head_sha = run["head_sha"]
     candidates = [item.get("number") for item in run.get("pull_requests") or []]
+    has_source_metadata = bool(candidates)
     owner = ((run.get("head_repository") or {}).get("owner") or {}).get("login")
     branch = run.get("head_branch")
     if not candidates and isinstance(owner, str) and isinstance(branch, str):
         # Fork pull requests are not listed on the run; find them by head label.
-        for item in github.request(f"/pulls?state=open&per_page=30&head={owner}:{branch}") or []:
+        state = "open" if current_head_only else "all"
+        for item in github.request(f"/pulls?state={state}&per_page=30&head={owner}:{branch}") or []:
             candidates.append(item.get("number"))
     for number in candidates:
         if not isinstance(number, int):
             continue
         pull = github.request(f"/pulls/{number}")
-        if pull.get("state") == "open" and (pull.get("head") or {}).get("sha") == head_sha:
+        matches_head = (pull.get("head") or {}).get("sha") == head_sha
+        if (not current_head_only and (has_source_metadata or matches_head)) or (
+            current_head_only and pull.get("state") == "open" and matches_head
+        ):
             return {"number": number, "title": str(pull.get("title") or "")[:200]}
     return None
 
@@ -125,7 +133,7 @@ def push_pages(
     entry: Mapping[str, Any],
     title: str,
     repo: str,
-) -> None:
+) -> str:
     """Publish to ``gh-pages``, rebasing on concurrent publishers and squashing long histories."""
     for attempt in range(1, PUSH_ATTEMPTS + 1):
         _git(site, "fetch", "--quiet", "origin", "gh-pages")
@@ -159,10 +167,29 @@ def push_pages(
             text=True,
         )
         if pushed.returncode == 0:
-            return
+            return _git(site, "rev-parse", "HEAD")
         print(f"gh-pages push attempt {attempt} lost a race; retrying", file=sys.stderr)
         time.sleep(3 * attempt)
     raise RuntimeError("could not publish to gh-pages")
+
+
+def ensure_pages_build(github: GitHub, commit: str) -> None:
+    """Avoid duplicate builds when the push already queued Pages; explicitly request if needed.
+
+    GITHUB_TOKEN pushes may not trigger Pages, so keep the API fallback after allowing the
+    branch-publishing trigger time to appear in the build list.
+    """
+    for attempt in range(3):
+        builds = github.request("/pages/builds?per_page=10") or []
+        if any(
+            build.get("commit") == commit and build.get("status") in ("queued", "building", "built")
+            for build in builds
+        ):
+            print("Pages already has a build for the published commit; no duplicate requested.")
+            return
+        if attempt < 2:
+            time.sleep(5)
+    github.request("/pages/builds", method="POST")
 
 
 def post_comment(github: GitHub, number: int, body: str, run_id: int, attempt: int) -> str:
@@ -194,6 +221,9 @@ def step_summary(report: Report, gallery_url: str, pull: Mapping[str, Any] | Non
     return (
         f"## Visual review for {target}\n\n"
         f"[Open the gallery]({gallery_url})\n\n"
+        f"Capture workflow conclusion: **{report.metadata.get('captureConclusion', 'unknown')}**. "
+        "This report preserves capture diagnostics; publication success does not prove every "
+        "view was captured.\n\n"
         "| Changed | Subtle | Unchanged | Without baseline | Incomplete |\n"
         "|---:|---:|---:|---:|---:|\n"
         f"| {counts['changed']} | {counts['subtle']} | {counts['unchanged']} | "
@@ -214,11 +244,14 @@ def publish(site: Path, work: Path, *, event: Mapping[str, Any], repo: str, toke
     if int(latest.get("run_attempt") or attempt) > attempt:
         print("A newer attempt of this capture run exists; it will publish instead.")
         return 0
+    pull = find_pull_request(github, run, current_head_only=False)
+    if run.get("event") == "pull_request" and pull is None:
+        print("The source pull request could not be identified; skipping publication.")
+        return 0
     base_dir, head_dir, found = download(github, run_id, work)
     if not any(name.startswith("visual-head-") for name in found):
         print("The capture run uploaded no head screenshots; nothing to publish.")
         return 1
-    pull = find_pull_request(github, run)
     title = f"PR #{pull['number']}: {pull['title']}" if pull else f"main @ {head_sha[:7]}"
     run_url = str(run.get("html_url") or f"https://github.com/{repo}/actions/runs/{run_id}")
     report_dir = work / "report"
@@ -227,7 +260,12 @@ def publish(site: Path, work: Path, *, event: Mapping[str, Any], repo: str, toke
         head_dir=head_dir,
         output=report_dir,
         title=title,
-        metadata={"expectedHeadSha": head_sha, "runUrl": run_url},
+        metadata={
+            "expectedHeadSha": head_sha,
+            "runUrl": run_url,
+            "captureConclusion": run["conclusion"],
+        },
+        expected_providers=PROVIDERS,
     )
     entry = pages.run_entry(
         report,
@@ -237,12 +275,15 @@ def publish(site: Path, work: Path, *, event: Mapping[str, Any], repo: str, toke
         pr=pull["number"] if pull else None,
         pr_title=pull["title"] if pull else "",
     )
-    push_pages(site, report=report, report_dir=report_dir, entry=entry, title=title, repo=repo)
+    commit = push_pages(
+        site, report=report, report_dir=report_dir, entry=entry, title=title, repo=repo
+    )
     try:
-        github.request("/pages/builds", method="POST")
+        ensure_pages_build(github, commit)
     except urllib.error.HTTPError as exc:
         print(
-            f"Pages build request returned {exc.code}; the push will still deploy.", file=sys.stderr
+            f"Pages build request returned {exc.code}; check the Pages deployment status.",
+            file=sys.stderr,
         )
     site_info = github.request("/pages")
     site_url = str(site_info.get("html_url") or "").rstrip("/") + f"/{pages.ROOT}/"
@@ -254,8 +295,14 @@ def publish(site: Path, work: Path, *, event: Mapping[str, Any], repo: str, toke
     print(f"Published {gallery_url}")
     if pull is None:
         return 0
+    if find_pull_request(github, run) is None:
+        print("The pull request is closed or its head moved; gallery retained without a comment.")
+        return 0
     if not wait_until_served(f"{gallery_url}changes.json"):
         print("Pages has not served the gallery yet; commenting anyway.", file=sys.stderr)
+    if find_pull_request(github, run) is None:
+        print("The pull request changed while Pages deployed; skipping the stale comment.")
+        return 0
     body = comment.render(
         report.rows,
         report.summary,
