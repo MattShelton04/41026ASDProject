@@ -174,4 +174,11 @@ class McpToolExecutor:
             Draft202012Validator(definition.output_schema, format_checker=FormatChecker()).validate(
                 result.content
             )
+            result = result.model_copy(
+                update={
+                    "evidence_references": tuple(
+                        dict.fromkeys((*result.evidence_references, "transport:mcp"))
+                    )
+                }
+            )
         return result
