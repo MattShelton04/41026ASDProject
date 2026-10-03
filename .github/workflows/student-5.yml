@@ -3,6 +3,9 @@ name: Student 5 CI
 on:
   pull_request:
     paths:
+      - ".dockerignore"
+      - ".python-version"
+      - "**/pyproject.toml"
       - "student-5/**"
       - "shared/contracts/**"
       - "shared/tool-runtime/**"
@@ -19,6 +22,10 @@ on:
   push:
     branches: [main]
     paths:
+      - ".dockerignore"
+      - ".python-version"
+      - "**/pyproject.toml"
+      - ".github/workflows/student-5.yml"
       - "student-5/**"
       - "shared/contracts/**"
       - "shared/tool-runtime/**"

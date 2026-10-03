@@ -10,9 +10,14 @@ on:
       - "student-*/database/**"
       - "student-*/config/**"
       - "student-*/Dockerfile"
+      - "student-*/pyproject.toml"
+      - "student-*/feature.yaml"
+      - "shared/*/pyproject.toml"
       - "deployment/**"
       - "docker-compose*.yml"
       - "scripts/ui_fixture*.py"
+      - "scripts/dev.py"
+      - "scripts/devtools/**"
       - "scripts/visual/**"
       - ".github/workflows/visual-*.yml"
       - "pyproject.toml"
@@ -26,9 +31,14 @@ on:
       - "student-*/database/**"
       - "student-*/config/**"
       - "student-*/Dockerfile"
+      - "student-*/pyproject.toml"
+      - "student-*/feature.yaml"
+      - "shared/*/pyproject.toml"
       - "deployment/**"
       - "docker-compose*.yml"
       - "scripts/ui_fixture*.py"
+      - "scripts/dev.py"
+      - "scripts/devtools/**"
       - "scripts/visual/**"
       - ".github/workflows/visual-*.yml"
       - "pyproject.toml"
@@ -96,17 +106,22 @@ jobs:
 
       - name: Install lockfile-pinned Chromium
         working-directory: harness
-        run: uv run --no-sync playwright install --with-deps chromium
+        # Captures use the default headless shell; downloading headed Chrome as well is wasted.
+        run: uv run --no-sync playwright install --with-deps --only-shell chromium
 
       - name: Harness policy tests
         if: matrix.revision == 'head' && matrix.provider == 'fixture'
         working-directory: harness
+        env:
+          VISUAL_REQUIRE_BROWSER: "1"
         run: uv run --no-sync pytest scripts/tests/test_visual_*.py -q --no-cov -p no:cacheprovider
 
       - name: Start offline stack
         if: matrix.provider == 'stack'
         working-directory: app
-        run: uv run --no-sync scripts/dev.py stack up --offline
+        # Build each revision into its own images. Development source mounts can overlap a
+        # read-only frontend root and fail before startup when a new shared asset needs a path.
+        run: uv run --no-sync scripts/dev.py stack up --offline --no-reload --build
 
       - name: Capture screenshots
         working-directory: harness

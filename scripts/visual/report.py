@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -214,6 +214,7 @@ def build_report(
     title: str = "Visual comparison",
     metadata: Mapping[str, Any] | None = None,
     strict: bool = True,
+    expected_providers: Sequence[str] = (),
 ) -> Report:
     """Compare two capture directories and write ``index.html``, ``changes.json`` and images."""
     images = output / "img"
@@ -221,6 +222,8 @@ def build_report(
     files: set[str] = set()
     base = read_side(base_dir, "base", strict=strict)
     head = read_side(head_dir, "head", strict=strict)
+    if any(provider not in PROVIDERS for provider in expected_providers):
+        raise ValueError("unknown expected capture provider")
     details = dict(metadata or {})
     if strict and base.sha and base.sha == head.sha:
         raise ValueError("cannot compare a revision against itself")
@@ -249,8 +252,26 @@ def build_report(
     rows: list[dict[str, Any]] = []
     for case_id, item in inventory.items():
         base_record, head_record = base.records.get(case_id), head.records.get(case_id)
-        if base_record is None and head_record is None:
+        expected_case = item["provider"] in expected_providers
+        if base_record is None and head_record is None and not expected_case:
             continue  # neither side captured this provider (for example a local fixture-only run)
+        if expected_case:
+            for captures in (base, head):
+                if case_id in captures.records:
+                    continue
+                missing = (
+                    f"{item['provider']} capture artifact missing; inspect the capture workflow log"
+                    if item["provider"] not in captures.providers
+                    else "view missing from the capture manifest"
+                )
+                captures.records[case_id] = {
+                    **item,
+                    "status": "incomplete",
+                    "errors": [missing],
+                    "notes": [],
+                }
+            base_record = base.records[case_id]
+            head_record = head.records[case_id]
         current: dict[str, Any] = head_record or base_record or {}
         row: dict[str, Any] = {
             "id": case_id,

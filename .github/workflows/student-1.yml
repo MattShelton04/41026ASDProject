@@ -8,10 +8,12 @@ on:
       - ".dockerignore"
       - ".github/workflows/student-1.yml"
       - ".python-version"
+      - "**/pyproject.toml"
       - "ai-services/agent-core/**"
       - "ai-services/ai-mode/**"
       - "docker-compose.yml"
       - "docker-compose.dev.yml"
+      - "deployment/**"
       - "pyproject.toml"
       - "scripts/__init__.py"
       - "scripts/dev.py"
@@ -32,10 +34,12 @@ on:
       - ".dockerignore"
       - ".github/workflows/student-1.yml"
       - ".python-version"
+      - "**/pyproject.toml"
       - "ai-services/agent-core/**"
       - "ai-services/ai-mode/**"
       - "docker-compose.yml"
       - "docker-compose.dev.yml"
+      - "deployment/**"
       - "pyproject.toml"
       - "scripts/__init__.py"
       - "scripts/dev.py"
@@ -130,19 +134,21 @@ jobs:
           files: docker-compose.yml
           targets: shared-frontend,f1-db-api,f1-db-loader,f1-backend,f1-runner,f1-frontend
           load: true
+          # Cache availability must not turn successfully built images into a failure.
+          # Bound cache I/O independently of the required build and smoke checks.
           set: |
-            shared-frontend.cache-from=type=gha,scope=student1-shared-frontend
-            shared-frontend.cache-to=type=gha,mode=max,scope=student1-shared-frontend
-            f1-db-api.cache-from=type=gha,scope=student1-database-api
-            f1-db-api.cache-to=type=gha,mode=max,scope=student1-database-api
-            f1-db-loader.cache-from=type=gha,scope=student1-database-loader
-            f1-db-loader.cache-to=type=gha,mode=max,scope=student1-database-loader
-            f1-backend.cache-from=type=gha,scope=student1-backend
-            f1-backend.cache-to=type=gha,mode=max,scope=student1-backend
-            f1-runner.cache-from=type=gha,scope=student1-runner
-            f1-runner.cache-to=type=gha,mode=max,scope=student1-runner
-            f1-frontend.cache-from=type=gha,scope=student1-frontend
-            f1-frontend.cache-to=type=gha,mode=max,scope=student1-frontend
+            shared-frontend.cache-from=type=gha,scope=student1-shared-frontend,timeout=2m
+            shared-frontend.cache-to=type=gha,mode=max,scope=student1-shared-frontend,timeout=2m,ignore-error=true
+            f1-db-api.cache-from=type=gha,scope=student1-database-api,timeout=2m
+            f1-db-api.cache-to=type=gha,mode=max,scope=student1-database-api,timeout=2m,ignore-error=true
+            f1-db-loader.cache-from=type=gha,scope=student1-database-loader,timeout=2m
+            f1-db-loader.cache-to=type=gha,mode=max,scope=student1-database-loader,timeout=2m,ignore-error=true
+            f1-backend.cache-from=type=gha,scope=student1-backend,timeout=2m
+            f1-backend.cache-to=type=gha,mode=max,scope=student1-backend,timeout=2m,ignore-error=true
+            f1-runner.cache-from=type=gha,scope=student1-runner,timeout=2m
+            f1-runner.cache-to=type=gha,mode=max,scope=student1-runner,timeout=2m,ignore-error=true
+            f1-frontend.cache-from=type=gha,scope=student1-frontend,timeout=2m
+            f1-frontend.cache-to=type=gha,mode=max,scope=student1-frontend,timeout=2m,ignore-error=true
       - name: Start bounded fixture stack
         run: |
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 180 shared-frontend f1-db-api f1-db-loader f1-backend f1-runner f1-frontend
