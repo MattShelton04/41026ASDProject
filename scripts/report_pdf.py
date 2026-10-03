@@ -748,6 +748,12 @@ def parse_markdown(source: Path, baseline: str, spec: ReportSpec) -> list[Flowab
             flush_all()
             story.append(Paragraph(_inline(line, source, baseline), styles["subtitle"]))
             continue
+        if list_items:
+            # A soft-wrapped list item remains one paragraph, including Markdown's
+            # unindented lazy continuation. A blank line or block above ends the list.
+            # Buffering this as ordinary prose would flush it before its own bullet.
+            list_items[-1] += " " + line.strip()
+            continue
         paragraph_lines.append(line)
 
     flush_all()

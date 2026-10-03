@@ -56,6 +56,46 @@ def test_headings_keep_visual_and_bookmark_hierarchy(tmp_path: Path) -> None:
     assert [getattr(item, "_heading_level", None) for item in headings] == [None, 0, 1, 2]
 
 
+@pytest.mark.parametrize("ordered", [False, True])
+@pytest.mark.parametrize("indent", ["  ", ""])
+def test_wrapped_list_items_keep_their_text_and_rendered_order(
+    tmp_path: Path, ordered: bool, indent: str
+) -> None:
+    first, second = ("1.", "2.") if ordered else ("-", "-")
+    source = _write(
+        tmp_path,
+        "# Report\n\n## 8 Limitations\n\nBefore the list.\n\n"
+        f"{first} First limitation begins\n"
+        f"{indent}and continues with [retained evidence](https://example.org/evidence).\n"
+        f"{second} Second limitation begins\n"
+        f"{indent}and ends here.\n\nAfter the list.\n",
+    )
+    paragraphs = [
+        item.getPlainText()
+        for item in engine.parse_markdown(source, BASELINE, SPEC)
+        if isinstance(item, Paragraph)
+    ]
+    assert paragraphs == [
+        "Report",
+        "8 Limitations",
+        "Before the list.",
+        f"{first} First limitation begins and continues with retained evidence.",
+        f"{second} Second limitation begins and ends here.",
+        "After the list.",
+    ]
+    output = tmp_path / "wrapped-list.pdf"
+    engine.build(source, output, BASELINE, SPEC)
+    rendered = " ".join(" ".join(page.extract_text().split()) for page in PdfReader(output).pages)
+    fragments = (
+        "Before the list.",
+        "First limitation begins and continues with retained evidence.",
+        "Second limitation begins and ends here.",
+        "After the list.",
+    )
+    positions = [rendered.index(fragment) for fragment in fragments]
+    assert positions == sorted(positions)
+
+
 @pytest.mark.parametrize("changed", ["source", "asset"])
 def test_rejects_stale_diagram_sources_and_assets(tmp_path: Path, changed: str) -> None:
     source, asset = tmp_path / "diagram.mmd", tmp_path / "diagram.png"
