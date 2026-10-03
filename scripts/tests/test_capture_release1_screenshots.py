@@ -371,6 +371,13 @@ class FakeLocator:
     def inner_text(self) -> str:
         return "Recorded public answer"
 
+    def bounding_box(self) -> dict[str, float] | None:
+        return self.page.focus_box
+
+    def screenshot(self, *, path: str, **_kwargs: Any) -> None:
+        self.page.actions.append(("element-screenshot", self.selector))
+        Path(path).write_bytes(b"real element screenshot represented by fake browser")
+
 
 class FakePage:
     def __init__(self) -> None:
@@ -378,6 +385,8 @@ class FakePage:
         self.turn_error = False
         self.posted_context: dict[str, str] = {}
         self.nested_start = False
+        self.focus_box: dict[str, float] | None = {"x": 140, "y": 120, "width": 840, "height": 600}
+        self.viewport: dict[str, int] = dict(capture.VIEWPORT)
 
     def goto(self, url: str, **_options: Any) -> Any:
         self.actions.append(("goto", url))
@@ -388,6 +397,9 @@ class FakePage:
 
     def on(self, _event: str, _callback: Any) -> None:
         pass
+
+    def set_viewport_size(self, viewport: dict[str, int]) -> None:
+        self.viewport = dict(viewport)
 
     def screenshot(self, *, path: str, **_kwargs: Any) -> None:
         Path(path).write_bytes(b"test screenshot bytes")
@@ -473,9 +485,64 @@ def test_capture_writes_correlated_images_and_public_sidecar(
     assert manifest["software_sha"] == "d" * 40
     assert manifest["tracked_worktree_dirty"] is False
     assert manifest["run_id"] == RUN
-    assert len(manifest["images"]) == 2
+    assert len(manifest["images"]) == 3
     assert all((tmp_path / item["file"]).exists() for item in manifest["images"])
     assert ("evaluate", f'details[data-disclosure="tool:{CALL}"]') in page.actions
+    assert not list(tmp_path.glob(".*.png"))
+
+
+def test_supported_rag_has_actual_answer_and_cited_element_companions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    page = FakePage()
+    fake_capture(monkeypatch, page, detail())
+    shot = next(item for item in capture.SHOTS if item.name == "feature-1-rag")
+    assert capture.capture([shot], base_url="http://localhost:5100", output=tmp_path) == []
+    manifest = json.loads((tmp_path / "feature-1-rag.json").read_text())
+    focused = [item for item in manifest["images"] if item["capture"] == "element"]
+    assert {item["file"] for item in focused} == {
+        "feature-1-rag.answer.png",
+        "feature-1-rag.citation.png",
+    }
+    assert all(item["viewport"]["width"] == capture.FOCUS_WIDTH for item in focused)
+    assert all(item["element_size"] == {"width": 840, "height": 600} for item in focused)
+    assert ("element-screenshot", ".ps-ai-chat__message--assistant") in page.actions
+    assert ("element-screenshot", 'details[data-disclosure="source:source-1"]') in page.actions
+
+
+def test_focus_uses_taller_real_viewport_to_avoid_scroll_panel_clipping(tmp_path: Path) -> None:
+    page = FakePage()
+    page.focus_box = {"x": 140, "y": 120, "width": 840, "height": 1400}
+    destination = tmp_path / "answer.png"
+    metadata = capture._focused_image(page, page.locator(".answer"), destination)  # type: ignore[arg-type]
+    assert metadata["viewport"] == {"width": 1100, "height": 1640}
+    assert destination.exists()
+    assert ("element-screenshot", ".answer") in page.actions
+
+
+@pytest.mark.parametrize(
+    "box",
+    [
+        None,
+        {"x": 0, "y": 0, "width": 200, "height": 600},
+        {"x": 0, "y": 0, "width": 800, "height": 40},
+        {"x": 0, "y": 0, "width": 800, "height": 6000},
+        {"x": 500, "y": 0, "width": 800, "height": 600},
+        {"x": 0, "y": 1000, "width": 800, "height": 600},
+    ],
+)
+def test_unreadable_or_clipped_focus_does_not_promote_any_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, box: dict[str, float] | None
+) -> None:
+    page = FakePage()
+    page.focus_box = box
+    fake_capture(monkeypatch, page, detail("mcp"))
+    original = tmp_path / "feature-1-mcp.png"
+    original.write_bytes(b"original verified evidence")
+    shot = next(item for item in capture.SHOTS if item.name == "feature-1-mcp")
+    assert capture.capture([shot], base_url="http://localhost:5100", output=tmp_path)
+    assert original.read_bytes() == b"original verified evidence"
+    assert not (tmp_path / "feature-1-mcp.json").exists()
     assert not list(tmp_path.glob(".*.png"))
 
 
@@ -588,3 +655,121 @@ def test_output_can_be_outside_repository(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_credentials_in_capture_origin_are_rejected_before_browser_starts(tmp_path: Path) -> None:
     with pytest.raises(CaptureError, match="without credentials"):
         capture.capture([], base_url="http://secret:password@localhost:5100", output=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "status,payload", [(503, {"detail": "PRIVATE ERROR BODY"}), (200, ["PRIVATE VALUES"])]
+)
+def test_public_read_rejects_http_errors_and_non_objects_without_leaking_body(
+    status: int, payload: object
+) -> None:
+    response = type("Response", (), {"status": status, "json": lambda _self: payload})()
+    page = type(
+        "Page", (), {"request": type("Request", (), {"get": lambda *_args, **_kwargs: response})()}
+    )()
+    with pytest.raises(CaptureError) as error:
+        capture._get(page, "http://localhost:5100", "/public/read?q=PRIVATE QUERY")
+    assert "PRIVATE" not in str(error.value)
+
+
+def test_public_read_preserves_only_in_memory_payload_for_validation() -> None:
+    payload = {"items": [{"id": RUN}]}
+    response = type("Response", (), {"status": 200, "json": lambda _self: payload})()
+    page = type(
+        "Page", (), {"request": type("Request", (), {"get": lambda *_args, **_kwargs: response})()}
+    )()
+    assert capture._get(page, "http://localhost:5100", "/public/read") == payload
+
+
+def test_shared_knowledge_requires_all_five_ready_corpora_and_allowlists_version_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    corpora = [
+        {
+            "feature_key": feature.key,
+            "corpus_id": feature.corpus,
+            "status": "ready",
+            "version": {
+                "corpus_version": VERSION,
+                "document_count": 8,
+                "private_credentials": "SECRET",
+            },
+            "private_field": "SECRET",
+        }
+        for feature in capture.FEATURES.values()
+    ]
+    monkeypatch.setattr(capture, "_get", lambda *_args: {"corpora": corpora})
+    shot = next(item for item in capture.SHOTS if item.name == "shared-knowledge-sources")
+    metadata = capture._shared(FakePage(), shot, "http://localhost:5100", None)  # type: ignore[arg-type]
+    assert len(metadata["corpora"]) == 5
+    assert "SECRET" not in json.dumps(metadata)
+    corpora[4]["status"] = "unavailable"
+    with pytest.raises(CaptureError, match="all five"):
+        capture._shared(FakePage(), shot, "http://localhost:5100", None)  # type: ignore[arg-type]
+
+
+def test_shared_activity_selects_supported_run_instead_of_latest_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refusal = "20000000-0000-4000-8000-000000000001"
+    failed = "20000000-0000-4000-8000-000000000002"
+    reads = []
+
+    def read(_page: Any, _base: str, path: str) -> dict[str, Any]:
+        reads.append(path)
+        if path.startswith("/api/v1/agent-runs?"):
+            return {
+                "items": [
+                    {"id": failed, "status": "failed", "feature_key": F1.key},
+                    {"id": refusal, "status": "succeeded", "feature_key": F1.key},
+                    {"id": RUN, "status": "succeeded", "feature_key": F1.key},
+                ]
+            }
+        projected = {
+            "run": {
+                "id": RUN,
+                "feature_key": F1.key,
+                "status": "succeeded",
+                "created_at": "2026-10-03T00:00:00Z",
+            },
+            "final_result": detail()["run"]["final_result"],
+            "private_model_output": "PRIVATE REASONING",
+        }
+        if path.endswith(refusal):
+            projected["final_result"] = detail("insufficient")["run"]["final_result"]
+        return projected
+
+    monkeypatch.setattr(capture, "_get", read)
+    shot = next(item for item in capture.SHOTS if item.name == "shared-activity-history")
+    page = FakePage()
+    metadata = capture._shared(page, shot, "http://localhost:5100", None)  # type: ignore[arg-type]
+    assert metadata["run_id"] == RUN
+    assert "PRIVATE" not in json.dumps(metadata)
+    assert not any(path.endswith(failed) for path in reads)
+    assert ("goto", "http://localhost:5100/operations/ai-mode/?run=" + RUN) in page.actions
+
+
+def test_shared_activity_does_not_capture_failed_or_absent_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shot = next(item for item in capture.SHOTS if item.name == "shared-activity-history")
+    monkeypatch.setattr(capture, "_get", lambda *_args: {"items": []})
+    with pytest.raises(CaptureError, match="no successful"):
+        capture._shared(FakePage(), shot, "http://localhost:5100", None)  # type: ignore[arg-type]
+    monkeypatch.setattr(capture, "_get", lambda *_args: {"run": {"status": "failed"}})
+    with pytest.raises(CaptureError, match="has not succeeded"):
+        capture._shared(FakePage(), shot, "http://localhost:5100", RUN)  # type: ignore[arg-type]
+
+
+def test_fast_completed_turn_is_verified_when_stop_control_never_appears(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_wait = FakeLocator.wait_for
+
+    def wait(locator: FakeLocator, **options: Any) -> None:
+        if locator.selector == capture.STOP_RESPONSE:
+            raise capture.PlaywrightTimeoutError("fast response already complete")
+        original_wait(locator, **options)
+
+    monkeypatch.setattr(FakeLocator, "wait_for", wait)
+    assert capture._ask(FakePage(), "A public question") == RUN  # type: ignore[arg-type]

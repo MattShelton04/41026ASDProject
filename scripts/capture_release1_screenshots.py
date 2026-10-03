@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import subprocess
 import sys
 from collections.abc import Iterable, Mapping
@@ -30,7 +31,7 @@ from uuid import UUID
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Locator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from scripts.release1_capture_evidence import CaptureError, correlate_run, verified_evidence
@@ -38,6 +39,8 @@ from scripts.release1_capture_evidence import CaptureError, correlate_run, verif
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = REPOSITORY_ROOT / "docs" / "reports" / "assets" / "release-1" / "screenshots"
 VIEWPORT = {"width": 1440, "height": 1000}
+FOCUS_WIDTH = 1100
+MAX_FOCUS_HEIGHT = 6000
 ANSWER_TIMEOUT_MS = 210_000
 RUN_START_TIMEOUT_MS = 20_000
 TURN = ".ps-ai-chat__turn"
@@ -278,7 +281,7 @@ def _ask(page: Page, question: str) -> str:
     return identifier
 
 
-def _sources(page: Page, shot: Shot, evidence: Mapping[str, Any]) -> None:
+def _sources(page: Page, shot: Shot, evidence: Mapping[str, Any]) -> Locator | None:
     page.locator(TURN).last.locator("[data-action='inspect-evidence']").click()
     panel = page.locator(".ps-ai-chat__inspection:not([hidden])").first
     panel.wait_for(state="visible")
@@ -305,11 +308,48 @@ def _sources(page: Page, shot: Shot, evidence: Mapping[str, Any]) -> None:
     card = panel.locator(selector).first
     if card.count():
         card.evaluate("node => { node.open = true; node.scrollIntoView({block: 'start'}); }")
+        return card
     elif shot.mode == "insufficient":
         panel.locator(".ps-ai-chat__qualifications").evaluate("node => { node.open = true; }")
         panel.evaluate("node => node.scrollIntoView({block: 'start'})")
     else:
         raise CaptureError("verified evidence is absent from the visible sources panel")
+    return None
+
+
+def _focused_image(page: Page, target: Locator, destination: Path) -> dict[str, Any]:
+    """Photograph a complete rendered element at a readable responsive browser width.
+
+    A taller real viewport removes clipping from the application's scrolling panels. The
+    browser lays out every pixel; this never rewrites content/styles or reconstructs an image.
+    Full-workspace screenshots keep their separate, consistent 1440x1000 viewport.
+    """
+    page.set_viewport_size({"width": FOCUS_WIDTH, "height": VIEWPORT["height"]})
+    target.wait_for(state="visible")
+    box = target.bounding_box()
+    if box is None or box["width"] < 300 or box["height"] < 80:
+        raise CaptureError("focused evidence element is absent or too small to be readable")
+    height = max(VIEWPORT["height"], math.ceil(box["height"]) + 240)
+    if height > MAX_FOCUS_HEIGHT:
+        raise CaptureError("focused evidence is too long for a readable report image")
+    viewport = {"width": FOCUS_WIDTH, "height": height}
+    page.set_viewport_size(viewport)
+    target.evaluate("node => node.scrollIntoView({block: 'center', inline: 'nearest'})")
+    box = target.bounding_box()
+    if (
+        box is None
+        or box["x"] < 0
+        or box["y"] < 0
+        or box["x"] + box["width"] > viewport["width"]
+        or box["y"] + box["height"] > viewport["height"]
+    ):
+        raise CaptureError("focused evidence would be clipped by its browser viewport")
+    target.screenshot(path=str(destination), animations="disabled")
+    return {
+        "capture": "element",
+        "viewport": viewport,
+        "element_size": {"width": round(box["width"]), "height": round(box["height"])},
+    }
 
 
 def _software() -> tuple[str, bool]:
@@ -430,6 +470,8 @@ def capture(
                 )
                 staging = output / f".{shot.name}.png"
                 sources_staging = output / f".{shot.name}.sources.png"
+                answer_staging = output / f".{shot.name}.answer.png"
+                citation_staging = output / f".{shot.name}.citation.png"
                 try:
                     metadata: dict[str, Any]
                     if shot.feature is not None:
@@ -491,11 +533,36 @@ def capture(
                     if page_errors:
                         raise CaptureError("uncaught browser exception")
                     page.screenshot(path=str(staging), animations="disabled")
-                    images = [f"{shot.name}.png"]
+                    artifacts = [
+                        (f"{shot.name}.png", staging, {"capture": "viewport", "viewport": VIEWPORT})
+                    ]
                     if shot.feature is not None:
                         _sources(page, shot, metadata)
                         page.screenshot(path=str(sources_staging), animations="disabled")
-                        images.append(f"{shot.name}.sources.png")
+                        artifacts.append(
+                            (
+                                f"{shot.name}.sources.png",
+                                sources_staging,
+                                {"capture": "viewport", "viewport": VIEWPORT},
+                            )
+                        )
+                        page.locator(
+                            ".ps-ai-chat__inspection:not([hidden]) "
+                            ".ps-ai-chat__inspection-head button"
+                        ).first.click()
+                        answer = page.locator(TURN).last.locator(".ps-ai-chat__message--assistant")
+                        focused = _focused_image(page, answer, answer_staging)
+                        artifacts.append((f"{shot.name}.answer.png", answer_staging, focused))
+                        if shot.mode == "rag":
+                            card = _sources(page, shot, metadata)
+                            if card is None:
+                                raise CaptureError(
+                                    "supported RAG source card is unavailable for its focused image"
+                                )
+                            focused = _focused_image(page, card, citation_staging)
+                            artifacts.append(
+                                (f"{shot.name}.citation.png", citation_staging, focused)
+                            )
                     if page_errors:
                         raise CaptureError("uncaught browser exception")
                     manifest = {
@@ -514,25 +581,25 @@ def capture(
                         "images": [
                             {
                                 "file": name,
-                                "sha256": hashlib.sha256(
-                                    (staging if index == 0 else sources_staging).read_bytes()
-                                ).hexdigest(),
+                                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                                **image_metadata,
                             }
-                            for index, name in enumerate(images)
+                            for name, path, image_metadata in artifacts
                         ],
                     }
-                    staging.replace(output / images[0])
-                    if len(images) == 2:
-                        sources_staging.replace(output / images[1])
+                    for name, path, _image_metadata in artifacts:
+                        path.replace(output / name)
                     (output / f"{shot.name}.json").write_text(
                         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
                     )
-                    print(f"Verified and captured {shot.name}: {output / images[0]}")
+                    print(f"Verified and captured {shot.name}: {output / artifacts[0][0]}")
                 except (CaptureError, PlaywrightTimeoutError) as error:
                     problems.append(f"{shot.name}: {error}")
                 finally:
                     staging.unlink(missing_ok=True)
                     sources_staging.unlink(missing_ok=True)
+                    answer_staging.unlink(missing_ok=True)
+                    citation_staging.unlink(missing_ok=True)
                     context.close()
         finally:
             browser.close()
