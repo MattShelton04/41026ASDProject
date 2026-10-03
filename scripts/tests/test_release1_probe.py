@@ -11,9 +11,30 @@ from scripts import dev, release1_probe
 from scripts.devtools import host_runtime
 from scripts.release1_probe import OFF_TOPIC_QUERY, RegisteredFeature
 
+from shared_contracts import HealthStatus
+from shared_contracts.deployment import ReadinessCheckProjection, project_readiness
+from shared_contracts.grounding import GROUNDING_MIN_SCORE
+
 FEATURE = RegisteredFeature("feature-9-demo", ("demo_lookup", "demo_search"), "demo-guidance")
 TOKENS = {"ai-mode": "ai-secret-token", "mcp": "mcp-secret-token", "rag": "rag-secret-token"}
 CHUNK = {"title": "Demo guidance", "excerpt": "Demo guidance explains the demo lookup.", "score": 0}
+
+
+def _readiness_body(*, provider_ready: bool = True, store_ready: bool = True) -> dict[str, object]:
+    return project_readiness(
+        service="ai-mode",
+        version="1.0.0",
+        checks={
+            "state_store": ReadinessCheckProjection(
+                required=True,
+                status=HealthStatus.HEALTHY if store_ready else HealthStatus.UNHEALTHY,
+            ),
+            "llm_provider": ReadinessCheckProjection(
+                required=True,
+                status=HealthStatus.HEALTHY if provider_ready else HealthStatus.UNHEALTHY,
+            ),
+        },
+    ).model_dump(mode="json")
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +61,9 @@ def _handler(
             if path == "/health/live":
                 return httpx.Response(200)
             authorised = request.headers.get("X-PropertyScope-AI-Token") == TOKENS["ai-mode"]
-            return httpx.Response(200 if authorised else 401)
+            return (
+                httpx.Response(200, json=_readiness_body()) if authorised else httpx.Response(401)
+            )
         if port == 5011:
             if request.headers.get("Authorization") != f"Bearer {TOKENS['mcp']}":
                 return httpx.Response(401)
@@ -59,7 +82,7 @@ def _handler(
             version = {"corpus_version": "a" * 64, "document_count": 1, "chunk_count": 1}
             return httpx.Response(200, json={"version": version, "chunks": [CHUNK]})
         body = json.loads(request.content)
-        assert body["min_score"] == release1_probe.GROUNDING_MIN_SCORE
+        assert body["min_score"] == GROUNDING_MIN_SCORE
         if body["query"] == OFF_TOPIC_QUERY:
             return httpx.Response(200, json={"status": off_topic_status, "citations": []})
         cited = {**CHUNK, "score": 0.91}
@@ -68,9 +91,9 @@ def _handler(
     return httpx.MockTransport(respond)
 
 
-def _run(transport: httpx.BaseTransport, **kwargs: object) -> dict[str, object]:
+def _run(transport: httpx.BaseTransport, *, output: Path | None = None) -> dict[str, object]:
     with httpx.Client(transport=transport) as client:
-        return release1_probe.probe({}, client=client, features=(FEATURE,), **kwargs)
+        return release1_probe.probe({}, client=client, features=(FEATURE,), output=output)
 
 
 def _failed(evidence: dict[str, object]) -> list[str]:
@@ -92,7 +115,9 @@ def test_healthy_servers_pass_every_check_and_the_evidence_holds_no_token(
         "mcp": "http://127.0.0.1:5011/mcp",
         "rag": "http://127.0.0.1:5012",
     }
-    names = {check["check"] for check in evidence["checks"]}  # type: ignore[union-attr]
+    checks = evidence["checks"]
+    assert isinstance(checks, list)
+    names = {check["check"] for check in checks}
     assert {
         "feature-9-demo tools",
         "feature-9-demo grounded retrieval",
@@ -114,6 +139,79 @@ def test_a_tool_missing_from_mcp_fails_that_features_check() -> None:
     checks = evidence["checks"]
     assert isinstance(checks, list)
     assert any("missing demo_search" in check["detail"] for check in checks)
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (404, _readiness_body()),
+        (500, _readiness_body()),
+        (200, {"status": "healthy"}),
+        (503, {"status": "unhealthy"}),
+        (503, _readiness_body(store_ready=False)),
+        (503, _readiness_body(provider_ready=False, store_ready=False)),
+        (503, _readiness_body()),
+        (503, {**_readiness_body(provider_ready=False), "service": "another-service"}),
+    ],
+    ids=[
+        "missing",
+        "server-error",
+        "malformed-success",
+        "malformed-outage",
+        "store-outage",
+        "store-and-provider-outage",
+        "inconsistent-status",
+        "wrong-service",
+    ],
+)
+def test_ai_authentication_check_rejects_unexpected_readiness(
+    status: int, body: dict[str, object]
+) -> None:
+    healthy = _handler()
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.port == 5005 and request.headers.get("X-PropertyScope-AI-Token"):
+            return httpx.Response(status, json=body)
+        return healthy.handle_request(request)
+
+    evidence = _run(httpx.MockTransport(respond))
+
+    assert evidence["passed"] is False
+    assert _failed(evidence) == ["accepts the service token"]
+
+
+def test_ai_authentication_check_accepts_documented_provider_not_ready() -> None:
+    healthy = _handler()
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.port == 5005 and request.headers.get("X-PropertyScope-AI-Token"):
+            return httpx.Response(503, json=_readiness_body(provider_ready=False))
+        return healthy.handle_request(request)
+
+    evidence = _run(httpx.MockTransport(respond))
+
+    assert evidence["passed"] is True
+    assert "service token accepted; model provider not ready" in release1_probe.render(evidence)
+
+
+@pytest.mark.parametrize("content_type", ["application/json", "text/html"])
+def test_ai_authentication_check_rejects_non_json_or_wrong_media_type(content_type: str) -> None:
+    healthy = _handler()
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.port == 5005 and request.headers.get("X-PropertyScope-AI-Token"):
+            return httpx.Response(
+                503,
+                content=b"not-json"
+                if content_type == "application/json"
+                else json.dumps(_readiness_body(provider_ready=False)).encode(),
+                headers={"Content-Type": content_type},
+            )
+        return healthy.handle_request(request)
+
+    evidence = _run(httpx.MockTransport(respond))
+
+    assert _failed(evidence) == ["accepts the service token"]
 
 
 def test_an_off_topic_match_fails_the_insufficient_context_check() -> None:

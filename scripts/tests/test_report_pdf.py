@@ -154,6 +154,33 @@ def test_word_count_covers_the_assessed_body_only(tmp_path: Path) -> None:
     assert words.total == 11
 
 
+def test_conservative_count_includes_generated_tables_code_and_appendices(tmp_path: Path) -> None:
+    spec = replace(
+        SPEC,
+        count_appendices_and_code=True,
+        directives={
+            "RESULTS": lambda _: ["| Check | Result |", "|---|---|", "| retrieval | passed |"]
+        },
+    )
+    source = _write(
+        tmp_path,
+        "# Cover\n\n## 1 Results\n\n[[RESULTS]]\n\n"
+        "```text\nrequest r1 status succeeded\n```\n\n"
+        "## Appendix A Contributions\n\nOne two three.\n",
+    )
+    words = engine.count_words(source, spec)
+    assert words.sections == (("1 Results", 10), ("Appendix A Contributions", 6))
+    assert words.total == 16
+    assert "code and appendices included" in engine.format_status(engine.review(source, spec), spec)
+
+
+def test_inline_baseline_resolves_in_cover_table(tmp_path: Path) -> None:
+    source = _write(tmp_path, "# Report\n\n| Commit reference | `[[BASELINE]]` |\n|---|---|\n")
+    story = engine.parse_markdown(source, BASELINE, SPEC)
+    table = next(item for item in story if isinstance(item, Table))
+    assert table._cellvalues[0][1].getPlainText() == BASELINE
+
+
 def test_draft_renders_todos_and_missing_images_but_final_blocks(tmp_path: Path) -> None:
     source = _write(
         tmp_path,

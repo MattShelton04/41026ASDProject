@@ -19,7 +19,8 @@ import yaml
 
 from scripts.devtools import host_runtime
 from scripts.devtools.config import REPOSITORY_ROOT
-from shared_contracts.deployment import DeploymentProjectionV1
+from shared_contracts import HealthStatus
+from shared_contracts.deployment import DeploymentProjectionV1, TypedHealthProjection
 from shared_contracts.grounding import GROUNDING_MIN_SCORE
 
 AI_TOKEN_HEADER = "X-PropertyScope-AI-Token"
@@ -76,10 +77,50 @@ def _http(response: httpx.Response) -> str:
     return f"HTTP {response.status_code}"
 
 
+def _authenticated_ai_readiness(response: httpx.Response) -> tuple[bool, str]:
+    """Accept the documented readiness body, including a provider-only outage."""
+    if response.status_code not in {200, 503}:
+        return False, _http(response)
+    try:
+        health = TypedHealthProjection.model_validate_json(response.content)
+    except ValueError:
+        return False, f"{_http(response)}; invalid readiness response"
+    store = health.checks.get("state_store")
+    provider = health.checks.get("llm_provider")
+    if (
+        health.service != "ai-mode"
+        or health.http_status != response.status_code
+        or response.headers.get("content-type", "").split(";", 1)[0] != "application/json"
+        or store is None
+        or not store.required
+        or store.status is not HealthStatus.HEALTHY
+        or provider is None
+    ):
+        return False, f"{_http(response)}; unexpected readiness response"
+    if response.status_code == 503:
+        provider_only_outage = (
+            provider.required
+            and provider.status is HealthStatus.UNHEALTHY
+            and all(
+                not check.required or check.status is HealthStatus.HEALTHY
+                for name, check in health.checks.items()
+                if name != "llm_provider"
+            )
+        )
+        return (
+            provider_only_outage,
+            f"{_http(response)}; service token accepted; model provider not ready"
+            if provider_only_outage
+            else f"{_http(response)}; unexpected readiness failure",
+        )
+    return True, f"{_http(response)}; service token accepted; readiness {health.status.value}"
+
+
 def _probe_ai_mode(client: httpx.Client, url: str, token: str) -> list[Check]:
     live = client.get(f"{url}/health/live")
     anonymous = client.get(f"{url}/health/ready")
     authenticated = client.get(f"{url}/health/ready", headers={AI_TOKEN_HEADER: token})
+    token_accepted, authenticated_detail = _authenticated_ai_readiness(authenticated)
     return [
         Check("ai-mode", "liveness", live.status_code == 200, _http(live)),
         Check(
@@ -91,8 +132,8 @@ def _probe_ai_mode(client: httpx.Client, url: str, token: str) -> list[Check]:
         Check(
             "ai-mode",
             "accepts the service token",
-            authenticated.status_code != 401,
-            f"{_http(authenticated)} (503 means the model provider is not ready)",
+            token_accepted,
+            authenticated_detail,
         ),
     ]
 

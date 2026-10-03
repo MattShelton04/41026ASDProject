@@ -18,9 +18,26 @@ boundary of each assessed feature. Detailed product, design and architecture doc
 implementation mechanics, but they must not silently add a required product capability or move
 business rules, persistence or assessed work between students.
 
-Approval and allocation do not imply implementation. Feature 1 is the currently implemented
-vertical slice. Features 2–5 remain planned and disabled in the product shell until each owner
-delivers and integrates a complete frontend, backend/API and database microservice set.
+Approval and allocation do not imply assessed completion. All five feature slices now have enabled
+frontend, backend/API and owning database services, shared-shell routes, registered MCP tools and
+RAG corpora. `deployment/features.yaml` and its generated `enabled-features.v1.json` projection
+are the current enablement authority. Their implementation does not establish the state of a local
+stack, accepted data, corpus ingestion or each owner's final Release 1 validation evidence.
+
+Source registration checked on 3 October 2026:
+
+| Student | Registered feature key | RAG corpus | Authored documents |
+|---|---|---|---:|
+| 1 | `student-1-propertyscope-data-platform` | `operator-guidance` | 19 |
+| 2 | `student-2-market-intelligence` | `operator-guidance` | 3 |
+| 3 | `student-3-suburb-analytics` | `suburb-analytics-guidance` | 8 |
+| 4 | `student-4-due-diligence` | `operator-guidance` | 3 |
+| 5 | `student-5-buyer-journey` | `operator-guidance` | 5 |
+
+The counts describe checked-in manifests, not indexed live documents. Feature 3 additionally owns
+an opt-in reviewed adapter for bounded official-evidence locality documents; those generated
+documents are separate from its authored guidance baseline. Each feature's frontend reaches the
+shared host AI tier through its own backend/API, with corpus/tool scope fixed by that boundary.
 
 ## Team allocation
 

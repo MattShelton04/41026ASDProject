@@ -251,6 +251,7 @@ def execute_validation(
         "passed": passed,
         "decision_provider": "deterministic-validation",
         "transport": "live-local-services",
+        "evidence_boundary": "Production runner and local services; deterministic model decisions, not provider answer quality.",
         "run_id": str(run.id),
         "request_id": run.request_id,
         "status": finished.status.value,

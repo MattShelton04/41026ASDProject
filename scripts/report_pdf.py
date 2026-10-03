@@ -100,6 +100,9 @@ class ReportSpec:
     # Widen table columns so code identifiers (`like.this.v1`) are not split mid-word.
     fit_code_columns: bool = False
     section_word_budgets: Mapping[str, int] = field(default_factory=dict)
+    # Release 1's brief exempts diagrams, not substantive appendices or terminal output.
+    # Leave the historical Release 0 counting policy unchanged.
+    count_appendices_and_code: bool = False
 
 
 @dataclass(frozen=True)
@@ -441,6 +444,7 @@ def resolve_link(target: str, source: Path, baseline: str) -> str:
 
 
 def _inline(text: str, source: Path, baseline: str) -> str:
+    text = text.replace("[[BASELINE]]", baseline)
     escaped = html.escape(text, quote=False)
     escaped = re.sub(r"`([^`]+)`", r"<font name='Courier'>\1</font>", escaped)
     escaped = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", escaped)
@@ -759,9 +763,9 @@ def _plain_words(text: str) -> int:
 def count_words(source: Path, spec: ReportSpec) -> WordCount:
     """Count the assessed body: chapter headings, prose, lists and tables.
 
-    Excluded: the cover (everything before the first ``##`` chapter), contents, figures and
-    captions, fenced code (captured terminal output), TODO callouts, guidance comments and
-    every chapter from the first ``## Appendix`` heading onwards.
+    Both policies exclude the cover, contents, figures/captions, TODOs and author comments.
+    Release 1 also counts substantive appendices and fenced evidence output. Release 0
+    retains its historical exemption for appendices and code.
     """
     sections: list[tuple[str, int]] = []
     in_code = False
@@ -773,11 +777,14 @@ def count_words(source: Path, spec: ReportSpec) -> WordCount:
         stripped = line.strip()
         chapter = re.match(r"^##\s+(.+)$", line)
         if chapter and not in_code:
-            if chapter.group(1).lower().startswith("appendix"):
+            if (
+                chapter.group(1).lower().startswith("appendix")
+                and not spec.count_appendices_and_code
+            ):
                 break
             counting = True
             sections.append((chapter.group(1).strip(), 0))
-        if in_code or not counting or not stripped:
+        if (in_code and not spec.count_appendices_and_code) or not counting or not stripped:
             continue
         if stripped.startswith("[[") or IMAGE_PATTERN.fullmatch(stripped):
             continue
@@ -812,7 +819,12 @@ def review(source: Path, spec: ReportSpec) -> ReportStatus:
 
 def format_status(status: ReportStatus, spec: ReportSpec) -> str:
     """Summarise the word budget and outstanding work for the terminal."""
-    lines = ["Counted words by chapter (cover, figures, code and appendices excluded):"]
+    exclusions = (
+        "cover and figures excluded; code and appendices included"
+        if (spec.count_appendices_and_code)
+        else "cover, figures, code and appendices excluded"
+    )
+    lines = [f"Counted words by chapter ({exclusions}):"]
     for title, words in status.words.sections:
         budget = next(
             (

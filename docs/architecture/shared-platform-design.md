@@ -4,13 +4,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Living architecture; Release 1 Shared/Feature 1 implementation, all five existing feature slices retained |
-| Last verified | 7 September 2026; current implementation summary below, release evidence tracked separately |
+| Status | Living architecture; Release 1 shared runtime and all five enabled feature MCP/RAG registrations |
+| Last verified | Source/configuration reviewed 3 October 2026; live release evidence tracked separately |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
 
-### Non-containerised AI tier and Release 1 implementation (updated 28 September 2026)
+### Non-containerised AI tier and Release 1 implementation (updated 3 October 2026)
 
 AI-mode, MCP and RAG run only as host processes managed by `scripts/dev.py`; no Compose file
 defines an AI service and no `ai-services/` package has a Dockerfile.
@@ -19,8 +19,9 @@ that [ADR-044](decisions/ADR-044-dual-ai-runtime.md) had added, because it made 
 topology the default. `scripts/validate_architecture.py` enforces the boundary in the quality
 gate. The loop remains part of AI-mode, not a fourth service.
 
-The user-supplied 6 September Release 1 marking rubric requires **AI-mode, MCP, RAG and the
-shared agent loop to run locally outside containers**, with MCP/RAG disabled during CI/CD.
+The current Release 1 assignment, checked on Canvas on 27 September, requires **AI-mode, MCP,
+RAG and the shared agent loop to run locally outside containers**. AI-mode, MCP and RAG must be
+disabled during CI/CD; deterministic contracts and injected protocol tests remain permitted.
 [ADR-043](decisions/ADR-043-local-grounded-runtime.md) records that topology, and it is the only
 one the launcher supports. The
 [reviewed implementation plan](../release-1/shared-feature-1-implementation-plan.md),
@@ -34,17 +35,21 @@ enabled catalogues through authenticated Streamable HTTP and invokes the existin
 endpoints; it does not implement CRUD. RAG owns a separate bounded SQLite metadata/vector index
 and prepared CPU embedding assets. Neither can open an AI-mode or student database.
 
-Feature 1's first corpus contains ten explicitly licensed project-guidance topics about coverage,
-publication and import diagnosis. It contains no private notes, warehouse data or current property
-facts. Grounded runs retrieve this fixed feature/corpus scope, combine passages with successful
+Feature 1's current corpus contains nineteen explicitly licensed project-guidance documents about
+coverage, publication, import diagnosis and the user interface. It contains no private notes,
+warehouse data or current property facts. Grounded runs retrieve this fixed feature/corpus scope,
+combine passages with successful
 owning-tool results and validate citation/call IDs before completion. Server projections supply
 source metadata and confidence policy; the shared assistant renders text-only findings, sources,
 gaps and insufficient-context states within the Fieldbook experience. Legacy runs remain readable.
 
-The shared transport/contracts, corpus recipe, browser component and disabled-CI configuration
-are available to the other feature owners. Their existing enabled applications remain operational;
-their individual MCP/RAG corpus integration, model evidence and submission sign-off are separate
-owner responsibilities. Multi-agent runtime and Azure deployment remain Release 2 work.
+All five enabled features now register tool catalogues, exact RAG corpus scopes and shared
+assistant integration through their owning backends. The current authored guidance manifests
+contain 19/3/8/3/5 documents for Features 1–5 respectively; Feature 3 also owns a reviewed
+official-evidence locality adapter. The generated deployment projection supplies runtime scopes.
+Registration is source/configuration evidence, not proof of ingestion or current live provider/UI
+success. Each owner's final interaction evidence and submission sign-off remain separate
+responsibilities. Multi-agent runtime and Azure deployment remain Release 2 work.
 
 ### Retained Release 0 foundation
 
@@ -306,8 +311,8 @@ The main architectural constraints are:
 - one shared Docker Compose application;
 - a shared Plan -> Act -> Observe -> Adapt loop in every release;
 - local MCP and RAG in Release 1;
-- non-containerised local AI-mode, MCP, RAG and shared loop in Release 1, with MCP/RAG
-  disabled during CI/CD, as clarified by the 6 September marking rubric;
+- non-containerised local AI-mode, MCP, RAG and shared loop in Release 1, with AI-mode/MCP/RAG
+  disabled during CI/CD, as specified by the current Release 1 assignment;
 - local Planner, Worker, Reviewer, and human review in Release 2;
 - Azure or AWS deployment in Release 2;
 - AI-mode with remote OpenAI model access enabled in the cloud while MCP, RAG, and multi-agent services are
@@ -1017,8 +1022,10 @@ never accepted from model-authored source cards. Citations cannot authorize muta
 
 No matching/available context produces `insufficient` confidence and no guidance findings. A model
 may also refuse when high-ranked retrieved text does not answer the question, with explicit gaps.
-The server caps high confidence at moderate; recorded material gaps cap it at low. Confidence
-describes evidence support, not cosine similarity or numeric model probability. Validation binds
+For supported answers the server preserves a model's low category. Otherwise high requires no
+reported gaps, each guidance finding supported by a citation scoring at least 0.65, and at least
+two distinct document/tool-call supports. Reported gaps, weaker matches or a single support give
+moderate. Confidence describes evidence support, not numeric model probability. Validation binds
 references; it cannot prove semantic entailment. The [measured evaluation](../release-1/retrieval-evaluation.md)
 records both source recall and irrelevant, historical and malicious passages ranking highly.
 
@@ -1174,18 +1181,24 @@ servers, downloading weights or using provider credentials. Separate local named
 and `ai validate rag` commands exercise the production loop with real services and deterministic
 model decisions; actual provider/browser evidence remains a separate requirement.
 
+The current brief also requires AI-mode to be disabled during CI/CD. Student 5's workflow still
+starts an offline direct-mode host process for its persisted-run degradation smoke; that owner
+follow-up must remove the startup or retain an authoritative course clarification before claiming
+the complete disabled-AI boundary. Neither an unreachable provider nor disabled MCP/RAG makes a
+running AI-mode process absent.
+
 ### 15.2 Integration workflow
 
-`integration-ci.yml` runs after or alongside student validation as appropriate:
+`integration-ci.yml` runs workflow lint, installs the locked workspace, runs the canonical quality
+gate and validates the base/generated/development Compose models. It does not currently build or
+start the complete integrated stack. The five student workflows separately build their owned
+feature containers and smoke frontend, backend/API and seeded database boundaries.
 
-1. validate configuration and contracts;
-2. build all images with immutable commit tags;
-3. start the required Compose profile;
-4. wait on health/readiness checks;
-5. run migrations and idempotent seeds;
-6. execute integration and browser smoke tests;
-7. capture JUnit, coverage, Compose status, image metadata, and selected redacted logs;
-8. tear down reliably.
+The Release 1 integration evidence must additionally show all five features operating together
+with the host AI tier at the submission baseline: startup/status/health, frontend/API/database
+operations, each feature's MCP and cited RAG interactions, and both local loop-validation modes.
+Record the commit, capture time, corpus versions and test/live/fixture distinction rather than
+treating successful static Compose validation as a running-system observation.
 
 ### 15.3 Release 2 testing language
 
@@ -1443,6 +1456,8 @@ The foundation is complete when:
 
 ### Course sources
 
+- [Current Release 1 assignment and full marking rubric](https://canvas.uts.edu.au/courses/39716/assignments/268214?module_item_id=2584213),
+  locally captured and checked on 27 September 2026; supersedes older AI-container and submission-date wording.
 - **ASD 2026 Project Specifications** (`ASD_2026_Project_Specifications.pdf`)
 - Canvas page **Assessment overview**
 - Canvas page **AI Agent Configuration Guide**
