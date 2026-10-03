@@ -58,6 +58,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = ROOT / "docs" / "reports"
 REPOSITORY_URL = "https://github.com/MattShelton04/41026ASDProject"
 CONTENT_WIDTH = A4[0] - 40 * mm
+# The body frame between the 23 mm top and 22 mm bottom margins set in build().
+FRAME_HEIGHT = A4[1] - 45 * mm
 MERMAID_VERSION = "11.12.0"
 NAVY = colors.HexColor("#153E46")
 BLUE = colors.HexColor("#176B75")
@@ -104,6 +106,13 @@ class ReportSpec:
     # Leave the historical Release 0 counting policy unchanged.
     count_appendices_and_code: bool = False
     count_cover_and_captions: bool = False
+    # Below 1.0, a figure may shrink to this fraction to finish the current page rather than
+    # leave a gap and strand the heading above it. 1.0 keeps Release 0's layout unchanged.
+    figure_min_scale: float = 1.0
+    # Space a subsection heading (### or ####) needs below it, or it starts the next page. When
+    # the subsection's first block is a figure, the need grows to that figure at its smallest
+    # scale, so the heading never ends a page alone. 0 disables the check.
+    subsection_min_space: float = 0
 
 
 @dataclass(frozen=True)
@@ -466,7 +475,7 @@ def _fit_code_columns(widths: list[float], rows: list[list[str]]) -> list[float]
     for col in range(len(widths)):
         tokens = [token for row in rows for token in re.findall(r"`([^`]+)`", row[col])]
         longest = max((len(token) for token in tokens), default=0)
-        minimums.append(min(longest * courier_char + 12, CONTENT_WIDTH * 0.4))
+        minimums.append(min(longest * courier_char + 12, CONTENT_WIDTH * 0.45))
     short = [col for col, width in enumerate(widths) if width < minimums[col]]
     if not short:
         return widths
@@ -570,8 +579,57 @@ def _image_flowable(
     max_width = CONTENT_WIDTH
     max_height = spec.image_max_height(path)
     scale = min(max_width / width_px, max_height / height_px)
+    caption_paragraph = Paragraph(html.escape(caption), styles["caption"])
+    if spec.figure_min_scale < 1:
+        return [
+            FittedFigure(
+                path, width_px * scale, height_px * scale, caption_paragraph, spec.figure_min_scale
+            )
+        ]
     rendered = RLImage(str(path), width=width_px * scale, height=height_px * scale)
-    return [KeepTogether([rendered, Paragraph(html.escape(caption), styles["caption"])])]
+    return [KeepTogether([rendered, caption_paragraph])]
+
+
+class FittedFigure(Flowable):
+    """A centred image above its caption that shrinks, within a limit, to fit the frame.
+
+    A figure that cannot fit even at ``min_scale`` moves whole to the next page, as before.
+    """
+
+    def __init__(
+        self, path: Path, width: float, height: float, caption: Paragraph, min_scale: float
+    ) -> None:
+        super().__init__()
+        self.path, self.full_width, self.full_height = path, width, height
+        self.caption, self.min_scale = caption, min_scale
+        self.scale = 1.0
+        self.caption_height = 0.0
+
+    @override
+    def wrap(self, aW: float, aH: float) -> tuple[float, float]:
+        _, self.caption_height = self.caption.wrap(aW, aH)
+        style = self.caption.style
+        text_height = style.spaceBefore + self.caption_height + style.spaceAfter
+        fit = (aH - text_height) / self.full_height
+        self.scale = 1.0 if fit >= 1 else (fit if fit >= self.min_scale else 1.0)
+        self.width = aW
+        self.height = self.full_height * self.scale + text_height
+        return self.width, self.height
+
+    @override
+    def split(self, aW: float, aH: float) -> list[Flowable]:
+        return []
+
+    @override
+    def draw(self) -> None:
+        style = self.caption.style
+        width, height = self.full_width * self.scale, self.full_height * self.scale
+        caption_y = style.spaceAfter
+        self.caption.drawOn(self.canv, 0, caption_y)
+        image_y = caption_y + self.caption_height + style.spaceBefore
+        RLImage(str(self.path), width=width, height=height).drawOn(
+            self.canv, (self.width - width) / 2, image_y
+        )
 
 
 def _numbered_lines(source: Path, spec: ReportSpec) -> list[tuple[int, str]]:
@@ -609,6 +667,7 @@ def parse_markdown(source: Path, baseline: str, spec: ReportSpec) -> list[Flowab
     styles = _styles()
     lines = source_lines(source, spec)
     story: list[Flowable] = []
+    subsection_breaks: list[int] = []
     paragraph_lines: list[str] = []
     list_items: list[str] = []
     list_ordered = False
@@ -717,6 +776,9 @@ def parse_markdown(source: Path, baseline: str, spec: ReportSpec) -> list[Flowab
             else:
                 if level == 2:
                     story.append(CondPageBreak(70 * mm))
+                elif level > 2 and spec.subsection_min_space:
+                    subsection_breaks.append(len(story))
+                    story.append(CondPageBreak(spec.subsection_min_space))
                 paragraph = Paragraph(
                     _inline(title, source, baseline), styles[f"h{min(max(level - 1, 1), 3)}"]
                 )
@@ -758,7 +820,24 @@ def parse_markdown(source: Path, baseline: str, spec: ReportSpec) -> list[Flowab
 
     flush_all()
     flush_code()
+    for index in subsection_breaks:
+        _reserve_first_figure(story, index, spec.subsection_min_space)
     return story
+
+
+def _reserve_first_figure(story: list[Flowable], index: int, text_allowance: float) -> None:
+    """Grow a subsection's page-break threshold to fit its heading text and first figure."""
+    for flowable in story[index + 2 :]:
+        if isinstance(flowable, FittedFigure):
+            caption = 12 * mm
+            needed = text_allowance + flowable.full_height * flowable.min_scale + caption
+            # Below the frame height, so a fresh page never breaks again.
+            story[index].height = min(needed, FRAME_HEIGHT - mm)
+            return
+        if isinstance(flowable, (CondPageBreak, PageBreak, Table, Preformatted)) or hasattr(
+            flowable, "_heading_level"
+        ):
+            return
 
 
 def _plain_words(text: str) -> int:

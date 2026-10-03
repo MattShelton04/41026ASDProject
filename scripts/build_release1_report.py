@@ -40,6 +40,7 @@ from scripts import report_pdf
 from scripts.report_pdf import REPORT_DIR, ROOT, ReportSpec
 
 SOURCE = REPORT_DIR / "release-1-technical-report.md"
+SCREENSHOT_DIR = REPORT_DIR / "assets" / "release-1" / "screenshots"
 # The brief requires exactly this file name for the single group upload. Drafts are written here
 # too, so the committed PDF always shows the report's current state.
 OUTPUT = REPORT_DIR / "submissions" / "release-1" / "group-20.pdf"
@@ -64,13 +65,13 @@ STUDENT_EVIDENCE = ("feature-mcp", "feature-rag", "feature-crud", "ci")
 # Targets that add up to the 3,000-word limit. Chapter titles are matched by prefix, so renaming a
 # chapter's words is fine as long as its number stays the same. Adjust as sections fill in.
 SECTION_WORD_BUDGETS = {
-    "1 ": 250,  # Project overview and Release 1 scope
+    "1 ": 260,  # Project overview, responsibilities and delivery plan
     "2 ": 150,  # Functional requirements
-    "3 ": 250,  # Non-functional requirements
+    "3 ": 260,  # Non-functional requirements
     "4 ": 150,  # Architecture and repository structure
-    "5 ": 700,  # MCP and RAG design, including full generated tool schemas
-    "6 ": 950,  # Validation and results, including evidence captions
-    "7 ": 100,  # Integration summary
+    "5 ": 690,  # MCP and RAG design, including full generated tool schemas
+    "6 ": 930,  # Validation and results, including evidence captions
+    "7 ": 110,  # Integration summary and generated capture matrix
     "8 ": 200,  # Known issues and limitations
     "9 ": 250,  # Contributions, repository and showcase links
 }
@@ -237,6 +238,81 @@ def retrieval_summary(argument: str) -> list[str]:
     ]
 
 
+def _student_numbers() -> dict[str, str]:
+    return {
+        manifest["feature_key"]: manifest["_student"].split("-")[1]
+        for manifest in _feature_manifests()
+    }
+
+
+def operations_table(argument: str) -> list[str]:
+    """Each feature's frontend, backend API and owned-database checks from a live capture."""
+    path = ROOT / argument.strip()
+    if not path.exists():
+        return [f"[[TODO: Group | Capture `{argument.strip()}` with the live stack running]]"]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    numbers = _student_numbers()
+    rows = [
+        "| Feature page | Backend API read | Owned database operation |",
+        "|---|---|---|",
+    ]
+    for feature in sorted(data["features"], key=lambda item: numbers.get(item["feature_key"], "")):
+        api = feature["api"]
+        api_path = urlparse(api["url"]).path
+        crud = feature.get("transient_crud")
+        if crud:
+            codes = "/".join(str(stage["http_status"]) for stage in crud["stages"][:-1])
+            database = (
+                f"Create, read, update, delete ({codes}); read after delete "
+                f"{crud['stages'][-1]['http_status']}"
+            )
+        else:
+            tables = feature["database"].get("tables") or {}
+            database = "Rows: " + ", ".join(f"{name} {count}" for name, count in tables.items())
+        number = numbers.get(feature["feature_key"], "?")
+        rows.append(
+            f"| {number}: HTTP {feature['frontend']['http_status']} "
+            f"| `{api_path}` {api['http_status']}, {api['returned_items']} items "
+            f"| {database} |"
+        )
+    return rows
+
+
+def _capture(number: str, mode: str) -> dict[str, Any] | None:
+    path = SCREENSHOT_DIR / f"feature-{number}-{mode}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _answer_cell(capture: dict[str, Any] | None) -> str:
+    if capture is None:
+        return "Not captured"
+    if capture.get("status") != "succeeded":
+        return f"Run {capture.get('status', 'unknown')}"
+    citations = int(capture.get("citation_count", 0))
+    return f"{str(capture['confidence']).capitalize()}, {citations} citations"
+
+
+def capture_matrix(_: str) -> list[str]:
+    """Each feature's captured MCP, cited RAG and insufficient-context runs, from their sidecars."""
+    rows = [
+        "| Feature | Tools returned via MCP | Cited answer | Off-topic question |",
+        "|---|---|---|---|",
+    ]
+    for manifest in _feature_manifests():
+        number = manifest["_student"].split("-")[1]
+        mcp = _capture(number, "mcp")
+        tools = ", ".join(
+            f"`{tool['tool_name']}`"
+            for tool in (mcp or {}).get("tools", [])
+            if tool.get("transport") == "mcp" and tool.get("outcome") == "succeeded"
+        )
+        rows.append(
+            f"| {number} | {tools or 'None recorded'} | {_answer_cell(_capture(number, 'rag'))} "
+            f"| {_answer_cell(_capture(number, 'insufficient'))} |"
+        )
+    return rows
+
+
 def loop_output(argument: str) -> list[str]:
     """Render a captured ``dev.py ai validate`` result as a compact terminal-style block."""
     path = ROOT / argument.strip()
@@ -298,12 +374,16 @@ SPEC = ReportSpec(
         "CORPUS_TABLE": corpus_table,
         "RETRIEVAL_SUMMARY": retrieval_summary,
         "LOOP_OUTPUT": loop_output,
+        "OPERATIONS_TABLE": operations_table,
+        "CAPTURE_MATRIX": capture_matrix,
     },
     word_limit=WORD_LIMIT,
     fit_code_columns=True,
     section_word_budgets=SECTION_WORD_BUDGETS,
     count_appendices_and_code=True,
     count_cover_and_captions=True,
+    figure_min_scale=0.7,
+    subsection_min_space=35 * mm,
 )
 
 

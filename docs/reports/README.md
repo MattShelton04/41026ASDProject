@@ -51,6 +51,8 @@ The Markdown supports a few extras on top of the Release 0 syntax:
 | `[[CORPUS_TABLE]]` | RAG knowledge sources, generated from each registered `config/rag/corpus.json` |
 | `[[RETRIEVAL_SUMMARY path]]` | Summary of a committed retrieval evaluation baseline |
 | `[[LOOP_OUTPUT path]]` | Terminal-style summary of a `dev.py ai validate` JSON capture |
+| `[[OPERATIONS_TABLE path]]` | Per-feature frontend, backend API and owned-database checks from a live operations capture |
+| `[[CAPTURE_MATRIX]]` | Each feature's MCP tools, cited answer and off-topic outcome, from the screenshot sidecars |
 | `[[BASELINE]]` within prose or a table | The selected `--baseline`, including the cover commit row |
 
 Generated tables change as soon as a feature registers tools or a corpus, so nobody hand-copies them.
