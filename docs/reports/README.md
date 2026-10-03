@@ -35,8 +35,9 @@ uv run python scripts/build_release1_report.py            # rebuild submissions/
 
 Counted: chapter headings, prose, lists, generated tables, fenced evidence output and substantive
 appendices from the first chapter onwards. The brief grants no appendix or terminal-output
-exemption. Excluded: cover, generated contents, figures and captions, TODO callouts and hidden
-author notes. Moving a table or log into an appendix does not reduce the count. Release 0 retains
+exemption. Cover text and figure captions also count. Only generated contents, diagram pixels,
+TODO callouts and hidden author notes are excluded. Moving a table or log into an appendix does
+not reduce the count. Release 0 retains
 its historical counting policy and frozen submission.
 
 The Markdown supports a few extras on top of the Release 0 syntax:

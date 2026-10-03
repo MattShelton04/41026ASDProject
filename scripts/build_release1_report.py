@@ -64,13 +64,13 @@ STUDENT_EVIDENCE = ("feature-mcp", "feature-rag", "feature-crud", "ci")
 # Targets that add up to the 3,000-word limit. Chapter titles are matched by prefix, so renaming a
 # chapter's words is fine as long as its number stays the same. Adjust as sections fill in.
 SECTION_WORD_BUDGETS = {
-    "1 ": 300,  # Project overview and Release 1 scope
-    "2 ": 200,  # Functional requirements
+    "1 ": 250,  # Project overview and Release 1 scope
+    "2 ": 150,  # Functional requirements
     "3 ": 250,  # Non-functional requirements
-    "4 ": 200,  # Architecture and repository structure
-    "5 ": 800,  # MCP and RAG design, including full generated tool schemas
-    "6 ": 650,  # Validation and results
-    "7 ": 150,  # Integration summary
+    "4 ": 150,  # Architecture and repository structure
+    "5 ": 700,  # MCP and RAG design, including full generated tool schemas
+    "6 ": 950,  # Validation and results, including evidence captions
+    "7 ": 100,  # Integration summary
     "8 ": 200,  # Known issues and limitations
     "9 ": 250,  # Contributions, repository and showcase links
 }
@@ -88,6 +88,8 @@ def _diagram_pairs() -> dict[str, str]:
 
 
 def _image_max_height(path: Path) -> float:
+    if path.stem.endswith((".answer", ".citation")):
+        return 235 * mm
     if "screenshots" in path.parts:
         return 105 * mm
     if path.stem in {"agent-loop-validation", "ci-and-deployment"}:
@@ -301,6 +303,7 @@ SPEC = ReportSpec(
     fit_code_columns=True,
     section_word_budgets=SECTION_WORD_BUDGETS,
     count_appendices_and_code=True,
+    count_cover_and_captions=True,
 )
 
 

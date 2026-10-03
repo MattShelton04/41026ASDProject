@@ -181,6 +181,18 @@ def test_inline_baseline_resolves_in_cover_table(tmp_path: Path) -> None:
     assert table._cellvalues[0][1].getPlainText() == BASELINE
 
 
+def test_full_text_count_includes_cover_and_image_captions(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path,
+        "# Cover title\n\nTwo words\n\n[[TOC]]\n\n## 1 Scope\n\n"
+        "Three body words.\n\n![Figure one cited evidence](answer.png)\n",
+    )
+    spec = replace(SPEC, count_appendices_and_code=True, count_cover_and_captions=True)
+    assert engine.count_words(source, spec).sections == (("Cover", 4), ("1 Scope", 9))
+    assert engine.count_words(source, spec).total == 13
+    assert "cover and captions included" in engine.format_status(engine.review(source, spec), spec)
+
+
 def test_draft_renders_todos_and_missing_images_but_final_blocks(tmp_path: Path) -> None:
     source = _write(
         tmp_path,
