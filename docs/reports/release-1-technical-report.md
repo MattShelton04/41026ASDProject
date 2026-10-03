@@ -31,11 +31,11 @@ OpenAI and PostgreSQL was reconfirmed by Matthew on 3 October.
 | Owner | Release 1 responsibility |
 |---|---|
 | Group (shared; led by Matthew) | MCP and RAG servers, AI-mode adapters, loop validation modes, adoption kit, Compose host configuration and integration evidence |
-| Matthew Shelton, F1 Property data | 14 tools (two approval-gated writes), data-platform corpus, grounded assistant |
-| Burhan Naeem, F2 Sales and market | 3 market-case tools, sale-matching corpus, assistant workspace |
-| James Huang, F3 Suburb analytics | 4 suburb and crime tools, analytics corpus, map of F1 data |
-| Michael White, F4 Due diligence | 3 site-review tools, evidence-state corpus, assistant, CI tests |
-| Derek Song, F5 Buyer workspace | 5 buyer-case tools, workflow corpus, scoped assistant routes |
+| Matthew Shelton (24763373), F1 Property data | 14 tools (two approval-gated writes), data-platform corpus, grounded assistant |
+| Burhan Naeem (24764134), F2 Sales and market | 3 market-case tools, sale-matching corpus, assistant workspace |
+| James Huang (24970865), F3 Suburb analytics | 4 suburb and crime tools, analytics corpus, map of F1 data |
+| Michael White (24846267), F4 Due diligence | 3 site-review tools, evidence-state corpus, assistant, CI tests |
+| Derek Song (24833978), F5 Buyer workspace | 5 buyer-case tools, workflow corpus, scoped assistant routes |
 
 Each student also maintains their feature's Compose services and `student-N.yml` workflow.
 
