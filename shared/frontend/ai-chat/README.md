@@ -34,8 +34,11 @@ Context-specific saved drafts take precedence over an initial suggested message.
 
 The reading surface contains the answer, attributed findings and relevant evidence gaps.
 Suggested next steps are collapsed. Sources, context, scope, evidence support and recorded steps
-share one inspection panel, displayed alongside the answer on wide screens and within the flow
-on small screens. Embedded chat switches to a full-width sources view with **Back to answer**;
+share one inspection panel, displayed alongside the answer when its mounting surface is at least
+1100 px wide and within the flow in narrower containers. The composer stays in normal flow in
+narrow containers so it cannot cover source excerpts. The controller adds a named CSS container
+to its root; narrow feature columns therefore retain readable controls even on a wide monitor.
+Embedded chat switches to a full-width sources view with **Back to answer**;
 its one scrolling body retains the conversation and reading position. Full activity links retain
 the feature and return-page context.
 

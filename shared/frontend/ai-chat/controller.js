@@ -51,6 +51,9 @@ export function createAiChat({
   searchContext = null,
 } = {}) {
   if (!root || !client) throw new TypeError("createAiChat requires root and client");
+  // A feature may embed page chat in a narrow column on a wide desktop viewport.
+  // Layout decisions belong to the mounting surface, not the browser window.
+  root.classList.add("ps-ai-chat-container");
   const scopeDefinitions = normalizeAssistantScopes(scopes);
   const contextDefinitions = normalizeAssistantContexts(contextOptions);
   const state = {
