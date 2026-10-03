@@ -64,7 +64,7 @@ separate integration observation, not a substitute for those optional fault/reco
 
 ## Report and review
 
-The report has 2,785 counted words, including cover, captions, tables, fenced evidence and
+The report has 2,777 counted words, including cover, captions, tables, fenced evidence and
 substantive appendices. Generated contents and diagram pixels are excluded. There are no
 unfinished author callouts or missing figures. Five rendered architecture/flow diagrams retain
 matching source/asset hashes.
@@ -77,17 +77,23 @@ was corrected with an actual PDF text-order regression.
 Final generation passed:
 
 ```text
-uv run python scripts/build_release1_report.py --final --baseline efe89219a0c6e66a4ebafe7d27b06c1eec1a4ba8
+uv run python scripts/build_release1_report.py --final --baseline 822720cc895813f27597421670549dfb50b44a1a
 ```
 
-The [submission PDF](../submissions/release-1/group-20.pdf) contains 34 pages and 2,785 counted
-words. Its SHA-256 is `fe12b32e758802204ed6e784381318010a7003b39f3faee64c19a51509b5a863`.
-The evidence/source baseline is `efe89219a0c6e66a4ebafe7d27b06c1eec1a4ba8`; the subsequent
+The [submission PDF](../submissions/release-1/group-20.pdf) contains 34 pages and 2,777 counted
+words. Its SHA-256 is `6d387c00b11b2f675f87999bbfe3085e57d4aa171e9118eb206f0236634dfc3e`.
+The evidence/source baseline is `822720cc895813f27597421670549dfb50b44a1a`; the subsequent
 artifact commit contains the generated PDF and these final verification notes. Repository
 artifact links and the cover use the full evidence SHA. All final pages were rendered.
-Pages 2–34 are pixel-identical to the fully inspected corrected draft; only the cover changed,
-and its full SHA fits. The independent review verified all 34 pinned artifact links and the
-final PDF digest. No new layout blocker was found.
+Thirty-one pages are pixel-identical to the previously inspected final artifact. The changed
+cover and CI pages (1, 31, 32) were inspected again. The independent review verified all 34
+pinned artifact links, six workflow links and the final digest. No new layout blocker was found.
+
+All twelve PR checks passed at `d2d0cd74b2c12524d82447f184d682da59269a1b`: Student 1–5,
+Integration CI and Visual Capture. The report's six CI links and seven
+[workflow metadata rows](../../release-1/evidence/github-workflow-runs.json) preserve those
+successful runs. Later commits update report/evidence only; they do not relabel those runs as
+testing a later SHA. The [PR](https://github.com/MattShelton04/41026ASDProject/pull/135) is open.
 
 The final guard checks required sections, evidence identities, contribution commits, workflow
 links and indexed local artifacts against their actual Git blobs at the selected baseline.

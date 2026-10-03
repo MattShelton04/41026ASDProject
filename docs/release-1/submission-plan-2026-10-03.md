@@ -20,7 +20,7 @@ Other feature implementations remain with their allocated owners.
 | Verify presentation metadata | Report | Public page loads; title “ASD Release 1 Full Demo”; 575 seconds. Review playback/coverage before uploading |
 | Independently mark the draft and resolve report gaps | Group integration | Two rubric reviews aggregated; conservative count, focused evidence, named NFRs, contribution dates and list order improved; all 34 draft pages checked |
 | Update root README to tested setup/status | Shared / Matthew | Correct ports, host services, corpus setup, evidence links and limitations |
-| Run canonical quality gate; commit and push a reviewable PR | Shared / Matthew | Final local gate passed: 2,444 Python tests and 238 JavaScript tests; 80 prerequisite/platform skips. PDF built at evidence baseline `efe8921`; see this branch's PR for remote checks |
+| Run canonical quality gate; commit and push a reviewable PR | Shared / Matthew | Final local gate passed: 2,444 Python tests and 238 JavaScript tests; 80 prerequisite/platform skips. All 12 remote checks passed at `d2d0cd7`; PDF built at evidence baseline `822720c`; [PR #135](https://github.com/MattShelton04/41026ASDProject/pull/135) |
 | Submit one `group-20.pdf` by 4 October 23:59 Sydney | Designated group uploader | PDF within 3,000 words plus diagrams; tutor-visible repository and video |
 
 ## Owner follow-ups outside this branch

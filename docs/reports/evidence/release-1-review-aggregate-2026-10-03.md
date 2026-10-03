@@ -10,7 +10,7 @@ owning frontends/backends. They do not support an unconditional full-marks claim
 
 Both reviews support 3/3 for setup, MCP, RAG, loop modes, Compose and report evidence, conditional
 on the final readable, pinned PDF. The final local artifact now passes the guard and page review
-at evidence baseline `efe8921`, with 2,785 words and 34 pages. Both estimate 2/3 for retained feature functionality and
+at evidence baseline `822720c`, with 2,777 words and 34 pages. Both estimate 2/3 for retained feature functionality and
 integrated working software because Feature 2 context switching and Feature 4's native question
 renderer remain defective. One assigns CI 3/3 under the precise MCP/RAG-only descriptor; the
 other assigns 2/3 under the broader brief's instruction to disable AI-mode too.
@@ -30,7 +30,7 @@ is needed. These estimates are review judgements, not awarded marks or a guarant
 | Citation evidence is not explicit in the PDF | Include a supporting passage/date/version card for each feature; link its full UI view and public run metadata. |
 | F4 evidence can look official despite being seeded | Label the selected source-attributed constraints/buildings synthetic demonstrations. |
 | Success claims obscure different validation boundaries | Keep provider captures, deterministic loop modes, live HTTP operations and fixture/browser tests distinct; record the exploratory F4 adaptation failure. |
-| CI and deployment claims are stale | Retain verified baseline run URLs with their real SHA; refresh local status/probes and disclose the Student 5 AI-mode startup. |
+| CI and deployment claims are stale | Fresh successful Student 1–5/Integration runs at `d2d0cd7` replace earlier baseline links; refresh local status/probes and disclose the Student 5 AI-mode startup. |
 | Wrapped known-issues bullets render out of order | Preserve list continuations in the Markdown parser; add a rendering regression and inspect the corrected PDF. |
 
 ## Remaining owner and human tasks
