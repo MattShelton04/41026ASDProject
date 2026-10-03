@@ -9,7 +9,8 @@ owning frontends/backends. They do not support an unconditional full-marks claim
 ## Estimated marks and limits
 
 Both reviews support 3/3 for setup, MCP, RAG, loop modes, Compose and report evidence, conditional
-on the final readable, pinned PDF. Both estimate 2/3 for retained feature functionality and
+on the final readable, pinned PDF. The final local artifact now passes the guard and page review
+at evidence baseline `efe8921`, with 2,785 words and 34 pages. Both estimate 2/3 for retained feature functionality and
 integrated working software because Feature 2 context switching and Feature 4's native question
 renderer remain defective. One assigns CI 3/3 under the precise MCP/RAG-only descriptor; the
 other assigns 2/3 under the broader brief's instruction to disable AI-mode too.

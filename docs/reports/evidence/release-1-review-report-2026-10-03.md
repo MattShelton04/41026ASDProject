@@ -31,7 +31,7 @@ The rewritten report is substantially ready for assessment. The shared runtime, 
 | 6. DevOps and GitHub Actions | 3 | Every assigned workflow has a successful run and disables MCP/RAG, matching the precise full-mark criterion. The brief separately says AI-mode must also be disabled; Feature 5 starts offline direct AI-mode. This inconsistency remains a broader compliance risk, potentially costing one point if the marker applies that instruction. |
 | 7. Docker Compose deployment | 3 | Running-container status, application access and host connection configuration demonstrate integrated deployment without AI services in Compose. Final baseline should retain current execution evidence. |
 | 8. Integrated working software | 2 | All five required selected MCP/RAG paths succeed, but the Feature 2/4 residual functionality defects prevent describing the complete application as fully operational without qualification. Full marks require fixing and validating those paths. |
-| 9. Technical report and project evidence | 3 | The revised source covers scope, requirements, NFRs, architecture/design, validation, limitations, all five dated contribution records, identifiable commits and repository/video links. Final PDF legibility, immutable baseline links and submission checks still require completion. |
+| 9. Technical report and project evidence | 3 | The revised source covers scope, requirements, NFRs, architecture/design, validation, limitations, all five dated contribution records, identifiable commits and repository/video links. The final PDF is readable and pins all repository source links to the verified evidence baseline. Remote access and submission still require the group handoff. |
 | 10. Demonstration and Q&A | Ungraded, 0-3 | All five participated according to the user's confirmation. Actual explanation, defence and accurate understanding were not observed by this reviewer; public access and video duration are not substitutes. |
 
 **Assessable subtotal: 25/27.** A marker may judge the remaining functionality defects as minor or outside the selected demonstration, producing 26-27/27; the broader CI instruction can instead reduce the estimate. Full-mark Q&A adds three points only when the marker observes the required understanding.
@@ -52,15 +52,15 @@ The precise rubric and workflow responsibility rows require MCP/RAG disabled; th
 
 ### 3. Freeze and publish the traceable report baseline
 
-Commit the final report, source/figure derivatives, capture sidecars, public evidence and this review in focused commits; select a full published baseline SHA containing the evidence. Run the required quality gate after the last code change and obtain successful workflows for the final integration changes. Keep earlier `330e65f` runs labelled as earlier evidence if they remain in the report. The final builder checks commit existence/ancestry, covered sections and unchanged tracked evidence, but does not prove remote accessibility, CI success or semantic answer quality.
+The final builder passed using evidence baseline `efe89219a0c6e66a4ebafe7d27b06c1eec1a4ba8`, which contains the report source/figures, capture sidecars and public evidence. Publish that baseline and the final artifact/reviews so the tutor can resolve their links, and obtain successful workflows for the final integration changes. The parent reports the required full quality gate passed after the last code change: 2,444 Python tests and 238 JavaScript tests, with 80 optional/platform skips. Keep earlier `330e65f` runs labelled as earlier evidence. The final builder checks commit existence/ancestry, covered sections and unchanged tracked evidence, but does not prove remote accessibility, CI success or semantic answer quality.
 
 ### 4. Review the video and final submission with a human
 
 Confirm the 9:35 video shows each student demonstrating their assigned feature's MCP and RAG interactions through UI/backend, direct terminal MCP/RAG validation, and both loop modes. Verify tutor access to the repository and video. Preserve the truthful attendance statement and avoid predicting individual Q&A marks from attendance. Upload one `group-20.pdf` from one group member before 4 October 2026, 23:59 Sydney time.
 
-### 5. Complete final PDF QA and conservative word counting
+### 5. Preserve final PDF QA and conservative word counting
 
-The generator now conservatively includes cover text, captions, substantive appendices and fenced evidence. The corrected fresh draft count is **2,785 words**, below the 3,000-word ceiling. This count is a snapshot while report edits continue; rerun it after final layout/content changes. No appendix or code exemption is being assumed.
+The generator now conservatively includes cover text, captions, substantive appendices and fenced evidence. The final report count is **2,785 words**, below the 3,000-word ceiling. Rerun word counting and final generation if assessed report content changes. No appendix or code exemption is being assumed.
 
 The focused answer and citation cards resolve the earlier small-screenshot concern: the fresh draft prints all 15 answers and five source passages at readable sizes, while linking the original full UI captures and metadata. Dense tool tables and diagrams fit. The discovered multiline-list rendering defect was repaired in `09f0f21`: list continuation lines now remain inside their preceding bullet. The corrected Known issues section preserves reading order on pages 33–34. Supplementary `.sources.png` images show source excerpts and recorded calls; the PDF includes the five selected `.citation.png` cards.
 
@@ -80,4 +80,12 @@ Reviewed the corrected `Temp/release1-review/group-20-draft.pdf`, SHA-256 `0117a
 - Body tables, loop evidence, answer cards and citation passages are readable and stay within the page margins. The large Feature 4 cards fit near a full page. Small shared overview screenshots serve as context; selected assistant evidence is separately legible.
 - The page 33 multiline-list order defect is resolved. The refreshed Feature 4 cards have no toast corner; all answer and citation content remains readable. The grouped deployment-status table fits and correctly separates running counts, healthchecks and host processes.
 - There are 60 external link annotations, including two video links, six successful workflow links and 16 direct commit links. Table of contents and PDF bookmarks are present. Repository source links currently target `main`, as expected for a draft; final generation must replace these with the full published immutable baseline.
-- The original tracked draft PDF was not assessed. Final builder verification and a fresh PDF check are still required after source/capture changes and baseline commit.
+- The original tracked draft PDF was not assessed. The final artifact confirmation below completes local builder/layout verification for the reviewed source and captures.
+
+## Final artifact confirmation
+
+Independently inspected [the final group-20.pdf](../submissions/release-1/group-20.pdf), **34 pages**, **2,530,105 bytes**, SHA-256 **`fe12b32e758802204ed6e784381318010a7003b39f3faee64c19a51509b5a863`**. The parent reports its `--final` builder passed at baseline **`efe89219a0c6e66a4ebafe7d27b06c1eec1a4ba8`**.
+
+The cover correctly shows that full SHA, Group 20, the supplied presentation link, 2 October showcase and 4 October 23:59 Sydney submission time. All **34 repository source links** now use the exact immutable baseline. The PDF retains **60 external links**, including two video links, six genuine workflow links and 16 direct contribution commit links. Contents/bookmarks and page numbers remain correct, with no unfinished markers.
+
+Rendered the final PDF at the same Poppler scale as the reviewed corrected draft. **Pages 2–34 are pixel-identical**; the only changed page is the cover's full baseline value, which was visually inspected and fits. This establishes unchanged final body layout, including the corrected Known issues list, readable answer/citation cards and grouped deployment status. No report-source change or new test run was performed by this reviewer. Remaining feature-owner corrections and human video/Q&A assessment are unchanged; final artifact QA does not remove those rubric risks.

@@ -33,6 +33,7 @@ index; all five registered corpora were ready afterward.
 - The public [presentation](https://youtu.be/0Z0Rt146lD0) page was accessible; player metadata
   reports 575 seconds. Matthew confirmed all five participated in the 2 October showcase and
   that the tutor approved OpenAI/PostgreSQL. Playback coverage and Q&A quality were not graded.
+  GitHub repository metadata confirms the repository is public.
 
 ## Deterministic checks
 
@@ -71,8 +72,22 @@ matching source/asset hashes.
 Two independent [rubric reviews](release-1-review-aggregate-2026-10-03.md) informed the rewrite.
 The native answer and citation figures are readable at page size. The corrected 34-page draft
 was rendered with Poppler; reviewers checked every page. The list-order defect found during QA
-was corrected with an actual PDF text-order regression. Final baseline/build/hash and final
-page inspection will be recorded here after the immutable evidence commit is created.
+was corrected with an actual PDF text-order regression.
+
+Final generation passed:
+
+```text
+uv run python scripts/build_release1_report.py --final --baseline efe89219a0c6e66a4ebafe7d27b06c1eec1a4ba8
+```
+
+The [submission PDF](../submissions/release-1/group-20.pdf) contains 34 pages and 2,785 counted
+words. Its SHA-256 is `fe12b32e758802204ed6e784381318010a7003b39f3faee64c19a51509b5a863`.
+The evidence/source baseline is `efe89219a0c6e66a4ebafe7d27b06c1eec1a4ba8`; the subsequent
+artifact commit contains the generated PDF and these final verification notes. Repository
+artifact links and the cover use the full evidence SHA. All final pages were rendered.
+Pages 2–34 are pixel-identical to the fully inspected corrected draft; only the cover changed,
+and its full SHA fits. The independent review verified all 34 pinned artifact links and the
+final PDF digest. No new layout blocker was found.
 
 The final guard checks required sections, evidence identities, contribution commits, workflow
 links and indexed local artifacts against their actual Git blobs at the selected baseline.
