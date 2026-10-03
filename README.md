@@ -1,230 +1,213 @@
-# 41026 Advanced Software Development Group Project
+# PropertyScope NSW
 
-Shared repository for the Spring 2026 PropertyScope NSW group project.
+A NSW property-research application for Group 20, 41026 Advanced Software Development.
+Five owned feature slices share a research shell, strict contracts and a bounded AI assistant.
+Release 1 adds registered MCP tools, versioned guidance retrieval, cited answers, confidence
+categories and insufficient-context handling.
 
-PropertyScope is a tutor-approved NSW property-research application. The repository currently
-contains the Shared platform plus enabled independently deployable slices for Property Discovery,
-Market Intelligence, Suburb Analytics, Due Diligence and the Buyer Journey workspace. Suburb
-Analytics is available through the shared home or directly at `http://localhost:5600`; its data
-is explicitly a deterministic demonstration fixture, not current official evidence.
+The tutor-approved project uses Python 3.12 and a `uv` monorepo. Frontends, feature APIs and
+owned databases run in Docker Compose. AI-mode, its Plan/Act/Observe/Adapt loop, MCP and RAG
+run as host processes. Matthew reconfirmed the tutor's OpenAI and PostgreSQL/PostGIS approval on
+3 October 2026. Release 2 cloud deployment and multi-agent orchestration remain future work.
 
-The implemented baseline includes a reproducible Python workspace, strict shared contracts,
-manifest-driven feature onboarding, a shared HTMX product shell, bounded AI-mode orchestration over
-the OpenAI Responses API, and a containerised Feature 1 data platform using PostgreSQL/PostGIS.
-Release 1 adds local MCP tool dispatch, versioned semantic retrieval and grounded Feature 1
-answers with inspectable sources, confidence categories and insufficient-context handling.
-AI-mode, MCP and RAG run as non-containerised host processes, as the Release 1 rubric requires,
-and the agent loop runs inside AI-mode. The shared frontend and student services stay
-containerised and reach the AI tier through `host.docker.internal`.
-The [Shared/Feature 1 handoff](docs/release-1/shared-feature-1-handoff.md)
-maps this increment to the rubric, evidence and remaining owner responsibilities.
+## Start here
 
-## Fieldbook UI/UX overhaul
+- [Developer workflow](CONTRIBUTING.md): dependencies, tests and contribution commands.
+- [Shared platform architecture](docs/architecture/shared-platform-design.md): boundaries and contracts.
+- [Release 1 report](docs/reports/release-1-technical-report.md), [submission PDF](docs/reports/submissions/release-1/group-20.pdf) and [submission plan](docs/release-1/submission-plan-2026-10-03.md).
+- [Presentation](https://youtu.be/0Z0Rt146lD0): Release 1 showcase, 9 minutes 35 seconds.
+- [Agent instructions](AGENTS.md): ownership, safe data operations and required checks.
 
-The implemented cross-feature redesign and its evidence are documented in
-[`docs/deliverables/propertyscope-ux-overhaul`](docs/deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
-Start with the [before/after gallery](docs/deliverables/propertyscope-ux-overhaul/SCREENSHOT_GALLERY.html),
-[design system](docs/deliverables/propertyscope-ux-overhaul/03_DESIGN_SYSTEM.md),
-[assistant experience](docs/deliverables/propertyscope-ux-overhaul/06_AI_ASSISTANT_EXPERIENCE.md) and
-[validation boundaries](docs/deliverables/propertyscope-ux-overhaul/10_VALIDATION_REPORT.md).
-The injected-document browser evidence does not replace real-origin or full-stack validation.
+## Team and features
 
-## Team
+| Student | Owner / student ID | Feature | Local frontend | Owned storage |
+|---|---|---|---|---|
+| 1 | Matthew Shelton / 24763373 | [Data Platform and Property Discovery](student-1/README.md) | [5200](http://localhost:5200) | PostgreSQL/PostGIS |
+| 2 | Burhan Naeem / 24764134 | [Property Sales Explorer and Market Cases](student-2/README.md) | [5300](http://localhost:5300) | SQLite |
+| 3 | James Huang / 24970865 | [Suburb, Crime and Liveability Analytics](student-3/README.md) | [5600](http://localhost:5600) | SQLite |
+| 4 | Michael White / 24846267 | [Site, Planning and Building Due Diligence](student-4/README.md) | [5400](http://localhost:5400) | PostgreSQL/PostGIS |
+| 5 | Derek Song / 24833978 | [Buyer Journey and Agent Workspace](student-5/README.md) | [5500](http://localhost:5500) | SQLite |
 
-| Student | Name | Student ID | UTS email | Feature |
-|---|---|---:|---|---|
-| 1 | Matthew Shelton | 24763373 | matthew.n.shelton@student.uts.edu.au | Data Platform and Property Discovery |
-| 2 | Burhan Naeem | 24764134 | Burhan.Naeem@wisetechglobal.com | Property Sales Explorer and Market Cases |
-| 3 | James Huang | 24970865 | Zihuang.huang@student.uts.edu.au | Suburb, Crime, and Liveability Analytics |
-| 4 | Michael White | 24846267 | Michael.h.white@student.uts.edu.au | Site, Planning, and Building Due Diligence |
-| 5 | Derek Song | 24833978 | Derek.song@student.uts.edu.au | Buyer Journey and Agent Workspace |
+The [shared home](http://localhost:5100) links all five features. Their edge routes and ports
+come from [enabled-features.v1.json](deployment/enabled-features.v1.json), generated from the
+feature manifests. Each backend accesses its own database service; cross-feature data travels
+through HTTP contracts. See the [registered scope](docs/architecture/registered-feature-scope.md).
 
-The approved feature purposes and ownership boundaries are recorded in the
-[registered feature scope](docs/architecture/registered-feature-scope.md). Allocation does not imply
-implementation; the application exposes only manifest-enabled features.
+## Run the local application
 
-## Release path
-
-| Release | Planned scope |
-|---|---|
-| Release 0 | Integrated microservices, AI mode/OpenAI, shared agentic loop, Docker Compose, and student CI |
-| Release 1 | Release 0 plus MCP, RAG, and grounded AI responses |
-| Release 2 | Release 1 plus multi-agent orchestration, advanced testing, and Azure deployment |
-
-MCP and RAG run locally for Release 1 and remain disabled during CI/CD. Multi-agent orchestration
-is planned for Release 2; all three advanced capabilities must remain disabled in its cloud
-deployment. The Release 1 rubric requires every shared AI service and the loop to run outside
-containers. `stack up` always starts them that way, and the quality gate rejects any Compose AI
-service ([ADR-046](docs/architecture/decisions/ADR-046-non-containerised-ai-tier.md)). Release 2
-cloud hosting remains a future decision.
-
-## Application preview
-
-The Fieldbook research workspace pairs a persistent sidebar with property search, illustrated
-research areas, and visible source coverage.
-
-![PropertyScope NSW research workspace](docs/images/readme/propertyscope-home.png)
-
-Property Discovery resolves a NSW address against the current published property register.
-
-![Property search results for a deterministic NSW fixture address](docs/images/readme/property-search.png)
-
-The data overview summarises publication readiness, recent updates, and current coverage.
-
-![Property data operations overview](docs/images/readme/data-overview.png)
-
-These images use the deterministic populated UI fixture at a 1440x1000 viewport, so they contain no
-live credentials or machine-specific data. After a UI change, refresh all three consistently with:
-
-```text
-uv run playwright install chromium
-uv run scripts/dev.py ui readme-screenshots
-```
-
-## Repository guide
-
-- `.github/workflows/`: canonical integration CI and student workflow files
-- `ai-services/`: deterministic agent core, AI-mode, MCP and RAG services
-- `deployment/`: validated feature selection and generated runtime projections
-- `docs/`: living architecture, release evidence, reports, and dated historical records
-- `shared/`: contracts, bounded tool transport, consumer protocol, testkit, product shell and browser capabilities
-- `student-1/` to `student-5/`: independently owned feature workspaces
-- `scripts/`: quality, development, acquisition, fixture, and UI-audit commands
-- `docker-compose.yml`: base service definitions; enabled feature profiles are generated from manifests
-
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the developer workflow,
-[docs/README.md](docs/README.md) for maintained documentation, and [AGENTS.md](AGENTS.md) for coding-agent
-rules.
-
-## Developer quick start
-
-Install `uv` using the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/),
-then run from the repository root:
+Install Git, [uv](https://docs.astral.sh/uv/getting-started/installation/), Node.js 20.6 or newer,
+and Docker Desktop with Compose. Run commands from the repository root:
 
 ```text
 uv python install
 uv sync --locked --all-packages --all-groups
-uv run python scripts/check.py
 ```
 
-For the complete local application, start Docker Desktop and create the Git-ignored environment
-file once:
+Create the ignored environment file once and configure the approved model provider:
 
-```text
-Copy-Item .env.example .env  # Windows PowerShell
-# cp .env.example .env       # macOS/Linux
-# Add OPENAI_API_KEY to .env, then:
+```powershell
+Copy-Item .env.example .env
+# Set OPENAI_API_KEY in .env, then start Docker Desktop.
+uv run scripts/dev.py stack doctor
 uv run scripts/dev.py stack up
+uv run scripts/dev.py stack status
 ```
 
-Open the shared home at <http://localhost:5100>, Feature 1 at <http://localhost:5200>, or the Buyer
-Journey workspace at <http://localhost:5500>. To exercise
-deterministic data flows without a model credential, use:
+`stack up` starts the host AI tier before the feature containers and builds missing images.
+It does not acquire datasets, prepare a model or ingest corpora. Shell variables override `.env`.
+Use `stack up --offline` for ordinary feature/database development without a provider key;
+that starts direct AI-mode with provider readiness optional and leaves MCP/RAG stopped.
+Offline mode does not generate real model answers.
 
-```text
-uv run scripts/dev.py stack up --offline
-```
+| Host component | URL | Purpose |
+|---|---|---|
+| Shared edge | <http://localhost:5100> | Home, feature proxy and operations pages |
+| AI-mode | <http://127.0.0.1:5005> | Token-protected run API and loop worker |
+| MCP | <http://127.0.0.1:5011/mcp> | Streamable HTTP over 29 registered feature tools |
+| RAG | <http://127.0.0.1:5012> | Local embeddings, corpus versions and cited retrieval |
 
-`stack up` validates the enabled feature manifests and Compose/route projections, then starts or
-reuses only approved enabled services. Missing images are built automatically; pass `--build` only
-when Docker or dependency inputs changed. AI-mode, MCP and RAG start first as host processes on
-ports 5005, 5011 and 5012; `stack status` and `ai status` show them with their local URLs. Compose
-defines no AI service. The containers reach AI-mode through `host.docker.internal`, and AI-mode
-calls MCP and RAG on loopback. All AI state lives under `.propertyscope-runtime/host/`.
-Only host AI-mode receives the provider credential, which never enters an image. An internal
-service token protects AI-mode. Backend clients and the shared proxy attach it without exposing it
-to browser code. Run `stack up` after rotating that token so every caller gets the new value.
-OpenAI configuration, the opt-in Gemini compatibility profile, and provider diagnostics are in the
-[OpenAI API operations guide](docs/release-0/openai-api-operations.md).
+Containers reach AI-mode through `host.docker.internal`. AI-mode calls MCP/RAG on loopback;
+MCP calls allowlisted feature HTTP endpoints. The loop is inside AI-mode, not a fourth server.
+Provider credentials, service tokens, histories, index and model cache stay in the ignored
+`.propertyscope-runtime/` host directory. Tokens never belong in browser code or Git.
 
-For semantic document research, prepare the local embedding model explicitly, then follow the
-token and ingestion instructions in the [local AI runtime guide](docs/release-1/host-runtime.md) and
-[Feature 1 corpus recipe](student-1/config/rag/README.md):
+## Prepare all five guidance corpora
+
+Semantic retrieval needs an explicit model preparation and ingestion step. The default model
+is `BAAI/bge-small-en-v1.5`, with 384 dimensions. Preparation may download model assets;
+ordinary startup does not.
 
 ```text
 uv run rag-server prepare-model
-uv run scripts/dev.py ai stop
+uv run scripts/dev.py ai stop rag
 uv run scripts/dev.py ai start --mode combined
-# With the managed RAG_SERVICE_TOKEN in this shell:
+```
+
+In PowerShell, load the managed ingestion token without printing it, then ingest each registered
+manifest. If `RAG_SERVICE_TOKEN` was configured explicitly, keep that configured value instead.
+
+```powershell
+$env:RAG_SERVICE_TOKEN = (Get-Content -Raw .propertyscope-runtime/host/rag.token).Trim()
 uv run rag-server ingest student-1/config/rag/corpus.json
-uv run scripts/dev.py ai probe          # auth, MCP tools, corpora, retrieval, no-match
+uv run rag-server ingest student-2/config/rag/corpus.json
+uv run rag-server ingest student-3/config/rag/corpus.json
+uv run rag-server ingest student-4/config/rag/corpus.json
+uv run rag-server ingest student-5/config/rag/corpus.json
+uv run scripts/dev.py ai probe
+```
+
+The manifests currently contain 19/3/8/3/5 authored guidance documents. They explain feature
+behaviour and limits; live property facts come from owned backend tools. Ingestion creates an
+immutable corpus version. Identical replay preserves it; replacement can withdraw omitted documents.
+The [host runtime guide](docs/release-1/host-runtime.md) covers POSIX shells, tokens, provider
+profiles and diagnostics. Feature 3's optional generated official-context corpus has separate
+publication prerequisites; its registered guidance manifest works without those datasets.
+
+Inspect [Knowledge sources](http://localhost:5100/operations/ai-mode/knowledge/) for passages
+and retrieval rankings, and [Activity history](http://localhost:5100/operations/ai-mode/) for
+public run evidence. Grounded production runs use `default.v9` where eligible; ungrounded runs
+retain `default.v7`. Named validation modes use deterministic decisions against live services:
+
+```text
 uv run scripts/dev.py ai validate mcp
 uv run scripts/dev.py ai validate rag
 ```
 
-Ordinary startup never downloads model weights or ingests documents. Missing assets/corpus produce
-visible unavailable or insufficient-context states. Named validation modes use deterministic model
-decisions with real local services; actual provider and browser evidence is recorded separately.
+These commands establish transport and loop execution. Assess provider answers separately through
+the owning feature UI. Citations identify supporting passages; confidence is an evidence category,
+not an accuracy probability. Off-topic or unavailable context should produce an explicit refusal.
 
-Common lifecycle commands:
+## Data and publication
 
-| Purpose | Command |
+A fresh stack contains labelled seeded demonstrations, not complete official sources. The current
+local evidence snapshot has real accepted G-NAF, PSI, BOCSAR and SEIFA data alongside demonstration
+schools and fixture properties. That snapshot does not describe a new checkout's volumes.
+Check your own stack before making any loaded-data claim:
+
+```text
+uv run python .github/skills/feature-1-data/data_status.py
+uv run scripts/dev.py operator report
+```
+
+Acquisition is explicit, for example `uv run scripts/dev.py data collect schools-master`.
+It ends at a reviewable candidate. Publication requires checking counts, quality and provenance;
+it makes that candidate current. Pending spatial/reference candidates are not accepted data.
+See [Feature 1 operations](student-1/README.md), the
+[data consumer guide](student-1/DATA_PRODUCT_CONSUMER_GUIDE.md) and the
+[data skill](.github/skills/feature-1-data/SKILL.md). Starting a stack never publishes a release.
+
+## Develop and verify
+
+```text
+uv run python scripts/check.py
+uv run scripts/dev.py --help
+```
+
+The canonical gate checks formatting, lint, generated contracts/deployment, architecture,
+packaging, model configuration, frontend code, typing and tests with configured coverage.
+Choose the focused command in [CONTRIBUTING.md](CONTRIBUTING.md) while iterating, then run the
+full gate before handoff. Tests use deterministic doubles without provider credentials.
+Student workflows build and smoke their owned services with MCP/RAG disabled. Student 5 currently
+starts offline direct AI-mode; the submission plan records the owner's CI follow-up.
+
+| Task | Command |
 |---|---|
-| Inspect prerequisites | `uv run scripts/dev.py stack doctor` |
-| Show service state | `uv run scripts/dev.py stack status` |
-| Show selected AI service state | `uv run scripts/dev.py ai status` |
-| Read selected AI service logs | `uv run scripts/dev.py ai logs` |
-| Follow logs (`--no-follow` prints and exits) | `uv run scripts/dev.py stack logs [--no-follow] [service ...]` |
-| Read release/publication readiness | `uv run scripts/dev.py operator report` |
-| Stop while preserving data | `uv run scripts/dev.py stack down` |
-| Restart selected containers | `uv run scripts/dev.py stack restart [service ...]` |
-| Rebuild selected services | `uv run scripts/dev.py stack rebuild [service ...]` |
-| Run long data jobs without development reload polling | `uv run scripts/dev.py stack up --offline --no-reload --build` |
-| Delete this stack's labelled volumes | `uv run scripts/dev.py stack reset` |
+| Diagnose ports, Docker and host services | `uv run scripts/dev.py stack doctor` |
+| Read recent container logs | `uv run scripts/dev.py stack logs --no-follow f1-backend` |
+| Read host AI logs | `uv run scripts/dev.py ai logs ai-mode mcp rag` |
+| Stop and preserve data | `uv run scripts/dev.py stack down` |
+| Rebuild after dependency/Dockerfile changes | `uv run scripts/dev.py stack rebuild` |
+| Verify live service contracts | `uv run scripts/dev.py ai probe` |
+| Capture verified live assistant evidence | `uv run python scripts/capture_release1_screenshots.py` |
+| Capture safe UI/API/persistence evidence | `uv run python scripts/capture_release1_integration.py --project ps-dev --output Temp/live-feature-operations.json` |
+| Check report readiness | `uv run python scripts/build_release1_report.py --status` |
 
-`scripts/dev.py` reads the optional root `.env` for every command (shell values win). To
-run a second, disposable stack from another worktree, set `COMPOSE_PROJECT_NAME` there and,
-to reuse downloaded official archives, `PROPERTYSCOPE_SOURCE_CACHE_DIR`; see "Isolated
-environments" in [AGENTS.md](AGENTS.md).
+Frontend edits reload after a browser refresh; feature Python services reload in the development
+stack. After AI-service Python changes, stop the affected host service and restart combined mode.
+Run `stack up` after token/environment changes. Use a separate Compose project and ports for
+isolated experiments; [AGENTS.md](AGENTS.md) explains worktrees, cache reuse and cleanup.
+`stack reset` deletes the selected project's volumes and is only for an explicitly disposable stack.
 
-## UI-only workflow
+## UI fixtures and visual evidence
 
-Shared and Feature 1 can run against deterministic same-origin fixtures without Docker, databases,
-or a model credential:
+Shared and Feature 1 also run with deterministic same-origin fixtures:
 
 ```text
 uv run scripts/dev.py ui serve
 uv run scripts/dev.py ui audit quick
+uv run scripts/dev.py ui visual
 ```
 
-Use `ui audit full` for the explicit route/state/four-viewport matrix. Scenarios, ports, sharding,
-and generated evidence are documented in the [UI fixture guide](docs/ui/feature-1-fixture-mode.md)
-and [UI audit guide](docs/ui/feature-1-audit.md).
+Fixture pages at <http://127.0.0.1:5990> need no Docker or model credential. Their screenshots
+verify layout and browser behaviour; they do not prove live MCP/RAG or database integration.
+See [fixture mode](docs/ui/feature-1-fixture-mode.md),
+[visual regression](docs/ui/visual-regression.md) and the
+[Fieldbook design record](docs/deliverables/propertyscope-ux-overhaul/00_EXECUTIVE_SUMMARY.md).
 
-Pull requests that touch a frontend get an automatic visual review: every research area is captured
-before and after the change, compared pixel by pixel, published to GitHub Pages, and summarised
-in one pull request comment. Run the same comparison locally with `uv run scripts/dev.py ui visual`
-(once to save a baseline, again after your change). See the
-[visual regression guide](docs/ui/visual-regression.md).
+![PropertyScope research workspace using deterministic fixture data](docs/images/readme/propertyscope-home.png)
 
-## Feature 1 data operations
+![Property search using deterministic fixture data](docs/images/readme/property-search.png)
 
-Starting the stack does not contact a data publisher. An operator explicitly previews and starts
-each registered-source acquisition through the browser or CLI. Complete source is the default; the
-PSI browser/API workflow can instead select completed publisher archive years as a partial,
-non-publishable candidate:
+![Data overview using deterministic fixture data](docs/images/readme/data-overview.png)
 
-```text
-uv run scripts/dev.py data collect fixture-property
-uv run scripts/dev.py data collect schools-master
-```
+Refresh the README image set with `uv run scripts/dev.py ui readme-screenshots`. Release 1 evidence
+uses actual local services and allowlisted public run projections; inspect every captured image.
 
-Acquisition and candidate creation are automatic; publication is not. A candidate becomes current
-only after explicit human review and approval. Full official-source workflows, PSI cache preparation,
-provenance, and recovery are documented in the [Feature 1 README](student-1/README.md).
+## Repository map and delivery limits
 
-## Remaining delivery decisions
+| Directory | Contents |
+|---|---|
+| `student-1/` … `student-5/` | Owned feature microservices, schemas, tools, corpora and tests |
+| `ai-services/` | Host AI-mode, deterministic agent core, MCP and RAG |
+| `shared/` | Contracts, HTTP/tool runtime, testkit and common frontend packages |
+| `deployment/` | Feature selection and generated Compose/routes |
+| `scripts/` | Quality gates, runtime, data operations and evidence capture |
+| `docs/` | Living architecture, reports and dated evidence |
+| `.github/workflows/` | Assigned feature CI, integration and visual checks |
 
-The topic, team, five-feature split, Azure target, OpenAI profiles, and Feature 1
-PostgreSQL/PostGIS exception are approved. The final submission must retain durable approval
-evidence. Feature owners must still finalise their bounded datasets, routes/schemas, authentication
-where required, source licensing, tests, workflows, and integration evidence. Features 2–5 retain
-independent stores and never receive Feature 1 database credentials.
-
-
-## Repository health review
-
-The [repository health review](docs/reviews/repository-health-review.md) records the cross-feature
-reliability and design-system changes, source-level findings, validation evidence and remaining
-work. Shared frontend extension rules are in
-[the browser package guide](shared/frontend/browser/README.md).
+The current evidence covers selected working paths across all five slices. Owner follow-ups
+include Feature 2 context switching, Feature 4's native generated-question renderer and Feature 5's
+CI startup. Official locality/spatial coverage is incomplete; missing evidence is not clearance or
+zero. The [submission plan](docs/release-1/submission-plan-2026-10-03.md) records these limits and
+remaining delivery tasks. [docs/README.md](docs/README.md) indexes maintained guides; dated reviews
+are historical evidence, not current implementation instructions.
