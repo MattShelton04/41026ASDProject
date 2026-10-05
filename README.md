@@ -16,6 +16,7 @@ run as host processes. Matthew reconfirmed the tutor's OpenAI and PostgreSQL/Pos
 - [Shared platform architecture](docs/architecture/shared-platform-design.md): boundaries and contracts.
 - [Release 1 report](docs/reports/release-1-technical-report.md), [submission PDF](docs/reports/submissions/release-1/group-20.pdf) and [submission plan](docs/release-1/submission-plan-2026-10-03.md).
 - [Presentation](https://youtu.be/0Z0Rt146lD0): Release 1 showcase, 9 minutes 35 seconds.
+- [Release 2 requirements and plan](docs/release-2/README.md): requirements, implementation plan and per-feature responsibilities.
 - [Agent instructions](AGENTS.md): ownership, safe data operations and required checks.
 
 ## Team and features
