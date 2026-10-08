@@ -28,6 +28,8 @@ Store maintained project documentation here throughout all three releases.
 - [Release 0 index](release-0/README.md): current implementation/evidence navigation and release gates
 - [Release 1 Shared/Feature 1 handoff](release-1/shared-feature-1-handoff.md): current local runtime,
   reviewed implementation, architecture/interaction diagrams, evidence and owner boundaries
+- [Release 2 plan](release-2/README.md): Release 2 requirements, implementation plan and
+  Shared/feature responsibilities
 - [Release 1 feature adoption](release-1/feature-adoption.md): registered tool/corpus integration and
   grounded source UI for independently owned features
 - [Release 1 delivery plan](release-1/release-1-delivery-plan.md): earlier course interpretation and
