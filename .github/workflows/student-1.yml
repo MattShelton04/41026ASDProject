@@ -173,12 +173,16 @@ jobs:
       - name: Publish endpoint test summary
         if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
         run: |
+          status=0
           for origin in feature-origin shared-edge; do
             report="endpoint-results/student-1-${origin}.xml"
             if [ -f "$report" ]; then
-              uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 1 endpoint tests (${origin})" --output "endpoint-results/student-1-${origin}.md" --require-success >> "$GITHUB_STEP_SUMMARY"
+              uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 1 endpoint tests (${origin})" --output "endpoint-results/student-1-${origin}.md" --require-success >> "$GITHUB_STEP_SUMMARY" || status=1
+            else
+              echo "::error::Missing $report" && status=1
             fi
           done
+          exit "$status"
       - name: Upload endpoint test results
         if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
