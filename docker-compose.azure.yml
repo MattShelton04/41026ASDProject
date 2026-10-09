@@ -31,6 +31,12 @@ x-azure-logging: &azure-logging
     max-size: "10m"
     max-file: "5"
 
+# Bind-mounted edge configuration changes without changing the Compose model, so the VM script
+# passes a digest of deployment/azure/{Caddyfile,caddy,nginx,compose}; a new digest recreates the
+# edge containers and nothing else.
+x-azure-edge-labels: &azure-edge-labels
+  propertyscope.edge-config-sha256: ${PROPERTYSCOPE_EDGE_CONFIG_SHA:-unversioned}
+
 x-azure-secret-shim: &azure-secret-shim
   type: bind
   source: ./deployment/azure/compose/secret-env.sh
@@ -49,6 +55,7 @@ services:
     profiles: [release-0]
     image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/mirror/caddy:${CADDY_IMAGE_TAG:-2.10.2-alpine}
     restart: unless-stopped
+    labels: *azure-edge-labels
     environment:
       PROPERTYSCOPE_PUBLIC_HOST: ${PROPERTYSCOPE_PUBLIC_HOST:?PROPERTYSCOPE_PUBLIC_HOST is required}
       PROPERTYSCOPE_ACME_EMAIL: ${PROPERTYSCOPE_ACME_EMAIL:?PROPERTYSCOPE_ACME_EMAIL is required}
@@ -78,6 +85,7 @@ services:
   shared-frontend:
     image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/shared-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
     build: !reset null
+    labels: *azure-edge-labels
     ports: !reset []
     extra_hosts: !reset []
     environment:

@@ -1,0 +1,51 @@
+[Unit]
+Description=PropertyScope AI-mode and agent loop (host process; containers reach it via host.docker.internal)
+Documentation=https://github.com/MattShelton04/41026ASDProject/blob/main/deployment/azure/README.md
+PartOf=propertyscope-ai.target
+Wants=propertyscope-mcp.service propertyscope-rag.service
+After=network-online.target docker.service propertyscope-mcp.service propertyscope-rag.service
+
+[Service]
+Type=simple
+User=propertyscope-ai
+Group=propertyscope-ai
+WorkingDirectory=/opt/propertyscope/src
+# Rendered by propertyscope-vm.sh (scripts/devtools/cloud.py host-env): service tokens from Key
+# Vault, runtime paths, tool catalogues and capability flags - the same environment that
+# `dev.py ai start --mode combined` prepares locally.
+EnvironmentFile=/opt/propertyscope/secrets/host-ai.env
+# The provider key never enters the environment file: systemd hands it over as a credential only
+# this service can read, and AI-mode reads it through OPENAI_API_KEY_FILE.
+LoadCredential=openai-api-key:/opt/propertyscope/secrets/openai-api-key
+Environment=OPENAI_API_KEY_FILE=%d/openai-api-key
+# Same entry point as `dev.py ai serve ai-mode`; binds 0.0.0.0:5005 so containers can reach it
+# through the Docker host gateway. The NSG never admits 5005 from the internet.
+ExecStart=/opt/propertyscope/src/.venv/bin/python -m scripts.devtools.host_runtime serve ai-mode
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=35
+MemoryMax=2G
+# Hardening: unprivileged, read-only system view, writes only to the runtime store.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/propertyscope/src/.propertyscope-runtime
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=propertyscope-ai.target
