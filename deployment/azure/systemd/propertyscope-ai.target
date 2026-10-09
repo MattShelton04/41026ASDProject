@@ -1,0 +1,10 @@
+[Unit]
+Description=PropertyScope cloud AI tier (AI-mode, MCP, RAG, Multi-Agent) as host processes
+Documentation=https://github.com/MattShelton04/41026ASDProject/blob/main/deployment/azure/README.md
+# Enabled only by `deploy.sh ai on` (PROPERTYSCOPE_CLOUD_AI=true); off in the baseline deployment.
+# The services run on the VM host, never in containers (ADR-046, ADR-048).
+Wants=propertyscope-mcp.service propertyscope-rag.service propertyscope-ai-mode.service propertyscope-multi-agent.service
+After=network-online.target docker.service
+
+[Install]
+WantedBy=multi-user.target

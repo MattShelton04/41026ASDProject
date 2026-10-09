@@ -48,6 +48,9 @@ def validate_workspace_packaging(
     members, root_name = _load_workspace(root)
     violations = [*_validate_lock(root, members, root_name)]
     for dockerfile in sorted(root.rglob(DOCKERFILE_NAME)):
+        # Hidden trees (.venv, agent worktrees, .propertyscope-runtime snapshots) are never built.
+        if any(part.startswith(".") for part in dockerfile.relative_to(root).parts[:-1]):
+            continue
         violations.extend(_validate_dockerfile(root, dockerfile, members))
     return tuple(sorted(violations))
 

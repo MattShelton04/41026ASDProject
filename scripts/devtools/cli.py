@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 
+from scripts.devtools.cloud import add_cloud_commands
 from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
@@ -14,6 +15,7 @@ from scripts.devtools.config import (
     PRODUCTION_BUILD_SERVICES,
     UI_FIXTURE_SCENARIOS,
 )
+from scripts.devtools.review.cli import add_review_commands
 from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_SERVICE_PORTS
 
 _FIXTURE_PORT_HELP = (
@@ -260,7 +262,7 @@ def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
 
 def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     ai = root.add_parser(
-        "ai", help="Operate the non-containerised AI-mode, MCP and RAG host processes"
+        "ai", help="Operate the non-containerised AI-mode, MCP, RAG and Multi-Agent host processes"
     )
     commands = ai.add_subparsers(dest="action", required=True)
     start = commands.add_parser("start", help="Start or reconfigure the host AI services")
@@ -293,6 +295,7 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     )
     probe.add_argument("--output", type=Path, default=None, help="Also write JSON evidence here")
     _add_env_file_option(probe)
+    add_review_commands(commands)
     for action, help_text in (
         ("stop", "Stop host AI services while preserving their data"),
         ("logs", "Print recent host AI service logs"),
@@ -301,6 +304,25 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         command.add_argument("services", nargs="*", choices=tuple(AI_SERVICE_PORTS))
     foreground = commands.add_parser("serve", help="Run one host service in the foreground")
     foreground.add_argument("service", choices=tuple(AI_SERVICE_PORTS))
+
+
+def _security_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    security = root.add_parser(
+        "security", help="Run the pre-commit security scans and write the security report"
+    )
+    commands = security.add_subparsers(dest="action", required=True)
+    report = commands.add_parser(
+        "report",
+        help="Run Ruff S rules, detect-secrets and pip-audit; write "
+        "docs/release-2/evidence/security/",
+    )
+    report.add_argument("--output-dir", type=Path, default=None)
+    report.add_argument(
+        "--check", action="store_true", help="Exit non-zero when any finding is unexplained"
+    )
+    commands.add_parser(
+        "baseline", help="Create or refresh .secrets.baseline, keeping audit decisions"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -315,4 +337,6 @@ def build_parser() -> argparse.ArgumentParser:
     _data_commands(groups)
     _operator_commands(groups)
     _ai_commands(groups)
+    _security_commands(groups)
+    add_cloud_commands(groups)
     return parser

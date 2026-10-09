@@ -102,10 +102,18 @@ stack at <http://localhost:5200>. Starting the stack performs no acquisition. Ea
 job explicitly starts a complete registered-source import and writes candidates through the same
 durable database and human-review boundary.
 
-AI-mode, MCP and RAG run only as host processes (ADR-046). `devtools/runtime_settings.py` holds
-their port variables and capability modes, `devtools/host_runtime.py` manages their processes and
+AI-mode, MCP, RAG and the Multi-Agent Server run only as host processes (ADR-046, ADR-047).
+`devtools/runtime_settings.py` holds their port variables and capability modes, `devtools/host_runtime.py` manages their processes and
 state, and `devtools/service_auth.py` applies AI-mode's internal proxy authentication. On first
 start after upgrading, `host_runtime.retire_container_placement()` removes this Compose project's
 old AI containers and projection. `ai validate mcp|rag` runs the agent loop over each protocol
 (`release1_validation.py`), and `ai probe` checks the running servers directly
-(`release1_probe.py`). Both refuse to run in CI.
+(`release1_probe.py`). Both refuse to run in CI. `ai review multi-agent|testing|cloud`
+(`devtools/review/`) collects bounded, hashed Release 2 evidence, reviews it through an AI-mode run
+or, with `--deterministic`, the same loop in-process, and writes a report and JSONL validation log;
+`ai review decide` records the human release decision.
+
+`collect_ci_evidence.py` records a successful `student-N.yml` run on `main` (URL, SHA, job and
+step results, and the endpoint-test JUnit table) in `docs/release-2/evidence/ci/student-N.md`.
+It reads through an authenticated `gh` and never triggers or re-runs a workflow; see
+[`docs/release-2/evidence/ci/README.md`](../docs/release-2/evidence/ci/README.md).

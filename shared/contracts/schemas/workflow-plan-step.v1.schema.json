@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "description": "One step of the Planner's plan: the evidence to gather and why.",
+  "properties": {
+    "arguments": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "maxProperties": 20,
+      "title": "Arguments",
+      "type": "object"
+    },
+    "expected_evidence": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Evidence"
+    },
+    "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "index": {
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Index",
+      "type": "integer"
+    },
+    "purpose": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Purpose",
+      "type": "string"
+    },
+    "required": {
+      "default": true,
+      "title": "Required",
+      "type": "boolean"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "tool": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Tool",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "index",
+    "title",
+    "purpose",
+    "tool"
+  ],
+  "title": "PlanStep",
+  "type": "object"
+}

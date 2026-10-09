@@ -32,7 +32,7 @@ SHELL = shutil.which("sh")
 def test_ai_proxy_host_resolution(tmp_path: Path, host: str, hosts: str, expected: str) -> None:
     hosts_path = tmp_path / "hosts"
     hosts_path.write_text(hosts, encoding="utf-8")
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603 - fixed sh argv, no shell
         [
             SHELL or "sh",
             "-c",

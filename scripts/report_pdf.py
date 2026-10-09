@@ -287,7 +287,7 @@ def render_diagrams(spec: ReportSpec) -> None:
         ):
             manifest[source_name] = diagram_fingerprint(source, asset)
             continue
-        subprocess.run(
+        subprocess.run(  # noqa: S603 - resolved npx argv, no shell
             [
                 npx,
                 "--yes",

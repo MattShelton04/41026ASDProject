@@ -1,0 +1,5 @@
+# Cloud AI tier ON (bonus R2-B1..B4). Mounted by docker-compose.azure-ai.yml over
+# /etc/caddy/propertyscope-ai.caddy. The shared AI routes fall through to the nginx edge, and the
+# @protected matcher in the Caddyfile still requires operator credentials for every AI and
+# operations route except the public AI-mode health check.
+respond /__propertyscope/ai-tier 204

@@ -147,3 +147,105 @@ def test_build_cache_exports_are_optional_and_bounded(number: int) -> None:
         assert all("timeout=2m" in option for option in [*imports, *exports])
         assert all("ignore-error=true" in option for option in exports)
         assert build.get("continue-on-error", False) is False
+
+
+@pytest.mark.parametrize("number", range(1, 6))
+def test_feature_endpoint_tests_run_in_ci_with_junit_evidence(number: int) -> None:
+    """A slice with `tests/endpoints` must run them live and keep the JUnit report."""
+    if not (ROOT / f"student-{number}/tests/endpoints").is_dir():
+        pytest.skip(f"student-{number} has no endpoint tests yet")
+    workflow_path = f".github/workflows/student-{number}.yml"
+    workflow = yaml.safe_load((ROOT / workflow_path).read_text(encoding="utf-8"))
+    for event in ("push", "pull_request"):
+        assert "shared/testkit/**" in workflow[True][event]["paths"], (workflow_path, event)
+    steps = [step for job in workflow["jobs"].values() for step in job.get("steps", [])]
+    runs = [
+        step
+        for step in steps
+        if f"pytest student-{number}/tests/endpoints -m endpoint" in step.get("run", "")
+    ]
+    assert runs, f"{workflow_path} never runs its endpoint tests"
+    for step in runs:
+        assert step["env"]["PROPERTYSCOPE_ENDPOINT_BASE_URL"].startswith("http://127.0.0.1:")
+        assert "--junitxml=" in step["run"]
+    summary = [step for step in steps if "shared_testkit.junit_summary" in step.get("run", "")]
+    assert summary and all("$GITHUB_STEP_SUMMARY" in step["run"] for step in summary)
+    assert all("--require-success" in step["run"] for step in summary)
+    uploads = [
+        step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@")
+    ]
+    assert any(
+        step["with"]["name"] == f"student-{number}-endpoint-tests"
+        and step["if"].startswith("${{ !cancelled()")
+        for step in uploads
+    ), f"{workflow_path} must upload student-{number}-endpoint-tests"
+
+
+def _workflow(name: str) -> dict[object, object]:
+    document = yaml.safe_load((ROOT / f".github/workflows/{name}").read_text(encoding="utf-8"))
+    assert isinstance(document, dict)
+    return document
+
+
+def test_cloud_deployment_runs_only_after_integration_ci_or_by_hand() -> None:
+    workflow = _workflow("cloud-deployment.yml")
+    integration = _workflow("integration-ci.yml")
+    # PyYAML's YAML 1.1 loader interprets the Actions `on` key as True.
+    triggers = workflow[True]
+    assert isinstance(triggers, dict)
+    assert set(triggers) == {"workflow_run", "workflow_dispatch"}
+    assert triggers["workflow_run"] == {
+        "workflows": [integration["name"]],
+        "types": ["completed"],
+        "branches": ["main"],
+    }
+    job = workflow["jobs"]["deploy"]  # type: ignore[index]
+    condition = " ".join(job["if"].split())
+    assert "vars.AZURE_SUBSCRIPTION_ID != ''" in condition
+    assert "github.event.workflow_run.conclusion == 'success'" in condition
+    assert "github.event.workflow_run.event == 'push'" in condition
+    assert "github.event_name == 'workflow_dispatch'" in condition
+    assert job["environment"]["name"] == "production"
+    assert job["permissions"] == {"id-token": "write", "contents": "read"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["concurrency"]["cancel-in-progress"] is False  # type: ignore[index]
+
+
+def test_cloud_deployment_keeps_ai_off_uses_oidc_and_the_reusable_script() -> None:
+    workflow = _workflow("cloud-deployment.yml")
+    job = workflow["jobs"]["deploy"]  # type: ignore[index]
+    assert workflow["env"] == {"AI_MODE_MCP_ENABLED": "false", "AI_MODE_RAG_ENABLED": "false"}
+    assert job["env"]["PROPERTYSCOPE_CLOUD_AI"] == "false"
+    assert "head_sha" in job["env"]["IMAGE_TAG"]
+    steps = job["steps"]
+    login = next(step for step in steps if step.get("uses", "").startswith("azure/login@"))
+    assert set(login["with"]) == {"client-id", "tenant-id", "subscription-id"}
+    assert "secrets." not in str(login["with"])  # OIDC: no stored client secret
+    runs = "\n".join(step.get("run", "") for step in steps)
+    for action in ("provision", "push", "deploy", "smoke", "validate-endpoint"):
+        assert f"deployment/azure/deploy.sh {action}" in runs, action
+    assert "scripts/cloud_deployment_report.py" in runs
+    checkout = next(step for step in steps if step.get("uses", "").startswith("actions/checkout@"))
+    assert checkout["with"]["persist-credentials"] is False
+    upload = next(
+        step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert upload["if"] == "always()"
+    ordered = [step.get("id") for step in steps if step.get("id")]
+    assert ordered[:4] == ["provision", "push", "deploy", "smoke"]
+
+
+def test_every_workflow_pins_each_action_to_one_full_commit_sha() -> None:
+    pins: dict[str, set[str]] = {}
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for job in workflow["jobs"].values():
+            for step in job.get("steps", []):
+                action = step.get("uses", "")
+                if not action or action.startswith("./"):
+                    continue
+                assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", action), (path.name, action)
+                name, sha = action.split("@")
+                pins.setdefault(name, set()).add(sha)
+    inconsistent = {name: shas for name, shas in pins.items() if len(shas) > 1}
+    assert not inconsistent

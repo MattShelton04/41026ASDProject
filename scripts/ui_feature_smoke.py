@@ -83,7 +83,7 @@ def load_document(page: Page, *, base: str, feature: str, fragment: str, injecte
     if not injected:
         page.goto(url, wait_until="networkidle")
         return
-    with urlopen(url, timeout=10) as response:
+    with urlopen(url, timeout=10) as response:  # noqa: S310 - local stack URL chosen by the caller
         html = response.read(2_000_000).decode("utf-8")
     setup = (
         f'<base href="{base}/features/{feature}/">'

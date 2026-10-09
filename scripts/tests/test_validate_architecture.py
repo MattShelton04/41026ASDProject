@@ -556,6 +556,8 @@ services:
       AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
       RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
 """
 
 
@@ -602,6 +604,12 @@ def test_backend_that_calls_ai_mode_must_reach_mcp_and_rag_through_the_host(
         ),
         ("compose.yaml", "helper:\n    image: example/mcp-server:dev"),
         ("deployment/extra.compose.yml", "helper:\n    command: [python, -m, ai_mode]"),
+        ("docker-compose.ai.yml", "multi-agent:\n    image: example/app"),
+        ("compose.yaml", "helper:\n    command: [multi-agent-server, serve]"),
+        (
+            "docker-compose.override.yml",
+            "helper:\n    build:\n      context: ai-services/multi-agent-server",
+        ),
     ],
 )
 def test_any_compose_file_defining_a_shared_ai_service_is_rejected(
@@ -627,3 +635,222 @@ def test_ai_service_dockerfile_is_rejected(tmp_path: Path) -> None:
     assert [str(violation) for violation in violations] == [
         "ai-services/ai-mode/Dockerfile: Shared AI services must not be built as images"
     ]
+
+
+_AZURE_BASELINE = """
+services:
+  shared-edge-proxy:
+    image: ${ACR_LOGIN_SERVER}/propertyscope/mirror/caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/azure/Caddyfile:/etc/caddy/Caddyfile:ro
+  f1-backend:
+    build: !reset null
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      AI_MODE_BASE_URL: http://127.0.0.1:9
+    networks: !override [f1-data]
+"""
+
+_AZURE_AI_OVERLAY = """
+services:
+  f1-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      AI_MODE_BASE_URL: http://host.docker.internal:5005
+  f1-frontend:
+    ports:
+      - 127.0.0.1:5200:8080
+"""
+
+
+def _azure_messages(root: Path) -> list[str]:
+    return [
+        violation.message
+        for violation in validate_repository(root)
+        if "Azure" in violation.message or "Compose" in violation.message
+    ]
+
+
+def test_azure_overrides_with_compose_merge_tags_pass(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    (root / "docker-compose.azure.yml").write_text(_AZURE_BASELINE, encoding="utf-8")
+    (root / "docker-compose.azure-ai.yml").write_text(_AZURE_AI_OVERLAY, encoding="utf-8")
+
+    assert _azure_messages(root) == []
+
+
+def test_azure_baseline_rejects_public_ports_source_mounts_and_host_ai(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    compose = _AZURE_BASELINE + (
+        "  f2-backend:\n"
+        "    ports: ['5300:8080']\n"
+        "    volumes: ['./student-2:/app']\n"
+        "    extra_hosts: [host.docker.internal:host-gateway]\n"
+        "    environment:\n"
+        "      AI_MODE_BASE_URL: http://host.docker.internal:5005\n"
+    )
+    (root / "docker-compose.azure.yml").write_text(compose, encoding="utf-8")
+
+    messages = _azure_messages(root)
+
+    assert any("f2-backend must not publish a host port" in message for message in messages)
+    assert any("must not bind-mount ./student-2" in message for message in messages)
+    assert any("must not reach the host AI tier" in message for message in messages)
+
+
+def test_azure_ai_overlay_must_use_the_host_gateway_and_loopback_ports(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    overlay = _AZURE_AI_OVERLAY.replace("host.docker.internal:5005", "ai-mode:5005").replace(
+        "127.0.0.1:5200:8080", "5200:8080"
+    )
+    (root / "docker-compose.azure-ai.yml").write_text(overlay, encoding="utf-8")
+
+    messages = _azure_messages(root)
+
+    assert any("must reach host AI-mode via host.docker.internal" in m for m in messages)
+    assert any("f1-frontend must not publish a host port" in m for m in messages)
+
+
+def test_multi_agent_connection_uses_the_host_gateway_and_no_literal_token(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    compose = _HOST_AI_BACKEND.replace(
+        "MULTI_AGENT_BASE_URL: http://host.docker.internal", "MULTI_AGENT_BASE_URL: http://agents"
+    ).replace("${MULTI_AGENT_SERVICE_TOKEN:-}", "literal-token-value-0123456789abcdefghij")
+    compose += """\
+  f2-backend:
+    environment:
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:5013
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
+"""
+    (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    messages = _host_ai_messages(root)
+
+    assert sorted(messages) == [
+        "Compose service f1-backend must pass MULTI_AGENT_SERVICE_TOKEN through from the host "
+        "environment (${MULTI_AGENT_SERVICE_TOKEN:-}), never as a literal",
+        "Compose service f1-backend must reach the host Multi-Agent Server via "
+        "http://host.docker.internal",
+        "Compose service f2-backend must map host.docker.internal:host-gateway",
+    ]
+
+
+def test_students_must_not_import_the_multi_agent_server_even_in_tests(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    test = root / "student-1" / "tests" / "test_review.py"
+    test.parent.mkdir()
+    test.write_text(
+        "from multi_agent_server import create_app\n"
+        "from shared_testkit import FakeMultiAgentServer\n",
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert [str(violation) for violation in violations] == [
+        "student-1/tests/test_review.py:1: student-1-feature must not import multi_agent_server; "
+        "call the Multi-Agent Server over HTTP and test with shared_testkit.FakeMultiAgentServer"
+    ]
+
+
+def test_multi_agent_server_dependencies_and_imports(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text(
+        pyproject.read_text(encoding="utf-8").replace(
+            '"student-2",\n', '"student-2",\n    "ai-services/multi-agent-server",\n'
+        ),
+        encoding="utf-8",
+    )
+    project = root / "ai-services" / "multi-agent-server"
+    source = project / "src" / "multi_agent_server"
+    source.mkdir(parents=True)
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "multi-agent-server"\nversion = "0.1.0"\n'
+        'dependencies = ["shared-contracts", "agent-core", "ai-mode", "shared-testkit"]\n',
+        encoding="utf-8",
+    )
+    (source / "__init__.py").write_text(
+        "from ai_mode import providers\nfrom shared_testkit import FakeMultiAgentServer\n",
+        encoding="utf-8",
+    )
+    (project / "tests").mkdir()
+    (project / "tests" / "test_app.py").write_text(
+        "from shared_testkit import ScriptedLLMProvider\n", encoding="utf-8"
+    )
+    agent_core = root / "ai-services" / "agent-core" / "src" / "agent_core"
+    agent_core.mkdir(parents=True)
+    (agent_core / "__init__.py").write_text("import multi_agent_server\n", encoding="utf-8")
+
+    messages = sorted(violation.message for violation in validate_repository(root))
+
+    assert messages == [
+        "agent-core production code must not import multi_agent_server",
+        "multi-agent-server must not depend on workspace project shared-testkit",
+        "multi-agent-server production code must not import shared_testkit",
+    ]
+
+
+_WORKFLOW = """\
+id: example-review
+version: v1
+feature_id: {feature}
+title: Example review
+objective: Check a record.
+planner_guidance: Read the record.
+allowed_tools: [example.record.v1]
+steps:
+  - id: record
+    title: Read record
+    purpose: Fetch it
+    tool: example.record.v1
+reviewer_checks:
+  - id: record-found
+    description: The record exists
+    severity: critical
+    recommendation: Reject
+    rule: {{kind: step_succeeded, step: record}}
+"""
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (_WORKFLOW.format(feature="student-1-example"), None),
+        (
+            _WORKFLOW.format(feature="student-2-example"),
+            "workflow manifest feature_id student-2-example must be student-1-example",
+        ),
+        ("id: [unclosed", "invalid workflow manifest"),
+        ("id: Bad Id\n", "invalid workflow manifest"),
+    ],
+)
+def test_enabled_feature_workflow_manifests_are_validated(
+    tmp_path: Path, content: str, expected: str | None
+) -> None:
+    root = _workspace(tmp_path)
+    manifest = root / "student-1" / "config" / "multi-agent" / "workflow.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(content, encoding="utf-8")
+    # A disabled feature's manifest is not part of the deployment and is not inspected.
+    disabled = root / "student-2" / "config" / "multi-agent" / "workflow.yaml"
+    disabled.parent.mkdir(parents=True)
+    disabled.write_text("not: [valid", encoding="utf-8")
+
+    messages = [
+        str(violation) for violation in validate_repository(root) if "workflow" in violation.message
+    ]
+
+    if expected is None:
+        assert messages == []
+    else:
+        assert len(messages) == 1
+        assert messages[0].startswith("student-1/config/multi-agent/workflow.yaml: ")
+        assert expected in messages[0]

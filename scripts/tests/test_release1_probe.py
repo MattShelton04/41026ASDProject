@@ -16,7 +16,12 @@ from shared_contracts.deployment import ReadinessCheckProjection, project_readin
 from shared_contracts.grounding import GROUNDING_MIN_SCORE
 
 FEATURE = RegisteredFeature("feature-9-demo", ("demo_lookup", "demo_search"), "demo-guidance")
-TOKENS = {"ai-mode": "ai-secret-token", "mcp": "mcp-secret-token", "rag": "rag-secret-token"}
+TOKENS = {
+    "ai-mode": "ai-secret-token",
+    "mcp": "mcp-secret-token",
+    "rag": "rag-secret-token",
+    "multi-agent": "multi-agent-secret-token",
+}
 CHUNK = {"title": "Demo guidance", "excerpt": "Demo guidance explains the demo lookup.", "score": 0}
 
 
@@ -46,17 +51,44 @@ def resolved_environment(monkeypatch: pytest.MonkeyPatch) -> None:
             "AI_MODE_SERVICE_TOKEN": TOKENS["ai-mode"],
             "MCP_SERVICE_TOKEN": TOKENS["mcp"],
             "RAG_SERVICE_TOKEN": TOKENS["rag"],
+            "MULTI_AGENT_SERVICE_TOKEN": TOKENS["multi-agent"],
         }
 
     monkeypatch.setattr(host_runtime, "prepare_environment", prepare)
 
 
+def _multi_agent_readiness() -> dict[str, object]:
+    return project_readiness(
+        service="multi-agent-server",
+        version="0.1.0",
+        checks={
+            "state_store": ReadinessCheckProjection(required=True, status=HealthStatus.HEALTHY),
+            "templates": ReadinessCheckProjection(
+                required=False, status=HealthStatus.HEALTHY, detail="1 template(s) registered"
+            ),
+        },
+    ).model_dump(mode="json")
+
+
 def _handler(
-    *, tools: tuple[str, ...] = FEATURE.tool_names, off_topic_status: str = "no_match"
+    *,
+    tools: tuple[str, ...] = FEATURE.tool_names,
+    off_topic_status: str = "no_match",
+    workflow_templates: object = None,
 ) -> httpx.MockTransport:
+    listing = workflow_templates or {"items": [{"template": {"id": "demo-review"}}], "count": 1}
+
     def respond(request: httpx.Request) -> httpx.Response:
         path = request.url.path
         port = request.url.port
+        if port == 5013:
+            if path == "/health/live":
+                return httpx.Response(200)
+            if request.headers.get("Authorization") != f"Bearer {TOKENS['multi-agent']}":
+                return httpx.Response(401)
+            if path == "/health/ready":
+                return httpx.Response(200, json=_multi_agent_readiness())
+            return httpx.Response(200, json=listing)
         if port == 5005:
             if path == "/health/live":
                 return httpx.Response(200)
@@ -114,6 +146,7 @@ def test_healthy_servers_pass_every_check_and_the_evidence_holds_no_token(
         "ai-mode": "http://127.0.0.1:5005",
         "mcp": "http://127.0.0.1:5011/mcp",
         "rag": "http://127.0.0.1:5012",
+        "multi-agent": "http://127.0.0.1:5013",
     }
     checks = evidence["checks"]
     assert isinstance(checks, list)
@@ -122,6 +155,7 @@ def test_healthy_servers_pass_every_check_and_the_evidence_holds_no_token(
         "feature-9-demo tools",
         "feature-9-demo grounded retrieval",
         "feature-9-demo insufficient context",
+        "lists workflow templates",
     } <= names
     written = output.read_text(encoding="utf-8")
     assert json.loads(written) == evidence
@@ -233,6 +267,19 @@ def test_an_unreachable_service_is_reported_without_hiding_the_others() -> None:
     assert evidence["passed"] is False
     assert _failed(evidence) == ["reachable"]
     assert "Some checks failed." in release1_probe.render(evidence)
+
+
+def test_multi_agent_probe_reports_invalid_readiness_and_listing() -> None:
+    healthy = _handler(workflow_templates={"unexpected": True})
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.port == 5013 and request.url.path == "/health/ready":
+            return httpx.Response(503, text="not json")
+        return healthy.handle_request(request)
+
+    evidence = _run(httpx.MockTransport(respond))
+
+    assert _failed(evidence) == ["accepts the service token", "lists workflow templates"]
 
 
 def test_probe_refuses_to_run_in_ci() -> None:

@@ -49,7 +49,38 @@ contain 19/3/8/3/5 documents for Features 1–5 respectively; Feature 3 also own
 official-evidence locality adapter. The generated deployment projection supplies runtime scopes.
 Registration is source/configuration evidence, not proof of ingestion or current live provider/UI
 success. Each owner's final interaction evidence and submission sign-off remain separate
-responsibilities. Multi-agent runtime and Azure deployment remain Release 2 work.
+responsibilities. The Release 2 Azure deployment is prepared as described in section 16.2
+([ADR-048](decisions/ADR-048-azure-vm-hosting.md)).
+
+### Multi-Agent Server (Release 2, updated 9 October 2026)
+
+[ADR-047](decisions/ADR-047-multi-agent-server.md) adds `ai-services/multi-agent-server`, a fourth
+host process on `MULTI_AGENT_PORT` (5013). It is managed by the same launcher, has no Dockerfile
+and no Compose service, and never runs in CI. Feature backends call its bearer-token HTTP API
+(`/api/v1/multi-agent`) through `MULTI_AGENT_BASE_URL=http://host.docker.internal:5013`.
+
+- **Templates are feature-owned.** `student-N/config/multi-agent/workflow.yaml` declares inputs, a
+  read-only tool allowlist, required steps and deterministic reviewer checks. Only enabled
+  features are registered, and `feature_id` must match the owning slice.
+- **Workflow:** `planning → working → reviewing → awaiting_human → approved | corrected |
+  partially_accepted | rejected` (plus `failed` and `cancelled`). The first human `correct`
+  re-runs the Worker and Reviewer once with the note.
+- **Agents** use agent-core's provider port with AI-mode's provider factory and model registry,
+  versioned prompts, schema validation, bounded retries and a deterministic fallback. The Worker
+  reaches tools only through MCP (or the direct catalogue in `direct` mode). Each tool must be
+  allowlisted, `read_only`, approval-free and owned by the feature.
+- **State and evidence:** the server has its own SQLite store under
+  `.propertyscope-runtime/host/multi-agent/`, with append-only `workflow_history.jsonl` and
+  `coordination_audit.jsonl`, and `multi-agent-server export`.
+
+Multi-agent workflows deliberately use their own `WorkflowRun` contract and store rather than
+AI-mode's `AgentRun`. A workflow is a three-role, human-gated lifecycle with a correction round.
+An agent run is one bounded Plan/Act/Observe/Adapt loop. Sharing a store would make each owner
+interpret the other's states. AI-mode stays the single owner of agent runs, and the Multi-Agent
+Server owns workflow runs. Neither opens the other's database. Contracts:
+`shared_contracts.multi_agent` and `shared/contracts/openapi/multi-agent.v1.openapi.json`. Test
+double: `shared_testkit.FakeMultiAgentServer`. Operation: the
+[package README](../../ai-services/multi-agent-server/README.md).
 
 ### Retained Release 0 foundation
 
@@ -354,7 +385,7 @@ The main architectural constraints are:
 | Docker/Compose integration | One root Compose model with release profiles | `docker compose config`, health report, full-stack test |
 | Individual CI/CD | Path-filtered `student-N.yml` workflows | Five successful workflow runs |
 | Release 1 MCP/RAG/grounding | Adapters over existing tools plus citation-bearing retrieval | MCP Inspector/contract output and RAG evaluation report |
-| Release 2 multi-agent/human review | Planner, Worker, Reviewer roles over the same run model | Role traces, approval/rejection cases, architecture diagram |
+| Release 2 multi-agent/human review | Host Multi-Agent Server: Planner, Worker, Reviewer and one human decision over feature-owned templates (ADR-047) | `coordination_audit.jsonl`, `workflow_history.jsonl`, exported run summaries, architecture diagram |
 | Pre/post testing | Deterministic pre-commit pytest and isolated AI-assisted test stage | JUnit/coverage artefacts and generated-test evidence |
 | Azure deployment | Container Apps, ACR, Bicep, OIDC, smoke/rollback workflow | Deployment output, endpoint tests, infrastructure diagram |
 | Advanced services disabled in cloud | Services absent from Azure graph and flags false | Automated negative reachability/configuration assertions |
@@ -475,7 +506,7 @@ flowchart LR
 | Gemini API | 0 dev | Opt-in local model inference through OpenAI-compatible Chat Completions | Production default or application workflow state |
 | `ai-services/mcp-server` | 1 | Host MCP tools and approved catalogue metadata resource | Duplicate CRUD logic or arbitrary URL dispatch |
 | `ai-services/rag-server` | 1 | Ingestion, chunking, retrieval, citations, corpus versions | Final response authority |
-| `ai-services/multi-agent-server` | 2 | Planner/Worker/Reviewer coordination and human-review API | A second incompatible run model |
+| `ai-services/multi-agent-server` | 2 | Planner/Worker/Reviewer workflow runs, human decisions, workflow history and coordination audit (ADR-047) | Agent runs, feature data or write tools |
 | Optional OTel collector | 0+ | Local trace/metric export when enabled | Required runtime dependency |
 
 ### 6.2 Student service catalogue
@@ -933,8 +964,9 @@ transaction. Optimistic version numbers prevent two workers advancing the same r
 The event decision and cursor semantics are recorded in
 [`ADR-014`](decisions/ADR-014-append-only-safe-agent-run-events.md).
 
-MCP, RAG and future multi-agent services do not open this file. They interact through
-the orchestrator's internal contracts, leaving `ai-mode` as the single state owner.
+MCP, RAG and the Multi-Agent Server do not open this file. They interact through
+the orchestrator's internal contracts, leaving `ai-mode` as the single owner of agent runs. The
+Multi-Agent Server owns only its separate workflow-run store (ADR-047).
 The host launcher preserves historical Compose-volume state through consistency-checked migration
 and never overwrites an existing host store. RAG owns its own index/model directory. Lifecycle
 ownership checks include PID creation time and command identity before signalling a process.
@@ -1179,7 +1211,10 @@ their owned browser/build/integration checks. All explicitly disable MCP/RAG. Te
 real SDK objects through in-process transports and inject embedders without starting shared
 servers, downloading weights or using provider credentials. Separate local named `ai validate mcp`
 and `ai validate rag` commands exercise the production loop with real services and deterministic
-model decisions; actual provider/browser evidence remains a separate requirement.
+model decisions; actual provider/browser evidence remains a separate requirement. Release 2 adds
+`ai review multi-agent|testing|cloud`, which runs the loop over bounded, hashed release evidence
+with the `review-*.v1` prompt sets and the `agentic-loop`-scoped `review.evidence.v1` tool; CI
+uses its `--deterministic` in-process form ([review modes](../release-2/review-modes.md)).
 
 The current brief also requires AI-mode to be disabled during CI/CD. Student 5's workflow still
 starts an offline direct-mode host process for its persisted-run degradation smoke; that owner
@@ -1250,34 +1285,39 @@ to align backend container and host configuration. This service authentication d
 end-user identity to the trusted local demo. [Host lifecycle documentation](../release-1/host-runtime.md)
 defines stop/restart, migration and diagnosis without killing unrelated processes or deleting history.
 
-### 16.2 Azure target
+### 16.2 Azure target (ADR-048)
 
-Use Azure Container Registry, Azure Container Apps, Log Analytics/Application Insights,
-and Bicep under `infra/azure`.
+[ADR-048](decisions/ADR-048-azure-vm-hosting.md) replaces the earlier Container Apps sketch. One
+Ubuntu 24.04 VM runs the same Compose model with `docker-compose.azure.yml`. The decision, the
+one-time setup and the operations are in [deployment/azure/README.md](../../deployment/azure/README.md).
 
-- Only the shared edge has public ingress.
-- Feature APIs, database services, and AI-mode use internal ingress/service discovery.
-- Database services and the state-owning `ai-mode` service have exactly one replica and
-  exclusive Azure Files storage.
-- Begin cloud testing with a low-resource approved model and bounded context.
-- GPU workload profiles are optional, quota-dependent, and selected only after a cost
-  and latency benchmark.
-- MCP, RAG, and multi-agent services are absent from the cloud deployment graph and
-  their flags are false.
-- An automated assertion calls their routes/service names and verifies they are not
-  available.
-- Infrastructure parameters, not source edits, select environment names, image tags,
-  and capacities.
+- Bicep in `deployment/azure/` (resource-group scope) defines ACR, a VNet/NSG admitting only
+  80/443, a Standard public IP with a DNS label, the VM with a system-assigned identity
+  (`AcrPull`, `Key Vault Secrets User`), an RBAC-mode Key Vault with purge protection, an
+  auto-shutdown schedule and a budget.
+- Only the Caddy TLS edge publishes ports. It proxies to the unchanged nginx edge, which gains a
+  production-only rate-limit include. Database tiers sit on internal per-feature networks.
+- Images are built once per commit and pulled from ACR by Git SHA. Secrets are Key Vault values
+  rendered to root-only files and passed to processes as Compose secrets. There is no SSH:
+  operations use `az vm run-command`.
+- AI-mode, MCP, RAG and the Multi-Agent Server are **off** by default
+  (`PROPERTYSCOPE_CLOUD_AI=false`). Caddy answers the shared AI routes with `503 ai_disabled`, and
+  `scripts/cloud_smoke.py` asserts this. For the bonus tiers they run as systemd host processes
+  (never containers, ADR-046), enabled with `deploy.sh ai on`.
+- `cloud-deployment.yml` deploys after Integration CI succeeds on `main`, or by hand, through
+  GitHub OIDC and the protected `production` environment.
+- `scripts/validate_architecture.py` enforces the Azure overrides: a single public edge, no
+  source bind mounts, and no host AI wiring in the baseline.
 
-These are Release 2 design targets, not implemented Release 1 deployment evidence. The planned Azure
-configuration is a demonstration architecture, not a claim that SQLite on
-Azure Files is a high-availability production design.
+A single VM is a demonstration architecture with no high availability. Each database keeps one
+owning service on a local Docker volume. This is not a claim of a production HA design.
 
 ## 17. Current Release 1 repository structure
 
 The assessment-facing structure retains each owner's independent slice and makes the shared
 runtime additions explicit. This is a bounded directory map; individual feature READMEs own their
-internal modules. Future Azure/multi-agent folders are placeholders, not deployed R1 services.
+internal modules. Future Azure folders are placeholders; the Multi-Agent Server is a Release 2
+host service.
 
 ```text
 .
@@ -1287,7 +1327,7 @@ internal modules. Future Azure/multi-agent folders are placeholders, not deploye
 |   |-- ai-mode/                   # HTTP API, provider adapters, prompts, exclusive run store
 |   |-- mcp-server/                # local SDK transport and registered tool dispatch
 |   |-- rag-server/                # local ingestion, embeddings, exclusive index
-|   `-- multi-agent-server/        # Release 2 placeholder
+|   `-- multi-agent-server/        # Release 2 Planner/Worker/Reviewer workflows (ADR-047)
 |-- shared/
 |   |-- contracts/                 # Python contracts, generated schemas/OpenAPI
 |   |-- tool-runtime/              # neutral catalogues, HTTP boundaries, signed invocation metadata

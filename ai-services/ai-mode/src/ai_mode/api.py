@@ -21,6 +21,7 @@ from ai_mode.http import problem_response as _problem
 from ai_mode.http import validation_issues
 from ai_mode.persistence import IdempotencyConflictError, PersistenceError
 from ai_mode.queue import RunQueueFullError
+from ai_mode.release_review import REVIEW_PROMPT_SET_NAMES, bundle_for_objective
 from ai_mode.services import AppServices
 from shared_contracts import (
     AGENT_RUN_ID_HEADER,
@@ -36,6 +37,7 @@ from shared_contracts import (
     ModelRoleName,
     ReviewDecision,
 )
+from shared_contracts.evidence_review import REVIEW_EVIDENCE_TOOL, REVIEW_FEATURE_KEY
 from shared_contracts.grounding import RETRIEVAL_TOOL
 
 api = Blueprint("agent_api", __name__, url_prefix="/api/v1")
@@ -91,6 +93,9 @@ def create_agent_run() -> tuple[Response, int, dict[str, str]] | tuple[Response,
         return _problem(
             422, "grounding_scope_unavailable", "Grounding scope is not enabled for this feature"
         )
+    review_problem = _review_scope_problem(command)
+    if review_problem is not None:
+        return _problem(422, "review_scope_invalid", review_problem)
 
     if services.model_registry is not None:
         profile = services.model_registry.profile(command.model_profile)
@@ -255,6 +260,22 @@ def review_agent_run(run_id: UUID) -> tuple[Response, int]:
     response = jsonify(refreshed.model_dump(mode="json"))
     response.headers[AGENT_RUN_ID_HEADER] = str(run_id)
     return response, 200
+
+
+def _review_scope_problem(command: AgentRunRequest) -> str | None:
+    """Keep evidence reviews and feature runs from borrowing each other's prompts and tools."""
+    is_review_set = command.prompt_set in REVIEW_PROMPT_SET_NAMES
+    if (command.feature_key == REVIEW_FEATURE_KEY) is not is_review_set:
+        return f"Review prompt sets are available only to the {REVIEW_FEATURE_KEY} feature key"
+    if not is_review_set:
+        return None
+    if command.tool_allowlist != (REVIEW_EVIDENCE_TOOL,):
+        return f"Review runs must allowlist exactly {REVIEW_EVIDENCE_TOOL}"
+    try:
+        bundle_for_objective(command.objective, command.prompt_set)
+    except ValueError as exc:
+        return str(exc)
+    return None
 
 
 def _signal_run(services: AppServices, run_id: UUID) -> None:

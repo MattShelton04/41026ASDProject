@@ -62,20 +62,20 @@ class AuditRunResult:
 def source_digest() -> tuple[str, str]:
     """Return git commit and a digest that invalidates resume after local edits."""
     commit = subprocess.run(
-        ("git", "rev-parse", "HEAD"),
+        ("git", "rev-parse", "HEAD"),  # noqa: S607 - git is resolved from the developer PATH
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
         text=True,
     ).stdout.strip()
     diff = subprocess.run(
-        ("git", "diff", "--no-ext-diff", "--binary", "HEAD"),
+        ("git", "diff", "--no-ext-diff", "--binary", "HEAD"),  # noqa: S607 - git is resolved from the developer PATH
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
     ).stdout
     untracked = subprocess.run(
-        ("git", "ls-files", "--others", "--exclude-standard", "-z"),
+        ("git", "ls-files", "--others", "--exclude-standard", "-z"),  # noqa: S607 - git is resolved from the developer PATH
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
@@ -867,7 +867,7 @@ def _wait_for_readiness(page: Page, selector: str, settle_ms: int) -> None:
 
 def _verify_fixture_identity(base_url: str) -> None:
     """Refuse to reuse an arbitrary listener that merely resembles the fixture."""
-    with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=1) as response:
+    with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=1) as response:  # noqa: S310 - loopback fixture URL
         payload = json.load(response)
     if (
         not isinstance(payload, dict)

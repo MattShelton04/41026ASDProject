@@ -74,7 +74,7 @@ LEFT JOIN propertyscope_psi_address_resolution resolution
  AND COALESCE(resolution.unit_number,'')=COALESCE(source.unit_number,'')
 GROUP BY 1,2 ORDER BY 1,2;
 ROLLBACK;
-"""
+"""  # noqa: S608 - fixed SQL constants and a float sample size
     if explain:
         before = statement.split(PSI_ADDRESS_RESOLUTION_SQL)[0]
         query = PSI_ADDRESS_RESOLUTION_SQL.replace(
@@ -100,8 +100,8 @@ def main() -> None:
         return
     coverage = "complete accepted generation" if args.sample_percent is None else "block sample"
     print(f"Coverage: {coverage}", flush=True)
-    subprocess.run(
-        [
+    subprocess.run(  # noqa: S603 - docker exec argv list without a shell
+        [  # noqa: S607 - docker is resolved from the developer PATH
             "docker",
             "exec",
             "-i",

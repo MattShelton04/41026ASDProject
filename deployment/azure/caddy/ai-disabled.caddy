@@ -1,0 +1,6 @@
+# Cloud AI tier OFF (the required baseline, R2-44). Mounted by docker-compose.azure.yml as
+# /etc/caddy/propertyscope-ai.caddy and imported inside the site's route block.
+# Feature backends independently return 503 for their assistant routes because their AI-mode URL
+# points at a closed loopback port in this mode.
+header @shared_ai Content-Type "application/problem+json"
+respond @shared_ai `{"type":"about:blank","title":"AI tier disabled","status":503,"detail":"AI-mode, MCP, RAG and the Multi-Agent Server are disabled in this cloud deployment (PROPERTYSCOPE_CLOUD_AI=false).","code":"ai_disabled"}` 503

@@ -8,6 +8,14 @@ Those containers reach the AI tier through `host.docker.internal`. See
 [ADR-046](../architecture/decisions/ADR-046-non-containerised-ai-tier.md) for why the earlier
 optional Docker placement was removed.
 
+Release 2 adds the [Multi-Agent Server](../../ai-services/multi-agent-server/README.md) as a
+fourth managed host process ([ADR-047](../architecture/decisions/ADR-047-multi-agent-server.md)).
+It runs on `MULTI_AGENT_PORT` (5013), has its own token in
+`.propertyscope-runtime/host/multi-agent.token`, and keeps its state in
+`.propertyscope-runtime/host/multi-agent/`. `ai start` starts it in every mode, and its Worker uses
+MCP in `mcp` and `combined` mode and the direct catalogue in `direct` mode. `ai status`,
+`ai logs multi-agent`, `ai stop multi-agent` and `ai probe` cover it. It is never started in CI.
+
 ## Why the AI tier is not containerised
 
 The Release 1 rubric requires AI-mode, MCP, RAG and the agent loop to run outside containers,
@@ -253,3 +261,10 @@ complete. RAG separates an answered query from a valid no-match or empty result 
 call as proof of relevant context. `--query` supplies an insufficient-context probe. `--corpus`
 selects an already registered corpus without granting new access. CI refuses the live command and
 runs `scripts/tests/test_release1_validation.py` with injected tool doubles instead.
+
+## Release 2 review modes
+
+`ai review multi-agent`, `ai review testing` and `ai review cloud` extend the same loop to review
+Release 2 evidence. They create persisted AI-mode runs (visible in Activity history) with the
+`review-*.v1` prompt sets, or run the production loop in-process with `--deterministic`. See
+[Release 2 review modes](../release-2/review-modes.md).

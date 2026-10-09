@@ -85,7 +85,7 @@ LOCAL_VISUAL_ROOT = REPOSITORY_ROOT / ".propertyscope-visual" / "local"
 
 def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     print(f"> {shlex.join(command)}", flush=True)
-    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)
+    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)  # noqa: S603 - argv built by this CLI, no shell
 
 
 def _repeated_options(option: str, values: Sequence[str]) -> tuple[str, ...]:
@@ -217,7 +217,7 @@ def _host_port_is_available(port: int) -> bool:
 
 
 def _capture(command: Sequence[str]) -> str:
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 - argv built by this CLI, no shell
         command,
         cwd=REPOSITORY_ROOT,
         check=True,
@@ -470,7 +470,8 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
     )
     if not targets:
         raise RuntimeError("Select --all, --year, --week, or --current-weekly")
-    with httpx.Client(timeout=None, follow_redirects=False) as client:
+    # Bound connection set-up; a full PSI archive download may legitimately read for minutes.
+    with httpx.Client(timeout=httpx.Timeout(None, connect=60.0), follow_redirects=False) as client:
         for url, destination in targets:
             if destination.is_file():
                 try:
@@ -510,6 +511,7 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     credential = _openai_credential(offline=offline)
     environment = os.environ.copy()
     environment["AI_MODE_SERVICE_TOKEN"] = host_runtime.ai_service_token(environment)
+    environment["MULTI_AGENT_SERVICE_TOKEN"] = host_runtime.multi_agent_service_token(environment)
     environment.pop("OPENAI_API_KEY", None)
     environment.pop("GEMINI_API_KEY", None)
     secret_path = str(_write_openai_secret(credential))
@@ -870,6 +872,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Every command sees the same optional .env (the shell still wins), so a project name or
         # port chosen there applies to reset, logs and data commands exactly as it does to up.
         _load_development_environment(arguments.env_file)
+        if arguments.group == "cloud":
+            from scripts.devtools import cloud
+
+            return cloud.run(arguments)
         if command == ("stack", "up"):
             if arguments.ai_runtime not in {None, "host"}:
                 raise RuntimeError(
@@ -998,6 +1004,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(evidence, indent=2))
             return 0 if evidence["passed"] else 1
+        elif command == ("ai", "review"):
+            from scripts.devtools.review.cli import run as run_review
+
+            return run_review(arguments, os.environ)
         elif command == ("ai", "probe"):
             from scripts.release1_probe import probe, render
 
@@ -1088,6 +1098,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             if any(week.weekday() != 0 for week in weeks):
                 raise RuntimeError("--week must be a Monday publication date")
             _sync_psi(years=years, weeks=weeks)
+        elif arguments.group == "security":
+            from scripts.security.cli import main as security_main
+
+            security_arguments = [arguments.action]
+            if arguments.action == "report":
+                if arguments.output_dir is not None:
+                    security_arguments.extend(("--output-dir", str(arguments.output_dir)))
+                if arguments.check:
+                    security_arguments.append("--check")
+            return security_main(security_arguments)
     except FileNotFoundError:
         print(
             "Docker or uv is not available on PATH. See README.md for prerequisites.",

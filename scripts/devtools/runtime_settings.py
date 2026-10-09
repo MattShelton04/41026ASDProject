@@ -8,6 +8,7 @@ AI_SERVICE_PORTS = {
     "ai-mode": ("AI_MODE_PORT", 5005),
     "mcp": ("MCP_PORT", 5011),
     "rag": ("RAG_PORT", 5012),
+    "multi-agent": ("MULTI_AGENT_PORT", 5013),
 }
 AI_CAPABILITY_MODES = ("direct", "mcp", "rag", "combined")
 

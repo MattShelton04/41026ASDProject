@@ -388,8 +388,11 @@ SPEC = ReportSpec(
 
 
 def _git(*arguments: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(ROOT), *arguments], capture_output=True, text=True, check=False
+    return subprocess.run(  # noqa: S603 - fixed git argv, no shell
+        ["git", "-C", str(ROOT), *arguments],  # noqa: S607 - git is resolved from the developer PATH
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 

@@ -134,8 +134,11 @@ def complete_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Pa
     """A tiny real Git repository makes commit and evidence checks deterministic."""
 
     def git(*arguments: str) -> str:
-        completed = subprocess.run(
-            ["git", "-C", str(tmp_path), *arguments], capture_output=True, text=True, check=True
+        completed = subprocess.run(  # noqa: S603 - fixed git argv, no shell
+            ["git", "-C", str(tmp_path), *arguments],  # noqa: S607 - git is resolved from the developer PATH
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return completed.stdout.strip()
 

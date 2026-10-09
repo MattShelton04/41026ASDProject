@@ -1,0 +1,5 @@
+prompt_id: review-testing
+version: v1
+role: adapter
+template: v1.system.j2
+description: Release 2 Testing Report Review reviewer for pre-commit security scans and post-commit CI endpoint results.

@@ -145,6 +145,8 @@ services:
       # issued to containers, so a direct call is rejected with 401 by design.
       MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
       RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
       PROPERTYSCOPE_ARTIFACT_ROOT: /var/lib/propertyscope/artifacts
       PROPERTYSCOPE_PSI_CACHED_YEARS: ${PROPERTYSCOPE_PSI_CACHED_YEARS:-}
       PROPERTYSCOPE_PSI_CACHED_WEEKS: ${PROPERTYSCOPE_PSI_CACHED_WEEKS:-}
@@ -273,6 +275,8 @@ services:
       # issued to containers, so a direct call is rejected with 401 by design.
       MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
       RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
     depends_on:
       f2-db-api:
         condition: service_healthy
@@ -446,6 +450,8 @@ services:
       # issued to containers, so a direct call is rejected with 401 by design.
       MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
       RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
     depends_on:
       f4-db-api:
         condition: service_healthy
@@ -534,6 +540,8 @@ services:
       # issued to containers, so a direct call is rejected with 401 by design.
       MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
       RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
     depends_on:
       f5-db-api:
         condition: service_healthy

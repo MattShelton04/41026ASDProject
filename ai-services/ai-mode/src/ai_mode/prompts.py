@@ -147,6 +147,19 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v8"),
             ModelRole.ADAPTER: ("adapter", "v9"),
         },
+        # Release 2 evidence reviews share one planner and use a mode-specific reviewer.
+        "review-multi-agent.v1": {
+            ModelRole.PLANNER: ("review-planner", "v1"),
+            ModelRole.ADAPTER: ("review-multi-agent", "v1"),
+        },
+        "review-testing.v1": {
+            ModelRole.PLANNER: ("review-planner", "v1"),
+            ModelRole.ADAPTER: ("review-testing", "v1"),
+        },
+        "review-cloud.v1": {
+            ModelRole.PLANNER: ("review-planner", "v1"),
+            ModelRole.ADAPTER: ("review-cloud", "v1"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
@@ -228,14 +241,18 @@ class RegistryPromptBuilder(PromptBuilder):
             # Other tool payloads may be shortened, but citation IDs and excerpts must
             # reach adaptation intact even for a maximum-size multi-action plan.
             latest = next(
-                (result for result in reversed(tool_results) if result.retrieval is not None),
+                (
+                    (result.call_id, result.retrieval)
+                    for result in reversed(tool_results)
+                    if result.retrieval is not None
+                ),
                 None,
             )
             if latest is not None:
-                assert latest.retrieval is not None
+                call_id, retrieval = latest
                 dynamic["retrieved_context"] = {
-                    "call_id": str(latest.call_id),
-                    "response": latest.retrieval.model_dump(mode="json"),
+                    "call_id": str(call_id),
+                    "response": retrieval.model_dump(mode="json"),
                 }
         if prompt.metadata.version == "v9":
             dynamic = {
@@ -279,7 +296,8 @@ class RegistryPromptBuilder(PromptBuilder):
             raise PromptRegistryError("retrieved context exceeds the model message limit")
         bounded_dynamic = _bounded_json_value(ordinary, MAX_RENDERED_INPUT_CHARS - reserved)
         if context is not None:
-            assert isinstance(bounded_dynamic, dict)
+            if not isinstance(bounded_dynamic, dict):
+                raise PromptRegistryError("prompt input exceeds the model message limit")
             bounded_dynamic["retrieved_context"] = context
         serialized_input = json.dumps(
             bounded_dynamic,

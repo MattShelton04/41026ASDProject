@@ -24,6 +24,7 @@ from agent_core.limits import (
 )
 from agent_core.ports import (
     Clock,
+    CompletionValidator,
     IdGenerator,
     LLMProvider,
     ModelMessage,
@@ -61,6 +62,7 @@ __all__ = [
     "AgentCoreError",
     "AgentRunner",
     "Clock",
+    "CompletionValidator",
     "ConcurrentRunUpdateError",
     "IdGenerator",
     "IdentifierCandidate",

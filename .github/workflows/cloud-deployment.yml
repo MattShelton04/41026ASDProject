@@ -1,9 +1,21 @@
-name: Cloud Deployment (Release 2 scaffold)
+name: Cloud Deployment
 
+# Release 2 Azure deployment (R2-43, decision D7, ADR-048). Runs only after Integration CI has
+# succeeded for a push to main, or manually. The job is skipped until the repository variable
+# AZURE_SUBSCRIPTION_ID is set, so the workflow stays green before Azure is configured.
 on:
+  workflow_run:
+    workflows: ["Integration CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      provision:
+        description: "Apply the Bicep template before deploying"
+        type: boolean
+        default: true
 
-# Advanced services run only in the local demonstration, never in CI/CD.
+# The required cloud baseline keeps AI-mode, MCP, RAG and Multi-Agent off.
 env:
   AI_MODE_MCP_ENABLED: "false"
   AI_MODE_RAG_ENABLED: "false"
@@ -11,9 +23,149 @@ env:
 permissions:
   contents: read
 
+# One deployment at a time; never cancel a deployment half-way.
+concurrency:
+  group: cloud-deployment-production
+  cancel-in-progress: false
+
 jobs:
-  placeholder:
-    if: ${{ false }}
+  deploy:
+    name: Deploy to Azure
+    if: >-
+      vars.AZURE_SUBSCRIPTION_ID != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
+    timeout-minutes: 75
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.public_url }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      # Deploy exactly the commit Integration CI validated.
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+      PROPERTYSCOPE_DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      PROPERTYSCOPE_CI_RUN_URL: ${{ github.event.workflow_run.html_url }}
+      PROPERTYSCOPE_CLOUD_AI: "false"
+      PROPERTYSCOPE_CLOUD_LOG_DIR: ${{ github.workspace }}/.propertyscope-runtime/cloud
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'australiaeast' }}
+      AZURE_DNS_LABEL: ${{ vars.AZURE_DNS_LABEL }}
+      AZURE_VM_SIZE: ${{ vars.AZURE_VM_SIZE || 'Standard_D4s_v5' }}
+      AZURE_ENCRYPTION_AT_HOST: ${{ vars.AZURE_ENCRYPTION_AT_HOST || 'true' }}
+      AZURE_DEPLOYER_PRINCIPAL_ID: ${{ vars.AZURE_DEPLOYER_PRINCIPAL_ID }}
+      AZURE_SECRET_OFFICER_IDS: ${{ vars.AZURE_SECRET_OFFICER_IDS }}
+      AZURE_OPERATOR_IP_RANGES: ${{ vars.AZURE_OPERATOR_IP_RANGES }}
+      AZURE_BUDGET_EMAILS: ${{ vars.AZURE_BUDGET_EMAILS }}
+      AZURE_MONTHLY_BUDGET: ${{ vars.AZURE_MONTHLY_BUDGET || '100' }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      PROPERTYSCOPE_ACME_EMAIL: ${{ vars.PROPERTYSCOPE_ACME_EMAIL }}
     steps:
-      - run: echo "Define Azure or AWS deployment after the provider is chosen."
+      - name: Check out the validated commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.IMAGE_TAG }}
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked workspace
+        run: uv sync --locked --all-packages --all-groups
+
+      - name: Sign in to Azure with OIDC (no stored credentials)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Provision infrastructure (resource group + Bicep)
+        id: provision
+        if: github.event_name != 'workflow_dispatch' || inputs.provision
+        run: bash deployment/azure/deploy.sh provision
+
+      - name: Build and push images to ACR
+        id: push
+        run: bash deployment/azure/deploy.sh push
+
+      - name: Deploy to the VM through run-command
+        id: deploy
+        run: |
+          bash deployment/azure/deploy.sh deploy
+          echo "public_url=$(cat "$PROPERTYSCOPE_CLOUD_LOG_DIR/public-url.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: Public smoke test (AI tier must report disabled)
+        id: smoke
+        run: |
+          # The first deployment may still be obtaining its certificate; retry briefly.
+          for attempt in 1 2 3 4; do
+            if bash deployment/azure/deploy.sh smoke --output-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR/smoke"; then
+              exit 0
+            fi
+            echo "Smoke attempt ${attempt} failed; retrying in 45 seconds"
+            sleep 45
+          done
+          exit 1
+
+      - name: Endpoint security validation (bonus B5 evidence)
+        id: endpoint_security
+        continue-on-error: true
+        run: bash deployment/azure/deploy.sh validate-endpoint
+
+      - name: Collect the VM status
+        if: always() && steps.deploy.outcome != 'skipped'
+        continue-on-error: true
+        run: bash deployment/azure/deploy.sh status
+
+      - name: Build the cloud deployment report
+        if: always()
+        env:
+          PROVISION_OUTCOME: ${{ steps.provision.outcome || 'skipped' }}
+          PUSH_OUTCOME: ${{ steps.push.outcome }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          ENDPOINT_OUTCOME: ${{ steps.endpoint_security.outcome }}
+        run: |
+          if [[ $PROVISION_OUTCOME == skipped ]]; then
+            bash deployment/azure/deploy.sh outputs > "$PROPERTYSCOPE_CLOUD_LOG_DIR/outputs.txt" || true
+          fi
+          uv run --locked python scripts/cloud_deployment_report.py \
+            --log-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR" \
+            --output-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR/report" \
+            --stage "provision=${PROVISION_OUTCOME}" \
+            --stage "push=${PUSH_OUTCOME}" \
+            --stage "deploy=${DEPLOY_OUTCOME}" \
+            --stage "smoke=${SMOKE_OUTCOME}" \
+            --stage "endpoint_security=${ENDPOINT_OUTCOME}"
+          cat "$PROPERTYSCOPE_CLOUD_LOG_DIR/report/cloud-deployment-report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deployment logs and report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-deployment-${{ env.IMAGE_TAG }}
+          path: |
+            .propertyscope-runtime/cloud/
+            !.propertyscope-runtime/cloud/*.payload.sh
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Sign out of Azure
+        if: always()
+        run: az logout || true

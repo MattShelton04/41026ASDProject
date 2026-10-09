@@ -266,7 +266,7 @@ def release_export_query(
                 source_crs,ST_Y(geom) AS latitude,ST_X(geom) AS longitude,source_row_sha256,
                 normalisation_version FROM warehouse.gnaf_address
                 WHERE dataset_release_id=%s{predicate}
-                ORDER BY gnaf_pid LIMIT %s""",
+                ORDER BY gnaf_pid LIMIT %s""",  # noqa: S608 - fixed keyset predicate; values are bound
             params,
             "SELECT count(*) AS count FROM warehouse.gnaf_address WHERE dataset_release_id=%s",
             (release_id,),
@@ -289,7 +289,7 @@ def release_export_query(
                 area_square_metres::text,property_ref,match_tier,match_confidence::text,
                 geographic_precision,source_row_sha256,normalisation_version
                 FROM warehouse.psi_sale WHERE dataset_release_id=%s{predicate}
-                ORDER BY source_business_key,source_revision LIMIT %s""",
+                ORDER BY source_business_key,source_revision LIMIT %s""",  # noqa: S608 - fixed keyset predicate; values are bound
             params,
             "SELECT count(*) AS count FROM warehouse.psi_sale WHERE dataset_release_id=%s",
             (release_id,),
@@ -304,7 +304,7 @@ def release_export_query(
             f"""SELECT school_code,school_name,school_type,status,locality_original,
                 locality_normalised,lga_name,ST_AsGeoJSON(geom)::jsonb AS geometry,
                 source_row_sha256,normalisation_version FROM warehouse.school
-                WHERE dataset_release_id=%s{predicate} ORDER BY school_code LIMIT %s""",
+                WHERE dataset_release_id=%s{predicate} ORDER BY school_code LIMIT %s""",  # noqa: S608 - fixed keyset predicate; values are bound
             params,
             "SELECT count(*) AS count FROM warehouse.school WHERE dataset_release_id=%s",
             (release_id,),
@@ -321,7 +321,7 @@ def release_export_query(
                 irsad_australia_decile,ier_score::text,ier_australia_decile,
                 ieo_score::text,ieo_australia_decile,usual_resident_population,
                 source_row_sha256,normalisation_version FROM warehouse.seifa_sal
-                WHERE dataset_release_id=%s{predicate} ORDER BY sal_code LIMIT %s""",
+                WHERE dataset_release_id=%s{predicate} ORDER BY sal_code LIMIT %s""",  # noqa: S608 - fixed keyset predicate; values are bound
             params,
             "SELECT count(*) AS count FROM warehouse.seifa_sal WHERE dataset_release_id=%s",
             (release_id,),
@@ -366,7 +366,7 @@ def release_export_query(
                         AND observation.source_category_key=coverage.source_category_key
                 ) detail
                 ORDER BY coverage.geography_kind,coverage.geography_value,
-                    coverage.source_category_key""",
+                    coverage.source_category_key""",  # noqa: S608 - fixed keyset predicate; values are bound
             params,
             "SELECT count(*) AS count FROM warehouse.bocsar_coverage WHERE dataset_release_id=%s",
             (release_id,),

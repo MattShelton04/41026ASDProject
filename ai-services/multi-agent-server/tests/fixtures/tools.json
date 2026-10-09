@@ -1,0 +1,66 @@
+{
+  "tools": [
+    {
+      "definition": {
+        "name": "example.record.v1",
+        "version": "v1",
+        "feature_key": "example-feature",
+        "description": "Read one record summary.",
+        "input_schema": {
+          "type": "object",
+          "properties": {"record_id": {"type": "string", "format": "uuid"}},
+          "required": ["record_id"],
+          "additionalProperties": false
+        },
+        "output_schema": {"type": "object"},
+        "side_effect": "read_only",
+        "timeout_ms": 3000,
+        "requires_approval": false
+      },
+      "result": {
+        "id": "8c0d7e0e-4a3b-4c55-9a62-0d7c5f0f9a11",
+        "status": "candidate",
+        "item_count": 10
+      }
+    },
+    {
+      "definition": {
+        "name": "example.quality.v1",
+        "version": "v1",
+        "feature_key": "example-feature",
+        "description": "Read a record's quality check results.",
+        "input_schema": {
+          "type": "object",
+          "properties": {"record_id": {"type": "string", "format": "uuid"}},
+          "required": ["record_id"],
+          "additionalProperties": false
+        },
+        "output_schema": {"type": "object"},
+        "side_effect": "read_only",
+        "timeout_ms": 3000,
+        "requires_approval": false
+      },
+      "result": {
+        "checks": [
+          {"name": "schema", "passed": true},
+          {"name": "row-count", "passed": true}
+        ],
+        "failed": 0
+      }
+    },
+    {
+      "definition": {
+        "name": "example.publish.v1",
+        "version": "v1",
+        "feature_key": "example-feature",
+        "description": "Publish a record (never allowed in a workflow).",
+        "input_schema": {"type": "object"},
+        "output_schema": {"type": "object"},
+        "side_effect": "destructive_write",
+        "timeout_ms": 3000,
+        "requires_approval": true
+      },
+      "result": {}
+    }
+  ]
+}

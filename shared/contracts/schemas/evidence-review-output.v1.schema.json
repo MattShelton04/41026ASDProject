@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "EvidenceReviewFinding": {
+      "additionalProperties": false,
+      "description": "One evidence-backed review observation.",
+      "properties": {
+        "area": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Area",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "message": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/ReviewSeverity"
+        }
+      },
+      "required": [
+        "severity",
+        "area",
+        "message",
+        "evidence_refs"
+      ],
+      "title": "EvidenceReviewFinding",
+      "type": "object"
+    },
+    "EvidenceReviewRisk": {
+      "additionalProperties": false,
+      "description": "A release risk that remains after the review, with its mitigation.",
+      "properties": {
+        "description": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "mitigation": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Mitigation",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/ReviewSeverity"
+        }
+      },
+      "required": [
+        "severity",
+        "description",
+        "mitigation"
+      ],
+      "title": "EvidenceReviewRisk",
+      "type": "object"
+    },
+    "ReviewSeverity": {
+      "description": "Ordered impact of one finding or risk.",
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "ReviewSeverity",
+      "type": "string"
+    },
+    "ReviewVerdict": {
+      "description": "Overall release-readiness outcome of one review.",
+      "enum": [
+        "pass",
+        "pass_with_risks",
+        "fail"
+      ],
+      "title": "ReviewVerdict",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Structured result every review prompt set must return as its final result.",
+  "properties": {
+    "findings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceReviewFinding"
+      },
+      "maxItems": 30,
+      "title": "Findings",
+      "type": "array"
+    },
+    "recommendations": {
+      "default": [],
+      "items": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 15,
+      "title": "Recommendations",
+      "type": "array"
+    },
+    "risks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceReviewRisk"
+      },
+      "maxItems": 15,
+      "title": "Risks",
+      "type": "array"
+    },
+    "summary": {
+      "maxLength": 1500,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "verdict": {
+      "$ref": "#/$defs/ReviewVerdict"
+    }
+  },
+  "required": [
+    "summary",
+    "verdict"
+  ],
+  "title": "EvidenceReviewOutput",
+  "type": "object"
+}

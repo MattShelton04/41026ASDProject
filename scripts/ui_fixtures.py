@@ -1092,7 +1092,8 @@ def _run_response(route: str, run: dict[str, Any], scenario: str) -> dict[str, A
 def _release_response(route: str, release: dict[str, Any], scenario: str) -> dict[str, Any]:
     if route.endswith("/manifest"):
         manifest = release["manifest_json"]
-        assert isinstance(manifest, dict)
+        if not isinstance(manifest, dict):
+            raise TypeError("fixture release manifest must be an object")
         return manifest
     if route.endswith("/records"):
         items = [] if scenario == "empty" else _expanded(_records(scenario)["properties"], scenario)

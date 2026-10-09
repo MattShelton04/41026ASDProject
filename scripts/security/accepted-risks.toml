@@ -1,0 +1,175 @@
+# Reviewed security exceptions for the pre-commit security scans (R2-30, R2-31).
+#
+# Every entry needs a reason a reviewer can check and a follow-up that removes it.
+# `uv run scripts/dev.py security report` renders this file into
+# docs/release-2/evidence/security/pre-commit-report.md, and flags entries that no longer match a
+# finding so they can be deleted.
+
+# ---------------------------------------------------------------------------------------------
+# pip-audit: known vulnerabilities that cannot be removed inside the current constraints.
+# The pip-audit hook passes each `id` to `pip-audit --ignore-vuln`.
+# ---------------------------------------------------------------------------------------------
+
+[[pip_audit]]
+package = "pillow"
+ids = [
+    "PYSEC-2026-165",
+    "PYSEC-2026-2249",
+    "PYSEC-2026-2250",
+    "PYSEC-2026-2251",
+    "PYSEC-2026-2252",
+    "PYSEC-2026-2253",
+    "PYSEC-2026-2254",
+    "PYSEC-2026-2255",
+    "PYSEC-2026-2256",
+    "PYSEC-2026-2257",
+    "PYSEC-2026-2874",
+    "PYSEC-2026-3451",
+    "PYSEC-2026-3453",
+    "PYSEC-2026-3454",
+    "PYSEC-2026-3493",
+    "PYSEC-2026-3494",
+    "PYSEC-2026-3495",
+    "PYSEC-2026-3496",
+]
+reason = """\
+Image-decoding flaws fixed in Pillow 12.x. The lock cannot move past 11.3.0 because \
+rag-server pins fastembed==0.7.4, which requires pillow<12. PropertyScope never decodes \
+untrusted images: RAG embeds text only, and the dev-only report/visual tools open screenshots \
+the project captured itself. No feature service imports Pillow."""
+follow_up = """\
+Shared: move rag-server to fastembed>=0.9 (allows pillow 12.3) together with a RAG re-ingest \
+and the retrieval evaluation, then delete this entry."""
+reviewed = "2026-10-09"
+
+[[pip_audit]]
+package = "pytest"
+ids = ["PYSEC-2026-1845"]
+reason = """\
+pytest <9.0.3 trusts predictable /tmp/pytest-of-<user> directories, so another local user on a \
+shared UNIX host could interfere with test temp files. Dev/CI-only tool: it is not installed in \
+any service image, CI runs on single-tenant ephemeral GitHub runners, and developer machines \
+are single-user. The fix is only in pytest 9, outside the reviewed pytest>=8.4,<9 constraint."""
+follow_up = """\
+Shared: upgrade the root dev group to pytest>=9.0.3 in a dedicated change and run every \
+feature suite, then delete this entry."""
+reviewed = "2026-10-09"
+
+# ---------------------------------------------------------------------------------------------
+# Ruff `S` findings remediated in code when the rules were adopted. These no longer appear in a
+# scan, so the report lists them here as evidence of the fixes.
+# ---------------------------------------------------------------------------------------------
+
+[[ruff_fixed]]
+path = "ai-services/ai-mode/src/ai_mode/adapters/mcp_tools.py"
+rule = "S101"
+count = 1
+change = "assert replaced by an explicit TypeError for a non-async response stream"
+
+[[ruff_fixed]]
+path = "ai-services/ai-mode/src/ai_mode/adapters/retrieval.py"
+rule = "S101"
+count = 1
+change = "grounding scope narrowed once by the existing ValueError guard instead of assert"
+
+[[ruff_fixed]]
+path = "ai-services/ai-mode/src/ai_mode/prompts.py"
+rule = "S101"
+count = 2
+change = "retrieval result narrowed in the generator; PromptRegistryError if input cannot be bounded"
+
+[[ruff_fixed]]
+path = "ai-services/ai-mode/src/ai_mode/services.py"
+rule = "S101"
+count = 2
+change = "assert replaced by ConfigurationError when MCP/RAG is enabled without a token"
+
+[[ruff_fixed]]
+path = "scripts/benchmark_feature1_bocsar.py"
+rule = "S101"
+count = 1
+change = "assert replaced by RuntimeError when the baseline module cannot be loaded"
+
+[[ruff_fixed]]
+path = "scripts/benchmark_feature1_psi.py"
+rule = "S101"
+count = 1
+change = "assert replaced by RuntimeError when the baseline module cannot be loaded"
+
+[[ruff_fixed]]
+path = "scripts/capture_release1_integration.py"
+rule = "S101"
+count = 1
+change = "assert replaced by RuntimeError when no CRUD probe source exists"
+
+[[ruff_fixed]]
+path = "scripts/capture_release1_screenshots.py"
+rule = "S101"
+count = 2
+change = "asserts replaced by ValueError for incomplete screenshot definitions"
+
+[[ruff_fixed]]
+path = "scripts/generate_deployment.py"
+rule = "S101"
+count = 2
+change = "asserts replaced by ValueError/TypeError for invalid manifests"
+
+[[ruff_fixed]]
+path = "scripts/release1_validation.py"
+rule = "S101"
+count = 1
+change = "assert replaced by RuntimeError when the validation run is missing"
+
+[[ruff_fixed]]
+path = "scripts/ui_fixtures.py"
+rule = "S101"
+count = 1
+change = "assert replaced by TypeError for a non-object fixture manifest"
+
+[[ruff_fixed]]
+path = "scripts/visual/publish.py"
+rule = "S101"
+count = 1
+change = "assert replaced by ValueError for an unexpected artifact name"
+
+[[ruff_fixed]]
+path = "scripts/source_scale_benchmark.py"
+rule = "S110"
+count = 1
+change = "try/except/pass replaced by contextlib.suppress around the best-effort rollback"
+
+[[ruff_fixed]]
+path = "scripts/dev.py"
+rule = "S113"
+count = 1
+change = "PSI download client now bounds connection set-up (60 s); reads stay unbounded"
+
+[[ruff_fixed]]
+path = "student-1/backend/src/propertyscope_data_platform/ingestion_routes.py"
+rule = "S101"
+count = 2
+change = "assert replaced by RuntimeError when a validated scope is missing"
+
+[[ruff_fixed]]
+path = "student-1/backend/src/propertyscope_data_platform/run_insight.py"
+rule = "S101"
+count = 1
+change = "assert replaced by TypeError for non-object task progress"
+
+[[ruff_fixed]]
+path = "student-1/backend/src/propertyscope_data_platform/runner.py"
+rule = "S101"
+count = 1
+change = "assert replaced by TypeError for a non-object canonical source block"
+
+[[ruff_fixed]]
+path = "student-1/backend/src/propertyscope_data_platform/runner.py"
+rule = "S113"
+count = 1
+change = "G-NAF archive client now bounds connection set-up (60 s); reads stay unbounded"
+
+[[ruff_fixed]]
+path = "student-1/tests/component/test_postgres_import_reliability.py"
+rule = "S324"
+count = 4
+change = "md5 fixture identities marked usedforsecurity=False (they mirror PostgreSQL md5())"

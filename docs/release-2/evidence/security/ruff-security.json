@@ -1,0 +1,2258 @@
+{
+  "tool": "ruff",
+  "version": "0.16.1",
+  "commit": "fcc28b62ae73e1de9d8d1379094e4b26fb1f1f81",
+  "command": "ruff check . --select S --ignore-noqa --isolated --config 'target-version = \"py312\"' --config 'extend-exclude = [\"Temp\", \"temp\", \"tmp\"]' --config 'lint.per-file-ignores = { \"**/tests/**\" = [\"S101\", \"S105\", \"S106\", \"S107\", \"S108\", \"S311\"], \"scripts/ui_feature_smoke.py\" = [\"S101\"], \"shared/testkit/**\" = [\"S101\"] }' --output-format json --exit-zero --no-cache",
+  "findings": [
+    {
+      "path": "ai-services/ai-mode/src/ai_mode/adapters/mcp_tools.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by an explicit TypeError for a non-async response stream",
+      "count": 1
+    },
+    {
+      "path": "ai-services/ai-mode/src/ai_mode/adapters/retrieval.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "grounding scope narrowed once by the existing ValueError guard instead of assert",
+      "count": 1
+    },
+    {
+      "path": "ai-services/ai-mode/src/ai_mode/persistence/sqlite.py",
+      "row": 323,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "ai-services/ai-mode/src/ai_mode/prompts.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "retrieval result narrowed in the generator; PromptRegistryError if input cannot be bounded",
+      "count": 2
+    },
+    {
+      "path": "ai-services/ai-mode/src/ai_mode/services.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by ConfigurationError when MCP/RAG is enabled without a token",
+      "count": 2
+    },
+    {
+      "path": "ai-services/ai-mode/tests/test_operations_frontend.py",
+      "row": 20,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "node test argv without a shell",
+      "count": 1
+    },
+    {
+      "path": "ai-services/rag-server/src/rag_server/cli.py",
+      "row": 73,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "operator-supplied RAG server URL",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_feature1_psi_matching.py",
+      "row": 21,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed SQL constants and a float sample size",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_feature1_psi_matching.py",
+      "row": 103,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "docker exec argv list without a shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_feature1_psi_matching.py",
+      "row": 104,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "docker is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_api.py",
+      "row": 48,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "operator-supplied local API base URL",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_api.py",
+      "row": 55,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "operator-supplied local API base URL",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_bocsar.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by RuntimeError when the baseline module cannot be loaded",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_bocsar.py",
+      "row": 43,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_bocsar.py",
+      "row": 44,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_psi.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by RuntimeError when the baseline module cannot be loaded",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_psi.py",
+      "row": 28,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/benchmark_feature1_psi.py",
+      "row": 29,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_release1_report.py",
+      "row": 391,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_release1_report.py",
+      "row": 392,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/capture_release1_integration.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by RuntimeError when no CRUD probe source exists",
+      "count": 1
+    },
+    {
+      "path": "scripts/capture_release1_integration.py",
+      "row": 123,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this script, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/capture_release1_integration.py",
+      "row": 363,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/capture_release1_integration.py",
+      "row": 369,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/capture_release1_screenshots.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "asserts replaced by ValueError for incomplete screenshot definitions",
+      "count": 2
+    },
+    {
+      "path": "scripts/capture_release1_screenshots.py",
+      "row": 361,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/capture_release1_screenshots.py",
+      "row": 368,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/check.py",
+      "row": 242,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed quality-gate argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/collect_ci_evidence.py",
+      "row": 52,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed gh argv built by this script, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/collect_ci_evidence.py",
+      "row": 53,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "gh is resolved from PATH like the other dev tools",
+      "count": 1
+    },
+    {
+      "path": "scripts/dev.py",
+      "row": null,
+      "code": "S113",
+      "message": "HTTP request without a timeout",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "PSI download client now bounds connection set-up (60 s); reads stay unbounded",
+      "count": 1
+    },
+    {
+      "path": "scripts/dev.py",
+      "row": 88,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this CLI, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/dev.py",
+      "row": 220,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this CLI, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud.py",
+      "row": 163,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv from argparse choices and the fixed deploy.sh path, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/host_runtime.py",
+      "row": 145,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed docker/python argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/host_runtime.py",
+      "row": 146,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "docker is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/host_runtime.py",
+      "row": 447,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed docker/python argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/host_runtime.py",
+      "row": 533,
+      "code": "S104",
+      "message": "Possible binding to all interfaces",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "containers reach AI-mode and Multi-Agent via the host gateway (ADR-046, ADR-047)",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/service_auth.py",
+      "row": 8,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"AI_SERVICE_TOKEN_HEADER\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "header name, not a secret",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_deployment.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "asserts replaced by ValueError/TypeError for invalid manifests",
+      "count": 2
+    },
+    {
+      "path": "scripts/live_nginx_recreation.py",
+      "row": 31,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this script, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/live_nginx_recreation.py",
+      "row": 41,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this script, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/release1_probe.py",
+      "row": 27,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"AI_TOKEN_HEADER\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "header name, not a secret",
+      "count": 1
+    },
+    {
+      "path": "scripts/release1_validation.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by RuntimeError when the validation run is missing",
+      "count": 1
+    },
+    {
+      "path": "scripts/report_pdf.py",
+      "row": 290,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "resolved npx argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/security/scans.py",
+      "row": 59,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed tool argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/security/scans.py",
+      "row": 201,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed tool argv and staged paths, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": null,
+      "code": "S110",
+      "message": "try/except/pass hides errors",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "try/except/pass replaced by contextlib.suppress around the best-effort rollback",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 373,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 409,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 431,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 453,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 464,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 501,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 543,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 585,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 602,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 628,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 662,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 691,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 850,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 858,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_scale_benchmark.py",
+      "row": 865,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 224,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed docker compose argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_build_release1_report.py",
+      "row": 137,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_build_release1_report.py",
+      "row": 138,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_shared_proxy_host.py",
+      "row": 35,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed sh argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 88,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 96,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 96,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 113,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 115,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 120,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 125,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 130,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 134,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 144,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 148,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 150,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 183,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 184,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_audit/runner.py",
+      "row": 65,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_audit/runner.py",
+      "row": 72,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_audit/runner.py",
+      "row": 78,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_audit/runner.py",
+      "row": 870,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_feature_smoke.py",
+      "row": 86,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "local stack URL chosen by the caller",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_fixtures.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by TypeError for a non-object fixture manifest",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_smoke.py",
+      "row": 39,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL",
+      "count": 1
+    },
+    {
+      "path": "scripts/ui_smoke.py",
+      "row": 58,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed python argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_architecture.py",
+      "row": 77,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"MULTI_AGENT_TOKEN_VARIABLE\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "env var name, not a value",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/capture.py",
+      "row": 127,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/capture.py",
+      "row": 128,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/capture.py",
+      "row": 145,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback capture server URL",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/capture.py",
+      "row": 162,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed uv/python argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/github.py",
+      "row": 46,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "GitHub API https URLs only",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/github.py",
+      "row": 49,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "GitHub API https URLs only",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/github.py",
+      "row": 55,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "GitHub API https URLs only",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/github.py",
+      "row": 69,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "GitHub API https URLs only",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/github.py",
+      "row": 81,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "GitHub API https URLs only",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/publish.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "shared",
+      "status": "fixed",
+      "justification": "assert replaced by ValueError for an unexpected artifact name",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/publish.py",
+      "row": 124,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/publish.py",
+      "row": 125,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/publish.py",
+      "row": 159,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/publish.py",
+      "row": 160,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/refs.py",
+      "row": 56,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/visual/refs.py",
+      "row": 57,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/evidence_review.py",
+      "row": 56,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "verdict label, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/evidence_review.py",
+      "row": 57,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS_WITH_RISKS\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "verdict label, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/multi_agent.py",
+      "row": 26,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"MULTI_AGENT_TOKEN_HEADER\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "header name, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/multi_agent.py",
+      "row": 120,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "check outcome label, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/python/shared_testkit/junit_summary.py",
+      "row": 110,
+      "code": "S314",
+      "message": "Using `xml` to parse untrusted data is known to be vulnerable to XML attacks; use `defusedxml` equivalents",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "trusted, same-job pytest output",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/python/shared_testkit/multi_agent.py",
+      "row": 93,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"FAKE_MULTI_AGENT_TOKEN\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "test-only fake token",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/tests/test_multi_agent.py",
+      "row": 300,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fake server URL",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/tests/test_multi_agent.py",
+      "row": 309,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fake server URL",
+      "count": 1
+    },
+    {
+      "path": "student-1/backend/src/propertyscope_data_platform/adapters/gnaf.py",
+      "row": 248,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "only ? placeholders are interpolated",
+      "count": 1
+    },
+    {
+      "path": "student-1/backend/src/propertyscope_data_platform/domain.py",
+      "row": 100,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS\"",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "quality status value, not a password",
+      "count": 1
+    },
+    {
+      "path": "student-1/backend/src/propertyscope_data_platform/ingestion_routes.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "student-1",
+      "status": "fixed",
+      "justification": "assert replaced by RuntimeError when a validated scope is missing",
+      "count": 2
+    },
+    {
+      "path": "student-1/backend/src/propertyscope_data_platform/run_insight.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "student-1",
+      "status": "fixed",
+      "justification": "assert replaced by TypeError for non-object task progress",
+      "count": 1
+    },
+    {
+      "path": "student-1/backend/src/propertyscope_data_platform/runner.py",
+      "row": null,
+      "code": "S101",
+      "message": "assert used outside tests",
+      "slice": "student-1",
+      "status": "fixed",
+      "justification": "assert replaced by TypeError for a non-object canonical source block",
+      "count": 1
+    },
+    {
+      "path": "student-1/backend/src/propertyscope_data_platform/runner.py",
+      "row": null,
+      "code": "S113",
+      "message": "HTTP request without a timeout",
+      "slice": "student-1",
+      "status": "fixed",
+      "justification": "G-NAF archive client now bounds connection set-up (60 s); reads stay unbounded",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 171,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 473,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 543,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 566,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 614,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 646,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_property_reads.py",
+      "row": 735,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed SQL fragments; values are bound parameters",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_release_records.py",
+      "row": 81,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed column projection; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/query_specs.py",
+      "row": 262,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed keyset predicate; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/query_specs.py",
+      "row": 281,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed keyset predicate; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/query_specs.py",
+      "row": 304,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed keyset predicate; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/query_specs.py",
+      "row": 319,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed keyset predicate; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/query_specs.py",
+      "row": 341,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed keyset predicate; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/repository.py",
+      "row": 499,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed column names; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/source_materialisation.py",
+      "row": 129,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "module SQL constants only",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/source_materialisation.py",
+      "row": 258,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "module SQL constants only",
+      "count": 1
+    },
+    {
+      "path": "student-1/tests/component/test_frontend.py",
+      "row": 19,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "node test argv without a shell",
+      "count": 1
+    },
+    {
+      "path": "student-1/tests/component/test_postgres_import_reliability.py",
+      "row": null,
+      "code": "S324",
+      "message": "insecure hash function",
+      "slice": "student-1",
+      "status": "fixed",
+      "justification": "md5 fixture identities marked usedforsecurity=False (they mirror PostgreSQL md5())",
+      "count": 4
+    },
+    {
+      "path": "student-1/tests/e2e/test_form_behaviour_playwright.py",
+      "row": 51,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed python argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "student-1/tests/e2e/test_form_behaviour_playwright.py",
+      "row": 63,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL",
+      "count": 1
+    },
+    {
+      "path": "student-2/backend/src/propertyscope_market_intelligence/api.py",
+      "row": 355,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/api.py",
+      "row": 191,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/api.py",
+      "row": 206,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/api.py",
+      "row": 218,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/import_operations.py",
+      "row": 98,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/repository.py",
+      "row": 67,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/repository.py",
+      "row": 115,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-2/database/src/propertyscope_market_store/repository.py",
+      "row": 143,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-2",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/backend/src/propertyscope_suburb_analytics/app.py",
+      "row": 795,
+      "code": "S104",
+      "message": "Possible binding to all interfaces",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/backend/src/propertyscope_suburb_analytics/clients.py",
+      "row": 26,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/backend/src/propertyscope_suburb_analytics/clients.py",
+      "row": 39,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/database/src/propertyscope_suburb_store/app.py",
+      "row": 196,
+      "code": "S104",
+      "message": "Possible binding to all interfaces",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/database/src/propertyscope_suburb_store/imports.py",
+      "row": 58,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/database/src/propertyscope_suburb_store/repository.py",
+      "row": 407,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/database/src/propertyscope_suburb_store/repository.py",
+      "row": 411,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/database/src/propertyscope_suburb_store/repository.py",
+      "row": 599,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/frontend/dev_server.py",
+      "row": 133,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-3/frontend/dev_server.py",
+      "row": 137,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-3",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/api.py",
+      "row": 131,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 90,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 99,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 108,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 126,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 146,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 165,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
+      "row": 176,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-4",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/backend/src/propertyscope_buyer_workspaces/clients.py",
+      "row": 14,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"_TOKEN_HEADER\"",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/backend/src/propertyscope_buyer_workspaces/clients.py",
+      "row": 127,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/backend/src/propertyscope_buyer_workspaces/clients.py",
+      "row": 129,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/api.py",
+      "row": 43,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"_TOKEN_HEADER\"",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
+      "row": 136,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
+      "row": 211,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
+      "row": 262,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
+      "row": 309,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 87,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 158,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 179,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 187,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 245,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 349,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 353,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 369,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 390,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 394,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 417,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 425,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 433,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 34,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 38,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 48,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 49,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 50,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 51,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 54,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 57,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 74,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 82,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 84,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 87,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 89,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 100,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 113,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 121,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 128,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 130,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 138,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 145,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 147,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 150,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 151,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 152,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 165,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 168,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 169,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 170,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 173,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 177,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 179,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 180,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 187,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 189,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 200,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/scripts/compose_smoke.py",
+      "row": 202,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/tests/test_migrations.py",
+      "row": 14,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    },
+    {
+      "path": "student-5/tests/test_repository.py",
+      "row": 113,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "pending-owner",
+      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "count": 1
+    }
+  ]
+}

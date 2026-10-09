@@ -498,7 +498,7 @@ class PropertyScopeStore:
                 row = connection.execute(
                     f"""INSERT INTO ops.job_definition
                     (id,{",".join(columns)},created_at,updated_at,version)
-                    VALUES (%s,{",".join(["%s"] * len(columns))},%s,%s,1) RETURNING *""",
+                    VALUES (%s,{",".join(["%s"] * len(columns))},%s,%s,1) RETURNING *""",  # noqa: S608 - fixed column names; values are bound
                     (job_id, *parameters, now, now),
                 ).fetchone()
                 connection.commit()

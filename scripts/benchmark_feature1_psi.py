@@ -25,14 +25,17 @@ SOURCE_PATH = "student-1/backend/src/propertyscope_data_platform/adapters/psi.py
 def benchmark(archive: Path, year: int, rows: int, baseline: str) -> dict[str, Any]:
     if not 1 <= rows <= 250_000:
         raise ValueError("rows must be 1..250000")
-    source = subprocess.run(
-        ["git", "show", f"{baseline}:{SOURCE_PATH}"], check=True, capture_output=True
+    source = subprocess.run(  # noqa: S603 - fixed git argv, no shell
+        ["git", "show", f"{baseline}:{SOURCE_PATH}"],  # noqa: S607 - git is resolved from the developer PATH
+        check=True,
+        capture_output=True,
     ).stdout
     with TemporaryDirectory(prefix="psi-benchmark-") as directory:
         path = Path(directory) / "baseline_psi.py"
         path.write_bytes(source)
         spec = importlib.util.spec_from_file_location("baseline_psi", path)
-        assert spec and spec.loader
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load the baseline PSI adapter")
         old = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = old
         spec.loader.exec_module(old)

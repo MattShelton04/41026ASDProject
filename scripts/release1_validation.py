@@ -226,7 +226,8 @@ def execute_validation(
     )
     finished = runner.run_until_blocked(run.id)
     detail = store.get(run.id)
-    assert detail is not None
+    if detail is None:
+        raise RuntimeError(f"validation run {run.id} was not stored")
     results = [result for step in detail.steps for result in AgentRunner._step_tool_results(step)]
     phases = [step.phase.value for step in detail.steps]
     passed = (

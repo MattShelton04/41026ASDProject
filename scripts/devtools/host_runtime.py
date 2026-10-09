@@ -1,7 +1,8 @@
 """Managed host AI processes, exclusive state and Docker-to-host projections.
 
-AI-mode, MCP and RAG run only here, outside containers (ADR-043, ADR-046). Compose services
-reach AI-mode through ``host.docker.internal``; MCP and RAG bind loopback.
+AI-mode, MCP, RAG and the Multi-Agent Server run only here, outside containers (ADR-043,
+ADR-046, ADR-047). Compose services reach AI-mode and the Multi-Agent Server through
+``host.docker.internal``; MCP and RAG bind loopback.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -140,8 +142,8 @@ def logs(services: Sequence[str] = SERVICES, *, lines: int = 100) -> str:
 
 
 def _docker(*arguments: str) -> str:
-    return subprocess.run(
-        ("docker", *arguments),
+    return subprocess.run(  # noqa: S603 - fixed docker/python argv, no shell
+        ("docker", *arguments),  # noqa: S607 - docker is resolved from the developer PATH
         check=True,
         capture_output=True,
         text=True,
@@ -321,12 +323,32 @@ def ai_service_token(environment: Mapping[str, str]) -> str:
     return value
 
 
+def multi_agent_service_token(environment: Mapping[str, str]) -> str:
+    """Return the Multi-Agent Server credential shared only with feature backends."""
+    value = environment.get("MULTI_AGENT_SERVICE_TOKEN", "")
+    if not value:
+        HOST_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        path = HOST_DIRECTORY / "multi-agent.token"
+        if not path.exists():
+            with path.open("x", encoding="utf-8") as stream:
+                stream.write(secrets.token_urlsafe(32))
+            os.chmod(path, 0o600)
+        value = path.read_text(encoding="utf-8").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{32,128}", value) is None:
+        raise RuntimeError("MULTI_AGENT_SERVICE_TOKEN must contain 32-128 URL-safe characters")
+    return value
+
+
+def _is_ci(environment: Mapping[str, str]) -> bool:
+    return environment.get("CI", "").lower() in {"true", "1"}
+
+
 def prepare_environment(
     environment: Mapping[str, str], *, mode: str = "combined"
 ) -> dict[str, str]:
     """Build host-only paths/tokens and an explicit local capability selection."""
     validate_capability_mode(mode)
-    if environment.get("CI", "").lower() in {"true", "1"} and mode != "direct":
+    if _is_ci(environment) and mode != "direct":
         raise RuntimeError("MCP and RAG must remain disabled in CI; use direct mode")
     if environment.get("AI_MODE_ENVIRONMENT", "local") not in {"local", "development"}:
         raise RuntimeError("Managed host AI services are available only for the local deployment")
@@ -374,17 +396,31 @@ def prepare_environment(
         result.setdefault("RAG_OFFICIAL_EVIDENCE_CORPORA", official_corpora)
     else:
         result.pop("RAG_OFFICIAL_EVIDENCE_CORPORA", None)
+    # The Multi-Agent Server discovers enabled features' workflow manifests itself; its Worker
+    # calls tools through MCP when MCP is enabled, otherwise directly from these catalogues.
+    result["MULTI_AGENT_SERVICE_TOKEN"] = multi_agent_service_token(result)
+    result["MULTI_AGENT_STATE_DIR"] = str(HOST_DIRECTORY / "multi-agent")
+    result["MULTI_AGENT_REPOSITORY_ROOT"] = str(REPOSITORY_ROOT)
+    result["MULTI_AGENT_TOOL_CATALOG_PATHS"] = result["AI_MODE_TOOL_CATALOG_PATHS"]
+    result["MULTI_AGENT_MCP_ENABLED"] = result["AI_MODE_MCP_ENABLED"]
     return result
+
+
+def selected_services(mode: str, environment: Mapping[str, str]) -> list[str]:
+    """Services a capability mode starts, in dependency order (MCP before its clients)."""
+    return [
+        *(["mcp"] if mode in {"mcp", "combined"} else []),
+        *(["rag"] if mode in {"rag", "combined"} else []),
+        "ai-mode",
+        # Host-only like MCP and RAG: never started in CI, where tests use the testkit fake.
+        *([] if _is_ci(environment) else ["multi-agent"]),
+    ]
 
 
 def start(environment: Mapping[str, str], *, mode: str = "combined") -> None:
     """Start managed services, waiting for bounded health without implicit model downloads."""
     resolved = prepare_environment(environment, mode=mode)
-    selected = [
-        *(["mcp"] if mode in {"mcp", "combined"} else []),
-        *(["rag"] if mode in {"rag", "combined"} else []),
-        "ai-mode",
-    ]
+    selected = selected_services(mode, resolved)
     # Capability changes must not accidentally reuse an older AI process configuration.
     fingerprint = hashlib.sha256(json.dumps(resolved, sort_keys=True).encode()).hexdigest()
     stop(tuple(service for service in SERVICES if service not in selected))
@@ -408,7 +444,7 @@ def start(environment: Mapping[str, str], *, mode: str = "combined") -> None:
             command = [sys.executable, "-m", "scripts.devtools.host_runtime", "serve", service]
             log_path = HOST_DIRECTORY / f"{service}.log"
             with log_path.open("ab") as log:
-                process = subprocess.Popen(
+                process = subprocess.Popen(  # noqa: S603 - fixed docker/python argv, no shell
                     command,
                     cwd=REPOSITORY_ROOT,
                     env=resolved,
@@ -442,7 +478,10 @@ def _wait_ready(service: str, environment: Mapping[str, str]) -> None:
     headers = (
         {}
         if service == "ai-mode"
-        else {"Authorization": f"Bearer {environment[f'{service.upper()}_SERVICE_TOKEN']}"}
+        else {
+            "Authorization": "Bearer "
+            + environment[f"{service.upper().replace('-', '_')}_SERVICE_TOKEN"]
+        }
     )
     deadline = time.monotonic() + 30
     with httpx.Client(timeout=1, follow_redirects=False) as client:
@@ -461,11 +500,14 @@ def _wait_ready(service: str, environment: Mapping[str, str]) -> None:
 
 
 def serve(service: str) -> None:
-    """Foreground entrypoint; only AI-mode needs to accept Docker host-gateway traffic."""
+    """Foreground entrypoint; AI-mode and the Multi-Agent Server accept host-gateway traffic.
+
+    Both authenticate every non-liveness request with their own service token.
+    """
     if os.environ.get("AI_MODE_ENVIRONMENT", "local") not in {"local", "development"}:
         raise RuntimeError("Managed AI services require local deployment")
     if service != "ai-mode" and os.environ.get("CI", "").lower() in {"true", "1"}:
-        raise RuntimeError("MCP and RAG must remain disabled in CI")
+        raise RuntimeError("MCP, RAG and the Multi-Agent Server must remain disabled in CI")
     if service == "mcp":
         import runpy
 
@@ -478,13 +520,17 @@ def serve(service: str) -> None:
 
         application = create_ai_app()
         protect_host_entry(application, os.environ.get("AI_MODE_SERVICE_TOKEN", ""))
+    elif service == "multi-agent":
+        from multi_agent_server import create_app as create_multi_agent_app
+
+        application = create_multi_agent_app()
     else:
         from rag_server import create_app as create_rag_app
 
         application = create_rag_app()
     serve_wsgi(
         application,
-        host="0.0.0.0" if service == "ai-mode" else "127.0.0.1",
+        host="0.0.0.0" if service in {"ai-mode", "multi-agent"} else "127.0.0.1",  # noqa: S104 - containers reach AI-mode and Multi-Agent via the host gateway (ADR-046, ADR-047)
         port=port_for(service, os.environ),
         threads=8,
     )
@@ -492,5 +538,7 @@ def serve(service: str) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 3 or sys.argv[1] != "serve" or sys.argv[2] not in SERVICES:
-        raise SystemExit("Usage: python -m scripts.devtools.host_runtime serve ai-mode|mcp|rag")
+        raise SystemExit(
+            "Usage: python -m scripts.devtools.host_runtime serve " + "|".join(SERVICES)
+        )
     serve(sys.argv[2])

@@ -51,7 +51,8 @@ class _BoundedTransport(httpx.AsyncHTTPTransport):
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         response = await super().handle_async_request(request)
-        assert isinstance(response.stream, httpx.AsyncByteStream)
+        if not isinstance(response.stream, httpx.AsyncByteStream):
+            raise TypeError("MCP transport returned a non-async response stream")
         response.stream = _BoundedStream(response.stream, self._limit)
         return response
 

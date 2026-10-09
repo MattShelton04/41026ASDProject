@@ -1,0 +1,99 @@
+# Feature 1 multi-agent workflow: release readiness review (Release 2, F-2).
+#
+# The Planner lists the publication checks, the Worker gathers read-only evidence about one
+# candidate release, the Reviewer compares it with the publication criteria below, and a human
+# approves or rejects the *recommendation*. The workflow never publishes: publishing stays a
+# separate, explicit operator action (`data.release_publish.v1` is deliberately not allowlisted).
+schema_version: 1
+id: f1-release-readiness-review
+version: v1
+feature_id: student-1-propertyscope-data-platform
+title: Release readiness review
+objective: >-
+  Recommend whether one candidate dataset release is ready for an operator to publish, using its
+  record count, quality results, provenance and accepted predecessor. Do not publish anything.
+inputs:
+  - name: release_id
+    type: string
+    title: Candidate release ID
+    format: uuid
+  - name: dataset_id
+    title: Dataset ID (optional, narrows the release queue)
+    required: false
+    max_length: 150
+  - name: reviewer_note
+    title: Optional context for the reviewers
+    required: false
+    max_length: 500
+planner_guidance: >-
+  Inspect the requested release first: its status, record count, content hash, quality summary and
+  accepted predecessor. Then read the release queue for context on other releases of the same
+  dataset. Plan only read-only steps; never plan a publication, retry or any other write.
+allowed_tools:
+  - data.release_inspect.v1
+  - data.releases.v1
+steps:
+  - id: release
+    title: Inspect the candidate release
+    purpose: Collect status, record count, content hash, quality results and the accepted predecessor.
+    tool: data.release_inspect.v1
+    arguments:
+      release_id: "{{input.release_id}}"
+  - id: queue
+    title: Read the release queue
+    purpose: See other releases of the dataset that are candidates or awaiting review.
+    tool: data.releases.v1
+    arguments:
+      dataset_id: "{{input.dataset_id}}"
+      limit: 10
+reviewer_checks:
+  - id: release-found
+    description: The requested release was inspected.
+    severity: critical
+    recommendation: Check the release ID and run the review again.
+    rule: {kind: step_succeeded, step: release}
+  - id: release-matches
+    description: The inspected release is the one requested.
+    severity: critical
+    recommendation: Investigate why a different release was returned before deciding.
+    rule: {kind: field_compare, step: release, path: release.id, operator: eq, value: "{{input.release_id}}"}
+  - id: reviewable-status
+    description: The release is a candidate or awaiting review, so publication is still a decision to make.
+    severity: high
+    recommendation: Only review releases in candidate or awaiting_review status.
+    rule: {kind: field_compare, step: release, path: release.status, operator: in, value: [candidate, awaiting_review]}
+  - id: has-records
+    description: The release contains at least one record.
+    severity: high
+    recommendation: Re-run the acquisition; an empty release must not replace accepted data.
+    rule: {kind: field_compare, step: release, path: release.record_count, operator: gt, value: 0}
+  - id: content-hash-recorded
+    description: The release records a content hash for provenance.
+    severity: medium
+    recommendation: Rebuild the release so its artifact has a content hash.
+    rule: {kind: field_present, step: release, path: release.content_sha256}
+  - id: quality-recorded
+    description: Quality checks were run against the release.
+    severity: high
+    recommendation: Run the quality checks before recommending publication.
+    rule: {kind: field_compare, step: release, path: quality_summary.total, operator: gt, value: 0}
+  - id: no-blocking-quality-failures
+    description: No blocking quality check failed.
+    severity: critical
+    recommendation: Fix the source or adapter so the blocking checks pass; do not publish.
+    rule: {kind: field_compare, step: release, path: quality_summary.blocking_failures, operator: eq, value: 0}
+  - id: no-quality-failures
+    description: No quality check failed at all.
+    severity: medium
+    recommendation: Explain each non-blocking failure in the review comment, or accept only part of the review.
+    rule: {kind: field_compare, step: release, path: quality_summary.failed, operator: eq, value: 0}
+  - id: accepted-predecessor-known
+    description: An accepted predecessor exists to compare against.
+    severity: low
+    recommendation: For a first release, check the record count against the source's published totals.
+    rule: {kind: field_present, step: release, path: accepted_predecessor.id}
+human_review_guidance: >-
+  You are deciding on the recommendation, not publishing. Approve only when every critical and high
+  check passed. Use "correct" to send the Worker and Reviewer back once with a note, "partial" to
+  accept some steps, and "reject" when the release should not be published. Publish separately
+  from the Data Platform release review page if you approve.

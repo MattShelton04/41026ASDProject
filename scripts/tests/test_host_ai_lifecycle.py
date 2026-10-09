@@ -152,6 +152,7 @@ def test_status_lists_every_host_service_with_its_local_url() -> None:
         "ai-mode": "http://127.0.0.1:6005",
         "mcp": "http://127.0.0.1:5011/mcp",
         "rag": "http://127.0.0.1:6012",
+        "multi-agent": "http://127.0.0.1:5013",
     }
 
 
