@@ -108,4 +108,7 @@ state, and `devtools/service_auth.py` applies AI-mode's internal proxy authentic
 start after upgrading, `host_runtime.retire_container_placement()` removes this Compose project's
 old AI containers and projection. `ai validate mcp|rag` runs the agent loop over each protocol
 (`release1_validation.py`), and `ai probe` checks the running servers directly
-(`release1_probe.py`). Both refuse to run in CI.
+(`release1_probe.py`). Both refuse to run in CI. `ai review multi-agent|testing|cloud` (`devtools/review/`)
+collects bounded, hashed Release 2 evidence, reviews it through an AI-mode run or, with
+`--deterministic`, the same loop in-process, and writes a report and JSONL validation log;
+`ai review decide` records the human release decision.

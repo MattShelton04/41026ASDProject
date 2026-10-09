@@ -199,6 +199,17 @@ answer when document context is insufficient; this does not turn missing guidanc
 RAG answer. The named MCP/RAG validation commands deliberately retain `default.v8` and deterministic
 extractive decisions, separately from actual-provider feature turns.
 
+Release 2 evidence reviews use three further prompt sets, `review-multi-agent.v1`,
+`review-testing.v1` and `review-cloud.v1` (planner `review-planner/v1`, adapter
+`review-<mode>/v1`). They are accepted only for the `agentic-loop` feature key with exactly the
+`review.evidence.v1` tool allowlisted, and the objective must be a valid
+`evidence-review-bundle.v1`. That read-only tool is registered only for `agentic-loop`, so feature
+runs never see it; it returns the run's own bundle from the store and reads no files or network.
+A completion validator holds the final result to `evidence-review-output.v1` inside bounded
+repair: findings may cite only the bundle's check IDs and input paths, and the verdict may not be
+more lenient than the bundle's deterministic checklist. `dev.py ai review` creates these runs; see
+[the review modes](../../docs/release-2/review-modes.md).
+
 Grounding validates citation/call identities, feature/corpus scope and current corpus version.
 It derives confidence from recorded support: high requires no gaps, a strongly matching citation
 for each guidance finding and at least two distinct document/tool supports; weak matches, a single

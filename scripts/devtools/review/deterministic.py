@@ -110,8 +110,7 @@ def deterministic_review(bundle: EvidenceReviewBundle) -> EvidenceReviewOutput:
     recommendations = list(
         dict.fromkeys(
             REMEDIATION.get(check_kind(check), f"Resolve {check.id}.")
-            for check in failed
-            if check.required
+            for check in sorted(failed, key=lambda item: not item.required)
         )
     )[:15]
     required_failed = sum(1 for check in failed if check.required)

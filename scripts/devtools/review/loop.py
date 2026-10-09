@@ -139,8 +139,7 @@ def _short_check(check: EvidenceCheck, *, keep_detail: bool) -> dict[str, Any]:
 
 def run_request(bundle: EvidenceReviewBundle, *, time_budget_ms: int) -> AgentRunRequest:
     """Build the bounded, single-tool run request for one review mode."""
-    compact, objective = objective_for(bundle)
-    del compact
+    _, objective = objective_for(bundle)
     return AgentRunRequest(
         feature_key=REVIEW_FEATURE_KEY,
         objective=objective,

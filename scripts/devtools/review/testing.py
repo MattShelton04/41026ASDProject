@@ -45,7 +45,7 @@ JUNIT_ATTRIBUTES = re.compile(
 TEST_ROW = re.compile(
     r"^\|\s*`?([^|`]+?)`?\s*\|\s*\**(passed|failed|error|skipped)\**\s*\|", re.IGNORECASE
 )
-ENDPOINT = re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\s+(/[\w./{}:-]*)")
+ENDPOINT = re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\s+(/(?:[\w./{}:-]*[\w}])?)")
 
 
 def collect(reader: EvidenceReader) -> EvidenceReviewBundle:

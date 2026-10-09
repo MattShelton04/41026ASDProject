@@ -117,7 +117,7 @@ def run_review(
                     "--deterministic (checklist only) or --fallback-deterministic."
                 ) from exc
             fallback_reason = f"{exc.code}: {exc}"
-            if exc.run_id:
+            if exc.run_id and exc.run_id not in fallback_reason:
                 fallback_reason += f" (AI-mode run {exc.run_id})"
             engine, loop, output = (
                 "deterministic-fallback",
