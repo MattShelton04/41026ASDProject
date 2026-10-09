@@ -1,0 +1,102 @@
+{
+  "$defs": {
+    "HumanDecisionKind": {
+      "description": "The four outcomes a human reviewer may record.",
+      "enum": [
+        "approve",
+        "correct",
+        "partial",
+        "reject"
+      ],
+      "title": "HumanDecisionKind",
+      "type": "string"
+    },
+    "WorkflowState": {
+      "description": "Persisted lifecycle of one Planner → Worker → Reviewer → Human workflow run.",
+      "enum": [
+        "planning",
+        "working",
+        "reviewing",
+        "awaiting_human",
+        "approved",
+        "corrected",
+        "partially_accepted",
+        "rejected",
+        "failed",
+        "cancelled"
+      ],
+      "title": "WorkflowState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A recorded human decision and the state it moved the run to.",
+  "properties": {
+    "accepted_step_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[a-z][a-z0-9_-]*$",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Accepted Step Ids",
+      "type": "array"
+    },
+    "actor": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+      "title": "Actor",
+      "type": "string"
+    },
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/HumanDecisionKind"
+    },
+    "note": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Note",
+      "type": "string"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "resulting_state": {
+      "$ref": "#/$defs/WorkflowState"
+    },
+    "round": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Round",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "decision",
+    "actor",
+    "round",
+    "decided_at",
+    "resulting_state"
+  ],
+  "title": "HumanDecision",
+  "type": "object"
+}

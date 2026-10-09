@@ -15,8 +15,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from shared_contracts.deployment import DeploymentProjectionV1
+from shared_contracts.multi_agent import WorkflowTemplate
 
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -30,6 +32,7 @@ SHARED_CONSUMER_PROTOCOL = "shared-consumer-protocol"
 SHARED_TESTKIT = "shared-testkit"
 AGENT_CORE = "agent-core"
 AI_MODE = "ai-mode"
+MULTI_AGENT_SERVER = "multi-agent-server"
 PROPERTYSCOPE_DATABASE_IMPORT = "propertyscope_data_store"
 POSTGRES_CLIENT_IMPORTS = frozenset({"asyncpg", "psycopg", "psycopg2", "sqlalchemy"})
 PROPERTYSCOPE_DATABASE_CREDENTIAL = "PROPERTYSCOPE_DATABASE_URL"
@@ -54,11 +57,13 @@ FEATURE_FRONTEND_PATHS = {
     "due-diligence": "student-4",
     "buyer-workspaces": "student-5",
 }
-# Release 1: AI-mode (with the agent loop), MCP and RAG run on the host and must not be defined
-# as Compose services or built as images (ADR-043, ADR-046).
-HOST_AI_COMPONENTS = ("ai-mode", "mcp-server", "rag-server", "agent-core")
-HOST_AI_MODULES = ("ai_mode", "mcp_server", "rag_server", "agent_core")
-HOST_AI_SERVICE_NAMES = frozenset({*HOST_AI_COMPONENTS, "shared-ai-mode", "agent-loop"})
+# AI-mode (with the agent loop), MCP, RAG and the Multi-Agent Server run on the host and must
+# not be defined as Compose services or built as images (ADR-043, ADR-046, ADR-047).
+HOST_AI_COMPONENTS = ("ai-mode", "mcp-server", "rag-server", "agent-core", MULTI_AGENT_SERVER)
+HOST_AI_MODULES = ("ai_mode", "mcp_server", "rag_server", "agent_core", "multi_agent_server")
+HOST_AI_SERVICE_NAMES = frozenset(
+    {*HOST_AI_COMPONENTS, "shared-ai-mode", "agent-loop", "multi-agent"}
+)
 COMPOSE_FILE_PATTERNS = (
     "docker-compose*.yml",
     "docker-compose*.yaml",
@@ -68,6 +73,13 @@ COMPOSE_FILE_PATTERNS = (
 )
 AI_MODE_URL_VARIABLES = ("AI_MODE_BASE_URL", "AI_MODE_URL")
 HOST_AI_CONNECTION_VARIABLES = ("MCP_SERVER_URL", "RAG_SERVER_URL")
+MULTI_AGENT_URL_VARIABLE = "MULTI_AGENT_BASE_URL"
+MULTI_AGENT_TOKEN_VARIABLE = "MULTI_AGENT_SERVICE_TOKEN"  # noqa: S105 - env var name, not a value
+MULTI_AGENT_TOKEN_INTERPOLATION = re.compile(r"^\$\{MULTI_AGENT_SERVICE_TOKEN(:?-[^}]*)?\}$")
+WORKFLOW_MANIFEST = "config/multi-agent/workflow.yaml"
+# Feature code reaches the server over HTTP and tests use shared_testkit.FakeMultiAgentServer;
+# unlike other shared AI packages, not even student tests may import the server.
+STUDENT_ALWAYS_DENIED_IMPORTS = frozenset({"multi_agent_server"})
 HOST_GATEWAY_URL = re.compile(r"^http://host\.docker\.internal[:/]")
 HOST_GATEWAY_MAPPING = "host.docker.internal:host-gateway"
 AZURE_OVERRIDE = "docker-compose.azure.yml"
@@ -86,19 +98,34 @@ ALLOWED_WORKSPACE_DEPENDENCIES: Mapping[str, frozenset[str]] = {
     "shared-tool-runtime": frozenset({SHARED_CONTRACTS}),
     "mcp-server": frozenset({SHARED_CONTRACTS, "shared-tool-runtime"}),
     "rag-server": frozenset({SHARED_CONTRACTS}),
+    MULTI_AGENT_SERVER: frozenset({SHARED_CONTRACTS, AGENT_CORE, AI_MODE, "shared-tool-runtime"}),
 }
 
 PRODUCTION_IMPORT_DENYLISTS: Mapping[str, frozenset[str]] = {
-    SHARED_CONTRACTS: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
-    SHARED_CONSUMER_PROTOCOL: frozenset({"shared_testkit", "agent_core", "ai_mode"}),
-    SHARED_TESTKIT: frozenset({"ai_mode"}),
-    AGENT_CORE: frozenset({"shared_testkit", "ai_mode"}),
-    AI_MODE: frozenset({"shared_testkit"}),
-    "shared-tool-runtime": frozenset(
-        {"shared_testkit", "agent_core", "ai_mode", "rag_server", "mcp_server"}
+    SHARED_CONTRACTS: frozenset({"shared_testkit", "agent_core", "ai_mode", "multi_agent_server"}),
+    SHARED_CONSUMER_PROTOCOL: frozenset(
+        {"shared_testkit", "agent_core", "ai_mode", "multi_agent_server"}
     ),
-    "mcp-server": frozenset({"shared_testkit", "agent_core", "ai_mode", "rag_server"}),
-    "rag-server": frozenset({"shared_testkit", "agent_core", "ai_mode", "mcp_server"}),
+    SHARED_TESTKIT: frozenset({"ai_mode", "multi_agent_server"}),
+    AGENT_CORE: frozenset({"shared_testkit", "ai_mode", "multi_agent_server"}),
+    AI_MODE: frozenset({"shared_testkit", "multi_agent_server"}),
+    "shared-tool-runtime": frozenset(
+        {
+            "shared_testkit",
+            "agent_core",
+            "ai_mode",
+            "rag_server",
+            "mcp_server",
+            "multi_agent_server",
+        }
+    ),
+    "mcp-server": frozenset(
+        {"shared_testkit", "agent_core", "ai_mode", "rag_server", "multi_agent_server"}
+    ),
+    "rag-server": frozenset(
+        {"shared_testkit", "agent_core", "ai_mode", "mcp_server", "multi_agent_server"}
+    ),
+    MULTI_AGENT_SERVER: frozenset({"shared_testkit", "rag_server", "mcp_server"}),
 }
 
 
@@ -180,6 +207,7 @@ def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViola
         *_validate_non_containerised_ai(root),
         *_validate_azure_overrides(root),
         *_validate_corpus_declarations(root, projection),
+        *_validate_workflow_manifests(root, projection),
     ]
     return tuple(sorted(violations))
 
@@ -330,6 +358,7 @@ def _validate_host_ai_connection(
     location: str, name: str, service: Mapping[str, object]
 ) -> Iterable[ArchitectureViolation]:
     environment = _compose_environment(service.get("environment"))
+    yield from _validate_multi_agent_connection(location, name, service, environment)
     ai_urls = [str(environment[key]) for key in AI_MODE_URL_VARIABLES if key in environment]
     if not ai_urls:
         return
@@ -351,6 +380,65 @@ def _validate_host_ai_connection(
         yield ArchitectureViolation(
             location, 0, f"Compose service {name} must map {HOST_GATEWAY_MAPPING}"
         )
+
+
+def _validate_multi_agent_connection(
+    location: str, name: str, service: Mapping[str, object], environment: Mapping[str, object]
+) -> Iterable[ArchitectureViolation]:
+    """A backend that calls the host Multi-Agent Server uses the host gateway and no literal."""
+    if MULTI_AGENT_URL_VARIABLE not in environment:
+        return
+    if HOST_GATEWAY_URL.match(str(environment[MULTI_AGENT_URL_VARIABLE])) is None:
+        yield ArchitectureViolation(
+            location,
+            0,
+            f"Compose service {name} must reach the host Multi-Agent Server via "
+            "http://host.docker.internal",
+        )
+    token = str(environment.get(MULTI_AGENT_TOKEN_VARIABLE, ""))
+    if MULTI_AGENT_TOKEN_INTERPOLATION.match(token) is None:
+        yield ArchitectureViolation(
+            location,
+            0,
+            f"Compose service {name} must pass {MULTI_AGENT_TOKEN_VARIABLE} through from the "
+            "host environment (${MULTI_AGENT_SERVICE_TOKEN:-}), never as a literal",
+        )
+    extra_hosts = service.get("extra_hosts")
+    if not isinstance(extra_hosts, list) or HOST_GATEWAY_MAPPING not in extra_hosts:
+        yield ArchitectureViolation(
+            location, 0, f"Compose service {name} must map {HOST_GATEWAY_MAPPING}"
+        )
+
+
+def _validate_workflow_manifests(
+    root: Path, projection: DeploymentProjectionV1
+) -> Iterable[ArchitectureViolation]:
+    """A feature's workflow manifest satisfies the contract and names its owning feature.
+
+    Tool registration and read-only policy depend on catalogues and are checked by
+    ``multi-agent-server validate`` and at server start-up.
+    """
+    for feature in projection.features:
+        path = root / feature.owner / WORKFLOW_MANIFEST
+        if not path.is_file():
+            continue
+        location = _relative(root, path)
+        try:
+            template = WorkflowTemplate.model_validate(
+                yaml.safe_load(path.read_text(encoding="utf-8"))
+            )
+        except (OSError, yaml.YAMLError, ValidationError) as exc:
+            first = str(exc).splitlines()[0:3]
+            yield ArchitectureViolation(
+                location, 0, f"invalid workflow manifest: {' '.join(first)[:300]}"
+            )
+            continue
+        if template.feature_id != feature.feature_key:
+            yield ArchitectureViolation(
+                location,
+                0,
+                f"workflow manifest feature_id {template.feature_id} must be {feature.feature_key}",
+            )
 
 
 def _validate_corpus_declarations(
@@ -668,6 +756,15 @@ def _validate_python_imports(
                         line,
                         f"{project.name} must not import {module} owned by {imported_student}",
                     )
+                elif (
+                    project.student_owner is not None and top_level in STUDENT_ALWAYS_DENIED_IMPORTS
+                ):
+                    yield ArchitectureViolation(
+                        _relative(root, path),
+                        line,
+                        f"{project.name} must not import {module}; call the Multi-Agent Server "
+                        "over HTTP and test with shared_testkit.FakeMultiAgentServer",
+                    )
                 elif not is_test and top_level in denied:
                     yield ArchitectureViolation(
                         _relative(root, path),
@@ -872,7 +969,9 @@ def _allowed_workspace_dependencies(
 
 def _production_import_denylist(project: WorkspaceProject) -> frozenset[str]:
     if project.student_owner is not None:
-        return frozenset({"shared_testkit", "agent_core", "ai_mode"})
+        return frozenset(
+            {"shared_testkit", "agent_core", "ai_mode", *STUDENT_ALWAYS_DENIED_IMPORTS}
+        )
     return PRODUCTION_IMPORT_DENYLISTS.get(project.name, frozenset())
 
 

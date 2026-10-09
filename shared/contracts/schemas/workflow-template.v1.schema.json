@@ -1,0 +1,470 @@
+{
+  "$defs": {
+    "FindingSeverity": {
+      "description": "Reviewer finding severity, ordered from informational to blocking.",
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "FindingSeverity",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "ReviewerCheck": {
+      "additionalProperties": false,
+      "description": "One named reviewer check: the rule, how serious a failure is, and what to do.",
+      "properties": {
+        "description": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "recommendation": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Recommendation",
+          "type": "string"
+        },
+        "rule": {
+          "$ref": "#/$defs/ReviewerCheckRule"
+        },
+        "severity": {
+          "$ref": "#/$defs/FindingSeverity"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "severity",
+        "recommendation",
+        "rule"
+      ],
+      "title": "ReviewerCheck",
+      "type": "object"
+    },
+    "ReviewerCheckRule": {
+      "additionalProperties": false,
+      "description": "A deterministic rule the Reviewer evaluates against Worker evidence.\n\n``all_steps_succeeded`` needs nothing else; ``step_succeeded`` needs ``step``;\n``field_present`` needs ``step`` and ``path``; ``field_compare`` needs ``step``, ``path``,\n``operator`` and ``value``; ``min_items`` needs ``step``, ``path`` and an integer ``value``.\n``path`` is a dot-separated path into the tool result (numeric segments index arrays).",
+      "properties": {
+        "kind": {
+          "enum": [
+            "all_steps_succeeded",
+            "step_succeeded",
+            "field_present",
+            "field_compare",
+            "min_items"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "operator": {
+          "anyOf": [
+            {
+              "enum": [
+                "eq",
+                "ne",
+                "gt",
+                "ge",
+                "lt",
+                "le",
+                "in",
+                "not_in",
+                "contains"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operator"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z][a-z0-9_-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ReviewerCheckRule",
+      "type": "object"
+    },
+    "WorkflowInputField": {
+      "additionalProperties": false,
+      "description": "One typed input a person (or backend) supplies when starting a workflow.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "enum": [
+                "uuid",
+                "date",
+                "date-time",
+                "uri"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Format"
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Length"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "min_length": {
+          "anyOf": [
+            {
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Length"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "title"
+      ],
+      "title": "WorkflowInputField",
+      "type": "object"
+    },
+    "WorkflowStep": {
+      "additionalProperties": false,
+      "description": "A declarative evidence step: one allowlisted read-only tool and its arguments.\n\nString argument values may reference workflow inputs with ``{{input.<name>}}``. A value\nthat is exactly one placeholder keeps the input's JSON type; an optional input that was not\nsupplied removes the argument.",
+      "properties": {
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 20,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "tool": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "purpose",
+        "tool"
+      ],
+      "title": "WorkflowStep",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A feature's versioned, declarative multi-agent workflow manifest.",
+  "properties": {
+    "allowed_tools": {
+      "items": {
+        "maxLength": 100,
+        "minLength": 1,
+        "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Allowed Tools",
+      "type": "array"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "feature_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "human_review_guidance": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Human Review Guidance"
+    },
+    "id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "inputs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/WorkflowInputField"
+      },
+      "maxItems": 10,
+      "title": "Inputs",
+      "type": "array"
+    },
+    "objective": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "planner_guidance": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Planner Guidance",
+      "type": "string"
+    },
+    "reviewer_checks": {
+      "items": {
+        "$ref": "#/$defs/ReviewerCheck"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Reviewer Checks",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/WorkflowStep"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "feature_id",
+    "title",
+    "objective",
+    "planner_guidance",
+    "allowed_tools",
+    "steps",
+    "reviewer_checks"
+  ],
+  "title": "WorkflowTemplate",
+  "type": "object"
+}

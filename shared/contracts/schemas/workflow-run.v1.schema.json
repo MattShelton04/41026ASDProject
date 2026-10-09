@@ -1,0 +1,1006 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "description": "Who acted: one of the three agents, the human reviewer, or the server itself.",
+      "enum": [
+        "planner",
+        "worker",
+        "reviewer",
+        "human",
+        "system"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "EvidenceOutcome": {
+      "description": "Outcome of one Worker tool call (mirrors the shared tool outcome).",
+      "enum": [
+        "succeeded",
+        "failed",
+        "timed_out",
+        "rejected"
+      ],
+      "title": "EvidenceOutcome",
+      "type": "string"
+    },
+    "EvidenceReference": {
+      "additionalProperties": false,
+      "description": "One tool call the Worker made, with a digest that pins the exact result.",
+      "properties": {
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 20,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "duration_ms": {
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "error_message": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Message"
+        },
+        "excerpt": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "excerpt_truncated": {
+          "default": false,
+          "title": "Excerpt Truncated",
+          "type": "boolean"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^ev-[a-z0-9_-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/EvidenceOutcome"
+        },
+        "result_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Result Digest",
+          "type": "string"
+        },
+        "step_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "tool_call_id": {
+          "format": "uuid",
+          "title": "Tool Call Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "tool_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool Version",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "mcp",
+            "http",
+            "fake",
+            "none"
+          ],
+          "title": "Transport",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "step_id",
+        "tool_name",
+        "tool_version",
+        "outcome",
+        "transport",
+        "result_digest",
+        "duration_ms",
+        "tool_call_id"
+      ],
+      "title": "EvidenceReference",
+      "type": "object"
+    },
+    "FindingOutcome": {
+      "description": "Whether a reviewer check passed against the gathered evidence.",
+      "enum": [
+        "pass",
+        "fail",
+        "not_evaluated"
+      ],
+      "title": "FindingOutcome",
+      "type": "string"
+    },
+    "FindingSeverity": {
+      "description": "Reviewer finding severity, ordered from informational to blocking.",
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "FindingSeverity",
+      "type": "string"
+    },
+    "HumanDecision": {
+      "additionalProperties": false,
+      "description": "A recorded human decision and the state it moved the run to.",
+      "properties": {
+        "accepted_step_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Accepted Step Ids",
+          "type": "array"
+        },
+        "actor": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Actor",
+          "type": "string"
+        },
+        "decided_at": {
+          "format": "date-time",
+          "title": "Decided At",
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/$defs/HumanDecisionKind"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "resulting_state": {
+          "$ref": "#/$defs/WorkflowState"
+        },
+        "round": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "decision",
+        "actor",
+        "round",
+        "decided_at",
+        "resulting_state"
+      ],
+      "title": "HumanDecision",
+      "type": "object"
+    },
+    "HumanDecisionKind": {
+      "description": "The four outcomes a human reviewer may record.",
+      "enum": [
+        "approve",
+        "correct",
+        "partial",
+        "reject"
+      ],
+      "title": "HumanDecisionKind",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "ModelAttribution": {
+      "additionalProperties": false,
+      "description": "Which provider, model and prompt version produced an agent's output.",
+      "properties": {
+        "fallback": {
+          "default": false,
+          "title": "Fallback",
+          "type": "boolean"
+        },
+        "invocations": {
+          "default": 1,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Invocations",
+          "type": "integer"
+        },
+        "model": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "prompt_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Prompt Id",
+          "type": "string"
+        },
+        "prompt_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/AgentRole"
+        }
+      },
+      "required": [
+        "role",
+        "provider",
+        "model",
+        "prompt_id",
+        "prompt_version",
+        "prompt_hash"
+      ],
+      "title": "ModelAttribution",
+      "type": "object"
+    },
+    "PlanStep": {
+      "additionalProperties": false,
+      "description": "One step of the Planner's plan: the evidence to gather and why.",
+      "properties": {
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 20,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "expected_evidence": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Evidence"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "index": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Index",
+          "type": "integer"
+        },
+        "purpose": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "tool": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "title",
+        "purpose",
+        "tool"
+      ],
+      "title": "PlanStep",
+      "type": "object"
+    },
+    "ReviewFinding": {
+      "additionalProperties": false,
+      "description": "One Reviewer finding with severity, recommendation and evidence references.",
+      "properties": {
+        "check_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z][a-z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Check Id"
+        },
+        "evidence_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^f-[a-z0-9_.-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/FindingOutcome"
+        },
+        "recommendation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommendation"
+        },
+        "severity": {
+          "$ref": "#/$defs/FindingSeverity"
+        },
+        "source": {
+          "default": "check",
+          "enum": [
+            "check",
+            "model"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "step_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Step Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "outcome",
+        "message"
+      ],
+      "title": "ReviewFinding",
+      "type": "object"
+    },
+    "ReviewReport": {
+      "additionalProperties": false,
+      "description": "The Reviewer's assessment of one Worker round.",
+      "properties": {
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/ReviewFinding"
+          },
+          "maxItems": 40,
+          "title": "Findings",
+          "type": "array"
+        },
+        "produced_by": {
+          "$ref": "#/$defs/ModelAttribution"
+        },
+        "recommendation": {
+          "$ref": "#/$defs/HumanDecisionKind"
+        },
+        "round": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        },
+        "summary": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "round",
+        "summary",
+        "recommendation",
+        "findings",
+        "produced_by"
+      ],
+      "title": "ReviewReport",
+      "type": "object"
+    },
+    "StageRecord": {
+      "additionalProperties": false,
+      "description": "One entry in the run's stage timeline (for live progress views).",
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "round": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/AgentRole"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "round",
+        "status",
+        "started_at"
+      ],
+      "title": "StageRecord",
+      "type": "object"
+    },
+    "WorkerOutput": {
+      "additionalProperties": false,
+      "description": "Everything the Worker produced in one round.",
+      "properties": {
+        "correction_note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correction Note"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          },
+          "maxItems": 20,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "produced_by": {
+          "$ref": "#/$defs/ModelAttribution"
+        },
+        "round": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/WorkerStepResult"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "summary": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "round",
+        "summary",
+        "steps",
+        "evidence",
+        "produced_by"
+      ],
+      "title": "WorkerOutput",
+      "type": "object"
+    },
+    "WorkerStepResult": {
+      "additionalProperties": false,
+      "description": "The Worker's findings for one plan step.",
+      "properties": {
+        "evidence_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Findings",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Step Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "status",
+        "findings"
+      ],
+      "title": "WorkerStepResult",
+      "type": "object"
+    },
+    "WorkflowAttempt": {
+      "additionalProperties": false,
+      "description": "A Worker/Reviewer round that a human correction superseded.",
+      "properties": {
+        "review": {
+          "$ref": "#/$defs/ReviewReport"
+        },
+        "round": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        },
+        "worker_output": {
+          "$ref": "#/$defs/WorkerOutput"
+        }
+      },
+      "required": [
+        "round",
+        "worker_output",
+        "review"
+      ],
+      "title": "WorkflowAttempt",
+      "type": "object"
+    },
+    "WorkflowError": {
+      "additionalProperties": false,
+      "description": "Safe failure description for a run that ended in ``failed``.",
+      "properties": {
+        "code": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "WorkflowError",
+      "type": "object"
+    },
+    "WorkflowPlan": {
+      "additionalProperties": false,
+      "description": "The Planner's plan: summary, ordered steps and the evidence it names.",
+      "properties": {
+        "evidence_needed": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Evidence Needed",
+          "type": "array"
+        },
+        "produced_by": {
+          "$ref": "#/$defs/ModelAttribution"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/PlanStep"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "summary": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "steps",
+        "evidence_needed",
+        "produced_by"
+      ],
+      "title": "WorkflowPlan",
+      "type": "object"
+    },
+    "WorkflowState": {
+      "description": "Persisted lifecycle of one Planner → Worker → Reviewer → Human workflow run.",
+      "enum": [
+        "planning",
+        "working",
+        "reviewing",
+        "awaiting_human",
+        "approved",
+        "corrected",
+        "partially_accepted",
+        "rejected",
+        "failed",
+        "cancelled"
+      ],
+      "title": "WorkflowState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The complete persisted state of one workflow run.",
+  "properties": {
+    "available_actions": {
+      "default": [],
+      "items": {
+        "enum": [
+          "approve",
+          "correct",
+          "partial",
+          "reject",
+          "cancel"
+        ],
+        "type": "string"
+      },
+      "title": "Available Actions",
+      "type": "array"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "decisions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HumanDecision"
+      },
+      "maxItems": 2,
+      "title": "Decisions",
+      "type": "array"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkflowError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "feature_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "input": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Input",
+      "type": "object"
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkflowPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "provider_mode": {
+      "enum": [
+        "deterministic",
+        "model"
+      ],
+      "title": "Provider Mode",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "requested_by": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+      "title": "Requested By",
+      "type": "string"
+    },
+    "review": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReviewReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "round": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Round",
+      "type": "integer"
+    },
+    "stages": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/StageRecord"
+      },
+      "maxItems": 20,
+      "title": "Stages",
+      "type": "array"
+    },
+    "state": {
+      "$ref": "#/$defs/WorkflowState"
+    },
+    "superseded": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/WorkflowAttempt"
+      },
+      "maxItems": 1,
+      "title": "Superseded",
+      "type": "array"
+    },
+    "template_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Template Id",
+      "type": "string"
+    },
+    "template_version": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "title": "Template Version",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "worker_output": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkerOutput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "id",
+    "template_id",
+    "template_version",
+    "feature_id",
+    "state",
+    "round",
+    "requested_by",
+    "request_id",
+    "provider_mode",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "WorkflowRun",
+  "type": "object"
+}

@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "FindingOutcome": {
+      "description": "Whether a reviewer check passed against the gathered evidence.",
+      "enum": [
+        "pass",
+        "fail",
+        "not_evaluated"
+      ],
+      "title": "FindingOutcome",
+      "type": "string"
+    },
+    "FindingSeverity": {
+      "description": "Reviewer finding severity, ordered from informational to blocking.",
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "FindingSeverity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One Reviewer finding with severity, recommendation and evidence references.",
+  "properties": {
+    "check_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Check Id"
+    },
+    "evidence_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^f-[a-z0-9_.-]+$",
+      "title": "Id",
+      "type": "string"
+    },
+    "message": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/FindingOutcome"
+    },
+    "recommendation": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recommendation"
+    },
+    "severity": {
+      "$ref": "#/$defs/FindingSeverity"
+    },
+    "source": {
+      "default": "check",
+      "enum": [
+        "check",
+        "model"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "step_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[a-z][a-z0-9_-]*$",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Step Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "severity",
+    "outcome",
+    "message"
+  ],
+  "title": "ReviewFinding",
+  "type": "object"
+}

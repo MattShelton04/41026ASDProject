@@ -1,0 +1,317 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "description": "Who acted: one of the three agents, the human reviewer, or the server itself.",
+      "enum": [
+        "planner",
+        "worker",
+        "reviewer",
+        "human",
+        "system"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "EvidenceOutcome": {
+      "description": "Outcome of one Worker tool call (mirrors the shared tool outcome).",
+      "enum": [
+        "succeeded",
+        "failed",
+        "timed_out",
+        "rejected"
+      ],
+      "title": "EvidenceOutcome",
+      "type": "string"
+    },
+    "EvidenceReference": {
+      "additionalProperties": false,
+      "description": "One tool call the Worker made, with a digest that pins the exact result.",
+      "properties": {
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 20,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "duration_ms": {
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "error_message": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Message"
+        },
+        "excerpt": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "excerpt_truncated": {
+          "default": false,
+          "title": "Excerpt Truncated",
+          "type": "boolean"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^ev-[a-z0-9_-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/EvidenceOutcome"
+        },
+        "result_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Result Digest",
+          "type": "string"
+        },
+        "step_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "tool_call_id": {
+          "format": "uuid",
+          "title": "Tool Call Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "tool_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Tool Version",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "mcp",
+            "http",
+            "fake",
+            "none"
+          ],
+          "title": "Transport",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "step_id",
+        "tool_name",
+        "tool_version",
+        "outcome",
+        "transport",
+        "result_digest",
+        "duration_ms",
+        "tool_call_id"
+      ],
+      "title": "EvidenceReference",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "ModelAttribution": {
+      "additionalProperties": false,
+      "description": "Which provider, model and prompt version produced an agent's output.",
+      "properties": {
+        "fallback": {
+          "default": false,
+          "title": "Fallback",
+          "type": "boolean"
+        },
+        "invocations": {
+          "default": 1,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Invocations",
+          "type": "integer"
+        },
+        "model": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "prompt_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Prompt Id",
+          "type": "string"
+        },
+        "prompt_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/AgentRole"
+        }
+      },
+      "required": [
+        "role",
+        "provider",
+        "model",
+        "prompt_id",
+        "prompt_version",
+        "prompt_hash"
+      ],
+      "title": "ModelAttribution",
+      "type": "object"
+    },
+    "WorkerStepResult": {
+      "additionalProperties": false,
+      "description": "The Worker's findings for one plan step.",
+      "properties": {
+        "evidence_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Findings",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Step Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "status",
+        "findings"
+      ],
+      "title": "WorkerStepResult",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything the Worker produced in one round.",
+  "properties": {
+    "correction_note": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Correction Note"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/EvidenceReference"
+      },
+      "maxItems": 20,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "produced_by": {
+      "$ref": "#/$defs/ModelAttribution"
+    },
+    "round": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Round",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/WorkerStepResult"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    },
+    "summary": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "round",
+    "summary",
+    "steps",
+    "evidence",
+    "produced_by"
+  ],
+  "title": "WorkerOutput",
+  "type": "object"
+}

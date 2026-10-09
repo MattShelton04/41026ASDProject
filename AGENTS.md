@@ -38,8 +38,10 @@ Keep a skill's `name` equal to its directory and list every skill here;
 - Student backends call `ai-mode` over HTTP. `ai-mode` may call allowlisted feature tool
   endpoints, but it must never access a student's database directly.
 - Each database file has one owning database service. Do not mount or open it elsewhere.
-- AI-mode, MCP, RAG and the agent loop run only as host processes (ADR-046). Never add them to a
-  Compose file or give `ai-services/` a Dockerfile; backends reach them via `host.docker.internal`.
+- AI-mode, MCP, RAG, the agent loop and the Multi-Agent Server run only as host processes
+  (ADR-046, ADR-047). Never add them to a Compose file or give `ai-services/` a Dockerfile;
+  backends reach them via `host.docker.internal`. Student code (tests included) must not import
+  `multi_agent_server`; use its HTTP API and `shared_testkit.FakeMultiAgentServer`.
 - Keep shared packages domain-neutral. Feature-specific entities and business rules stay in
   their owning student slice.
 - `scripts/validate_architecture.py` enforces these rules inside the quality gate. Update its
@@ -56,6 +58,7 @@ Keep a skill's `name` equal to its directory and list every skill here;
 | Feature 5 Buyer Workspaces | <http://localhost:5500> | `PROPERTYSCOPE_BUYER_WORKSPACES_PORT` |
 | Feature 3 Suburb Analytics | <http://localhost:5600> | `PROPERTYSCOPE_SUBURB_ANALYTICS_PORT` |
 | AI-mode / MCP / RAG (host processes) | 5005 / 5011 / 5012 | `AI_MODE_PORT` / `MCP_PORT` / `RAG_PORT` |
+| Multi-Agent Server (host process) | <http://localhost:5013> (API `/api/v1/multi-agent`) | `MULTI_AGENT_PORT` |
 | Deterministic UI fixtures (`ui serve`) | <http://127.0.0.1:5990> | `PROPERTYSCOPE_UI_FIXTURE_PORT` |
 
 `deployment/enabled-features.v1.json` is the generated source of truth for feature ports and

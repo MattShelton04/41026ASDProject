@@ -14,9 +14,12 @@ from shared_testkit.grounding import (
 )
 from shared_testkit.http import assert_problem_detail
 from shared_testkit.model import ScriptedLLMProvider
+from shared_testkit.multi_agent import FAKE_MULTI_AGENT_TOKEN, FakeMultiAgentServer
 
 __all__ = [
+    "FAKE_MULTI_AGENT_TOKEN",
     "EndpointClient",
+    "FakeMultiAgentServer",
     "ScriptedLLMProvider",
     "assert_corpus_manifest",
     "assert_grounded_allowlist_accepted",

@@ -18,6 +18,7 @@ COPY shared/testkit/pyproject.toml shared/testkit/pyproject.toml
 COPY shared/tool-runtime/pyproject.toml shared/tool-runtime/pyproject.toml
 COPY ai-services/mcp-server/pyproject.toml ai-services/mcp-server/pyproject.toml
 COPY ai-services/rag-server/pyproject.toml ai-services/rag-server/pyproject.toml
+COPY ai-services/multi-agent-server/pyproject.toml ai-services/multi-agent-server/pyproject.toml
 COPY student-1/pyproject.toml student-1/pyproject.toml
 COPY student-2/pyproject.toml student-2/pyproject.toml
 COPY student-3/pyproject.toml student-3/pyproject.toml

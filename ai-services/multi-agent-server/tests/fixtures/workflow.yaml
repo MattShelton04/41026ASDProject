@@ -1,0 +1,67 @@
+# Domain-neutral test fixture. Real templates live in student-N/config/multi-agent/workflow.yaml.
+schema_version: 1
+id: example-readiness-review
+version: v1
+feature_id: example-feature
+title: Example readiness review
+objective: >-
+  Recommend whether the requested record is ready to publish, using only read-only evidence
+  about the record and its quality results.
+inputs:
+  - name: record_id
+    type: string
+    title: Record ID
+    description: The record to review.
+    format: uuid
+  - name: reviewer_note
+    type: string
+    title: Optional context for the agents
+    required: false
+    max_length: 500
+planner_guidance: >-
+  Read the record summary first, then its quality results. Never plan a write.
+allowed_tools:
+  - example.record.v1
+  - example.quality.v1
+steps:
+  - id: record
+    title: Read the record summary
+    purpose: Confirm the record exists and see its status and size.
+    tool: example.record.v1
+    arguments:
+      record_id: "{{input.record_id}}"
+  - id: quality
+    title: Read the quality results
+    purpose: See which quality checks passed and failed.
+    tool: example.quality.v1
+    arguments:
+      record_id: "{{input.record_id}}"
+reviewer_checks:
+  - id: record-found
+    description: The record summary was retrieved.
+    severity: critical
+    recommendation: Confirm the record ID and run the workflow again.
+    rule: {kind: step_succeeded, step: record}
+  - id: record-matches
+    description: The record returned is the record that was requested.
+    severity: high
+    recommendation: Investigate why the tool returned a different record.
+    rule: {kind: field_compare, step: record, path: id, operator: eq, value: "{{input.record_id}}"}
+  - id: record-has-items
+    description: The record contains at least one item.
+    severity: high
+    recommendation: Do not publish an empty record.
+    rule: {kind: field_compare, step: record, path: item_count, operator: gt, value: 0}
+  - id: quality-recorded
+    description: At least one quality check result exists.
+    severity: medium
+    recommendation: Run the quality checks before publishing.
+    rule: {kind: min_items, step: quality, path: checks, value: 1}
+  - id: quality-clean
+    description: No quality check failed.
+    severity: high
+    recommendation: Resolve the failed quality checks, then run the workflow again.
+    rule: {kind: field_compare, step: quality, path: failed, operator: eq, value: 0}
+human_review_guidance: >-
+  Approve the recommendation only when every high or critical check passed. Publishing remains a
+  separate operator action.

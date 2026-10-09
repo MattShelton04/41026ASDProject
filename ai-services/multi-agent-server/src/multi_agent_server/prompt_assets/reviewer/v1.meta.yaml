@@ -1,0 +1,5 @@
+prompt_id: reviewer
+version: v1
+role: reviewer
+template: v1.system.md
+description: Reviews Worker output against the plan, the evidence and the deterministic check results.

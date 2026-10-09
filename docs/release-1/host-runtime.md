@@ -8,6 +8,14 @@ Those containers reach the AI tier through `host.docker.internal`. See
 [ADR-046](../architecture/decisions/ADR-046-non-containerised-ai-tier.md) for why the earlier
 optional Docker placement was removed.
 
+Release 2 adds the [Multi-Agent Server](../../ai-services/multi-agent-server/README.md) as a
+fourth managed host process ([ADR-047](../architecture/decisions/ADR-047-multi-agent-server.md)).
+It runs on `MULTI_AGENT_PORT` (5013), has its own token in
+`.propertyscope-runtime/host/multi-agent.token`, and keeps its state in
+`.propertyscope-runtime/host/multi-agent/`. `ai start` starts it in every mode, and its Worker uses
+MCP in `mcp` and `combined` mode and the direct catalogue in `direct` mode. `ai status`,
+`ai logs multi-agent`, `ai stop multi-agent` and `ai probe` cover it. It is never started in CI.
+
 ## Why the AI tier is not containerised
 
 The Release 1 rubric requires AI-mode, MCP, RAG and the agent loop to run outside containers,

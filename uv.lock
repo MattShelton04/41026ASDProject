@@ -8,6 +8,7 @@ members = [
     "ai-mode",
     "asd-project-workspace",
     "mcp-server",
+    "multi-agent-server",
     "rag-server",
     "shared-consumer-protocol",
     "shared-contracts",
@@ -931,6 +932,35 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/42/35/539123407fe200fb16609c835675496fbeb6017ace9fc93909f0613223ae/msgpack-1.2.3-cp312-cp312-win32.whl", hash = "sha256:7c047250096f9fc19dba26e3d1639b5e7a84114003605c94def667149a70ced1", size = 68303, upload-time = "2026-09-29T02:32:15.02Z" },
     { url = "https://files.pythonhosted.org/packages/6f/4c/331b45f9b86fbda6b9e103244d189068e51f726d8c40021ed66e1f2c415e/msgpack-1.2.3-cp312-cp312-win_amd64.whl", hash = "sha256:3ec409b0d6aa8e9eec6eaf881b893caa215dbe68c5319ca96e8a271d81bb111d", size = 76744, upload-time = "2026-09-29T02:32:16.344Z" },
     { url = "https://files.pythonhosted.org/packages/13/9f/fb572dc42b9fac06c7ea848aaee6e140d84469743bd1402bc07089fc4566/msgpack-1.2.3-cp312-cp312-win_arm64.whl", hash = "sha256:59612b4ed48a04cf024584218e813562f3b30a3bafa5f55abe300b15da314751", size = 71580, upload-time = "2026-09-29T02:32:17.617Z" },
+]
+
+[[package]]
+name = "multi-agent-server"
+version = "0.1.0"
+source = { editable = "ai-services/multi-agent-server" }
+dependencies = [
+    { name = "agent-core" },
+    { name = "ai-mode" },
+    { name = "flask" },
+    { name = "httpx" },
+    { name = "jsonschema" },
+    { name = "pyyaml" },
+    { name = "shared-contracts" },
+    { name = "shared-tool-runtime" },
+    { name = "waitress" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agent-core", editable = "ai-services/agent-core" },
+    { name = "ai-mode", editable = "ai-services/ai-mode" },
+    { name = "flask", specifier = ">=3.1,<4" },
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "jsonschema", specifier = ">=4.25,<5" },
+    { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "shared-contracts", editable = "shared/contracts" },
+    { name = "shared-tool-runtime", editable = "shared/tool-runtime" },
+    { name = "waitress", specifier = ">=3.0.2,<4" },
 ]
 
 [[package]]
