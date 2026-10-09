@@ -497,7 +497,7 @@ def render_markdown(report: SecurityReport) -> str:
                     (
                         f"`{pattern}`",
                         ", ".join(codes),
-                        "; ".join(POLICY_REASONS.get(code, code) for code in codes),
+                        "; ".join(dict.fromkeys(POLICY_REASONS.get(code, code) for code in codes)),
                     )
                     for pattern, codes in report.policy_ignores.items()
                 ),
