@@ -86,7 +86,12 @@ def test_successful_deployment_report(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("stages", "smoke_passed"),
-    [({**SUCCESS, "deploy": "failure"}, True), (SUCCESS, False), ({}, True)],
+    [
+        ({**SUCCESS, "deploy": "failure"}, True),
+        ({**SUCCESS, "provision": "failure"}, True),
+        (SUCCESS, False),
+        ({}, True),
+    ],
 )
 def test_any_failed_required_stage_or_smoke_fails_the_report(
     tmp_path: Path, stages: dict[str, str], smoke_passed: bool
@@ -133,3 +138,9 @@ def test_unknown_stage_is_rejected(tmp_path: Path) -> None:
 def test_vm_result_parser_ignores_malformed_lines() -> None:
     assert report.parse_vm_result("PROPERTYSCOPE_RESULT={broken\n") is None
     assert report.parse_vm_result(VM_LOG) == json.loads(VM_LOG.splitlines()[2].split("=", 1)[1])
+
+
+def test_a_skipped_provision_still_counts_as_a_successful_redeploy(tmp_path: Path) -> None:
+    stages = {**SUCCESS, "provision": "skipped"}
+    evidence = report.collect(_log_dir(tmp_path), stages=stages, environment={})
+    assert evidence.verdict == "SUCCEEDED"

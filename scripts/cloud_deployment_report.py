@@ -40,7 +40,9 @@ STAGE_LABELS = {
     "endpoint_security": "Endpoint security validation (B5)",
     "data_security": "Data security validation (B6)",
 }
-REQUIRED_STAGES = ("provision", "push", "deploy", "smoke")
+REQUIRED_STAGES = ("push", "deploy", "smoke")
+# Provisioning may be skipped on a manual redeploy of existing infrastructure.
+OPTIONAL_REQUIRED_STAGES = ("provision",)
 RESULT_LINE = re.compile(r"^PROPERTYSCOPE_RESULT=(\{.*\})\s*$", re.MULTILINE)
 VALIDATION_LINE = re.compile(r"^(PASS|FAIL|SKIP|INFO) (.+)$", re.MULTILINE)
 
@@ -66,7 +68,10 @@ class DeploymentEvidence:
 
     @property
     def verdict(self) -> str:
-        required = all(self.stages.get(stage) == "success" for stage in REQUIRED_STAGES)
+        required = all(self.stages.get(stage) == "success" for stage in REQUIRED_STAGES) and all(
+            self.stages.get(stage, "skipped") in {"success", "skipped"}
+            for stage in OPTIONAL_REQUIRED_STAGES
+        )
         return "SUCCEEDED" if required and self.smoke_passed else "FAILED"
 
     def as_json(self) -> dict[str, Any]:

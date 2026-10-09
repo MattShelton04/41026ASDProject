@@ -149,7 +149,7 @@ def test_host_environment_reuses_the_local_preparation_without_provider_keys(
     monkeypatch.setattr(host_runtime, "HOST_DIRECTORY", tmp_path)
     environment = {
         **TOKENS,
-        "OPENAI_API_KEY": "sk-should-never-be-rendered",
+        "OPENAI_API_KEY": "provider-credential-placeholder",
         "PATH": "/usr/bin",
         "HOME": "/var/lib/propertyscope-ai",
     }
