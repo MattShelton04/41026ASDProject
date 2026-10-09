@@ -1,7 +1,7 @@
 {
   "tool": "ruff",
   "version": "0.16.1",
-  "commit": "485b0eda9fc72eefb5d519b2a02ddf865a3d7615",
+  "commit": "fcc28b62ae73e1de9d8d1379094e4b26fb1f1f81",
   "command": "ruff check . --select S --ignore-noqa --isolated --config 'target-version = \"py312\"' --config 'extend-exclude = [\"Temp\", \"temp\", \"tmp\"]' --config 'lint.per-file-ignores = { \"**/tests/**\" = [\"S101\", \"S105\", \"S106\", \"S107\", \"S108\", \"S311\"], \"scripts/ui_feature_smoke.py\" = [\"S101\"], \"shared/testkit/**\" = [\"S101\"] }' --output-format json --exit-zero --no-cache",
   "findings": [
     {
@@ -276,12 +276,32 @@
     },
     {
       "path": "scripts/check.py",
-      "row": 236,
+      "row": 242,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "fixed quality-gate argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/collect_ci_evidence.py",
+      "row": 52,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed gh argv built by this script, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/collect_ci_evidence.py",
+      "row": 53,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "gh is resolved from PATH like the other dev tools",
       "count": 1
     },
     {
@@ -315,8 +335,18 @@
       "count": 1
     },
     {
+      "path": "scripts/devtools/cloud.py",
+      "row": 163,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv from argparse choices and the fixed deploy.sh path, no shell",
+      "count": 1
+    },
+    {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 143,
+      "row": 145,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -326,7 +356,7 @@
     },
     {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 144,
+      "row": 146,
       "code": "S607",
       "message": "Starting a process with a partial executable path",
       "slice": "shared",
@@ -336,7 +366,7 @@
     },
     {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 411,
+      "row": 447,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -346,12 +376,12 @@
     },
     {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 487,
+      "row": 533,
       "code": "S104",
       "message": "Possible binding to all interfaces",
       "slice": "shared",
       "status": "noqa-justified",
-      "justification": "containers reach AI-mode via host gateway (ADR-046)",
+      "justification": "containers reach AI-mode and Multi-Agent via the host gateway (ADR-046, ADR-047)",
       "count": 1
     },
     {
@@ -396,7 +426,7 @@
     },
     {
       "path": "scripts/release1_probe.py",
-      "row": 26,
+      "row": 27,
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"AI_TOKEN_HEADER\"",
       "slice": "shared",
@@ -602,6 +632,16 @@
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "schema matches SCHEMA_PATTERN; other values are ints",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 224,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed docker compose argv, no shell",
       "count": 1
     },
     {
@@ -855,6 +895,16 @@
       "count": 1
     },
     {
+      "path": "scripts/validate_architecture.py",
+      "row": 77,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"MULTI_AGENT_TOKEN_VARIABLE\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "env var name, not a value",
+      "count": 1
+    },
+    {
       "path": "scripts/visual/capture.py",
       "row": 127,
       "code": "S603",
@@ -1012,6 +1062,86 @@
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/evidence_review.py",
+      "row": 56,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "verdict label, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/evidence_review.py",
+      "row": 57,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS_WITH_RISKS\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "verdict label, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/multi_agent.py",
+      "row": 26,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"MULTI_AGENT_TOKEN_HEADER\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "header name, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/contracts/python/shared_contracts/multi_agent.py",
+      "row": 120,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"PASS\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "check outcome label, not a credential",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/python/shared_testkit/junit_summary.py",
+      "row": 110,
+      "code": "S314",
+      "message": "Using `xml` to parse untrusted data is known to be vulnerable to XML attacks; use `defusedxml` equivalents",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "trusted, same-job pytest output",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/python/shared_testkit/multi_agent.py",
+      "row": 93,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"FAKE_MULTI_AGENT_TOKEN\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "test-only fake token",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/tests/test_multi_agent.py",
+      "row": 300,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fake server URL",
+      "count": 1
+    },
+    {
+      "path": "shared/testkit/tests/test_multi_agent.py",
+      "row": 309,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fake server URL",
       "count": 1
     },
     {

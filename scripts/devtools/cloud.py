@@ -160,8 +160,7 @@ def run(arguments: argparse.Namespace) -> int:
     """Execute one ``dev.py cloud`` action and return deploy.sh's exit status."""
     command = build_command(arguments)
     print(f"> {shlex.join(command)}", flush=True)
-    # argv is built by build_command from argparse choices and the fixed deploy.sh path; no shell.
-    completed = subprocess.run(command, cwd=REPOSITORY_ROOT, check=False)  # noqa: S603
+    completed = subprocess.run(command, cwd=REPOSITORY_ROOT, check=False)  # noqa: S603 - argv from argparse choices and the fixed deploy.sh path, no shell
     return completed.returncode
 
 

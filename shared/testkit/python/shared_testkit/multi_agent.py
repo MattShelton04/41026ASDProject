@@ -90,8 +90,7 @@ from shared_contracts.multi_agent import (
 if TYPE_CHECKING:
     import httpx
 
-# Test-only bearer token for the in-memory fake; it authorises nothing real.
-FAKE_MULTI_AGENT_TOKEN = "fake-multi-agent-token-0123456789abcdef"  # noqa: S105
+FAKE_MULTI_AGENT_TOKEN = "fake-multi-agent-token-0123456789abcdef"  # noqa: S105 - test-only fake token
 FAKE_PROVIDER = "fake"
 FAKE_MODEL = "fake-multi-agent-v1"
 _ZERO_HASH = "0" * 64
