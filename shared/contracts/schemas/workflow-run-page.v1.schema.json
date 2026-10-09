@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "HumanDecisionKind": {
+      "description": "The four outcomes a human reviewer may record.",
+      "enum": [
+        "approve",
+        "correct",
+        "partial",
+        "reject"
+      ],
+      "title": "HumanDecisionKind",
+      "type": "string"
+    },
+    "WorkflowRunSummary": {
+      "additionalProperties": false,
+      "description": "Compact run row for listings.",
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HumanDecisionKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failed_findings": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Failed Findings",
+          "type": "object"
+        },
+        "feature_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "provider_mode": {
+          "enum": [
+            "deterministic",
+            "model"
+          ],
+          "title": "Provider Mode",
+          "type": "string"
+        },
+        "recommendation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HumanDecisionKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requested_by": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Requested By",
+          "type": "string"
+        },
+        "round": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/WorkflowState"
+        },
+        "template_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Template Id",
+          "type": "string"
+        },
+        "template_version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Template Version",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "template_id",
+        "template_version",
+        "feature_id",
+        "state",
+        "round",
+        "requested_by",
+        "provider_mode",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "WorkflowRunSummary",
+      "type": "object"
+    },
+    "WorkflowState": {
+      "description": "Persisted lifecycle of one Planner → Worker → Reviewer → Human workflow run.",
+      "enum": [
+        "planning",
+        "working",
+        "reviewing",
+        "awaiting_human",
+        "approved",
+        "corrected",
+        "partially_accepted",
+        "rejected",
+        "failed",
+        "cancelled"
+      ],
+      "title": "WorkflowState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Newest-first page of run summaries.",
+  "properties": {
+    "count": {
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Count",
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/WorkflowRunSummary"
+      },
+      "maxItems": 100,
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items",
+    "count"
+  ],
+  "title": "WorkflowRunPage",
+  "type": "object"
+}

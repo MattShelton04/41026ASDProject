@@ -39,6 +39,26 @@ from shared_contracts import (
     TypedHealthProjection,
 )
 from shared_contracts.grounding import GroundedAnswer, GroundedClaim, GroundingRequest
+from shared_contracts.multi_agent import (
+    MAX_RUN_PAGE_LIMIT,
+    MULTI_AGENT_API_PREFIX,
+    WORKFLOW_RUN_ID_HEADER,
+    CoordinationAuditEntry,
+    HumanDecision,
+    HumanDecisionRequest,
+    PlanStep,
+    ReviewFinding,
+    WorkerOutput,
+    WorkflowHistoryEntry,
+    WorkflowRun,
+    WorkflowRunHistory,
+    WorkflowRunPage,
+    WorkflowRunRequest,
+    WorkflowState,
+    WorkflowTemplate,
+    WorkflowTemplateDescriptor,
+    WorkflowTemplateList,
+)
 from shared_contracts.retrieval import (
     CorpusDocument,
     CorpusIngestRequest,
@@ -78,6 +98,23 @@ SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "deployment-projection.v1.schema.json": DeploymentProjectionV1,
     "typed-health-projection.v1.schema.json": TypedHealthProjection,
     "model-registry.schema.json": ModelRegistry,
+}
+# Release 2 Multi-Agent Server (ADR-047). Kept out of the AI-mode OpenAPI document.
+MULTI_AGENT_SCHEMA_MODELS: dict[str, type[BaseModel]] = {
+    "workflow-template.v1.schema.json": WorkflowTemplate,
+    "workflow-template-descriptor.v1.schema.json": WorkflowTemplateDescriptor,
+    "workflow-template-list.v1.schema.json": WorkflowTemplateList,
+    "workflow-run-request.v1.schema.json": WorkflowRunRequest,
+    "workflow-run.v1.schema.json": WorkflowRun,
+    "workflow-run-page.v1.schema.json": WorkflowRunPage,
+    "workflow-run-history.v1.schema.json": WorkflowRunHistory,
+    "workflow-plan-step.v1.schema.json": PlanStep,
+    "workflow-worker-output.v1.schema.json": WorkerOutput,
+    "workflow-review-finding.v1.schema.json": ReviewFinding,
+    "workflow-human-decision-request.v1.schema.json": HumanDecisionRequest,
+    "workflow-human-decision.v1.schema.json": HumanDecision,
+    "workflow-history-entry.v1.schema.json": WorkflowHistoryEntry,
+    "workflow-coordination-audit-entry.v1.schema.json": CoordinationAuditEntry,
 }
 
 
@@ -417,13 +454,242 @@ def _openapi() -> dict[str, Any]:
     }
 
 
+def _ref(model: str) -> dict[str, str]:
+    return {"$ref": f"#/components/schemas/{model}"}
+
+
+def _json_response(description: str, model: str, **extra: Any) -> dict[str, Any]:
+    return {
+        "description": description,
+        **extra,
+        "content": {"application/json": {"schema": _ref(model)}},
+    }
+
+
+def _multi_agent_openapi() -> dict[str, Any]:
+    """OpenAPI 3.1 for the host Multi-Agent Server (``ai-services/multi-agent-server``)."""
+    schemas: dict[str, Any] = {}
+    for model in (*MULTI_AGENT_SCHEMA_MODELS.values(), ProblemDetail, TypedHealthProjection):
+        schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
+        schemas.update(schema.pop("$defs", {}))
+        schemas[model.__name__] = schema
+    problem = {
+        "description": "Problem Details error",
+        "content": {PROBLEM_DETAIL_MEDIA_TYPE: {"schema": _ref("ProblemDetail")}},
+    }
+    run_id = {
+        "name": "run_id",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "string", "format": "uuid"},
+    }
+    correlated = [{"$ref": "#/components/parameters/RequestId"}]
+    run_headers = {"headers": {WORKFLOW_RUN_ID_HEADER: {"schema": {"type": "string"}}}}
+    prefix = MULTI_AGENT_API_PREFIX
+    health = _json_response("Process is live", "TypedHealthProjection")
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "PropertyScope Multi-Agent Server API",
+            "version": "1.0.0",
+            "description": (
+                "Planner → Worker → Reviewer → Human Review workflows over feature-owned "
+                "templates (ADR-047). Every route except /health and /health/live requires "
+                "Authorization: Bearer <MULTI_AGENT_SERVICE_TOKEN>. Every response carries "
+                "X-Request-ID; run responses also carry X-Workflow-Run-ID."
+            ),
+        },
+        "security": [{"serviceToken": []}],
+        "paths": {
+            "/health": {
+                "get": {"operationId": "getHealth", "security": [], "responses": {"200": health}}
+            },
+            "/health/live": {
+                "get": {"operationId": "getLiveness", "security": [], "responses": {"200": health}}
+            },
+            "/health/ready": {
+                "get": {
+                    "operationId": "getReadiness",
+                    "responses": {
+                        "200": _json_response("Ready or degraded", "TypedHealthProjection"),
+                        "401": problem,
+                        "503": _json_response("State store unavailable", "TypedHealthProjection"),
+                    },
+                }
+            },
+            f"{prefix}/templates": {
+                "get": {
+                    "operationId": "listWorkflowTemplates",
+                    "responses": {
+                        "200": _json_response("Registered templates", "WorkflowTemplateList"),
+                        "401": problem,
+                    },
+                }
+            },
+            f"{prefix}/templates/{{template_id}}": {
+                "get": {
+                    "operationId": "getWorkflowTemplate",
+                    "parameters": [
+                        {
+                            "name": "template_id",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string", "maxLength": 100},
+                        }
+                    ],
+                    "responses": {
+                        "200": _json_response("One template", "WorkflowTemplateDescriptor"),
+                        "401": problem,
+                        "404": problem,
+                    },
+                }
+            },
+            f"{prefix}/runs": {
+                "get": {
+                    "operationId": "listWorkflowRuns",
+                    "parameters": [
+                        {"name": "template_id", "in": "query", "schema": {"type": "string"}},
+                        {"name": "feature_id", "in": "query", "schema": {"type": "string"}},
+                        {
+                            "name": "state",
+                            "in": "query",
+                            "schema": {"enum": [state.value for state in WorkflowState]},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": MAX_RUN_PAGE_LIMIT,
+                                "default": 20,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": _json_response("Newest-first run summaries", "WorkflowRunPage"),
+                        "400": problem,
+                        "401": problem,
+                    },
+                },
+                "post": {
+                    "operationId": "startWorkflowRun",
+                    "parameters": correlated,
+                    "requestBody": {
+                        "required": True,
+                        "content": {"application/json": {"schema": _ref("WorkflowRunRequest")}},
+                    },
+                    "responses": {
+                        "202": _json_response(
+                            "Run persisted in planning; agents run in the background",
+                            "WorkflowRun",
+                            headers={
+                                "Location": {"schema": {"type": "string"}},
+                                WORKFLOW_RUN_ID_HEADER: {"schema": {"type": "string"}},
+                            },
+                        ),
+                        "400": problem,
+                        "401": problem,
+                        "404": problem,
+                        "413": problem,
+                        "422": problem,
+                        "503": problem,
+                    },
+                },
+            },
+            f"{prefix}/runs/{{run_id}}": {
+                "get": {
+                    "operationId": "getWorkflowRun",
+                    "parameters": [run_id],
+                    "responses": {
+                        "200": _json_response("Complete run", "WorkflowRun", **run_headers),
+                        "401": problem,
+                        "404": problem,
+                    },
+                }
+            },
+            f"{prefix}/runs/{{run_id}}/decision": {
+                "post": {
+                    "operationId": "decideWorkflowRun",
+                    "parameters": [run_id, *correlated],
+                    "requestBody": {
+                        "required": True,
+                        "content": {"application/json": {"schema": _ref("HumanDecisionRequest")}},
+                    },
+                    "responses": {
+                        "200": _json_response("Decision recorded", "WorkflowRun", **run_headers),
+                        "401": problem,
+                        "404": problem,
+                        "409": problem,
+                        "422": problem,
+                        "503": problem,
+                    },
+                }
+            },
+            f"{prefix}/runs/{{run_id}}/cancel": {
+                "post": {
+                    "operationId": "cancelWorkflowRun",
+                    "parameters": [run_id, *correlated],
+                    "requestBody": {
+                        "required": False,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {"actor": {"type": "string", "maxLength": 100}},
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": _json_response("Run cancelled", "WorkflowRun", **run_headers),
+                        "401": problem,
+                        "404": problem,
+                        "409": problem,
+                    },
+                }
+            },
+            f"{prefix}/runs/{{run_id}}/history": {
+                "get": {
+                    "operationId": "getWorkflowRunHistory",
+                    "parameters": [run_id],
+                    "responses": {
+                        "200": _json_response("Transitions and audit", "WorkflowRunHistory"),
+                        "401": problem,
+                        "404": problem,
+                    },
+                }
+            },
+        },
+        "components": {
+            "securitySchemes": {
+                "serviceToken": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "description": "MULTI_AGENT_SERVICE_TOKEN",
+                }
+            },
+            "parameters": {
+                "RequestId": {
+                    "name": REQUEST_ID_HEADER,
+                    "in": "header",
+                    "required": False,
+                    "schema": {"type": "string", "maxLength": MAX_REQUEST_ID_LENGTH},
+                }
+            },
+            "schemas": schemas,
+        },
+    }
+
+
 def expected_files() -> dict[Path, str]:
     """Return every generated path and its canonical content."""
     files = {
         SCHEMA_ROOT / filename: _json(model.model_json_schema())
-        for filename, model in SCHEMA_MODELS.items()
+        for filename, model in {**SCHEMA_MODELS, **MULTI_AGENT_SCHEMA_MODELS}.items()
     }
     files[OPENAPI_ROOT / "ai-mode.v1.openapi.json"] = _json(_openapi())
+    files[OPENAPI_ROOT / "multi-agent.v1.openapi.json"] = _json(_multi_agent_openapi())
     return files
 
 

@@ -1,0 +1,100 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "description": "Who acted: one of the three agents, the human reviewer, or the server itself.",
+      "enum": [
+        "planner",
+        "worker",
+        "reviewer",
+        "human",
+        "system"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "AuditEvent": {
+      "description": "Coordination events written to ``coordination_audit.jsonl``.",
+      "enum": [
+        "run.created",
+        "agent.handoff",
+        "model.invocation",
+        "model.fallback",
+        "plan.created",
+        "tool.call",
+        "tool.rejected",
+        "worker.completed",
+        "review.completed",
+        "decision.recorded",
+        "run.failed",
+        "run.cancelled"
+      ],
+      "title": "AuditEvent",
+      "type": "string"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "description": "One coordination event, as appended to ``coordination_audit.jsonl``.",
+  "properties": {
+    "actor": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+      "title": "Actor",
+      "type": "string"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "detail": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Detail",
+      "type": "object"
+    },
+    "event": {
+      "$ref": "#/$defs/AuditEvent"
+    },
+    "request_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/AgentRole"
+    },
+    "round": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Round",
+      "type": "integer"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "sequence",
+    "run_id",
+    "request_id",
+    "at",
+    "event",
+    "role",
+    "actor",
+    "round"
+  ],
+  "title": "CoordinationAuditEntry",
+  "type": "object"
+}
