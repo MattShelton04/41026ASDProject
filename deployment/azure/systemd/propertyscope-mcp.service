@@ -1,0 +1,41 @@
+[Unit]
+Description=PropertyScope MCP server (host process, loopback only)
+Documentation=https://github.com/MattShelton04/41026ASDProject/blob/main/deployment/azure/README.md
+PartOf=propertyscope-ai.target
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+User=propertyscope-ai
+Group=propertyscope-ai
+WorkingDirectory=/opt/propertyscope/src
+EnvironmentFile=/opt/propertyscope/secrets/host-ai.env
+# Same entry point as `dev.py ai serve mcp`; binds 127.0.0.1:5011.
+ExecStart=/opt/propertyscope/src/.venv/bin/python -m scripts.devtools.host_runtime serve mcp
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=35
+MemoryMax=1G
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/propertyscope/src/.propertyscope-runtime
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=propertyscope-ai.target

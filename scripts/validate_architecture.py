@@ -70,6 +70,10 @@ AI_MODE_URL_VARIABLES = ("AI_MODE_BASE_URL", "AI_MODE_URL")
 HOST_AI_CONNECTION_VARIABLES = ("MCP_SERVER_URL", "RAG_SERVER_URL")
 HOST_GATEWAY_URL = re.compile(r"^http://host\.docker\.internal[:/]")
 HOST_GATEWAY_MAPPING = "host.docker.internal:host-gateway"
+AZURE_OVERRIDE = "docker-compose.azure.yml"
+AZURE_AI_OVERLAY = "docker-compose.azure-ai.yml"
+AZURE_EDGE_SERVICE = "shared-edge-proxy"
+AZURE_CONFIG_PREFIX = "./deployment/azure/"
 FEATURE_1_BRIDGE = "shared/frontend/feature-1-bridge.js"
 FEATURE_1_ADAPTER = "student-1/frontend/integration/shell.js"
 
@@ -138,6 +142,29 @@ class _ModuleScriptParser(HTMLParser):
             self.scripts.append((values["src"] or "", self.getpos()[0]))
 
 
+class _ComposeLoader(yaml.SafeLoader):
+    """Safe YAML loader that also accepts Compose merge tags (!reset, !override)."""
+
+
+def _construct_compose_tag(loader: yaml.SafeLoader, node: yaml.Node) -> object:
+    # Only the merged value matters for boundary checks; the tag says how Compose merges it.
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    return None
+
+
+_ComposeLoader.add_constructor("!reset", _construct_compose_tag)
+_ComposeLoader.add_constructor("!override", _construct_compose_tag)
+
+
+def _load_compose(path: Path) -> object:
+    return _ComposeLoader(path.read_text(encoding="utf-8")).get_single_data()
+
+
 def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViolation, ...]:
     """Return every dependency/import boundary violation in stable order."""
     projects = _load_workspace_projects(root)
@@ -151,6 +178,7 @@ def validate_repository(root: Path = REPOSITORY_ROOT) -> tuple[ArchitectureViola
         *_validate_frontend_imports(root),
         *_validate_compose_boundaries(root, projection),
         *_validate_non_containerised_ai(root),
+        *_validate_azure_overrides(root),
         *_validate_corpus_declarations(root, projection),
     ]
     return tuple(sorted(violations))
@@ -177,7 +205,7 @@ def _validate_non_containerised_ai(root: Path) -> Iterable[ArchitectureViolation
     for compose_path in compose_paths:
         location = _relative(root, compose_path)
         try:
-            document = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+            document = _load_compose(compose_path)
         except (OSError, yaml.YAMLError) as exc:
             yield ArchitectureViolation(location, 0, f"could not inspect Compose services: {exc}")
             continue
@@ -196,6 +224,94 @@ def _validate_non_containerised_ai(root: Path) -> Iterable[ArchitectureViolation
                 )
             if compose_path.name == "docker-compose.yml":
                 yield from _validate_host_ai_connection(location, str(service_name), raw_service)
+
+
+def _validate_azure_overrides(root: Path) -> Iterable[ArchitectureViolation]:
+    """Keep the Azure baseline closed: one public edge, AI off, configuration-only mounts.
+
+    ``docker-compose.azure.yml`` is the required cloud baseline (R2-44, ADR-048): only the TLS
+    edge publishes ports, no backend can reach a host AI process, and the only bind mounts are
+    production configuration files. ``docker-compose.azure-ai.yml`` is the optional bonus overlay:
+    it may reach the host AI tier only through the Docker host gateway and may publish feature
+    entry points on the VM loopback only.
+    """
+    baseline = root / AZURE_OVERRIDE
+    if baseline.is_file():
+        yield from _azure_services_violations(root, baseline, ai_enabled=False)
+    overlay = root / AZURE_AI_OVERLAY
+    if overlay.is_file():
+        yield from _azure_services_violations(root, overlay, ai_enabled=True)
+
+
+def _azure_services_violations(
+    root: Path, path: Path, *, ai_enabled: bool
+) -> Iterable[ArchitectureViolation]:
+    location = _relative(root, path)
+    try:
+        document = _load_compose(path)
+    except (OSError, yaml.YAMLError):
+        return  # reported by _validate_non_containerised_ai
+    services = document.get("services") if isinstance(document, dict) else None
+    if not isinstance(services, dict):
+        return
+    for name, service in services.items():
+        if not isinstance(service, dict):
+            continue
+        ports = service.get("ports") or []
+        if isinstance(ports, list):
+            for mapping in ports:
+                text = (
+                    str(mapping.get("published", "")) if isinstance(mapping, dict) else str(mapping)
+                )
+                if name == AZURE_EDGE_SERVICE and not ai_enabled:
+                    continue
+                if not (ai_enabled and text.startswith("127.0.0.1:")):
+                    yield ArchitectureViolation(
+                        location,
+                        0,
+                        f"Azure service {name} must not publish a host port; only "
+                        f"{AZURE_EDGE_SERVICE} is public"
+                        + (" (the AI overlay may bind 127.0.0.1 only)" if ai_enabled else ""),
+                    )
+        mounts = service.get("volumes") or []
+        if isinstance(mounts, list):
+            for mount in mounts:
+                source = (
+                    mount.get("source") if isinstance(mount, dict) else str(mount).split(":")[0]
+                )
+                if (
+                    isinstance(source, str)
+                    and source.startswith((".", "/"))
+                    and not source.startswith(AZURE_CONFIG_PREFIX)
+                ):
+                    yield ArchitectureViolation(
+                        location,
+                        0,
+                        f"Azure service {name} must not bind-mount {source}; ship code in images "
+                        f"and mount only {AZURE_CONFIG_PREFIX} configuration",
+                    )
+        environment = _compose_environment(service.get("environment"))
+        ai_urls = [str(environment[key]) for key in AI_MODE_URL_VARIABLES if key in environment]
+        extra_hosts = service.get("extra_hosts") or []
+        if not ai_enabled:
+            if any(HOST_GATEWAY_URL.match(url) for url in ai_urls) or extra_hosts:
+                yield ArchitectureViolation(
+                    location,
+                    0,
+                    f"Azure service {name} must not reach the host AI tier in the baseline; "
+                    "the AI tier is disabled by default (PROPERTYSCOPE_CLOUD_AI=false)",
+                )
+        elif ai_urls and (
+            any(HOST_GATEWAY_URL.match(url) is None for url in ai_urls)
+            or not isinstance(extra_hosts, list)
+            or HOST_GATEWAY_MAPPING not in extra_hosts
+        ):
+            yield ArchitectureViolation(
+                location,
+                0,
+                f"Azure AI overlay service {name} must reach host AI-mode via "
+                f"host.docker.internal and map {HOST_GATEWAY_MAPPING}",
+            )
 
 
 def _defines_host_ai_service(name: str, service: Mapping[str, object]) -> bool:

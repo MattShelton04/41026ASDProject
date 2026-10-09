@@ -627,3 +627,82 @@ def test_ai_service_dockerfile_is_rejected(tmp_path: Path) -> None:
     assert [str(violation) for violation in violations] == [
         "ai-services/ai-mode/Dockerfile: Shared AI services must not be built as images"
     ]
+
+
+_AZURE_BASELINE = """
+services:
+  shared-edge-proxy:
+    image: ${ACR_LOGIN_SERVER}/propertyscope/mirror/caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/azure/Caddyfile:/etc/caddy/Caddyfile:ro
+  f1-backend:
+    build: !reset null
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      AI_MODE_BASE_URL: http://127.0.0.1:9
+    networks: !override [f1-data]
+"""
+
+_AZURE_AI_OVERLAY = """
+services:
+  f1-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      AI_MODE_BASE_URL: http://host.docker.internal:5005
+  f1-frontend:
+    ports:
+      - 127.0.0.1:5200:8080
+"""
+
+
+def _azure_messages(root: Path) -> list[str]:
+    return [
+        violation.message
+        for violation in validate_repository(root)
+        if "Azure" in violation.message or "Compose" in violation.message
+    ]
+
+
+def test_azure_overrides_with_compose_merge_tags_pass(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    (root / "docker-compose.azure.yml").write_text(_AZURE_BASELINE, encoding="utf-8")
+    (root / "docker-compose.azure-ai.yml").write_text(_AZURE_AI_OVERLAY, encoding="utf-8")
+
+    assert _azure_messages(root) == []
+
+
+def test_azure_baseline_rejects_public_ports_source_mounts_and_host_ai(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    compose = _AZURE_BASELINE + (
+        "  f2-backend:\n"
+        "    ports: ['5300:8080']\n"
+        "    volumes: ['./student-2:/app']\n"
+        "    extra_hosts: [host.docker.internal:host-gateway]\n"
+        "    environment:\n"
+        "      AI_MODE_BASE_URL: http://host.docker.internal:5005\n"
+    )
+    (root / "docker-compose.azure.yml").write_text(compose, encoding="utf-8")
+
+    messages = _azure_messages(root)
+
+    assert any("f2-backend must not publish a host port" in message for message in messages)
+    assert any("must not bind-mount ./student-2" in message for message in messages)
+    assert any("must not reach the host AI tier" in message for message in messages)
+
+
+def test_azure_ai_overlay_must_use_the_host_gateway_and_loopback_ports(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    overlay = _AZURE_AI_OVERLAY.replace("host.docker.internal:5005", "ai-mode:5005").replace(
+        "127.0.0.1:5200:8080", "5200:8080"
+    )
+    (root / "docker-compose.azure-ai.yml").write_text(overlay, encoding="utf-8")
+
+    messages = _azure_messages(root)
+
+    assert any("must reach host AI-mode via host.docker.internal" in m for m in messages)
+    assert any("f1-frontend must not publish a host port" in m for m in messages)

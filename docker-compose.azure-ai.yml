@@ -1,0 +1,106 @@
+# Azure cloud-AI overlay (bonus R2-B1..B4, ADR-048). Applied after docker-compose.azure.yml only
+# when PROPERTYSCOPE_CLOUD_AI=true (`deployment/azure/deploy.sh ai on`).
+#
+# AI-mode, MCP, RAG and the Multi-Agent Server still run as systemd host processes on the VM,
+# never as Compose services (ADR-046). This overlay only restores the host wiring the local stack
+# uses: the Docker host-gateway mapping, AI URLs through host.docker.internal, the AI-mode service
+# token (as a Compose secret), and loopback-only feature ports that the host MCP/AI-mode tool
+# dispatcher calls (scripts/devtools/host_runtime.py). Nothing new is exposed publicly: Caddy still
+# publishes only 80/443 and requires operator credentials on AI routes.
+
+x-azure-ai-backend-environment: &azure-ai-backend-environment
+  AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+  # Declared like the local stack; only AI-mode calls MCP and RAG, with its own credentials.
+  MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+  RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+  MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+
+x-azure-secret-shim: &azure-secret-shim
+  type: bind
+  source: ./deployment/azure/compose/secret-env.sh
+  target: /run/propertyscope/secret-env.sh
+  read_only: true
+
+services:
+  shared-edge-proxy:
+    volumes:
+      - ./deployment/azure/caddy/ai-enabled.caddy:/etc/caddy/propertyscope-ai.caddy:ro
+
+  shared-frontend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      AI_MODE_HOST: host.docker.internal
+      AI_MODE_PORT: ${AI_MODE_PORT:-5005}
+    secrets: [ai_mode_service_token]
+
+  f1-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      <<: *azure-ai-backend-environment
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token PROPERTYSCOPE_RUNNER_TOKEN=runner_token AI_MODE_SERVICE_TOKEN=ai_mode_service_token
+    secrets: [ai_mode_service_token]
+
+  f1-frontend:
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_PORT:-5200}:8080
+
+  f2-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      <<: *azure-ai-backend-environment
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token AI_MODE_SERVICE_TOKEN=ai_mode_service_token
+    secrets: [ai_mode_service_token]
+
+  f2-frontend:
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_MARKET_INTELLIGENCE_PORT:-5300}:8080
+
+  f3-backend:
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5301", "--workers=1", "--threads=4", "propertyscope_suburb_analytics.app:create_app()"]
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      AI_MODE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
+      MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
+      RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      PROPERTYSCOPE_SECRET_ENV: AI_MODE_SERVICE_TOKEN=ai_mode_service_token
+    secrets: [ai_mode_service_token]
+    volumes:
+      - *azure-secret-shim
+
+  f3-frontend:
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_SUBURB_ANALYTICS_PORT:-5600}:8080
+
+  f4-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      <<: *azure-ai-backend-environment
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token AI_MODE_SERVICE_TOKEN=ai_mode_service_token
+    secrets: [ai_mode_service_token]
+
+  f4-frontend:
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_DUE_DILIGENCE_PORT:-5400}:8080
+
+  f5-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      <<: *azure-ai-backend-environment
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token AI_MODE_SERVICE_TOKEN=ai_mode_service_token
+    secrets: [ai_mode_service_token]
+
+  f5-frontend:
+    ports:
+      - 127.0.0.1:${PROPERTYSCOPE_BUYER_WORKSPACES_PORT:-5500}:8080
+
+secrets:
+  ai_mode_service_token:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/ai-mode-service-token

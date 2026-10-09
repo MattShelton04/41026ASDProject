@@ -871,6 +871,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Every command sees the same optional .env (the shell still wins), so a project name or
         # port chosen there applies to reset, logs and data commands exactly as it does to up.
         _load_development_environment(arguments.env_file)
+        if arguments.group == "cloud":
+            from scripts.devtools import cloud
+
+            return cloud.run(arguments)
         if command == ("stack", "up"):
             if arguments.ai_runtime not in {None, "host"}:
                 raise RuntimeError(

@@ -49,7 +49,8 @@ contain 19/3/8/3/5 documents for Features 1–5 respectively; Feature 3 also own
 official-evidence locality adapter. The generated deployment projection supplies runtime scopes.
 Registration is source/configuration evidence, not proof of ingestion or current live provider/UI
 success. Each owner's final interaction evidence and submission sign-off remain separate
-responsibilities. Multi-agent runtime and Azure deployment remain Release 2 work.
+responsibilities. The Release 2 Azure deployment is prepared as described in section 16.2
+([ADR-048](decisions/ADR-048-azure-vm-hosting.md)).
 
 ### Retained Release 0 foundation
 
@@ -1253,28 +1254,32 @@ to align backend container and host configuration. This service authentication d
 end-user identity to the trusted local demo. [Host lifecycle documentation](../release-1/host-runtime.md)
 defines stop/restart, migration and diagnosis without killing unrelated processes or deleting history.
 
-### 16.2 Azure target
+### 16.2 Azure target (ADR-048)
 
-Use Azure Container Registry, Azure Container Apps, Log Analytics/Application Insights,
-and Bicep under `infra/azure`.
+[ADR-048](decisions/ADR-048-azure-vm-hosting.md) replaces the earlier Container Apps sketch. One
+Ubuntu 24.04 VM runs the same Compose model with `docker-compose.azure.yml`. The decision, the
+one-time setup and the operations are in [deployment/azure/README.md](../../deployment/azure/README.md).
 
-- Only the shared edge has public ingress.
-- Feature APIs, database services, and AI-mode use internal ingress/service discovery.
-- Database services and the state-owning `ai-mode` service have exactly one replica and
-  exclusive Azure Files storage.
-- Begin cloud testing with a low-resource approved model and bounded context.
-- GPU workload profiles are optional, quota-dependent, and selected only after a cost
-  and latency benchmark.
-- MCP, RAG, and multi-agent services are absent from the cloud deployment graph and
-  their flags are false.
-- An automated assertion calls their routes/service names and verifies they are not
-  available.
-- Infrastructure parameters, not source edits, select environment names, image tags,
-  and capacities.
+- Bicep in `deployment/azure/` (resource-group scope) defines ACR, a VNet/NSG admitting only
+  80/443, a Standard public IP with a DNS label, the VM with a system-assigned identity
+  (`AcrPull`, `Key Vault Secrets User`), an RBAC-mode Key Vault with purge protection, an
+  auto-shutdown schedule and a budget.
+- Only the Caddy TLS edge publishes ports. It proxies to the unchanged nginx edge, which gains a
+  production-only rate-limit include. Database tiers sit on internal per-feature networks.
+- Images are built once per commit and pulled from ACR by Git SHA. Secrets are Key Vault values
+  rendered to root-only files and passed to processes as Compose secrets. There is no SSH:
+  operations use `az vm run-command`.
+- AI-mode, MCP, RAG and the Multi-Agent Server are **off** by default
+  (`PROPERTYSCOPE_CLOUD_AI=false`). Caddy answers the shared AI routes with `503 ai_disabled`, and
+  `scripts/cloud_smoke.py` asserts this. For the bonus tiers they run as systemd host processes
+  (never containers, ADR-046), enabled with `deploy.sh ai on`.
+- `cloud-deployment.yml` deploys after Integration CI succeeds on `main`, or by hand, through
+  GitHub OIDC and the protected `production` environment.
+- `scripts/validate_architecture.py` enforces the Azure overrides: a single public edge, no
+  source bind mounts, and no host AI wiring in the baseline.
 
-These are Release 2 design targets, not implemented Release 1 deployment evidence. The planned Azure
-configuration is a demonstration architecture, not a claim that SQLite on
-Azure Files is a high-availability production design.
+A single VM is a demonstration architecture with no high availability. Each database keeps one
+owning service on a local Docker volume. This is not a claim of a production HA design.
 
 ## 17. Current Release 1 repository structure
 
