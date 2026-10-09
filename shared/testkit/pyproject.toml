@@ -5,6 +5,7 @@ description = "Reusable test assertions and fakes for ASD project services"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "agent-core",
+    "httpx>=0.28,<1",
     "shared-contracts",
 ]
 
