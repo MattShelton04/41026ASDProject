@@ -8,7 +8,8 @@ categories and insufficient-context handling.
 The tutor-approved project uses Python 3.12 and a `uv` monorepo. Frontends, feature APIs and
 owned databases run in Docker Compose. AI-mode, its Plan/Act/Observe/Adapt loop, MCP and RAG
 run as host processes. Matthew reconfirmed the tutor's OpenAI and PostgreSQL/PostGIS approval on
-3 October 2026. Release 2 cloud deployment and multi-agent orchestration remain future work.
+3 October 2026. Release 2 adds an Azure deployment (one VM behind a Caddy TLS edge, images in
+ACR, secrets in Key Vault, AI tier off by default). Multi-agent orchestration is in progress.
 
 ## Start here
 
@@ -17,6 +18,7 @@ run as host processes. Matthew reconfirmed the tutor's OpenAI and PostgreSQL/Pos
 - [Release 1 report](docs/reports/release-1-technical-report.md), [submission PDF](docs/reports/submissions/release-1/group-20.pdf) and [submission plan](docs/release-1/submission-plan-2026-10-03.md).
 - [Presentation](https://youtu.be/0Z0Rt146lD0): Release 1 showcase, 9 minutes 35 seconds.
 - [Release 2 requirements and plan](docs/release-2/README.md): requirements, implementation plan and per-feature responsibilities.
+- [Azure deployment](deployment/azure/README.md): one-time setup, `deploy.sh` / `dev.py cloud`, costs and teardown ([ADR-048](docs/architecture/decisions/ADR-048-azure-vm-hosting.md)).
 - [Agent instructions](AGENTS.md): ownership, safe data operations and required checks.
 
 ## Team and features
@@ -201,10 +203,10 @@ uses actual local services and allowlisted public run projections; inspect every
 | `student-1/` … `student-5/` | Owned feature microservices, schemas, tools, corpora and tests |
 | `ai-services/` | Host AI-mode, deterministic agent core, MCP and RAG |
 | `shared/` | Contracts, HTTP/tool runtime, testkit and common frontend packages |
-| `deployment/` | Feature selection and generated Compose/routes |
+| `deployment/` | Feature selection, generated Compose/routes and the Azure IaC, scripts and edge (`deployment/azure/`) |
 | `scripts/` | Quality gates, runtime, data operations and evidence capture |
 | `docs/` | Living architecture, reports and dated evidence |
-| `.github/workflows/` | Assigned feature CI, integration and visual checks |
+| `.github/workflows/` | Assigned feature CI, integration, visual checks and the gated Azure deployment |
 
 The current evidence covers selected working paths across all five slices. Owner follow-ups
 include Feature 2 context switching, Feature 4's native generated-question renderer and Feature 5's
