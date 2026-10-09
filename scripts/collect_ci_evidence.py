@@ -49,8 +49,12 @@ class EvidenceError(RuntimeError):
 def run_gh(arguments: Sequence[str]) -> str:
     """Run one read-only ``gh`` command and return its standard output."""
     try:
-        completed = subprocess.run(
-            ["gh", *arguments], check=True, capture_output=True, text=True, timeout=120
+        completed = subprocess.run(  # noqa: S603 - fixed gh argv built by this script, no shell
+            ["gh", *arguments],  # noqa: S607 - gh is resolved from PATH like the other dev tools
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
     except FileNotFoundError as exc:
         raise EvidenceError("the GitHub CLI (gh) is not installed or not on PATH") from exc

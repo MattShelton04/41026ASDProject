@@ -106,7 +106,8 @@ def _case(element: ElementTree.Element) -> JUnitCase:
 def parse_junit(source: str | bytes) -> JUnitReport:
     """Parse JUnit XML text with a ``<testsuites>`` or ``<testsuite>`` root."""
     try:
-        root = ElementTree.fromstring(source)
+        # JUnit XML comes from pytest in the same CI job, never from an untrusted party.
+        root = ElementTree.fromstring(source)  # noqa: S314 - trusted, same-job pytest output
     except ElementTree.ParseError as exc:
         raise ValueError(f"invalid JUnit XML: {exc}") from exc
     if root.tag not in {"testsuites", "testsuite"}:
