@@ -1518,12 +1518,16 @@ version = "0.1.0"
 source = { editable = "shared/testkit" }
 dependencies = [
     { name = "agent-core" },
+    { name = "httpx" },
+    { name = "pytest" },
     { name = "shared-contracts" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "agent-core", editable = "ai-services/agent-core" },
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "pytest", specifier = ">=8.4,<9" },
     { name = "shared-contracts", editable = "shared/contracts" },
 ]
 

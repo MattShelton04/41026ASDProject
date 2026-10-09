@@ -63,6 +63,9 @@ shared-tool-runtime = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "-ra"]
+markers = [
+    "endpoint: opt-in test against a running service; skipped unless PROPERTYSCOPE_ENDPOINT_BASE_URL is set (see shared/testkit/README.md)",
+]
 testpaths = [
     "shared/contracts/tests",
     "shared/consumer-protocol/tests",
