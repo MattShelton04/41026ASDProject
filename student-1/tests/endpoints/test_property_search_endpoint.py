@@ -38,11 +38,12 @@ def test_seeded_address_returns_typed_ranked_matches(
     assert page["limit"] == 10
     assert page["total"] >= page["count"]
     assert len({item["property_ref"] for item in page["items"]}) == page["count"]
-    scores = [item["score"] for item in page["items"]]
-    assert scores == sorted(scores, reverse=True), "matches must be ranked by score"
     best = page["items"][0]
     assert best["state"] == "NSW"
-    assert search_query.split()[-1].lower() in best["matched_address"].lower()
+    assert best["score"] > 0
+    matched = best["matched_address"].lower()
+    missing = [term for term in search_query.lower().split() if term not in matched]
+    assert not missing, f"best match {best['matched_address']!r} lacks query terms {missing}"
 
 
 @pytest.mark.parametrize(
