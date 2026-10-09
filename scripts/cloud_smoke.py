@@ -233,6 +233,8 @@ class Smoke:
         self.client = client
         self.base_url = base_url.rstrip("/")
         self.ai_timeout = ai_timeout
+        self.cleanup_attempts = 3
+        self.cleanup_delay = 2.0
         self.results: list[CheckResult] = []
         self._property: tuple[str, str] | None = None
 
@@ -473,6 +475,8 @@ class Smoke:
                     elapsed(),
                 )
             )
+            if response.status_code != 404:
+                self._retry_cleanup(case, label, item)
         except httpx.HTTPError as exc:
             self.record(
                 CheckResult(
@@ -485,6 +489,29 @@ class Smoke:
                     item,
                 )
             )
+
+    def _retry_cleanup(self, case: CrudCase, label: str, item: str) -> None:
+        """Never leave smoke data behind: retry a failed delete. The failure stays reported."""
+        status: int | None = None
+        for _attempt in range(self.cleanup_attempts):
+            time.sleep(self.cleanup_delay)
+            status = self.request("GET", item).status_code
+            if status == 404:
+                break
+            status = self.request("DELETE", item).status_code
+        self.record(
+            CheckResult(
+                f"{label}: cleanup retry",
+                case.owner,
+                "cleanup",
+                status == 404 or status in case.delete_statuses,
+                f"record {'removed' if status in (404, *case.delete_statuses) else 'still present'}"
+                f" after retry (last HTTP {status}); the failure above is still reported",
+                "DELETE",
+                item,
+                status,
+            )
+        )
 
     # --- AI tier ---------------------------------------------------------------------------
 

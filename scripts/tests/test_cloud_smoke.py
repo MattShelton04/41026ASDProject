@@ -191,3 +191,30 @@ def test_main_writes_json_and_markdown_and_sets_the_exit_code(tmp_path: Path) ->
 
 def test_main_rejects_a_base_url_without_a_scheme(tmp_path: Path) -> None:
     assert main(["--base-url", "edge.example", "--output-dir", str(tmp_path)]) == 2
+
+
+def test_a_failed_delete_is_reported_and_retried_until_the_record_is_gone() -> None:
+    edge = FakeEdge()
+    original = edge.__call__
+    failures = {"left": 1}
+
+    def flaky_delete(request: httpx.Request) -> httpx.Response:
+        if (
+            request.method == "DELETE"
+            and "/api/data-platform/v1/sources/" in request.url.path
+            and failures["left"]
+        ):
+            failures["left"] -= 1
+            return httpx.Response(503, json={"code": "dependency_unavailable"})
+        return original(request)
+
+    with httpx.Client(transport=httpx.MockTransport(flaky_delete)) as client:
+        smoke = Smoke(client, base_url="https://edge.example")
+        smoke.cleanup_delay = 0
+        results = smoke.run(load_features(), expect_ai=False)
+
+    assert not edge.store["/api/data-platform/v1/sources"]
+    by_name = {result.name: result for result in results}
+    assert by_name["CRUD source definition: delete"].passed is False
+    assert "dependency_unavailable" in by_name["CRUD source definition: delete"].detail
+    assert by_name["CRUD source definition: cleanup retry"].passed is True
