@@ -120,7 +120,7 @@ def database_probe(feature: Feature, project: str) -> dict[str, object]:
         )
     )
     try:
-        completed = subprocess.run(
+        completed = subprocess.run(  # noqa: S603 - argv built by this script, no shell
             command, cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=True, timeout=60
         )
         body = json.loads(completed.stdout)
@@ -216,7 +216,8 @@ def _transient_crud(
                 "notes": "Transient CRUD probe; no acquisition or publication.",
             }
         else:
-            assert source is not None
+            if source is None:
+                raise RuntimeError("no source record is available for the CRUD probe")
             create_payload = {
                 "property_ref": source["property_ref"],
                 "address_display": source["address_display"],
@@ -359,11 +360,13 @@ def capture(
 def _software_provenance() -> dict[str, object]:
     """Project git metadata to a SHA and boolean; never export status filenames."""
     sha = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=REPOSITORY_ROOT, text=True
+        ["git", "rev-parse", "HEAD"],  # noqa: S607 - git is resolved from the developer PATH
+        cwd=REPOSITORY_ROOT,
+        text=True,
     ).strip()
     dirty = bool(
         subprocess.check_output(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
+            ["git", "status", "--porcelain", "--untracked-files=no"],  # noqa: S607 - git is resolved from the developer PATH
             cwd=REPOSITORY_ROOT,
             text=True,
         ).strip()

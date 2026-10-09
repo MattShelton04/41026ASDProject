@@ -43,16 +43,16 @@ class GitHub:
         headers = self._headers()
         if data is not None:
             headers["Content-Type"] = "application/json"
-        request = urllib.request.Request(
+        request = urllib.request.Request(  # noqa: S310 - GitHub API https URLs only
             f"{API_ROOT}/repos/{self.repo}{path}", data=data, headers=headers, method=method
         )
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 - GitHub API https URLs only
             payload = response.read()
         return json.loads(payload) if payload else None
 
     def download_artifact(self, artifact_id: int) -> bytes:
         """Download an artifact zip without forwarding the token to the storage redirect."""
-        request = urllib.request.Request(
+        request = urllib.request.Request(  # noqa: S310 - GitHub API https URLs only
             f"{API_ROOT}/repos/{self.repo}/actions/artifacts/{artifact_id}/zip",
             headers=self._headers(),
         )
@@ -66,7 +66,7 @@ class GitHub:
             location = redirect.headers.get("Location", "")
         if not location.startswith("https://"):
             raise RuntimeError("artifact storage URL is not HTTPS")
-        with urllib.request.urlopen(location, timeout=120) as response:
+        with urllib.request.urlopen(location, timeout=120) as response:  # noqa: S310 - GitHub API https URLs only
             data = response.read(MAX_ARTIFACT_BYTES + 1)
         if len(data) > MAX_ARTIFACT_BYTES:
             raise RuntimeError("artifact download exceeds its size limit")
@@ -78,7 +78,7 @@ def wait_until_served(url: str, *, timeout_seconds: float = 300, interval: float
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=20) as response:
+            with urllib.request.urlopen(url, timeout=20) as response:  # noqa: S310 - GitHub API https URLs only
                 if response.status == 200:
                     return True
         except (urllib.error.URLError, TimeoutError):

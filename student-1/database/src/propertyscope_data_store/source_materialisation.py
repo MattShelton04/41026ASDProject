@@ -250,7 +250,7 @@ PSI_ADDRESS_RESOLUTION_SQL = f"""
       AND registry_match.street_number_suffix=eligible.match_number_suffix
       AND registry_match.unit_number=COALESCE(eligible.unit_number,'')
       AND gnaf_match.match_count IS NULL
-"""
+"""  # noqa: S608 - module SQL constants only
 
 # Accepted G-NAF identities are normally virtual. Materialise only the unique identities
 # referenced by this import, with provenance, so PSI retains its registry foreign key.
@@ -340,7 +340,7 @@ PSI_TARGET_INSERT_SQL = f"""
      AND source.street_number_first IS NOT NULL
      AND source.house_number ~ '{HOUSE_NUMBER_SQL_PATTERN}'
     ON CONFLICT (dataset_release_id,source_business_key,source_revision) DO NOTHING
-"""
+"""  # noqa: S608 - module SQL constants only
 
 PSI_PHASE_SQL = (
     ("identity_revision_derivation", PSI_IDENTITY_SQL),

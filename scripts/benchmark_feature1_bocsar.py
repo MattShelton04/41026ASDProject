@@ -40,14 +40,17 @@ def benchmark(rows: int, baseline: str) -> dict[str, Any]:
     with ZipFile(archive, "w", compression=ZIP_DEFLATED) as output:
         output.writestr("crime.csv", header + line * rows)
     content = archive.getvalue()
-    source = subprocess.run(
-        ["git", "show", f"{baseline}:{SOURCE_PATH}"], check=True, capture_output=True
+    source = subprocess.run(  # noqa: S603 - fixed git argv, no shell
+        ["git", "show", f"{baseline}:{SOURCE_PATH}"],  # noqa: S607 - git is resolved from the developer PATH
+        check=True,
+        capture_output=True,
     ).stdout
     with TemporaryDirectory(prefix="bocsar-benchmark-") as directory:
         path = Path(directory) / "baseline_bocsar.py"
         path.write_bytes(source)
         spec = importlib.util.spec_from_file_location("baseline_bocsar", path)
-        assert spec and spec.loader
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load the baseline BOCSAR adapter")
         old = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = old
         spec.loader.exec_module(old)

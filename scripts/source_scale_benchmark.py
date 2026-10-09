@@ -15,6 +15,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -393,7 +394,7 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
              coalesce(street_number_last,-1),coalesce(street_number_suffix,''),
              coalesce(unit_number,'')) INCLUDE (property_ref);
         ANALYZE {q}.address_registry
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     target = f"""
         CREATE TABLE {q}.psi_target (
             source_business_key text NOT NULL, source_revision integer NOT NULL,
@@ -425,7 +426,7 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
                 'payload_padding',repeat('x',160))
             FROM generate_series(1,{scale}) i;
             ANALYZE {q}.psi_stage
-        """
+        """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
         return (("create_registry", registry), ("create_stage", stage), ("create_target", target))
     stage = f"""
         CREATE TABLE {q}.psi_stage_typed (
@@ -448,7 +449,7 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
                500000 + (i % 2000000), date '1990-01-01' + (i % 13000)::integer, repeat('x',160)
         FROM generate_series(1,{scale}) i;
         ANALYZE {q}.psi_stage_typed
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     identity = f"""
         CREATE TABLE {q}.psi_identity AS
         WITH first_transmissions AS (
@@ -459,7 +460,7 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
                row_number() OVER (PARTITION BY source_business_key ORDER BY first_ordinal)::integer
                    AS source_revision
         FROM first_transmissions
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     addresses = f"""
         CREATE TABLE {q}.psi_address_resolution AS
         WITH eligible_addresses AS (
@@ -484,7 +485,7 @@ def _psi_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, st
         GROUP BY source.postcode,source.locality,source.street_name,source.street_type,
                  source.street_number_first,source.street_number_last,
                  source.street_number_suffix,source.unit_number
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     return (
         ("create_registry", registry),
         ("typed_staging", stage),
@@ -538,7 +539,7 @@ def _psi_materialisation_sql(schema: str, variant: str) -> str:
               ON candidates.business_key=ranked.payload->>'source_business_key'
              AND candidates.revision=ranked.revision
             ORDER BY ranked.payload->>'source_business_key',ranked.revision
-        """
+        """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     return f"""
         INSERT INTO {q}.psi_target
         SELECT revision.source_business_key,revision.source_revision,revision.source_row_sha256,
@@ -558,7 +559,7 @@ def _psi_materialisation_sql(schema: str, variant: str) -> str:
          AND coalesce(resolution.street_number_suffix,'')=coalesce(source.street_number_suffix,'')
          AND coalesce(resolution.unit_number,'')=coalesce(source.unit_number,'')
          AND source.house_number ~ '^[0-9]+[A-Z]?(-[0-9]+)?$'
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
 
 
 def _bocsar_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str, str], ...]:
@@ -596,7 +597,7 @@ def _bocsar_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str,
                    date '1995-01-01' + ((record_key % 360) * interval '1 month') observed_month
             FROM generated
         )
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     if variant == "jsonb-ordered":
         stage = f"""
             CREATE TABLE {q}.bocsar_stage (ordinal bigint PRIMARY KEY,payload jsonb NOT NULL);
@@ -622,7 +623,7 @@ def _bocsar_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str,
                 'source_row_sha256',md5(i::text),'payload_padding',repeat('c',96))
             FROM shaped;
             ANALYZE {q}.bocsar_stage
-        """
+        """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
         return (("jsonb_staging", stage), ("create_target", target))
     stage = f"""
         CREATE TABLE {q}.bocsar_stage_typed (
@@ -651,7 +652,7 @@ def _bocsar_setup_sql(schema: str, scale: int, variant: str) -> tuple[tuple[str,
                md5(i::text),repeat('c',96)
         FROM shaped;
         ANALYZE {q}.bocsar_stage_typed
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     return (("typed_staging", stage), ("create_target", target))
 
 
@@ -686,7 +687,7 @@ def _bocsar_materialisation_sql(schema: str, variant: str) -> str:
                 RETURNING 1
             )
             SELECT (SELECT count(*) FROM observations)+(SELECT count(*) FROM coverages)
-        """
+        """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
     return f"""
         WITH first_observations AS (
             SELECT geography_kind,geography_value,source_category_key,month,min(ordinal) ordinal
@@ -717,7 +718,7 @@ def _bocsar_materialisation_sql(schema: str, variant: str) -> str:
             RETURNING 1
         )
         SELECT (SELECT count(*) FROM observations)+(SELECT count(*) FROM coverages)
-    """
+    """  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
 
 
 def benchmark_sql(
@@ -849,7 +850,7 @@ def _target_evidence(connection: Any, schema: str, dataset: str) -> dict[str, An
                 f"""SELECT count(*),md5(count(*)::text||':'||coalesce(sum(hashtextextended(
                     source_business_key||':'||source_revision||':'||source_row_sha256||':'||
                     source_ordinal||':'||coalesce(property_ref::text,'unmatched'),0))::text,'0'))
-                    FROM {q}.psi_target"""
+                    FROM {q}.psi_target"""  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
             )
             count, fingerprint = cursor.fetchone()
             return {"row_count": int(count), "identity_fingerprint": str(fingerprint)}
@@ -857,7 +858,7 @@ def _target_evidence(connection: Any, schema: str, dataset: str) -> dict[str, An
             f"""SELECT count(*),md5(count(*)::text||':'||coalesce(sum(hashtextextended(
                 geography_kind||':'||geography_value||':'||source_category_key||':'||month::text||
                 ':'||count_value||':'||source_row_sha256,
-                0))::text,'0')) FROM {q}.bocsar_observation_target"""
+                0))::text,'0')) FROM {q}.bocsar_observation_target"""  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
         )
         observation_count, observation_fingerprint = cursor.fetchone()
         cursor.execute(
@@ -865,7 +866,7 @@ def _target_evidence(connection: Any, schema: str, dataset: str) -> dict[str, An
                 geography_kind||':'||geography_value||':'||source_category_key||':'||
                 observed_months::text||':'||blank_means_observed_zero||':'||
                 completeness_sha256||':'||source_row_sha256,0))::text,'0'))
-                FROM {q}.bocsar_coverage_target"""
+                FROM {q}.bocsar_coverage_target"""  # noqa: S608 - schema matches SCHEMA_PATTERN; other values are ints
         )
         coverage_count, coverage_fingerprint = cursor.fetchone()
     return {
@@ -1059,11 +1060,9 @@ def execute_run(
             summary["relation_sizes_after_measured_work"] = _relation_sizes(control, schema)
             summary["status"] = "succeeded"
     except BaseException as exc:
-        try:
+        with suppress(Exception):
             worker.rollback()
             summary["cleanup"]["rollback_completed"] = True
-        except Exception:
-            pass
         summary["status"] = "failed"
         summary["error_type"] = type(exc).__name__
         summary["error"] = str(exc)[:500]

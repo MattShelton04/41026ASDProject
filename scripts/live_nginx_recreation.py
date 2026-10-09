@@ -28,7 +28,7 @@ def _compose(*arguments: str) -> tuple[str, ...]:
 
 
 def _capture(command: Sequence[str]) -> str:
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603 - argv built by this script, no shell
         command,
         cwd=REPOSITORY_ROOT,
         check=True,
@@ -38,7 +38,7 @@ def _capture(command: Sequence[str]) -> str:
 
 
 def _run(command: Sequence[str]) -> None:
-    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)
+    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)  # noqa: S603 - argv built by this script, no shell
 
 
 def _ready(url: str) -> bool:

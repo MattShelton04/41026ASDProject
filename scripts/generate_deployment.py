@@ -121,7 +121,8 @@ def _nginx_payload(root: Path) -> str:
                 for manifest in _manifests(root)
                 if manifest.feature_key == feature.feature_key and manifest.onboarding is not None
             )
-            assert backend_settings is not None
+            if backend_settings is None:
+                raise ValueError(f"{feature.feature_key} declares no backend onboarding")
             backend_variable = f"$enabled_feature_{index}_backend"
             lines.append(
                 f"set {backend_variable} http://{backend.service}:{backend_settings.internal_port};"
@@ -176,7 +177,8 @@ def _compose_payload(root: Path) -> str:
             continue
         frontend = feature.frontend
         frontend_projection = services.setdefault(frontend.service, {})
-        assert isinstance(frontend_projection, dict)
+        if not isinstance(frontend_projection, dict):
+            raise TypeError(f"{frontend.service} has a non-mapping Compose projection")
         frontend_projection["ports"] = [
             "127.0.0.1:"
             f"${{{frontend.host_port_variable}:-{frontend.host_port_default}}}:"

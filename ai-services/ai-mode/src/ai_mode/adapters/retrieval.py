@@ -82,11 +82,11 @@ class RetrievalToolExecutor:
             return self.delegate.execute(call, definition, timeout_ms=timeout_ms)
         started = monotonic()
         detail = self.store.get(call.run_id)
-        if detail is None or detail.run.grounding is None:
+        grounding = None if detail is None else detail.run.grounding
+        if detail is None or grounding is None:
             raise ValueError("retrieval requires a stored grounding scope")
         run = detail.run
-        assert run.grounding is not None
-        scope = {"feature_key": run.feature_key, "corpus_id": run.grounding.corpus_id}
+        scope = {"feature_key": run.feature_key, "corpus_id": grounding.corpus_id}
         try:
             query = RetrievalRequest(
                 **scope,
@@ -115,7 +115,7 @@ class RetrievalToolExecutor:
                     if len(raw) > 64000 or (monotonic() - started) * 1000 > timeout_ms:
                         raise ValueError("retrieval response limit exceeded")
                 result = RetrievalResponse.model_validate_json(raw)
-            if (result.feature_key, result.corpus_id) != (run.feature_key, run.grounding.corpus_id):
+            if (result.feature_key, result.corpus_id) != (run.feature_key, grounding.corpus_id):
                 raise ValueError("retrieval response scope differs")
         except (httpx.HTTPError, ValueError):
             result = RetrievalResponse(

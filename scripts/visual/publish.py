@@ -82,7 +82,8 @@ def download(github: GitHub, run_id: int, work: Path) -> tuple[Path, Path, list[
     found = []
     for name, item in sorted(_artifacts(github, run_id).items()):
         match = ARTIFACT.fullmatch(name)
-        assert match is not None
+        if match is None:
+            raise ValueError(f"unexpected capture artifact name: {name}")
         archive = work / f"{name}.zip"
         archive.write_bytes(github.download_artifact(int(item["id"])))
         extract(archive, base if match.group(1) == "base" else head)
@@ -120,8 +121,11 @@ def find_pull_request(
 
 
 def _git(site: Path, *arguments: str, check: bool = True) -> str:
-    return subprocess.run(
-        ("git", "-C", str(site), *arguments), check=check, capture_output=True, text=True
+    return subprocess.run(  # noqa: S603 - fixed git argv, no shell
+        ("git", "-C", str(site), *arguments),  # noqa: S607 - git is resolved from the developer PATH
+        check=check,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
 
 
@@ -152,8 +156,8 @@ def push_pages(
             _git(site, "reset", "--quiet", "--hard", commit)
         else:
             _git(site, "commit", "--quiet", "--allow-empty", "-m", message)
-        pushed = subprocess.run(
-            (
+        pushed = subprocess.run(  # noqa: S603 - fixed git argv, no shell
+            (  # noqa: S607 - git is resolved from the developer PATH
                 "git",
                 "-C",
                 str(site),

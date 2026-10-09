@@ -21,7 +21,7 @@ from agent_core import (
 from ai_mode.adapters.mcp_tools import McpToolExecutor
 from ai_mode.adapters.retrieval import RetrievalToolExecutor, retrieval_definition
 from ai_mode.adapters.system import SystemClock, UUID4Generator
-from ai_mode.configuration import Settings
+from ai_mode.configuration import ConfigurationError, Settings
 from ai_mode.knowledge import KnowledgeClient
 from ai_mode.operations import RunReader
 from ai_mode.persistence import SQLiteRunStore
@@ -119,10 +119,11 @@ def build_services(settings: Settings) -> AppServices:
             max_response_bytes=settings.max_tool_response_bytes,
         )
     if settings.mcp_enabled:
+        if settings.mcp_service_token is None:
+            raise ConfigurationError("Enabled local AI services require a 32-character token")
         close = getattr(tool_executor, "close", None)
         if callable(close):
             close()
-        assert settings.mcp_service_token is not None
         tool_executor = McpToolExecutor(
             base_url=settings.mcp_server_url,
             service_token=settings.mcp_service_token,
@@ -131,7 +132,8 @@ def build_services(settings: Settings) -> AppServices:
     retrieval_executor = None
     knowledge = None
     if settings.rag_enabled:
-        assert settings.rag_service_token is not None
+        if settings.rag_service_token is None:
+            raise ConfigurationError("Enabled local AI services require a 32-character token")
         tools = ToolRegistry(
             (*definitions, retrieval_definition()), shared_tools=(*shared_tools, RETRIEVAL_TOOL)
         )

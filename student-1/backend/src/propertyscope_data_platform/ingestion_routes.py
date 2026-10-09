@@ -119,7 +119,8 @@ def register_ingestion_routes(
         )
         if scope_error is not None:
             return None, problem(scope_error.status, scope_error.code, scope_error.detail)
-        assert scope is not None
+        if scope is None:
+            raise RuntimeError("validated job scope is missing")
         if run_data.get("requested_scope_json") != scope:
             return None, problem(
                 409,
@@ -221,7 +222,8 @@ def register_ingestion_routes(
         )
         if scope_error is not None:
             return problem(scope_error.status, scope_error.code, scope_error.detail)
-        assert scope is not None
+        if scope is None:
+            raise RuntimeError("validated job scope is missing")
         cached_psi = psi_scope_is_cached(
             job_data,
             scope,

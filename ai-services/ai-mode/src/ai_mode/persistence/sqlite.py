@@ -337,7 +337,7 @@ class SQLiteRunStore(RunStore):
             {where}
             ORDER BY run.created_at DESC, run.id DESC
             LIMIT ?
-        """
+        """  # noqa: S608 - fixed SQL fragments; values are bound parameters
         with self._connection() as connection:
             rows = connection.execute(statement, parameters).fetchall()
         snapshots: list[RunSnapshot] = []

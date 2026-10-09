@@ -205,7 +205,8 @@ def setup_feature(
     page: Page, shot: Shot, base_url: str, resources: Mapping[int, str]
 ) -> dict[str, str]:
     """Bind the visible assistant to an existing case/review or an exact published locality."""
-    assert shot.feature is not None
+    if shot.feature is None:
+        raise ValueError(f"{shot.name} is not a feature screenshot")
     feature = FEATURES[shot.feature]
     root = f"/api/{feature.api}/v1"
     context: dict[str, str] = {}
@@ -357,14 +358,14 @@ def _focused_image(page: Page, target: Locator, destination: Path) -> dict[str, 
 
 def _software() -> tuple[str, bool]:
     sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "rev-parse", "HEAD"],  # noqa: S607 - git is resolved from the developer PATH
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
         text=True,
     ).stdout.strip()
     dirty = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=no"],
+        ["git", "status", "--porcelain", "--untracked-files=no"],  # noqa: S607 - git is resolved from the developer PATH
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
@@ -481,7 +482,8 @@ def capture(
                         feature = FEATURES[shot.feature]
                         capabilities = _get(page, base_url, "/api/ai-mode/capabilities")
                         expected_context = setup_feature(page, shot, base_url, resources or {})
-                        assert shot.question is not None and shot.mode is not None
+                        if shot.question is None or shot.mode is None:
+                            raise ValueError(f"{shot.name} needs a question and a mode")
                         question = shot.question.format(**expected_context)
                         turns = f"/api/{feature.api}/v1/assistant/turns"
                         with page.expect_response(

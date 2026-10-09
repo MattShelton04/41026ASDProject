@@ -956,7 +956,8 @@ class AcquisitionRunner:
                 records.append(_psi_record(sale, source_year=year))
         document = _live_canonical_document("psi-sales", source_urls, records)
         source_metadata = document["source"]
-        assert isinstance(source_metadata, dict)
+        if not isinstance(source_metadata, dict):
+            raise TypeError("canonical PSI document source must be an object")
         source_metadata["cached_source_years"] = cached_years
         return document, records
 
@@ -1068,7 +1069,10 @@ class AcquisitionRunner:
         else:
             headers = {"Accept": "application/zip", "User-Agent": "PropertyScope/1.0"}
             with (
-                httpx.Client(timeout=None, follow_redirects=False) as source_client,
+                # Bound connection set-up; an archive stream may legitimately read for hours.
+                httpx.Client(
+                    timeout=httpx.Timeout(None, connect=60.0), follow_redirects=False
+                ) as source_client,
                 source_client.stream("GET", source_url, headers=headers) as response,
             ):
                 response.raise_for_status()

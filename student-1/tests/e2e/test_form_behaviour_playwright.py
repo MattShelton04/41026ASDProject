@@ -48,7 +48,7 @@ def fixture_origin() -> Iterator[str]:
     origin = ""
     for _port_attempt in range(5):
         port = _free_port()
-        candidate = subprocess.Popen(
+        candidate = subprocess.Popen(  # noqa: S603 - fixed python argv, no shell
             [sys.executable, "-m", "scripts.ui_fixture_server", "--port", str(port)],
             cwd=REPOSITORY_ROOT,
             stdout=subprocess.DEVNULL,
@@ -60,7 +60,7 @@ def fixture_origin() -> Iterator[str]:
             if candidate.poll() is not None:
                 break
             try:
-                with urlopen(f"{candidate_origin}/__ui-fixture__/ready", timeout=0.2) as response:
+                with urlopen(f"{candidate_origin}/__ui-fixture__/ready", timeout=0.2) as response:  # noqa: S310 - loopback fixture URL
                     if response.status == 200:
                         ready = True
                         break

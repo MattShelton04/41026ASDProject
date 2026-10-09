@@ -124,8 +124,8 @@ FREEZE_WEBGL = """async () => {
 
 def _git_sha(path: Path) -> str | None:
     try:
-        return subprocess.run(
-            ("git", "-C", str(path), "rev-parse", "HEAD"),
+        return subprocess.run(  # noqa: S603 - fixed git argv, no shell
+            ("git", "-C", str(path), "rev-parse", "HEAD"),  # noqa: S607 - git is resolved from the developer PATH
             check=True,
             capture_output=True,
             text=True,
@@ -142,7 +142,7 @@ def _free_port() -> int:
 
 def _ready(url: str) -> bool:
     try:
-        with urlopen(url, timeout=0.5) as response:
+        with urlopen(url, timeout=0.5) as response:  # noqa: S310 - loopback capture server URL
             return bool(response.status == 200)
     except (OSError, URLError):
         return False
@@ -159,7 +159,7 @@ def fixture_host(target: Path, port: int) -> Iterator[str]:
         # The target checkout has its own synced environment and production modules.
         command = ("uv", "run", "--directory", str(target), "--no-sync", "python", *module)
     base_url = f"http://127.0.0.1:{port}"
-    child = subprocess.Popen(command, cwd=target)
+    child = subprocess.Popen(command, cwd=target)  # noqa: S603 - fixed uv/python argv, no shell
     try:
         deadline = time.monotonic() + 60
         while not _ready(f"{base_url}/__ui-fixture__/ready"):

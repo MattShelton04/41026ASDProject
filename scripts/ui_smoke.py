@@ -36,7 +36,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 def _ready(base_url: str) -> bool:
     try:
-        with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=0.4) as response:
+        with urlopen(f"{base_url}/__ui-fixture__/ready", timeout=0.4) as response:  # noqa: S310 - loopback fixture URL
             payload = json.load(response)
             return (
                 response.status == 200
@@ -55,7 +55,7 @@ def fixture_runtime(port: int, scenario: str) -> Iterator[str]:
     child: subprocess.Popen[bytes] | None = None
     try:
         if not _ready(base_url):
-            child = subprocess.Popen(
+            child = subprocess.Popen(  # noqa: S603 - fixed python argv, no shell
                 (
                     sys.executable,
                     "-m",

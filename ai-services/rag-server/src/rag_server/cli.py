@@ -70,7 +70,7 @@ def main() -> None:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
         )
         try:
-            with urlopen(request, timeout=120) as response:
+            with urlopen(request, timeout=120) as response:  # noqa: S310 - operator-supplied RAG server URL
                 print(response.read(65536).decode())
         except (HTTPError, URLError) as exc:
             parser.exit(1, f"Ingestion failed: {exc}\n")
