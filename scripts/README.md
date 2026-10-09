@@ -109,3 +109,8 @@ start after upgrading, `host_runtime.retire_container_placement()` removes this 
 old AI containers and projection. `ai validate mcp|rag` runs the agent loop over each protocol
 (`release1_validation.py`), and `ai probe` checks the running servers directly
 (`release1_probe.py`). Both refuse to run in CI.
+
+`collect_ci_evidence.py` records a successful `student-N.yml` run on `main` (URL, SHA, job and
+step results, and the endpoint-test JUnit table) in `docs/release-2/evidence/ci/student-N.md`.
+It reads through an authenticated `gh` and never triggers or re-runs a workflow; see
+[`docs/release-2/evidence/ci/README.md`](../docs/release-2/evidence/ci/README.md).
