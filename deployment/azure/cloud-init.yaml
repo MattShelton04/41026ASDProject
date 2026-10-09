@@ -1,0 +1,71 @@
+#cloud-config
+# First-boot bootstrap for the PropertyScope VM (ADR-048). Azure applies customData only when the
+# VM is created, so keep this file small and stable: releases are converged later by
+# deployment/azure/vm/propertyscope-vm.sh through `az vm run-command`, which also re-checks
+# everything installed here.
+#
+# Installs: Docker Engine + Compose plugin (application containers), Azure CLI (operator use),
+# uv + Python 3.12 (the optional host AI tier, which never runs in a container: ADR-046).
+
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - jq
+  - git
+  - python3
+  - python3-venv
+  - unattended-upgrades
+
+users:
+  - default
+  # Unprivileged owner of the optional host AI processes (systemd units). No login shell, no sudo.
+  - name: propertyscope-ai
+    system: true
+    shell: /usr/sbin/nologin
+    homedir: /var/lib/propertyscope-ai
+    no_create_home: false
+    lock_passwd: true
+
+write_files:
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "10m", "max-file": "5" },
+        "live-restore": true,
+        "no-new-privileges": true,
+        "userland-proxy": false
+      }
+  - path: /etc/apt/apt.conf.d/52propertyscope-unattended-upgrades
+    permissions: "0644"
+    content: |
+      // Security updates install automatically; reboots stay manual so a demo is never interrupted.
+      Unattended-Upgrade::Automatic-Reboot "false";
+  - path: /etc/propertyscope/bootstrap-version
+    permissions: "0644"
+    content: |
+      1
+
+runcmd:
+  - [bash, -c, "install -m 0755 -d /etc/apt/keyrings"]
+  # Docker Engine and the Compose plugin from Docker's signed apt repository.
+  - [bash, -c, "curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && chmod a+r /etc/apt/keyrings/docker.asc"]
+  - [bash, -c, "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable\" > /etc/apt/sources.list.d/docker.list"]
+  # Azure CLI from Microsoft's signed apt repository.
+  - [bash, -c, "curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg && chmod a+r /etc/apt/keyrings/microsoft.gpg"]
+  - [bash, -c, "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(. /etc/os-release && echo $VERSION_CODENAME) main\" > /etc/apt/sources.list.d/azure-cli.list"]
+  - [bash, -c, "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin azure-cli"]
+  - [systemctl, enable, --now, docker]
+  # uv, pinned to the version CI uses, for the optional host AI tier.
+  - [bash, -c, "curl -LsSf https://astral.sh/uv/0.12.1/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh"]
+  # Runtime layout. secrets/ is root-only; files inside are rendered from Key Vault on each deploy.
+  - [bash, -c, "install -d -m 0755 /opt/propertyscope /opt/propertyscope/app && install -d -m 0700 /opt/propertyscope/secrets && install -d -m 0750 -o propertyscope-ai -g propertyscope-ai /opt/propertyscope/src"]
+  # No SSH: the NSG has no SSH rule and operators use `az vm run-command` (or the serial console).
+  - [bash, -c, "systemctl disable --now ssh.socket ssh.service || true"]
+  - [bash, -c, "touch /etc/propertyscope/bootstrap-complete"]
+
+final_message: "PropertyScope bootstrap finished after $UPTIME seconds"

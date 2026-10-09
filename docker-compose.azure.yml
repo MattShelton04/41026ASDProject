@@ -1,0 +1,372 @@
+# Azure production override (Release 2, ADR-048). Never used locally.
+#
+#   docker compose --project-directory /opt/propertyscope/app \
+#     -f docker-compose.yml -f deployment/enabled-features.compose.yml -f docker-compose.azure.yml \
+#     --profile release-0 up --detach --wait --no-build
+#
+# What changes relative to the local stack:
+# - Images come from Azure Container Registry, tagged with the Git commit SHA; nothing is built on
+#   the VM (build is reset) and there are no source bind mounts or reload commands.
+# - Only shared-edge-proxy (Caddy) publishes ports: 80 and 443. The nginx edge and every feature
+#   frontend lose their loopback ports.
+# - Credentials are Compose secrets: files rendered from Key Vault into /opt/propertyscope/secrets
+#   by the VM's managed identity. The local development defaults are blanked, and
+#   deployment/azure/compose/secret-env.sh exports each secret into the application process only,
+#   so no credential appears in `docker inspect` or `docker compose config`.
+# - Each feature's database tier sits on its own internal network (no internet route) shared only
+#   with that feature's backend. PostgreSQL leaves the shared network entirely.
+# - The AI tier is off (PROPERTYSCOPE_CLOUD_AI=false): no host-gateway mapping, AI URLs point at a
+#   closed loopback port, and Caddy answers the shared AI routes with 503 ai_disabled.
+#   docker-compose.azure-ai.yml re-enables the host AI wiring for the bonus tiers.
+# - Log rotation and restart policies are explicit; health checks are inherited unchanged.
+#
+# Service commands below restate each image's Dockerfile CMD because the secret shim replaces the
+# entrypoint; scripts/tests/test_azure_deployment.py keeps them identical to the Dockerfiles.
+
+name: ps-azure
+
+x-azure-logging: &azure-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-azure-secret-shim: &azure-secret-shim
+  type: bind
+  source: ./deployment/azure/compose/secret-env.sh
+  target: /run/propertyscope/secret-env.sh
+  read_only: true
+
+# Every AI-mode URL points at the discard port on the container's own loopback: a valid HTTP origin
+# (Feature 5 validates it at start-up) on which nothing listens, so AI calls fail fast with 503.
+x-azure-ai-disabled: &azure-ai-disabled
+  AI_MODE_SERVICE_TOKEN: ""
+  MCP_SERVER_URL: ""
+  RAG_SERVER_URL: ""
+
+services:
+  shared-edge-proxy:
+    profiles: [release-0]
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/mirror/caddy:${CADDY_IMAGE_TAG:-2.10.2-alpine}
+    restart: unless-stopped
+    environment:
+      PROPERTYSCOPE_PUBLIC_HOST: ${PROPERTYSCOPE_PUBLIC_HOST:?PROPERTYSCOPE_PUBLIC_HOST is required}
+      PROPERTYSCOPE_ACME_EMAIL: ${PROPERTYSCOPE_ACME_EMAIL:?PROPERTYSCOPE_ACME_EMAIL is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/azure/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deployment/azure/caddy/ai-disabled.caddy:/etc/caddy/propertyscope-ai.caddy:ro
+      - shared-caddy-data:/data
+      - shared-caddy-config:/config
+    secrets:
+      - edge_basic_auth
+    depends_on:
+      shared-frontend:
+        condition: service_healthy
+    networks: [shared-edge]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    logging: *azure-logging
+
+  shared-frontend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/shared-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      AI_MODE_HOST: 127.0.0.1
+      AI_MODE_PORT: "9"
+      AI_MODE_SERVICE_TOKEN: ""
+    volumes:
+      - ./deployment/azure/nginx/00-propertyscope-production.conf:/etc/nginx/conf.d/00-propertyscope-production.conf:ro
+      - ./deployment/azure/compose/18-propertyscope-secrets.envsh:/docker-entrypoint.d/18-propertyscope-secrets.envsh:ro
+    networks: [shared-platform, shared-edge]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f1-postgres:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/mirror/postgis:16-3.4
+    environment: !override
+      POSTGRES_DB: ${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}
+      POSTGRES_USER: ${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}
+      POSTGRES_PASSWORD_FILE: /run/secrets/f1_postgres_password
+    secrets:
+      - f1_postgres_password
+    networks: !override [f1-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f1-db-api:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f1-db-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5202", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_data_store.app:create_app()"]
+    environment:
+      PROPERTYSCOPE_DATABASE_URL: ""
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_DATABASE_URL=f1_database_url PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [f1_database_url, internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: !override [f1-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f1-db-loader:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f1-db-loader:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["python", "-m", "propertyscope_data_store.loader"]
+    environment:
+      PROPERTYSCOPE_DATABASE_URL: ""
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_DATABASE_URL=f1_database_url PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [f1_database_url, internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: !override [f1-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f1-backend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f1-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5201", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_data_platform.app:create_app()"]
+    extra_hosts: !reset []
+    environment:
+      <<: *azure-ai-disabled
+      AI_MODE_BASE_URL: http://127.0.0.1:9
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_RUNNER_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token PROPERTYSCOPE_RUNNER_TOKEN=runner_token
+    secrets: [internal_token, runner_token]
+    volumes:
+      - *azure-secret-shim
+    networks: [shared-platform, f1-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f1-runner:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f1-runner:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["python", "-m", "propertyscope_data_platform.runner"]
+    environment:
+      PROPERTYSCOPE_RUNNER_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_RUNNER_TOKEN=runner_token
+    secrets: [runner_token]
+    volumes:
+      - *azure-secret-shim
+      # Replaces the local host source-cache bind mount with an (initially empty) named volume.
+      - f1-source-cache:/var/lib/propertyscope/source-cache:ro
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f1-frontend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f1-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    ports: !reset []
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f2-db-api:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f2-db-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5302", "--workers=1", "--threads=4", "--timeout=60", "--access-logfile=-", "--error-logfile=-", "propertyscope_market_store.app:create_app()"]
+    environment:
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: !override [f2-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f2-backend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f2-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5301", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_market_intelligence.app:create_app()"]
+    extra_hosts: !reset []
+    environment:
+      <<: *azure-ai-disabled
+      AI_MODE_BASE_URL: http://127.0.0.1:9
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: [shared-platform, f2-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f2-frontend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f2-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    ports: !reset []
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f3-database:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f3-database:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    networks: !override [f3-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f3-backend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f3-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    extra_hosts: !reset []
+    environment:
+      <<: *azure-ai-disabled
+      AI_MODE_URL: http://127.0.0.1:9
+    networks: [shared-platform, f3-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f3-frontend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f3-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    ports: !reset []
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f4-postgres:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/mirror/postgis:16-3.4
+    environment: !override
+      POSTGRES_DB: ${PROPERTYSCOPE_DUE_DILIGENCE_DB:-due_diligence}
+      POSTGRES_USER: ${PROPERTYSCOPE_DUE_DILIGENCE_USER:-due_diligence}
+      POSTGRES_PASSWORD_FILE: /run/secrets/f4_postgres_password
+    secrets:
+      - f4_postgres_password
+    networks: !override [f4-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f4-db-api:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f4-db-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5402", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_due_diligence_store.app:create_app()"]
+    environment:
+      PROPERTYSCOPE_DUE_DILIGENCE_DATABASE_URL: ""
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_DUE_DILIGENCE_DATABASE_URL=f4_database_url PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [f4_database_url, internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: !override [f4-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f4-backend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f4-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5401", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_due_diligence.app:create_app()"]
+    extra_hosts: !reset []
+    environment:
+      <<: *azure-ai-disabled
+      AI_MODE_BASE_URL: http://127.0.0.1:9
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: [shared-platform, f4-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f4-frontend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f4-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    ports: !reset []
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f5-db-api:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f5-db-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5502", "--workers=1", "--threads=4", "--timeout=60", "--access-logfile=-", "--error-logfile=-", "propertyscope_buyer_store.app:create_app()"]
+    environment:
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: !override [f5-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f5-backend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f5-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5501", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_buyer_workspaces.app:create_app()"]
+    extra_hosts: !reset []
+    environment:
+      <<: *azure-ai-disabled
+      AI_MODE_BASE_URL: http://127.0.0.1:9
+      PROPERTYSCOPE_INTERNAL_TOKEN: ""
+      PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+    secrets: [internal_token]
+    volumes:
+      - *azure-secret-shim
+    networks: [shared-platform, f5-data]
+    restart: unless-stopped
+    logging: *azure-logging
+
+  f5-frontend:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f5-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    build: !reset null
+    ports: !reset []
+    restart: unless-stopped
+    logging: *azure-logging
+
+networks:
+  # Caddy <-> nginx edge only.
+  shared-edge: {}
+  # One data network per feature: its database tier plus its own backend, no internet route.
+  f1-data:
+    internal: true
+  f2-data:
+    internal: true
+  f3-data:
+    internal: true
+  f4-data:
+    internal: true
+  f5-data:
+    internal: true
+
+volumes:
+  shared-caddy-data:
+  shared-caddy-config:
+  f1-source-cache:
+
+secrets:
+  internal_token:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/internal-token
+  runner_token:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/runner-token
+  f1_postgres_password:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/f1-postgres-password
+  f1_database_url:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/f1-database-url
+  f4_postgres_password:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/f4-postgres-password
+  f4_database_url:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/f4-database-url
+  edge_basic_auth:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/edge-basic-auth

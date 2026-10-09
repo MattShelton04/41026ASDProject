@@ -1,0 +1,74 @@
+# Public TLS edge for the Azure deployment (R2-B5, ADR-048).
+#
+# Caddy is the only container with published ports (80 and 443). It obtains and renews a
+# certificate for the Azure DNS label automatically (ACME HTTP-01 / TLS-ALPN-01), permanently
+# redirects HTTP to HTTPS, adds HSTS and security headers, requires operator credentials on
+# operations and AI routes, and proxies everything else to the unchanged nginx edge
+# (shared-frontend:8080) on the private Compose network.
+#
+# Environment (non-secret, from /opt/propertyscope/app/.env):
+#   PROPERTYSCOPE_PUBLIC_HOST  e.g. propertyscope-nsw-g20.australiaeast.cloudapp.azure.com
+#   PROPERTYSCOPE_ACME_EMAIL   certificate expiry notices
+# Files:
+#   /run/secrets/edge_basic_auth           "<user> <bcrypt hash>", rendered from Key Vault
+#   /etc/caddy/propertyscope-ai.caddy      ai-disabled.caddy (default) or ai-enabled.caddy
+
+{
+	email {$PROPERTYSCOPE_ACME_EMAIL}
+	admin off
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$PROPERTYSCOPE_PUBLIC_HOST} {
+	encode zstd gzip
+
+	# Deferred automatically because of the "-" removals, so these also override upstream values.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+		-X-Powered-By
+	}
+
+	request_body {
+		max_size 10MB
+	}
+
+	# Shared AI-mode routes behind the nginx edge (which injects the AI service token).
+	@shared_ai path /api/shared-health/ai-mode /api/ai-mode /api/ai-mode/* /api/v1/* /operations/ai-mode /operations/ai-mode/*
+
+	# Routes that start model runs, call MCP tool callbacks, or operate the Feature 1 / Feature 3
+	# data pipelines. Ordinary feature pages, reads and the per-feature CRUD stay public.
+	@protected {
+		path_regexp protected ^/(operations/|api/(ai-mode|v1)/|api/[a-z-]+/v1/((.+/)?(assistant/turns|agent-runs|case-summary-runs|multi-agent)|tools/)|api/data-platform/v1/(artifact-retention|jobs/[^/]+/(plans|runs)|ingestion-runs/[^/]+/|dataset-releases/[^/]+/(publish|reject|submit-review|retry-delivery))|api/suburb-analytics/v1/data-imports/)
+	}
+
+	route {
+		# Answers the shared AI routes with 503 "ai_disabled" unless PROPERTYSCOPE_CLOUD_AI=true.
+		import /etc/caddy/propertyscope-ai.caddy
+
+		basic_auth @protected {
+			import /run/secrets/edge_basic_auth
+		}
+
+		reverse_proxy shared-frontend:8080 {
+			header_up X-Forwarded-Proto https
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 190s
+			}
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
