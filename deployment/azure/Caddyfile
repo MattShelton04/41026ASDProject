@@ -51,12 +51,16 @@
 	}
 
 	route {
-		# Answers the shared AI routes with 503 "ai_disabled" unless PROPERTYSCOPE_CLOUD_AI=true.
-		import /etc/caddy/propertyscope-ai.caddy
-
+		# Credentials first: an anonymous caller learns nothing about protected routes, not even
+		# whether the AI tier is on.
 		basic_auth @protected {
 			import /run/secrets/edge_basic_auth
 		}
+
+		# Answers the shared AI routes with 503 "ai_disabled" unless PROPERTYSCOPE_CLOUD_AI=true.
+		# The public AI health route (/api/shared-health/ai-mode) is not @protected, so anyone
+		# can see that the cloud baseline keeps AI off.
+		import /etc/caddy/propertyscope-ai.caddy
 
 		reverse_proxy shared-frontend:8080 {
 			header_up X-Forwarded-Proto https

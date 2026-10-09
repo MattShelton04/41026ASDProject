@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 
+from scripts.devtools.cloud import add_cloud_commands
 from scripts.devtools.config import (
     APPLICATION_SERVICES,
     BUILD_SERVICES,
@@ -315,4 +316,5 @@ def build_parser() -> argparse.ArgumentParser:
     _data_commands(groups)
     _operator_commands(groups)
     _ai_commands(groups)
+    add_cloud_commands(groups)
     return parser

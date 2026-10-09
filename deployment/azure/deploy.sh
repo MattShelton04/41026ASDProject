@@ -222,7 +222,9 @@ cmd_provision() {
         local state
         state=$(az_query feature show --namespace Microsoft.Compute --name EncryptionAtHost \
             --query properties.state --output tsv 2>/dev/null || echo Unknown)
-        [[ $state == Registered ]] || die "encryption at host is not registered for this subscription (state: $state).
+        # A resource-group-scoped deployer cannot read subscription features; ARM then reports
+        # an unregistered feature itself, so only a definite answer stops here.
+        [[ $state == Registered || $state == Unknown ]] || die "encryption at host is not registered for this subscription (state: $state).
 Run once: az feature register --namespace Microsoft.Compute --name EncryptionAtHost
 then wait for 'Registered' and run: az provider register --namespace Microsoft.Compute
 Or set AZURE_ENCRYPTION_AT_HOST=false (documented trade-off in deployment/azure/README.md)."
@@ -376,8 +378,7 @@ bundle_base64() {
 
 # Builds the run-command script: non-secret settings, the deployment bundle and one action.
 vm_payload() {
-    local action=$1 bundle variable
-    bundle=$(bundle_base64)
+    local action=$1 variable
     printf '%s\n' '#!/bin/bash' 'set -euo pipefail' 'umask 022'
     for variable in ACR_LOGIN_SERVER IMAGE_TAG KEY_VAULT_NAME PROPERTYSCOPE_PUBLIC_HOST PROPERTYSCOPE_ACME_EMAIL \
         PROPERTYSCOPE_CLOUD_AI PROPERTYSCOPE_GIT_SHA PROPERTYSCOPE_REPO_URL PROPERTYSCOPE_EDGE_USER \
@@ -386,11 +387,22 @@ vm_payload() {
             printf 'export %s=%q\n' "$variable" "${!variable}"
         fi
     done
-    cat <<EOF
+    case $action in
+        deploy | ai-on | ai-off)
+            # Changing actions ship this commit's Compose files and edge/VM configuration.
+            cat <<EOF
 install -d -m 0755 /opt/propertyscope/app
 rm -rf /opt/propertyscope/app/deployment /opt/propertyscope/app/docker-compose*.yml
-printf '%s' '$bundle' | base64 -d | tar -xzf - -C /opt/propertyscope/app --no-same-owner
+printf '%s' '$(bundle_base64)' | base64 -d | tar -xzf - -C /opt/propertyscope/app --no-same-owner
 chmod 0755 /opt/propertyscope/app/deployment/azure/vm/*.sh /opt/propertyscope/app/deployment/azure/compose/*
+EOF
+            ;;
+        *)
+            # Read-only actions use what the last deployment installed.
+            printf '%s\n' 'test -f /opt/propertyscope/app/deployment/azure/vm/propertyscope-vm.sh || { echo "Nothing deployed yet: run deploy.sh deploy"; echo PROPERTYSCOPE_EXIT=3; exit 3; }'
+            ;;
+    esac
+    cat <<EOF
 status=0
 bash /opt/propertyscope/app/deployment/azure/vm/propertyscope-vm.sh $action || status=\$?
 echo "PROPERTYSCOPE_EXIT=\$status"
@@ -569,6 +581,12 @@ main() {
         outputs) cmd_outputs ;;
         validate-endpoint) cmd_validate endpoint ;;
         validate-data) cmd_validate data ;;
+        vm-validate-data)
+            # Internal: the on-host half of validate-data-security.sh.
+            ensure_azure_context
+            vm_environment
+            vm_run validate-data
+            ;;
         all)
             cmd_provision
             cmd_push

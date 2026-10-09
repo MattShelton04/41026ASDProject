@@ -358,6 +358,17 @@ class Smoke:
         label = f"CRUD {case.resource}"
         try:
             self._crud_steps(case, name, label)
+        except httpx.HTTPError as exc:
+            self.record(
+                CheckResult(
+                    f"{label}: request",
+                    case.owner,
+                    "crud",
+                    False,
+                    _error(exc),
+                    path=case.collection,
+                )
+            )
         finally:
             if case.created_id is not None:
                 self._cleanup(case, label)

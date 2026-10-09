@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !**/.env.example
+!deployment/azure/.env.azure.example
 *.pem
 *.key
 *.p12
