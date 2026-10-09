@@ -1,0 +1,178 @@
+Pre-commit security hooks during the commit workflow (Release 2, R2-30)
+========================================================================
+
+Captured 2026-10-09 on Windows 11 (Git Bash) with uv 0.12.1, pre-commit 4.6.1, ruff 0.16.1,
+detect-secrets 1.5.0 and pip-audit 2.10.1. `git commit` ran the hook script that
+`uv run pre-commit install` creates. It was reached through `git -c core.hooksPath=...` so the
+hooks in the .git directory shared with other worktrees stayed unchanged. Each run's output is
+verbatim except that local pre-commit cache paths are shortened.
+
+1. `git commit` of the security-scan change, first attempt (blocked)
+--------------------------------------------------------------------
+$ git commit   # staged: 62 files incl. uv.lock, pyproject.toml, Python sources
+
+[WARNING] Unstaged files detected.
+[INFO] Stashing unstaged files to <pre-commit cache>/patch.
+Ruff lint..................................................................Passed
+Ruff format................................................................Passed
+mypy.......................................................................Passed
+security: Ruff flake8-bandit rules (S).....................................Passed
+security: detect-secrets against .secrets.baseline.........................Failed
+- hook id: security-detect-secrets
+- exit code: 1
+
+ERROR: Potential secrets about to be committed to git repo!
+
+Secret Type: Secret Keyword
+Location:    scripts\tests\test_security_report.py:152
+
+Secret Type: Secret Keyword
+Location:    scripts\tests\test_security_report.py:250
+
+Secret Type: Secret Keyword
+Location:    scripts\tests\test_security_report.py:251
+
+Secret Type: Secret Keyword
+Location:    scripts\tests\test_security_report.py:252
+
+Secret Type: Secret Keyword
+Location:    scripts\tests\test_security_report.py:253
+
+Secret Type: Secret Keyword
+Location:    scripts\tests\test_security_report.py:261
+
+Possible mitigations:
+  - For information about putting your secrets in a safer place, please ask in
+    #security
+  - Mark false positives with an inline `pragma: allowlist secret` comment
+
+If a secret has already been committed, visit
+https://help.github.com/articles/removing-sensitive-data-from-a-repository
+ERROR: Potential secrets about to be committed to git repo!
+
+Secret Type: Secret Keyword
+Location:    scripts\security\cli.py:96
+
+Possible mitigations:
+  - For information about putting your secrets in a safer place, please ask in
+    #security
+  - Mark false positives with an inline `pragma: allowlist secret` comment
+
+If a secret has already been committed, visit
+https://help.github.com/articles/removing-sensitive-data-from-a-repository
+
+security: pip-audit of locked dependencies (uv.lock).......................Passed
+[INFO] Restored changes from <pre-commit cache>/patch.
+
+Result: detect-secrets blocked the commit: 7 candidates in files written after the baseline (a command string in scripts/security/cli.py and fixture dictionaries in scripts/tests/test_security_report.py). Each was reviewed as a false positive, recorded with `uv run scripts/dev.py security baseline` and marked `is_secret: false`, and the baseline was staged.
+
+2. The same commit after the baseline review (created 82162e0)
+--------------------------------------------------------------
+$ git commit   # same staged files plus the reviewed .secrets.baseline
+
+[WARNING] Unstaged files detected.
+[INFO] Stashing unstaged files to <pre-commit cache>/patch.
+Ruff lint..................................................................Passed
+Ruff format................................................................Passed
+mypy.......................................................................Passed
+security: Ruff flake8-bandit rules (S).....................................Passed
+security: detect-secrets against .secrets.baseline.........................Passed
+security: pip-audit of locked dependencies (uv.lock).......................Passed
+[INFO] Restored changes from <pre-commit cache>/patch.
+[worktree-agent-a00b56d04d415d262 82162e0] feat(security): add pre-commit security scans and remediate findings
+ Date: Fri Oct 9 18:58:07 2026 +1100
+ 62 files changed, 3479 insertions(+), 160 deletions(-)
+ create mode 100644 .secrets.baseline
+ create mode 100644 scripts/security/__init__.py
+ create mode 100644 scripts/security/__main__.py
+ create mode 100644 scripts/security/accepted-risks.toml
+ create mode 100644 scripts/security/cli.py
+ create mode 100644 scripts/security/policy.py
+ create mode 100644 scripts/security/report.py
+ create mode 100644 scripts/security/scans.py
+ create mode 100644 scripts/tests/test_security_report.py
+
+Result: All hooks passed, including pip-audit, because uv.lock was staged.
+
+3. `git commit` after the hooks were made verbose (created 680cd6b)
+-------------------------------------------------------------------
+$ git commit   # staged: .pre-commit-config.yaml, scripts/security/scans.py, a test
+
+[WARNING] Unstaged files detected.
+[INFO] Stashing unstaged files to <pre-commit cache>/patch.
+Ruff lint..................................................................Passed
+Ruff format................................................................Passed
+mypy.......................................................................Passed
+security: Ruff flake8-bandit rules (S).....................................Passed
+- hook id: security-ruff
+- duration: 2.45s
+
+All checks passed!
+
+security: detect-secrets against .secrets.baseline.........................Passed
+- hook id: security-detect-secrets
+- duration: 13.5s
+
+detect-secrets: 3 file(s) scanned; no secrets beyond the reviewed .secrets.baseline
+
+security: pip-audit of locked dependencies (uv.lock)...(no files to check)Skipped
+- hook id: security-pip-audit
+[INFO] Restored changes from <pre-commit cache>/patch.
+[worktree-agent-a00b56d04d415d262 680cd6b] feat(security): show security hook results during commits
+ 3 files changed, 27 insertions(+)
+
+Result: Each security hook prints its own result. pip-audit is skipped because neither uv.lock nor a pyproject.toml was staged.
+
+4. Every commit hook on all 64 files changed by this workstream
+---------------------------------------------------------------
+$ uv run pre-commit run --hook-stage pre-commit --files <64 files from `git diff --name-only 36a4c26 HEAD`>
+
+Ruff lint..................................................................Passed
+Ruff format................................................................Passed
+mypy.......................................................................Passed
+security: Ruff flake8-bandit rules (S).....................................Passed
+- hook id: security-ruff
+- duration: 6.77s
+
+All checks passed!
+
+security: detect-secrets against .secrets.baseline.........................Passed
+- hook id: security-detect-secrets
+- duration: 27.44s
+
+detect-secrets: 64 file(s) scanned; no secrets beyond the reviewed .secrets.baseline
+
+security: pip-audit of locked dependencies (uv.lock).......................Passed
+- hook id: security-pip-audit
+- duration: 53.27s
+
+pip-audit: auditing every package locked in uv.lock (19 reviewed exception(s) from scripts/security/accepted-risks.toml)
+No known vulnerabilities found, 37 ignored
+
+Result: Run after the hooks were made serial (57949f1). uv.lock is among the files, so all three security scans ran.
+
+5. `git commit` of the last code change before this evidence (created 485b0ed)
+------------------------------------------------------------------------------
+$ git commit   # staged: .secrets.baseline, scripts/security/*, a test
+
+Ruff lint..................................................................Passed
+Ruff format................................................................Passed
+mypy.......................................................................Passed
+security: Ruff flake8-bandit rules (S).....................................Passed
+- hook id: security-ruff
+- duration: 4.2s
+
+All checks passed!
+
+security: detect-secrets against .secrets.baseline.........................Passed
+- hook id: security-detect-secrets
+- duration: 14.3s
+
+detect-secrets: 5 file(s) scanned; no secrets beyond the reviewed .secrets.baseline
+
+security: pip-audit of locked dependencies (uv.lock)...(no files to check)Skipped
+- hook id: security-pip-audit
+[worktree-agent-a00b56d04d415d262 485b0ed] fix(security): keep generated security evidence free of false positives
+ 5 files changed, 15 insertions(+), 22 deletions(-)
+
+Result: All hooks passed; the regenerated baseline matched the staged files.
