@@ -469,7 +469,12 @@ def _json_response(description: str, model: str, **extra: Any) -> dict[str, Any]
 def _multi_agent_openapi() -> dict[str, Any]:
     """OpenAPI 3.1 for the host Multi-Agent Server (``ai-services/multi-agent-server``)."""
     schemas: dict[str, Any] = {}
-    for model in (*MULTI_AGENT_SCHEMA_MODELS.values(), ProblemDetail, TypedHealthProjection):
+    models: list[type[BaseModel]] = [
+        *MULTI_AGENT_SCHEMA_MODELS.values(),
+        ProblemDetail,
+        TypedHealthProjection,
+    ]
+    for model in models:
         schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
         schemas.update(schema.pop("$defs", {}))
         schemas[model.__name__] = schema

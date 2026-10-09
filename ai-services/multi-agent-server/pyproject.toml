@@ -1,0 +1,29 @@
+[project]
+name = "multi-agent-server"
+version = "0.1.0"
+description = "Host-local Planner, Worker, Reviewer and human-review workflow server"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "agent-core",
+    "ai-mode",
+    "flask>=3.1,<4",
+    "httpx>=0.28,<1",
+    "jsonschema>=4.25,<5",
+    "pyyaml>=6,<7",
+    "shared-contracts",
+    "shared-tool-runtime",
+    "waitress>=3.0.2,<4",
+]
+
+[project.scripts]
+multi-agent-server = "multi_agent_server.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+shared-contracts = { workspace = true }
+agent-core = { workspace = true }
+ai-mode = { workspace = true }
+shared-tool-runtime = { workspace = true }

@@ -23,6 +23,7 @@ CORE_TEST_PATHS = (
     "ai-services/ai-mode/tests",
     "ai-services/mcp-server/tests",
     "ai-services/rag-server/tests",
+    "ai-services/multi-agent-server/tests",
     "shared/tool-runtime/tests",
     "scripts/tests",
 )
@@ -63,6 +64,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "ai-services/ai-mode/src/ai_mode",
         "ai-services/mcp-server/src/mcp_server",
         "ai-services/rag-server/src/rag_server",
+        "ai-services/multi-agent-server/src/multi_agent_server",
         "shared/tool-runtime/src/shared_tool_runtime",
         "student-1/backend/src/propertyscope_data_platform",
         "student-1/database/src/propertyscope_data_store",
@@ -104,6 +106,7 @@ SHARED_TEST_COMMAND: Command = (
     "--cov=shared_tool_runtime",
     "--cov=mcp_server",
     "--cov=rag_server",
+    "--cov=multi_agent_server",
     "--cov-report=term-missing",
     *CORE_TEST_PATHS,
 )

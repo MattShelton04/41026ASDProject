@@ -1,0 +1,5 @@
+prompt_id: worker
+version: v1
+role: worker
+template: v1.system.md
+description: Reports per-step findings strictly from the tool evidence the Worker gathered.

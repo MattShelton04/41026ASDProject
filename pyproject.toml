@@ -52,6 +52,7 @@ members = [
     "student-5",
     "ai-services/agent-core",
     "ai-services/ai-mode",
+    "ai-services/multi-agent-server",
 ]
 
 [tool.uv.sources]
@@ -71,6 +72,7 @@ testpaths = [
     "ai-services/ai-mode/tests",
     "ai-services/mcp-server/tests",
     "ai-services/rag-server/tests",
+    "ai-services/multi-agent-server/tests",
     "shared/tool-runtime/tests",
     "student-1/tests",
     "student-2/tests",
@@ -82,7 +84,7 @@ testpaths = [
 
 [tool.coverage.run]
 branch = true
-source = ["agent_core", "ai_mode", "shared_consumer_protocol", "shared_contracts", "shared_testkit", "shared_tool_runtime", "mcp_server", "rag_server"]
+source = ["agent_core", "ai_mode", "multi_agent_server", "shared_consumer_protocol", "shared_contracts", "shared_testkit", "shared_tool_runtime", "mcp_server", "rag_server"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -104,6 +106,7 @@ src = [
     "shared/testkit/python",
     "ai-services/agent-core/src",
     "ai-services/ai-mode/src",
+    "ai-services/multi-agent-server/src",
     "student-1/backend/src",
     "student-1/database/src",
     "student-2/backend/src",
@@ -123,6 +126,7 @@ select = ["B", "C4", "E", "F", "I", "N", "RUF", "SIM", "UP"]
 known-first-party = [
     "agent_core",
     "ai_mode",
+    "multi_agent_server",
     "propertyscope_data_platform",
     "propertyscope_data_store",
     "propertyscope_market_intelligence",
