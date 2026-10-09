@@ -46,6 +46,9 @@ uv run python scripts/check.py
 Select `.venv` as the Python interpreter in your editor. The same commands work in PowerShell,
 Command Prompt, Bash, and zsh.
 
+`pre-commit install` is required: every `git commit` then runs Ruff, formatting, mypy and the three
+[security scans](#security-scans) on the staged files, and `git push` runs the full gate.
+
 ## Day-to-day workflow
 
 1. Create a short-lived branch from `main`.
@@ -100,6 +103,9 @@ only for documented, non-secret defaults.
 | Run the full resumable UI matrix | `uv run scripts/dev.py ui audit full` |
 | Compare screenshots before/after a UI change (first run saves the baseline) | `uv run scripts/dev.py ui visual [--provider stack] [--case ID]` |
 | Build production-like Release 0 images without starting them | `uv run scripts/dev.py stack build` |
+| Run the commit hooks, including the security scans, on every file | `uv run pre-commit run --all-files` |
+| Write the security testing report (needs network for pip-audit) | `uv run scripts/dev.py security report [--check]` |
+| Refresh `.secrets.baseline` after a reviewed change | `uv run scripts/dev.py security baseline` |
 
 The source-only `check.py` stages are cross-platform and require no shell-specific syntax. They do
 not install a second frontend dependency tree: the browser code is dependency-free ES modules, so
@@ -121,7 +127,8 @@ owns a random fixture port and needs installed Chromium:
 uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 ```
 
-`Integration CI / Canonical quality gate` is the single required source-quality job. The
+`Integration CI / Canonical quality gate` is the single required source-quality job; the
+`Pre-commit security scans` job beside it repeats the commit-time security hooks. The
 path-filtered Student 1 workflow adds only the Chromium form suite and the integrated Shared plus
 Feature 1 container check; it does not repeat the whole repository gate or a second shared-image
 build on the same pull request. Its working set is limited to Feature 1, agent-core/AI-mode, shared
@@ -169,6 +176,43 @@ Managed AI-mode protects every route except `/health/live` with an internal serv
 by the feature clients/shared proxy. Do not add this token to public browser configuration. Use
 `stack up` after rotating `AI_MODE_SERVICE_TOKEN`; restarting only AI-mode would leave stale
 container credentials. The standalone Flask factory remains a loopback development entrypoint.
+
+## Security scans
+
+Three security hooks run on `git commit` (R2-30). Integration CI's `Pre-commit security scans`
+job runs the same hooks on every file and uploads the report.
+
+| Hook | What it checks | Runs on |
+|---|---|---|
+| `security-ruff` | Ruff's flake8-bandit `S` rules: shell/subprocess use, SQL built from strings, unsafe URLs, weak hashes, hard-coded secrets, missing timeouts | Staged Python files |
+| `security-detect-secrets` | New secrets compared with the reviewed `.secrets.baseline` | Staged text files |
+| `security-pip-audit` | Known vulnerabilities in every package locked in `uv.lock` (all members, all groups) | Commits that change `uv.lock`, a `pyproject.toml` or `scripts/security/accepted-risks.toml` |
+
+When a scan fails:
+
+- **Ruff `S`.** Fix the code first: pass a timeout, use bound SQL parameters, avoid
+  `shell=True`, and raise a typed error rather than using `assert` in production code. If the code
+  is safe as written, justify it on the reported line, for example
+  `subprocess.run(argv)  # noqa: S603 - fixed argv, no shell`. A `# noqa` without a reason fails
+  the report. Test code may already use `assert` and fake credentials (see
+  `[tool.ruff.lint.per-file-ignores]`). Files listed in `[tool.ruff.lint.extend-per-file-ignores]`
+  have findings waiting for their owner; when you fix or justify them, delete the entry.
+- **detect-secrets.** If it found a real secret, remove it from the commit and rotate it. If it is
+  a false positive (a test fixture, for example), run `uv run scripts/dev.py security baseline`
+  and then `uv run detect-secrets audit .secrets.baseline`, mark the new entry as not a secret, and
+  commit the baseline. If the hook only rewrote the baseline to update line numbers, stage it and
+  commit again.
+- **pip-audit.** Upgrade within the existing constraint
+  (`uv lock --upgrade-package <name>`). If that is impossible, add a reviewed entry with a reason
+  and a follow-up to `scripts/security/accepted-risks.toml`. pip-audit needs network access. If
+  you are offline, it fails with a message instead of hanging; skip only that hook with
+  `SKIP=security-pip-audit git commit ...` and let CI run it.
+
+`uv run scripts/dev.py security report` runs all three scans and writes
+`docs/release-2/evidence/security/pre-commit-report.md` and the raw JSON. The report lists every
+finding by slice and owner, with its status: fixed, justified with `# noqa`, pending owner, a
+reviewed false positive, or an accepted risk. `--check` exits non-zero if any finding has no
+explanation.
 
 ## Dependencies and workspace projects
 
