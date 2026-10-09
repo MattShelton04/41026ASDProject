@@ -147,3 +147,20 @@ def test_frontend_only_dockerfile_needs_no_workspace_manifests(tmp_path: Path) -
     assert "uv sync" not in frontend.read_text(encoding="utf-8")
 
     assert validate_workspace_packaging(root) == ()
+
+
+def test_dockerfiles_in_hidden_runtime_and_worktree_trees_are_ignored(tmp_path: Path) -> None:
+    root = _workspace(tmp_path)
+    stale = (
+        (root / "student-1" / "Dockerfile")
+        .read_text(encoding="utf-8")
+        .replace("COPY shared/contracts/pyproject.toml shared/contracts/pyproject.toml\n", "")
+    )
+    for hidden in (
+        ".propertyscope-runtime/snapshot/student-1",
+        ".claude/worktrees/agent/student-1",
+    ):
+        (root / hidden).mkdir(parents=True)
+        (root / hidden / "Dockerfile").write_text(stale, encoding="utf-8")
+
+    assert validate_workspace_packaging(root) == ()
