@@ -316,6 +316,40 @@ with them. The data CLI intentionally continues to request the complete register
 Run `uv run scripts/dev.py stack down` when finished. Named AI history, PostgreSQL and artifact
 volumes are preserved.
 
+## Endpoint tests
+
+`tests/endpoints/` tests two endpoint functions of the running Feature 1 backend over real HTTP
+(Release 2 checklist F-7). They are marked `endpoint` and skip unless
+`PROPERTYSCOPE_ENDPOINT_BASE_URL` is set, so `check.py` and plain `pytest` stay Docker-free and
+these tests do not count towards the slice's coverage threshold.
+
+| Endpoint function | Happy path | Failure cases |
+|---|---|---|
+| `GET /api/data-platform/v1/properties/search` | The seeded `11 Example Street` returns ranked matches that validate against `PropertySearchPage` in the OpenAPI contract and echo the request ID | Missing, one-character, whitespace-padded and over-long `q` each return a 422 `invalid_request` problem that echoes the request ID |
+| Source-definition CRUD, `/api/data-platform/v1/sources[/{id}]` | Create a uniquely named draft, find it in the list, read it, update it (version 1 to 2), delete it, then get 404 `not_found` | Seven invalid payloads and a non-JSON body return 422 `invalid_request`; a duplicate name returns 409 `conflict`. The list is checked afterwards, so nothing was persisted |
+
+Every created definition is a draft that the test deletes; a teardown fixture removes any left
+behind by a failed assertion. Payloads are validated against
+`contracts/data-platform-api.v1.openapi.yaml`.
+
+Run them against a local stack:
+
+```text
+PROPERTYSCOPE_ENDPOINT_BASE_URL=http://localhost:5200 uv run pytest student-1/tests/endpoints -m endpoint --no-cov -q
+```
+
+The search case expects the seeded demonstration address. If your local database has accepted
+real G-NAF data in place of the seed, set `PROPERTYSCOPE_F1_ENDPOINT_SEARCH_QUERY` to an address
+that exists, for example `10 Boyce Street Glebe`. To test through the Shared edge, use
+`PROPERTYSCOPE_ENDPOINT_BASE_URL=http://localhost:5100` with
+`PROPERTYSCOPE_ENDPOINT_READY_PATH=/healthz`.
+
+In CI, the `containers` job of `.github/workflows/student-1.yml` runs the tests after
+`up --wait` and the `fixture-property` job, on both origins. It adds a Markdown table to the run
+summary and uploads the JUnit XML as the `student-1-endpoint-tests` artifact.
+`uv run python scripts/collect_ci_evidence.py --student 1` records a green `main` run in
+`docs/release-2/evidence/ci/student-1.md`.
+
 ## Real-source captures
 
 Real acquisition uses the normal Compose project and PostgreSQL volume:
