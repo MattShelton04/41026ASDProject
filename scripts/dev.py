@@ -510,6 +510,7 @@ def _compose_environment(*, offline: bool) -> Mapping[str, str]:
     credential = _openai_credential(offline=offline)
     environment = os.environ.copy()
     environment["AI_MODE_SERVICE_TOKEN"] = host_runtime.ai_service_token(environment)
+    environment["MULTI_AGENT_SERVICE_TOKEN"] = host_runtime.multi_agent_service_token(environment)
     environment.pop("OPENAI_API_KEY", None)
     environment.pop("GEMINI_API_KEY", None)
     secret_path = str(_write_openai_secret(credential))

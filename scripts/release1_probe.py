@@ -1,4 +1,4 @@
-"""Terminal validation of the running host AI-mode, MCP and RAG servers.
+"""Terminal validation of the running host AI-mode, MCP, RAG and Multi-Agent servers.
 
 This checks each server directly over its local HTTP interface, separately from the agent-loop
 validation modes (``release1_validation``): authentication boundaries, the registered tools MCP
@@ -22,6 +22,7 @@ from scripts.devtools.config import REPOSITORY_ROOT
 from shared_contracts import HealthStatus
 from shared_contracts.deployment import DeploymentProjectionV1, TypedHealthProjection
 from shared_contracts.grounding import GROUNDING_MIN_SCORE
+from shared_contracts.multi_agent import MULTI_AGENT_API_PREFIX, MULTI_AGENT_SERVICE_NAME
 
 AI_TOKEN_HEADER = "X-PropertyScope-AI-Token"
 MCP_ACCEPT = "application/json, text/event-stream"
@@ -134,6 +135,54 @@ def _probe_ai_mode(client: httpx.Client, url: str, token: str) -> list[Check]:
             "accepts the service token",
             token_accepted,
             authenticated_detail,
+        ),
+    ]
+
+
+def _probe_multi_agent(client: httpx.Client, url: str, token: str) -> list[Check]:
+    """Liveness, the token boundary, store readiness and the registered workflow templates."""
+    headers = {"Authorization": f"Bearer {token}"}
+    live = client.get(f"{url}/health/live")
+    anonymous = client.get(f"{url}{MULTI_AGENT_API_PREFIX}/templates")
+    ready = client.get(f"{url}/health/ready", headers=headers)
+    templates = client.get(f"{url}{MULTI_AGENT_API_PREFIX}/templates", headers=headers)
+    try:
+        health = TypedHealthProjection.model_validate_json(ready.content)
+        store = health.checks.get("state_store")
+        ready_passed = (
+            health.service == MULTI_AGENT_SERVICE_NAME
+            and store is not None
+            and store.status is HealthStatus.HEALTHY
+        )
+        ready_detail = f"{_http(ready)}; readiness {health.status.value}" + "".join(
+            f"; {name}: {check.detail}"
+            for name, check in health.checks.items()
+            if name in {"templates", "tool_gateway"} and check.detail
+        )
+    except ValueError:
+        ready_passed, ready_detail = False, f"{_http(ready)}; invalid readiness response"
+    try:
+        listed = templates.json()
+        names = [item["template"]["id"] for item in listed["items"]]
+        templates_detail = f"{_http(templates)}; {len(names)} template(s)" + (
+            f": {', '.join(names)}" if names else ""
+        )
+    except (ValueError, KeyError, TypeError):
+        templates_detail = f"{_http(templates)}; invalid template listing"
+    return [
+        Check("multi-agent", "liveness", live.status_code == 200, _http(live)),
+        Check(
+            "multi-agent",
+            "rejects an unauthenticated caller",
+            anonymous.status_code == 401,
+            _http(anonymous),
+        ),
+        Check("multi-agent", "accepts the service token", ready_passed, ready_detail),
+        Check(
+            "multi-agent",
+            "lists workflow templates",
+            templates.status_code == 200 and "invalid" not in templates_detail,
+            templates_detail,
         ),
     ]
 
@@ -302,6 +351,9 @@ def probe(
         ),
         "mcp": lambda: _probe_mcp(session, urls["mcp"], resolved["MCP_SERVICE_TOKEN"], registered),
         "rag": lambda: _probe_rag(session, urls["rag"], resolved["RAG_SERVICE_TOKEN"], registered),
+        "multi-agent": lambda: _probe_multi_agent(
+            session, urls["multi-agent"], resolved["MULTI_AGENT_SERVICE_TOKEN"]
+        ),
     }
     checks: list[Check] = []
     try:
@@ -334,12 +386,12 @@ def render(evidence: Mapping[str, object]) -> str:
     lines = ["Host AI services (not containerised):"]
     services = evidence.get("services")
     if isinstance(services, dict):
-        lines.extend(f"  {name:<8} {url}" for name, url in services.items())
+        lines.extend(f"  {name:<11} {url}" for name, url in services.items())
     lines.append("")
     checks = evidence.get("checks")
     for check in checks if isinstance(checks, list) else []:
         mark = "PASS" if check["passed"] else "FAIL"
-        lines.append(f"{mark}  {check['service']:<8} {check['check']:<44} {check['detail']}")
+        lines.append(f"{mark}  {check['service']:<11} {check['check']:<44} {check['detail']}")
     lines.append("")
     lines.append("All checks passed." if evidence.get("passed") else "Some checks failed.")
     return "\n".join(lines)

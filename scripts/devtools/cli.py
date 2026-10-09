@@ -260,7 +260,7 @@ def _operator_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
 
 def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     ai = root.add_parser(
-        "ai", help="Operate the non-containerised AI-mode, MCP and RAG host processes"
+        "ai", help="Operate the non-containerised AI-mode, MCP, RAG and Multi-Agent host processes"
     )
     commands = ai.add_subparsers(dest="action", required=True)
     start = commands.add_parser("start", help="Start or reconfigure the host AI services")

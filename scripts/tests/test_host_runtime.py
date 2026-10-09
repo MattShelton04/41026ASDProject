@@ -217,6 +217,7 @@ def test_all_workflows_disable_mcp_and_rag_without_starting_them() -> None:
             assert "shared-ai-mode" not in commands, path.name
             assert "rag-server serve" not in commands, path.name
             assert "-m mcp_server" not in commands, path.name
+            assert "multi-agent-server serve" not in commands, path.name
             assert "ai start --mode combined" not in commands, path.name
             if path.name.startswith("student-") and any(
                 "uv sync" in str(step.get("run", "")) for step in job.get("steps", [])
@@ -268,6 +269,39 @@ def test_host_entry_token_is_persisted_and_safe_for_proxy_config(isolated: Path)
     for invalid in ("short", "a" * 32 + '"; injection', "a" * 129):
         with pytest.raises(RuntimeError, match="URL-safe"):
             runtime.ai_service_token({"AI_MODE_SERVICE_TOKEN": invalid})
+
+
+def test_multi_agent_token_and_environment_are_host_projections(isolated: Path) -> None:
+    token = runtime.multi_agent_service_token({})
+    assert (isolated / "host" / "multi-agent.token").read_text(encoding="utf-8") == token
+    assert runtime.multi_agent_service_token({}) == token
+    direct = runtime.prepare_environment({}, mode="direct")
+    assert direct["MULTI_AGENT_SERVICE_TOKEN"] == token
+    assert direct["MULTI_AGENT_STATE_DIR"] == str(isolated / "host" / "multi-agent")
+    assert direct["MULTI_AGENT_REPOSITORY_ROOT"] == str(runtime.REPOSITORY_ROOT)
+    assert direct["MULTI_AGENT_TOOL_CATALOG_PATHS"] == direct["AI_MODE_TOOL_CATALOG_PATHS"]
+    assert direct["MULTI_AGENT_MCP_ENABLED"] == "false"
+    assert runtime.prepare_environment({}, mode="mcp")["MULTI_AGENT_MCP_ENABLED"] == "true"
+    for invalid in ("short", "a" * 32 + '"; injection'):
+        with pytest.raises(RuntimeError, match="MULTI_AGENT_SERVICE_TOKEN"):
+            runtime.multi_agent_service_token({"MULTI_AGENT_SERVICE_TOKEN": invalid})
+
+
+def test_multi_agent_starts_in_every_local_mode_but_never_in_ci() -> None:
+    assert runtime.selected_services("direct", {}) == ["ai-mode", "multi-agent"]
+    assert runtime.selected_services("combined", {}) == ["mcp", "rag", "ai-mode", "multi-agent"]
+    assert runtime.selected_services("direct", {"CI": "true"}) == ["ai-mode"]
+    assert runtime.PORTS["multi-agent"] == ("MULTI_AGENT_PORT", 5013)
+
+
+def test_backends_reach_the_multi_agent_server_through_the_host_gateway() -> None:
+    compose = yaml.safe_load((runtime.REPOSITORY_ROOT / "docker-compose.yml").read_text())
+    for service in ("f1-backend", "f2-backend", "f4-backend", "f5-backend"):
+        environment = compose["services"][service]["environment"]
+        assert environment["MULTI_AGENT_BASE_URL"] == (
+            "http://host.docker.internal:${MULTI_AGENT_PORT:-5013}"
+        )
+        assert environment["MULTI_AGENT_SERVICE_TOKEN"] == "${MULTI_AGENT_SERVICE_TOKEN:-}"
 
 
 def test_compose_and_edge_keep_host_credential_on_server_side() -> None:
