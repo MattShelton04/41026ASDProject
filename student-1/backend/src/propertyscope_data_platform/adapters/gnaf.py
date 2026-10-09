@@ -245,7 +245,7 @@ def _joined_addresses(
             "LONGITUDE": str(row[3]),
         }
         for row in database.execute(
-            f"SELECT pid,kind,latitude,longitude FROM geocode WHERE pid IN ({placeholders})",
+            f"SELECT pid,kind,latitude,longitude FROM geocode WHERE pid IN ({placeholders})",  # noqa: S608 - only ? placeholders are interpolated
             identifiers,
         )
     }

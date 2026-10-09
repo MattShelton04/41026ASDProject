@@ -16,7 +16,7 @@ def test_feature_frontend_behavior_with_node_builtin_runner() -> None:
     node = shutil.which("node")
     assert node is not None, "Node.js 20 or newer is required for frontend behavior tests"
 
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 - node test argv without a shell
         [node, "--import", str(FRONTEND_BOOTSTRAP), "--test", str(FRONTEND_TEST)],
         cwd=REPOSITORY_ROOT,
         check=False,

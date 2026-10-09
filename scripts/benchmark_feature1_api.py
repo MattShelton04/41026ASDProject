@@ -45,14 +45,14 @@ class Case:
 def read_case(base_url: str, case: Case) -> tuple[dict[str, Any], dict[str, Any]]:
     start = time.perf_counter()
     payload = json.dumps(case.body).encode() if case.body is not None else None
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310 - operator-supplied local API base URL
         base_url.rstrip("/") + "/" + case.path,
         data=payload,
         headers={"Accept": "application/json", "Content-Type": "application/json"},
     )
     try:
         try:
-            response = urllib.request.urlopen(request, timeout=15)
+            response = urllib.request.urlopen(request, timeout=15)  # noqa: S310 - operator-supplied local API base URL
         except urllib.error.HTTPError as error:
             response = error
         with response:

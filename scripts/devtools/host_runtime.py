@@ -140,8 +140,8 @@ def logs(services: Sequence[str] = SERVICES, *, lines: int = 100) -> str:
 
 
 def _docker(*arguments: str) -> str:
-    return subprocess.run(
-        ("docker", *arguments),
+    return subprocess.run(  # noqa: S603 - fixed docker/python argv, no shell
+        ("docker", *arguments),  # noqa: S607 - docker is resolved from the developer PATH
         check=True,
         capture_output=True,
         text=True,
@@ -408,7 +408,7 @@ def start(environment: Mapping[str, str], *, mode: str = "combined") -> None:
             command = [sys.executable, "-m", "scripts.devtools.host_runtime", "serve", service]
             log_path = HOST_DIRECTORY / f"{service}.log"
             with log_path.open("ab") as log:
-                process = subprocess.Popen(
+                process = subprocess.Popen(  # noqa: S603 - fixed docker/python argv, no shell
                     command,
                     cwd=REPOSITORY_ROOT,
                     env=resolved,
@@ -484,7 +484,7 @@ def serve(service: str) -> None:
         application = create_rag_app()
     serve_wsgi(
         application,
-        host="0.0.0.0" if service == "ai-mode" else "127.0.0.1",
+        host="0.0.0.0" if service == "ai-mode" else "127.0.0.1",  # noqa: S104 - containers reach AI-mode via host gateway (ADR-046)
         port=port_for(service, os.environ),
         threads=8,
     )

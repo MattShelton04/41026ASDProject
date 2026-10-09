@@ -11,9 +11,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "detect-secrets>=1.5,<2",
     "hypothesis>=6.138,<7",
     "mypy>=1.18,<2",
     "pillow>=11,<13",
+    "pip-audit>=2.9,<3",
     "playwright>=1.55,<2",
     "pre-commit>=4.3,<5",
     "psutil>=7.2.2",
@@ -117,7 +119,41 @@ src = [
 ]
 
 [tool.ruff.lint]
-select = ["B", "C4", "E", "F", "I", "N", "RUF", "SIM", "UP"]
+select = ["B", "C4", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
+
+# Security policy (R2-30). `S` is Ruff's flake8-bandit port. Outside the reviewed test-only
+# exceptions below, a finding is fixed or carries `# noqa: Sxxx - reason` on that line.
+# `scripts/security` reports every exception: uv run scripts/dev.py security report
+[tool.ruff.lint.per-file-ignores]
+# Tests: pytest asserts, fake fixture credentials, fixture temp paths and seeded randomness.
+"**/tests/**" = ["S101", "S105", "S106", "S107", "S108", "S311"]
+# Assertion helpers that exist only to be called from tests.
+"shared/testkit/**" = ["S101"]
+"scripts/ui_feature_smoke.py" = ["S101"]
+
+# Release 2 F-6: owner to fix or justify; see docs/release-2/evidence/security/pre-commit-report.md
+# Each entry lists only the rules found in that file when the scan was adopted. Remove an entry
+# once the owner has fixed the findings or added a justified `# noqa`.
+[tool.ruff.lint.extend-per-file-ignores]
+"student-2/backend/src/propertyscope_market_intelligence/api.py" = ["S101"]
+"student-2/database/src/propertyscope_market_store/api.py" = ["S101"]
+"student-2/database/src/propertyscope_market_store/import_operations.py" = ["S101"]
+"student-2/database/src/propertyscope_market_store/repository.py" = ["S101", "S608"]
+"student-3/backend/src/propertyscope_suburb_analytics/app.py" = ["S104"]
+"student-3/backend/src/propertyscope_suburb_analytics/clients.py" = ["S310"]
+"student-3/database/src/propertyscope_suburb_store/app.py" = ["S104"]
+"student-3/database/src/propertyscope_suburb_store/imports.py" = ["S608"]
+"student-3/database/src/propertyscope_suburb_store/repository.py" = ["S608"]
+"student-3/frontend/dev_server.py" = ["S310"]
+"student-4/database/src/propertyscope_due_diligence_store/api.py" = ["S101"]
+"student-4/database/src/propertyscope_due_diligence_store/repository.py" = ["S101", "S608"]
+"student-5/backend/src/propertyscope_buyer_workspaces/clients.py" = ["S105", "S310"]
+"student-5/database/src/propertyscope_buyer_store/api.py" = ["S105"]
+"student-5/database/src/propertyscope_buyer_store/domain.py" = ["S101"]
+"student-5/database/src/propertyscope_buyer_store/repository.py" = ["S101", "S608"]
+"student-5/scripts/compose_smoke.py" = ["S101", "S310"]
+"student-5/tests/test_migrations.py" = ["S608"]
+"student-5/tests/test_repository.py" = ["S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = [

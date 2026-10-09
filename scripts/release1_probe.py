@@ -23,7 +23,7 @@ from shared_contracts import HealthStatus
 from shared_contracts.deployment import DeploymentProjectionV1, TypedHealthProjection
 from shared_contracts.grounding import GROUNDING_MIN_SCORE
 
-AI_TOKEN_HEADER = "X-PropertyScope-AI-Token"
+AI_TOKEN_HEADER = "X-PropertyScope-AI-Token"  # noqa: S105 - header name, not a secret
 MCP_ACCEPT = "application/json, text/event-stream"
 TOOLS_LIST = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 # Deliberately outside every feature's guidance, so no passage may clear the relevance floor.

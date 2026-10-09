@@ -85,7 +85,7 @@ def fixture_origin() -> Iterator[str]:
 def test_activity_fixture_serves_its_public_shared_assets(
     fixture_origin: str, asset: str, content_type: str
 ) -> None:
-    with urlopen(f"{fixture_origin}/operations/ai-mode/shared/{asset}") as response:
+    with urlopen(f"{fixture_origin}/operations/ai-mode/shared/{asset}") as response:  # noqa: S310 - loopback fixture URL built by the test
         assert response.status == 200
         assert content_type in response.headers["Content-Type"]
         assert response.read()
@@ -93,7 +93,7 @@ def test_activity_fixture_serves_its_public_shared_assets(
 
 def _json(url: str, *, cookie: str | None = None) -> tuple[dict[str, object], object]:
     headers = {"Cookie": cookie} if cookie else {}
-    with urlopen(Request(url, headers=headers), timeout=2) as response:
+    with urlopen(Request(url, headers=headers), timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         return json.load(response), response.headers
 
 
@@ -110,28 +110,28 @@ def test_operator_feeds_have_bounded_empty_and_populated_fixtures(path: str) -> 
 def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
     fixture_origin: str,
 ) -> None:
-    with urlopen(f"{fixture_origin}/", timeout=2) as response:
+    with urlopen(f"{fixture_origin}/", timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         assert b"PropertyScope NSW" in response.read()
-    with urlopen(
+    with urlopen(  # noqa: S310 - loopback fixture URL built by the test
         f"{fixture_origin}/features/data-platform/",
         timeout=2,
     ) as response:
         assert b"Data overview" in response.read()
-    with urlopen(
+    with urlopen(  # noqa: S310 - loopback fixture URL built by the test
         f"{fixture_origin}/features/data-platform/integration/shell.js",
         timeout=2,
     ) as response:
         assert b"createFeature1ShellAdapter" in response.read()
-    with urlopen(
+    with urlopen(  # noqa: S310 - loopback fixture URL built by the test
         f"{fixture_origin}/features/data-platform/browser/index.js",
         timeout=2,
     ) as response:
         assert b"append, el" in response.read()
-    with urlopen(f"{fixture_origin}/design-system/gallery.html", timeout=2) as response:
+    with urlopen(f"{fixture_origin}/design-system/gallery.html", timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         gallery = response.read()
         assert b"Design foundation" in gallery
         assert b"ps-density--comfortable" in gallery
-    with urlopen(f"{fixture_origin}/fragments/research-areas.html", timeout=2) as response:
+    with urlopen(f"{fixture_origin}/fragments/research-areas.html", timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         fragment = response.read()
         assert response.headers.get_content_type() == "text/html"
         assert fragment.count(b"data-feature-id=") == 5
@@ -141,13 +141,13 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
         assert b"Buyer workspace" in buyer_entry
         assert b'data-feature-state="available"' in buyer_entry
         assert b'data-feature-state="planned"' not in buyer_entry
-    with urlopen(f"{fixture_origin}/vendor/htmx-2.0.10.min.js", timeout=2) as response:
+    with urlopen(f"{fixture_origin}/vendor/htmx-2.0.10.min.js", timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         htmx = response.read()
         assert response.headers.get_content_type() in {"text/javascript", "application/javascript"}
         assert b'version:"2.0.10"' in htmx
-    with urlopen(f"{fixture_origin}/operations/ai-mode/assets/app.js", timeout=2) as response:
+    with urlopen(f"{fixture_origin}/operations/ai-mode/assets/app.js", timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         assert b'const API_ROOT = "/api/v1"' in response.read()
-    with urlopen(f"{fixture_origin}/healthz", timeout=2) as response:
+    with urlopen(f"{fixture_origin}/healthz", timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         assert response.headers.get_content_type() == "text/plain"
         assert response.read() == b"ok\n"
     ready, _headers = _json(f"{fixture_origin}/__ui-fixture__/ready")
@@ -180,8 +180,8 @@ def test_same_origin_host_serves_shared_feature_and_structured_unknown_api(
 
 
 def test_query_scenario_sets_session_cookie_used_by_api(fixture_origin: str) -> None:
-    request = Request(f"{fixture_origin}/?scenario=empty")
-    with urlopen(request, timeout=2) as response:
+    request = Request(f"{fixture_origin}/?scenario=empty")  # noqa: S310 - loopback fixture URL built by the test
+    with urlopen(request, timeout=2) as response:  # noqa: S310 - loopback fixture URL built by the test
         cookie = response.headers["Set-Cookie"]
     assert cookie.startswith(f"{SCENARIO_COOKIE}=empty")
 

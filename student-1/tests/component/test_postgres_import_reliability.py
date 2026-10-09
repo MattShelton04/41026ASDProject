@@ -923,7 +923,9 @@ def test_psi_links_accepted_gnaf_virtual_identity_and_retains_foreign_key(
         "SELECT property_ref,match_tier,geographic_precision FROM warehouse.psi_sale"
     ).fetchone()
     assert accepted == 1
-    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:unregistered-gnaf").hexdigest())
+    expected_ref = uuid.UUID(
+        hashlib.md5(b"propertyscope-gnaf:unregistered-gnaf", usedforsecurity=False).hexdigest()
+    )
     assert row == {
         "property_ref": expected_ref,
         "match_tier": "A",
@@ -1045,7 +1047,9 @@ def test_psi_materialises_anchors_only_for_rows_without_supplied_property_refere
         phase_rows=len(rows),
         phase_callback=None,
     )
-    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:mixed").hexdigest())
+    expected_ref = uuid.UUID(
+        hashlib.md5(b"propertyscope-gnaf:mixed", usedforsecurity=False).hexdigest()
+    )
     persisted = connection.execute(
         "SELECT source_business_key,property_ref FROM warehouse.psi_sale"
     ).fetchall()
@@ -1233,7 +1237,9 @@ def test_psi_cached_match_repairs_type_and_spacing_without_crossing_property_com
         "FROM warehouse.psi_sale"
     ).fetchall()
     expected_refs = {
-        key: uuid.UUID(hashlib.md5(f"propertyscope-gnaf:{pid}".encode()).hexdigest())
+        key: uuid.UUID(
+            hashlib.md5(f"propertyscope-gnaf:{pid}".encode(), usedforsecurity=False).hexdigest()
+        )
         if pid
         else None
         for key, _house, _first, _last, _unit, pid in cases
@@ -1332,7 +1338,9 @@ def test_psi_batch_match_keeps_alias_ambiguity_and_full_name_direction(
         phase_rows=2,
         phase_callback=None,
     )
-    expected_ref = uuid.UUID(hashlib.md5(b"propertyscope-gnaf:full").hexdigest())
+    expected_ref = uuid.UUID(
+        hashlib.md5(b"propertyscope-gnaf:full", usedforsecurity=False).hexdigest()
+    )
     rows = connection.execute(
         "SELECT source_business_key,property_ref FROM warehouse.psi_sale "
         "ORDER BY source_business_key"

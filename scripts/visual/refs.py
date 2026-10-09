@@ -53,8 +53,11 @@ def main(argv: Sequence[str]) -> int:
     checkout = argv[0] if argv else "."
 
     def git(arguments: Sequence[str]) -> str:
-        return subprocess.run(
-            ("git", "-C", checkout, *arguments), check=True, capture_output=True, text=True
+        return subprocess.run(  # noqa: S603 - fixed git argv, no shell
+            ("git", "-C", checkout, *arguments),  # noqa: S607 - git is resolved from the developer PATH
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
 
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as handle:

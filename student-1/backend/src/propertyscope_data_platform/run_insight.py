@@ -134,7 +134,8 @@ def _progress(task: JsonObject | None) -> JsonObject:
             "updated_at": None,
         }
     raw = task["progress"]
-    assert isinstance(raw, dict)
+    if not isinstance(raw, dict):
+        raise TypeError("task progress must be an object")
     total_rows = raw["total_rows"]
     total_bytes = raw["total_bytes"]
     if isinstance(total_rows, int) and total_rows > 0:

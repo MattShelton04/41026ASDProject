@@ -5,7 +5,7 @@ import secrets
 
 from flask import Flask, Response, jsonify, request
 
-AI_SERVICE_TOKEN_HEADER = "X-PropertyScope-AI-Token"
+AI_SERVICE_TOKEN_HEADER = "X-PropertyScope-AI-Token"  # noqa: S105 - header name, not a secret
 
 
 def validate_service_token(token: str) -> None:

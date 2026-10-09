@@ -79,6 +79,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "scripts/ui_audit",
         "scripts/visual",
         "scripts/devtools",
+        "scripts/security",
         "scripts/check.py",
         "scripts/dev.py",
         "scripts/generate_contracts.py",
@@ -232,7 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for command in commands:
         print(f"\n> {shlex.join(command)}", flush=True)
         try:
-            subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)
+            subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)  # noqa: S603 - fixed quality-gate argv, no shell
         except FileNotFoundError:
             print(
                 f"error: {command[0]} is not available. See README.md for prerequisites.",

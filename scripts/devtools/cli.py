@@ -303,6 +303,25 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     foreground.add_argument("service", choices=tuple(AI_SERVICE_PORTS))
 
 
+def _security_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    security = root.add_parser(
+        "security", help="Run the pre-commit security scans and write the security report"
+    )
+    commands = security.add_subparsers(dest="action", required=True)
+    report = commands.add_parser(
+        "report",
+        help="Run Ruff S rules, detect-secrets and pip-audit; write "
+        "docs/release-2/evidence/security/",
+    )
+    report.add_argument("--output-dir", type=Path, default=None)
+    report.add_argument(
+        "--check", action="store_true", help="Exit non-zero when any finding is unexplained"
+    )
+    commands.add_parser(
+        "baseline", help="Create or refresh .secrets.baseline, keeping audit decisions"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the discoverable development command tree."""
     parser = argparse.ArgumentParser(
@@ -315,4 +334,5 @@ def build_parser() -> argparse.ArgumentParser:
     _data_commands(groups)
     _operator_commands(groups)
     _ai_commands(groups)
+    _security_commands(groups)
     return parser

@@ -89,7 +89,7 @@ class _ReleaseRecords:
               WHERE activation.dataset_release_id=release.id AND activation.status='failed')
           ) THEN 'failed' ELSE NULL END AS publication_status
         FROM ops.dataset_release release
-        JOIN ops.source_definition source ON source.id=release.source_definition_id"""
+        JOIN ops.source_definition source ON source.id=release.source_definition_id"""  # noqa: S608 - fixed column projection; values are bound
         params: list[Any] = []
         predicates: list[str] = ["source.status<>'retired'"]
         if status:

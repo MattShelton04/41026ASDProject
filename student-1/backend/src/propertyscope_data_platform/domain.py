@@ -97,7 +97,7 @@ class ReleaseStatus(StrEnum):
 
 
 class QualityStatus(StrEnum):
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105 - quality status value, not a password
     WARN = "warn"
     FAIL = "fail"
     SKIPPED_WITH_REASON = "skipped_with_reason"

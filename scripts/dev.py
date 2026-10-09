@@ -85,7 +85,7 @@ LOCAL_VISUAL_ROOT = REPOSITORY_ROOT / ".propertyscope-visual" / "local"
 
 def _run(command: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
     print(f"> {shlex.join(command)}", flush=True)
-    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)
+    subprocess.run(command, cwd=REPOSITORY_ROOT, check=True, env=environment)  # noqa: S603 - argv built by this CLI, no shell
 
 
 def _repeated_options(option: str, values: Sequence[str]) -> tuple[str, ...]:
@@ -217,7 +217,7 @@ def _host_port_is_available(port: int) -> bool:
 
 
 def _capture(command: Sequence[str]) -> str:
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 - argv built by this CLI, no shell
         command,
         cwd=REPOSITORY_ROOT,
         check=True,
@@ -470,7 +470,8 @@ def _sync_psi(*, years: Sequence[int], weeks: Sequence[date]) -> None:
     )
     if not targets:
         raise RuntimeError("Select --all, --year, --week, or --current-weekly")
-    with httpx.Client(timeout=None, follow_redirects=False) as client:
+    # Bound connection set-up; a full PSI archive download may legitimately read for minutes.
+    with httpx.Client(timeout=httpx.Timeout(None, connect=60.0), follow_redirects=False) as client:
         for url, destination in targets:
             if destination.is_file():
                 try:
@@ -1088,6 +1089,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             if any(week.weekday() != 0 for week in weeks):
                 raise RuntimeError("--week must be a Monday publication date")
             _sync_psi(years=years, weeks=weeks)
+        elif arguments.group == "security":
+            from scripts.security.cli import main as security_main
+
+            security_arguments = [arguments.action]
+            if arguments.action == "report":
+                if arguments.output_dir is not None:
+                    security_arguments.extend(("--output-dir", str(arguments.output_dir)))
+                if arguments.check:
+                    security_arguments.append("--check")
+            return security_main(security_arguments)
     except FileNotFoundError:
         print(
             "Docker or uv is not available on PATH. See README.md for prerequisites.",

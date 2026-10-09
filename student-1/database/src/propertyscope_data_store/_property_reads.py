@@ -276,7 +276,7 @@ class _CanonicalPropertyReads:
                 FROM best_matches
                 ORDER BY match_rank,score DESC,address_display,property_ref LIMIT %s OFFSET %s
             ) page ON true
-            """,
+            """,  # noqa: S608 - fixed SQL fragments; values are bound parameters
             search_params,
         )
         total = int(rows[0].get("total_count", 0)) if rows else 0
@@ -482,7 +482,7 @@ class _CanonicalPropertyReads:
             UNION ALL SELECT property.property_ref,property.address_display,
                 ST_X(property.geom),ST_Y(property.geom),ST_AsGeoJSON(property.geom)::jsonb
             FROM registry.property property WHERE property.property_ref=%s
-              AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",
+              AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",  # noqa: S608 - fixed SQL fragments; values are bound parameters
             (property_ref, property_ref),
         )
 
@@ -542,7 +542,7 @@ class _CanonicalPropertyReads:
         property_row = self._owner._required(
             f"""SELECT property.*,ST_X(geom) AS longitude,ST_Y(geom) AS latitude,
             ST_AsGeoJSON(geom)::jsonb AS geometry FROM registry.property property
-            WHERE property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE}""",
+            WHERE property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE}""",  # noqa: S608 - fixed SQL fragments; values are bound parameters
             (property_ref,),
         )
         identifiers = self._owner._fetch_all(
@@ -569,7 +569,7 @@ class _CanonicalPropertyReads:
             WHERE address.published AND COALESCE(address.property_ref,
                 md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             UNION ALL SELECT 1 FROM registry.property property
-            WHERE property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",
+            WHERE property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",  # noqa: S608 - fixed SQL fragments; values are bound parameters
             (property_ref, property_ref),
         )
         if exists is None:
@@ -637,7 +637,7 @@ class _CanonicalPropertyReads:
             JOIN warehouse.seifa_sal area ON area.dataset_release_id=release.id
              AND area.state='NSW'
              AND area.locality_name=upper(regexp_replace(trim(property.locality),'\\s+',' ','g'))
-            LIMIT 1""",
+            LIMIT 1""",  # noqa: S608 - fixed SQL fragments; values are bound parameters
             (property_ref, property_ref),
         )
 
@@ -650,7 +650,7 @@ class _CanonicalPropertyReads:
             WHERE address.published AND COALESCE(address.property_ref,
                 md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid)=%s
             UNION ALL SELECT property.locality FROM registry.property property
-            WHERE property.property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",
+            WHERE property.property_ref=%s AND {_REGISTRY_COMPATIBILITY_PREDICATE} LIMIT 1""",  # noqa: S608 - fixed SQL fragments; values are bound parameters
             (property_ref, property_ref),
         )
         if property_item is None:
@@ -792,7 +792,7 @@ class _CanonicalPropertyReads:
             LEFT JOIN accepted_sales accepted ON true
             LEFT JOIN page ON true
             ORDER BY COALESCE(page.contract_date,page.settlement_date) DESC NULLS LAST,
-                     page.source_business_key""",
+                     page.source_business_key""",  # noqa: S608 - fixed SQL fragments; values are bound parameters
             (property_ref, property_ref, property_ref, limit + 1),
         )
         if not rows:
