@@ -14,6 +14,7 @@ from scripts.devtools.config import (
     PRODUCTION_BUILD_SERVICES,
     UI_FIXTURE_SCENARIOS,
 )
+from scripts.devtools.review.cli import add_review_commands
 from scripts.devtools.runtime_settings import AI_CAPABILITY_MODES, AI_SERVICE_PORTS
 
 _FIXTURE_PORT_HELP = (
@@ -293,6 +294,7 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     )
     probe.add_argument("--output", type=Path, default=None, help="Also write JSON evidence here")
     _add_env_file_option(probe)
+    add_review_commands(commands)
     for action, help_text in (
         ("stop", "Stop host AI services while preserving their data"),
         ("logs", "Print recent host AI service logs"),
