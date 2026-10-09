@@ -462,6 +462,7 @@ def test_secrets_baseline_is_reviewed_portable_and_uses_the_scan_settings() -> N
         ('BASELINE = "' + "b" * 40 + '"', True),
         ("ACTIONLINT_SHA256: " + "c" * 64, True),
         ('"headSha": "' + "d" * 40 + '",', True),
+        ('  "commit": "' + "0" * 40 + '",', True),
         ('api_key = "' + "e" * 64 + '"', False),
         ('"' + "f" * 64 + '"', False),
     ],

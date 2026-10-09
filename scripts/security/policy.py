@@ -27,10 +27,11 @@ DETECT_SECRETS_EXCLUDE_FILES = (
     r"\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|woff2?|ttf|parquet|sqlite3?|db)$",
 )
 DETECT_SECRETS_EXCLUDE_LINES = (
-    # A 40-128 hex digest assigned to a key or constant named as a digest (content_hash,
-    # sha256, corpus_version, BASELINE, ...). Evidence files and tests pin these on purpose.
-    r"(?i)\w*(sha|hash|digest|checksum|fingerprint|corpus_version|baseline)\w*[\"']?\s*[:=]"
-    r"\s*\(?\s*[\"']?[0-9a-f]{40,128}\b",
+    # A 40-128 hex digest assigned to a key or constant named as a digest or commit
+    # (content_hash, sha256, corpus_version, BASELINE, commit, ...). Evidence files and tests pin
+    # these on purpose.
+    r"(?i)\w*(sha|hash|digest|checksum|fingerprint|corpus_version|baseline|commit)\w*"
+    r"[\"']?\s*[:=]\s*\(?\s*[\"']?[0-9a-f]{40,128}\b",
 )
 
 # Release 2 slice ownership. The Shared platform is led by the Student 1 owner.

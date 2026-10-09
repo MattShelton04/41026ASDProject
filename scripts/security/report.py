@@ -677,7 +677,12 @@ def _render_dependencies(
 
 def _render_reproduce(report: SecurityReport) -> list[str]:
     out = ["## Commands run", ""]
-    out.extend(f"- {name}: `{command}`" for name, command in report.context.commands.items())
+    out.extend(
+        _table(
+            ("Step", "Command"),
+            ((name, f"`{command}`") for name, command in report.context.commands.items()),
+        )
+    )
     out.extend(
         [
             "",

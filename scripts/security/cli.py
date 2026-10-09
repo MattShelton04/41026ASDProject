@@ -93,7 +93,7 @@ def build_report(
     commands = {
         "Ruff (gate, as in the commit hook)": scans.display(scans.ruff_gate_command()),
         "Ruff (audit)": scans.display(scans.ruff_audit_command(policy)),
-        "detect-secrets": "detect-secrets scan --baseline <copy of .secrets.baseline>",
+        "Credential scan": "detect-secrets scan --baseline <copy of .secrets.baseline>",
         "Lockfile export": "uv export --locked --all-packages --all-groups --no-emit-workspace "
         "--format requirements-txt --output-file <tmp>/requirements.txt",
         "pip-audit": "pip-audit --requirement <tmp>/requirements.txt --disable-pip "
