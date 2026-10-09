@@ -203,6 +203,11 @@ def detect_secrets_hook(root: Path, filenames: Sequence[str]) -> int:
     )
     if baseline.exists() and baseline.read_bytes() != before:
         write_baseline(baseline, normalise_baseline(json.loads(baseline.read_bytes())))
+    if completed.returncode == 0:
+        print(
+            f"detect-secrets: {len(filenames)} file(s) scanned; no secrets beyond the reviewed "
+            f"{BASELINE_NAME}"
+        )
     return completed.returncode
 
 

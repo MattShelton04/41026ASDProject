@@ -629,3 +629,22 @@ def test_security_cli_report_exit_code_follows_check(
     assert cli.main(["report", "--output-dir", str(tmp_path)]) == 0
     assert cli.main(["report", "--output-dir", str(tmp_path), "--check"]) == 1
     assert (tmp_path / "pre-commit-report.md").exists()
+
+
+def test_detect_secrets_hook_keeps_a_rewritten_baseline_portable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline = tmp_path / BASELINE_NAME
+    baseline.write_text('{"results": {}}', encoding="utf-8")
+
+    def fake_hook(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        assert "detect_secrets.pre_commit_hook" in command
+        assert kwargs["cwd"] == tmp_path
+        rewritten = {"results": {"a\\b.py": [{"type": "T", "hashed_secret": "1"}]}}
+        baseline.write_text(json.dumps(rewritten), encoding="utf-8")
+        return _completed(0)
+
+    monkeypatch.setattr(scans.subprocess, "run", fake_hook)
+    assert scans.detect_secrets_hook(tmp_path, ["a/b.py"]) == 0
+    assert list(json.loads(baseline.read_text(encoding="utf-8"))["results"]) == ["a/b.py"]
+    assert "1 file(s) scanned" in capsys.readouterr().out
