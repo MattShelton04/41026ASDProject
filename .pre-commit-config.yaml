@@ -24,6 +24,7 @@ repos:
         language: system
         stages: [pre-commit, manual]
         verbose: true
+        require_serial: true
         types_or: [python, pyi]
       - id: security-detect-secrets
         name: "security: detect-secrets against .secrets.baseline"
@@ -31,6 +32,7 @@ repos:
         language: system
         stages: [pre-commit, manual]
         verbose: true
+        require_serial: true
         types: [text]
       - id: security-pip-audit
         name: "security: pip-audit of locked dependencies (uv.lock)"
@@ -38,6 +40,7 @@ repos:
         language: system
         stages: [pre-commit, manual]
         verbose: true
+        require_serial: true
         pass_filenames: false
         files: ^(uv\.lock|(.+/)?pyproject\.toml|scripts/security/accepted-risks\.toml)$
       - id: pytest
