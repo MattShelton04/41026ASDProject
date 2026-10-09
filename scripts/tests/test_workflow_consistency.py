@@ -147,3 +147,35 @@ def test_build_cache_exports_are_optional_and_bounded(number: int) -> None:
         assert all("timeout=2m" in option for option in [*imports, *exports])
         assert all("ignore-error=true" in option for option in exports)
         assert build.get("continue-on-error", False) is False
+
+
+@pytest.mark.parametrize("number", range(1, 6))
+def test_feature_endpoint_tests_run_in_ci_with_junit_evidence(number: int) -> None:
+    """A slice with `tests/endpoints` must run them live and keep the JUnit report."""
+    if not (ROOT / f"student-{number}/tests/endpoints").is_dir():
+        pytest.skip(f"student-{number} has no endpoint tests yet")
+    workflow_path = f".github/workflows/student-{number}.yml"
+    workflow = yaml.safe_load((ROOT / workflow_path).read_text(encoding="utf-8"))
+    for event in ("push", "pull_request"):
+        assert "shared/testkit/**" in workflow[True][event]["paths"], (workflow_path, event)
+    steps = [step for job in workflow["jobs"].values() for step in job.get("steps", [])]
+    runs = [
+        step
+        for step in steps
+        if f"pytest student-{number}/tests/endpoints -m endpoint" in step.get("run", "")
+    ]
+    assert runs, f"{workflow_path} never runs its endpoint tests"
+    for step in runs:
+        assert step["env"]["PROPERTYSCOPE_ENDPOINT_BASE_URL"].startswith("http://127.0.0.1:")
+        assert "--junitxml=" in step["run"]
+    summary = [step for step in steps if "shared_testkit.junit_summary" in step.get("run", "")]
+    assert summary and all("$GITHUB_STEP_SUMMARY" in step["run"] for step in summary)
+    assert all("--require-success" in step["run"] for step in summary)
+    uploads = [
+        step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@")
+    ]
+    assert any(
+        step["with"]["name"] == f"student-{number}-endpoint-tests"
+        and step["if"].startswith("${{ !cancelled()")
+        for step in uploads
+    ), f"{workflow_path} must upload student-{number}-endpoint-tests"

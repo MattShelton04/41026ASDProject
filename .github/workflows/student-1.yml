@@ -19,6 +19,7 @@ on:
       - "scripts/dev.py"
       - "scripts/devtools/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -45,6 +46,7 @@ on:
       - "scripts/dev.py"
       - "scripts/devtools/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -156,6 +158,39 @@ jobs:
         run: |
           uv sync --locked --all-packages --all-groups
           uv run --locked scripts/dev.py data collect fixture-property --timeout 120
+      # Two endpoint functions (property search; source-definition CRUD) against the
+      # running backend, first on the Feature 1 origin and then through the Shared edge.
+      - name: Run Feature 1 endpoint tests on the feature origin
+        env:
+          PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5200
+          PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+        run: uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
+      - name: Run Feature 1 endpoint tests through the Shared edge
+        env:
+          PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5100
+          PROPERTYSCOPE_ENDPOINT_READY_PATH: /healthz
+        run: uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
+      - name: Publish endpoint test summary
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        run: |
+          status=0
+          for origin in feature-origin shared-edge; do
+            report="endpoint-results/student-1-${origin}.xml"
+            if [ -f "$report" ]; then
+              uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 1 endpoint tests (${origin})" --output "endpoint-results/student-1-${origin}.md" --require-success >> "$GITHUB_STEP_SUMMARY" || status=1
+            else
+              echo "::error::Missing $report" && status=1
+            fi
+          done
+          exit "$status"
+      - name: Upload endpoint test results
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: student-1-endpoint-tests
+          path: endpoint-results/
+          if-no-files-found: error
+          retention-days: 30
       - name: Smoke the Shared and Feature 1 boundary
         run: |
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5100/features/data-platform/
@@ -165,10 +200,6 @@ jobs:
           curl --fail --silent --show-error --max-time 5 -H 'HX-Request: true' 'http://127.0.0.1:5200/fragments/data-platform/v1/sources?status=all' --output /tmp/source-fragment.html
           grep -q 'data-feature-id="property-records"' /tmp/research-areas.html
           grep -q 'id="source-crud-region"' /tmp/source-fragment.html
-          curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5100/api/data-platform/v1/properties/search?q=11%20Example%20Street&state=NSW&limit=10' --output /tmp/propertyscope-search.json
-          curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5200/api/data-platform/v1/sources?status=all' --output /tmp/propertyscope-sources.json
-          python -c "import json; value=json.load(open('/tmp/propertyscope-search.json', encoding='utf-8')); assert value.get('items'), value"
-          python -c "import json; value=json.load(open('/tmp/propertyscope-sources.json', encoding='utf-8')); assert 'items' in value, value"
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f1-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5202/internal/data-platform/v1/schema/fingerprint',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=2)); assert value['algorithm']=='sha256' and len(value['fingerprint'])==64, value"
       - name: Capture service logs
         if: failure()
