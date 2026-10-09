@@ -25,9 +25,9 @@ from shared_contracts.multi_agent import HumanDecisionKind, WorkflowTemplate
 
 fake = FakeMultiAgentServer(
     [WorkflowTemplate.model_validate(yaml.safe_load(manifest.read_text()))],
-    recommendation=HumanDecisionKind.CORRECT,      # Reviewer recommendation for every run
-    failed_checks=["quality-clean"],               # these reviewer checks report FAIL
-    tool_results={"my.tool.v1": {"count": 3}},     # evidence excerpts per tool
+    recommendation=HumanDecisionKind.CORRECT,  # Reviewer recommendation for every run
+    failed_checks=["quality-clean"],  # these reviewer checks report FAIL
+    tool_results={"my.tool.v1": {"count": 3}},  # evidence excerpts per tool
 )
 
 # 1. httpx clients
