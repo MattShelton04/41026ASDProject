@@ -38,6 +38,7 @@ from shared_contracts import (
     ToolDefinition,
     TypedHealthProjection,
 )
+from shared_contracts.evidence_review import EvidenceReviewBundle, EvidenceReviewOutput
 from shared_contracts.grounding import GroundedAnswer, GroundedClaim, GroundingRequest
 from shared_contracts.retrieval import (
     CorpusDocument,
@@ -53,6 +54,8 @@ SCHEMA_ROOT = REPOSITORY_ROOT / "shared" / "contracts" / "schemas"
 OPENAPI_ROOT = REPOSITORY_ROOT / "shared" / "contracts" / "openapi"
 
 SCHEMA_MODELS: dict[str, type[BaseModel]] = {
+    "evidence-review-bundle.v1.schema.json": EvidenceReviewBundle,
+    "evidence-review-output.v1.schema.json": EvidenceReviewOutput,
     "grounding-request.v1.schema.json": GroundingRequest,
     "grounded-claim.v1.schema.json": GroundedClaim,
     "grounded-answer.v1.schema.json": GroundedAnswer,

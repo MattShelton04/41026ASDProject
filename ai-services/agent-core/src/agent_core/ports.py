@@ -133,6 +133,14 @@ class GroundingVerifier(Protocol):
         ...
 
 
+class CompletionValidator(Protocol):
+    """Validate a run's final result against its prompt set's declared output contract."""
+
+    def validate_completion(self, run: AgentRun, final_result: dict[str, JsonValue]) -> None:
+        """Raise ``ValueError`` when the final result breaks the run's output contract."""
+        ...
+
+
 class PromptBuilder(Protocol):
     """Port separating versioned prompt rendering from orchestration policy."""
 

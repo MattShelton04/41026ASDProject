@@ -1,0 +1,5 @@
+prompt_id: review-planner
+version: v1
+role: planner
+template: v1.system.j2
+description: Release 2 evidence review planner that reads the run's attached evidence bundle once.

@@ -32,6 +32,7 @@ from agent_core.limits import (
 )
 from agent_core.ports import (
     Clock,
+    CompletionValidator,
     GroundingVerifier,
     IdGenerator,
     LLMProvider,
@@ -80,6 +81,7 @@ class AgentRunner:
         clock: Clock,
         ids: IdGenerator,
         grounding_verifier: GroundingVerifier | None = None,
+        completion_validator: CompletionValidator | None = None,
     ) -> None:
         self._store = store
         self._provider = provider
@@ -89,6 +91,7 @@ class AgentRunner:
         self._clock = clock
         self._ids = ids
         self._grounding_verifier = grounding_verifier
+        self._completion_validator = completion_validator
 
     def run_until_blocked(self, run_id: UUID) -> AgentRun:
         """Advance until terminal state or human review, never beyond configured limits."""
@@ -690,7 +693,7 @@ class AgentRunner:
                     request,
                     Adaptation,
                     max_repairs=run.limits.max_model_repairs,
-                    validate=lambda value: validate_adaptation_grounding(
+                    validate=lambda value: self._validate_adaptation(
                         in_progress, tool_results, value
                     ),
                 )
@@ -746,6 +749,18 @@ class AgentRunner:
         )
         self._store.save(next_run, expected_version=in_progress.version, step=completed)
         return next_run
+
+    def _validate_adaptation(
+        self, run: AgentRun, tool_results: tuple[ToolResult, ...], value: Adaptation
+    ) -> None:
+        """Apply grounding and any prompt-set output contract inside bounded repair."""
+        validate_adaptation_grounding(run, tool_results, value)
+        if value.final_result is None or self._completion_validator is None:
+            return
+        try:
+            self._completion_validator.validate_completion(run, value.final_result)
+        except ValueError as exc:
+            raise ModelOutputValidationError(str(exc)) from exc
 
     @staticmethod
     def _adaptation_transition(

@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "CheckStatus": {
+      "description": "Deterministic outcome of one checklist item.",
+      "enum": [
+        "passed",
+        "failed"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    },
+    "EvidenceCheck": {
+      "additionalProperties": false,
+      "description": "One deterministic checklist item with the evidence that decided it.",
+      "properties": {
+        "detail": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Detail",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status",
+        "detail"
+      ],
+      "title": "EvidenceCheck",
+      "type": "object"
+    },
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "description": "One allowlisted evidence file, identified by its path relative to the evidence root.",
+      "properties": {
+        "bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bytes"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "path": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "status": {
+          "$ref": "#/$defs/InputStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status"
+      ],
+      "title": "EvidenceInput",
+      "type": "object"
+    },
+    "InputStatus": {
+      "description": "Whether a collector could read one evidence file inside its bounds.",
+      "enum": [
+        "read",
+        "missing",
+        "oversize",
+        "invalid"
+      ],
+      "title": "InputStatus",
+      "type": "string"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "description": "Bounded collected evidence, attached to a review run as its objective.",
+  "properties": {
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/EvidenceCheck"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Checks",
+      "type": "array"
+    },
+    "compacted": {
+      "default": false,
+      "title": "Compacted",
+      "type": "boolean"
+    },
+    "facts": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "maxProperties": 50,
+      "title": "Facts",
+      "type": "object"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/EvidenceInput"
+      },
+      "maxItems": 200,
+      "title": "Inputs",
+      "type": "array"
+    },
+    "mode": {
+      "enum": [
+        "multi-agent",
+        "testing",
+        "cloud"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "mode",
+    "inputs",
+    "checks"
+  ],
+  "title": "EvidenceReviewBundle",
+  "type": "object"
+}
