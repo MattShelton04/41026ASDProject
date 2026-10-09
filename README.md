@@ -66,9 +66,12 @@ Offline mode does not generate real model answers.
 | AI-mode | <http://127.0.0.1:5005> | Token-protected run API and loop worker |
 | MCP | <http://127.0.0.1:5011/mcp> | Streamable HTTP over 29 registered feature tools |
 | RAG | <http://127.0.0.1:5012> | Local embeddings, corpus versions and cited retrieval |
+| Multi-Agent Server | <http://127.0.0.1:5013> | Planner, Worker, Reviewer and human-decision workflows ([README](ai-services/multi-agent-server/README.md)) |
 
-Containers reach AI-mode through `host.docker.internal`. AI-mode calls MCP/RAG on loopback;
-MCP calls allowlisted feature HTTP endpoints. The loop is inside AI-mode, not a fourth server.
+Containers reach AI-mode and the Multi-Agent Server through `host.docker.internal`. AI-mode
+calls MCP/RAG on loopback; MCP calls allowlisted feature HTTP endpoints. The chat agent loop is
+inside AI-mode; the Multi-Agent Server is the separate Release 2 workflow service, whose Worker
+uses the same MCP tools.
 Provider credentials, service tokens, histories, index and model cache stay in the ignored
 `.propertyscope-runtime/` host directory. Tokens never belong in browser code or Git.
 
