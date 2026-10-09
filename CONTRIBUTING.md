@@ -90,6 +90,7 @@ only for documented, non-secret defaults.
 | Start local MCP + RAG + AI-mode | `uv run scripts/dev.py ai start --mode combined` |
 | Probe the running MCP and RAG servers directly | `uv run scripts/dev.py ai probe` |
 | Validate MCP / RAG through the agent loop | `uv run scripts/dev.py ai validate mcp` / `uv run scripts/dev.py ai validate rag` |
+| Review Release 2 evidence through the agent loop | `uv run scripts/dev.py ai review multi-agent\|testing\|cloud` (add `--deterministic` offline); see [review modes](docs/release-2/review-modes.md) |
 | Check Docker, Compose, project, source cache and port ownership | `uv run scripts/dev.py stack doctor` |
 | Run a code-driven fixture acquisition | `uv run scripts/dev.py data collect fixture-property` |
 | Follow local stack logs / print and exit | `uv run scripts/dev.py stack logs` / `uv run scripts/dev.py stack logs --no-follow --tail 100 f1-runner` |

@@ -147,6 +147,19 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("planner", "v8"),
             ModelRole.ADAPTER: ("adapter", "v9"),
         },
+        # Release 2 evidence reviews share one planner and use a mode-specific reviewer.
+        "review-multi-agent.v1": {
+            ModelRole.PLANNER: ("review-planner", "v1"),
+            ModelRole.ADAPTER: ("review-multi-agent", "v1"),
+        },
+        "review-testing.v1": {
+            ModelRole.PLANNER: ("review-planner", "v1"),
+            ModelRole.ADAPTER: ("review-testing", "v1"),
+        },
+        "review-cloud.v1": {
+            ModelRole.PLANNER: ("review-planner", "v1"),
+            ModelRole.ADAPTER: ("review-cloud", "v1"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:

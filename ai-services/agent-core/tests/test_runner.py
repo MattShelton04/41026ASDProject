@@ -7,9 +7,11 @@ from threading import Barrier, Lock
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import JsonValue
 
 from agent_core import (
     AgentRunner,
+    CompletionValidator,
     ConcurrentRunUpdateError,
     ModelMessage,
     ModelMetrics,
@@ -360,6 +362,7 @@ def _runner(
     prompt_builder: TestPromptBuilder | None = None,
     tool_allowlist: tuple[str, ...] | None = None,
     trusted_identifiers: tuple[TrustedIdentifier, ...] = (),
+    completion_validator: CompletionValidator | None = None,
 ) -> tuple[AgentRunner, MemoryStore, RecordingToolExecutor]:
     run = create_run(
         AgentRunRequest(
@@ -389,6 +392,7 @@ def _runner(
         tool_executor=executor,
         clock=clock or FixedClock(),
         ids=RandomIds(),
+        completion_validator=completion_validator,
     )
     return runner, store, executor
 
@@ -1903,3 +1907,50 @@ def test_interrupted_parallel_read_only_batch_replays_the_full_original_batch() 
     assert result.tool_call_count == 4
     assert {call.id for call in executor.calls} == {call.id for call in calls}
     assert store.steps[-3].output["recovery"]["code"] == "action_outcome_unknown"
+
+
+class _SummaryLengthValidator:
+    """Prompt-set output contract double: summaries must mention a verified record."""
+
+    def __init__(self) -> None:
+        self.seen: list[dict[str, object]] = []
+
+    def validate_completion(self, run: AgentRun, final_result: dict[str, JsonValue]) -> None:
+        self.seen.append(dict(final_result))
+        if "verified" not in str(final_result.get("summary", "")):
+            raise ValueError("summary must cite the verified record")
+
+
+def test_completion_validator_repairs_then_accepts_a_contract_final_result() -> None:
+    invalid = _adaptation("complete")
+    invalid["final_result"] = {"summary": "Found something"}
+    validator = _SummaryLengthValidator()
+    runner, store, _ = _runner(
+        [
+            _model_result(_plan()),
+            _model_result(invalid),
+            _model_result(_adaptation("complete")),
+        ],
+        completion_validator=validator,
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.final_result == {"summary": "Found one verified record"}
+    assert len(validator.seen) == 2
+
+
+def test_completion_validator_fails_the_run_after_bounded_repair() -> None:
+    invalid = _adaptation("complete")
+    invalid["final_result"] = {"summary": "Found something"}
+    runner, store, _ = _runner(
+        [_model_result(_plan()), _model_result(invalid), _model_result(invalid)],
+        completion_validator=_SummaryLengthValidator(),
+    )
+
+    result = runner.run_until_blocked(store.run.id)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "invalid_model_or_tool_data"

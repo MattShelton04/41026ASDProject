@@ -134,7 +134,10 @@
         "default.v6",
         "default.v7",
         "default.v8",
-        "default.v9"
+        "default.v9",
+        "review-multi-agent.v1",
+        "review-testing.v1",
+        "review-cloud.v1"
       ],
       "title": "Prompt Set",
       "type": "string"

@@ -16,6 +16,9 @@ is bonus work. The showcase is on 23 October 2026 and the report (`group-20.pdf`
   contents and showcase coverage.
 - [Implementation plan](implementation-plan.md): key decisions, target architecture, workstreams,
   timeline, evidence layout and risks.
+- [Agentic-loop review modes](review-modes.md): `dev.py ai review {multi-agent,testing,cloud}`,
+  the evidence each mode reads, the review output schema, the validation logs and the human
+  release decision.
 - [Responsibilities by part](parts/README.md): what Shared and each feature must deliver, with a
   plan for each part:
   [Shared](parts/shared.md) · [F1](parts/feature-1.md) · [F2](parts/feature-2.md) ·

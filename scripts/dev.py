@@ -999,6 +999,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(evidence, indent=2))
             return 0 if evidence["passed"] else 1
+        elif command == ("ai", "review"):
+            from scripts.devtools.review.cli import run as run_review
+
+            return run_review(arguments, os.environ)
         elif command == ("ai", "probe"):
             from scripts.release1_probe import probe, render
 

@@ -582,7 +582,10 @@
               "default.v6",
               "default.v7",
               "default.v8",
-              "default.v9"
+              "default.v9",
+              "review-multi-agent.v1",
+              "review-testing.v1",
+              "review-cloud.v1"
             ],
             "title": "Prompt Set",
             "type": "string"
@@ -1149,6 +1152,15 @@
         "title": "BackendOnboarding",
         "type": "object"
       },
+      "CheckStatus": {
+        "description": "Deterministic outcome of one checklist item.",
+        "enum": [
+          "passed",
+          "failed"
+        ],
+        "title": "CheckStatus",
+        "type": "string"
+      },
       "CorpusDocument": {
         "additionalProperties": false,
         "description": "A normalized document supplied by its owning feature; URLs are never fetched.",
@@ -1569,6 +1581,58 @@
         "title": "EvidenceAdapterOnboarding",
         "type": "object"
       },
+      "EvidenceCheck": {
+        "additionalProperties": false,
+        "description": "One deterministic checklist item with the evidence that decided it.",
+        "properties": {
+          "detail": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "default": [],
+            "items": {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckStatus"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "detail"
+        ],
+        "title": "EvidenceCheck",
+        "type": "object"
+      },
       "EvidenceCitation": {
         "additionalProperties": false,
         "description": "Self-contained untrusted source excerpt pinned to one complete corpus version.",
@@ -1693,6 +1757,242 @@
           "score"
         ],
         "title": "EvidenceCitation",
+        "type": "object"
+      },
+      "EvidenceInput": {
+        "additionalProperties": false,
+        "description": "One allowlisted evidence file, identified by its path relative to the evidence root.",
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Bytes"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "path": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sha256"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InputStatus"
+          }
+        },
+        "required": [
+          "path",
+          "status"
+        ],
+        "title": "EvidenceInput",
+        "type": "object"
+      },
+      "EvidenceReviewBundle": {
+        "additionalProperties": false,
+        "description": "Bounded collected evidence, attached to a review run as its objective.",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceCheck"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Checks",
+            "type": "array"
+          },
+          "compacted": {
+            "default": false,
+            "title": "Compacted",
+            "type": "boolean"
+          },
+          "facts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "maxProperties": 50,
+            "title": "Facts",
+            "type": "object"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceInput"
+            },
+            "maxItems": 200,
+            "title": "Inputs",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "multi-agent",
+              "testing",
+              "cloud"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "inputs",
+          "checks"
+        ],
+        "title": "EvidenceReviewBundle",
+        "type": "object"
+      },
+      "EvidenceReviewFinding": {
+        "additionalProperties": false,
+        "description": "One evidence-backed review observation.",
+        "properties": {
+          "area": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Area",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "message": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ReviewSeverity"
+          }
+        },
+        "required": [
+          "severity",
+          "area",
+          "message",
+          "evidence_refs"
+        ],
+        "title": "EvidenceReviewFinding",
+        "type": "object"
+      },
+      "EvidenceReviewOutput": {
+        "additionalProperties": false,
+        "description": "Structured result every review prompt set must return as its final result.",
+        "properties": {
+          "findings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceReviewFinding"
+            },
+            "maxItems": 30,
+            "title": "Findings",
+            "type": "array"
+          },
+          "recommendations": {
+            "default": [],
+            "items": {
+              "maxLength": 600,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 15,
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "risks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceReviewRisk"
+            },
+            "maxItems": 15,
+            "title": "Risks",
+            "type": "array"
+          },
+          "summary": {
+            "maxLength": 1500,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ReviewVerdict"
+          }
+        },
+        "required": [
+          "summary",
+          "verdict"
+        ],
+        "title": "EvidenceReviewOutput",
+        "type": "object"
+      },
+      "EvidenceReviewRisk": {
+        "additionalProperties": false,
+        "description": "A release risk that remains after the review, with its mitigation.",
+        "properties": {
+          "description": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "mitigation": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Mitigation",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ReviewSeverity"
+          }
+        },
+        "required": [
+          "severity",
+          "description",
+          "mitigation"
+        ],
+        "title": "EvidenceReviewRisk",
         "type": "object"
       },
       "EvidenceSource": {
@@ -2351,6 +2651,17 @@
         ],
         "title": "HumanReviewRequest",
         "type": "object"
+      },
+      "InputStatus": {
+        "description": "Whether a collector could read one evidence file inside its bounds.",
+        "enum": [
+          "read",
+          "missing",
+          "oversize",
+          "invalid"
+        ],
+        "title": "InputStatus",
+        "type": "string"
       },
       "JsonValue": {},
       "ModelInvocationEvidence": {
@@ -3159,6 +3470,28 @@
           "reject"
         ],
         "title": "ReviewDecision",
+        "type": "string"
+      },
+      "ReviewSeverity": {
+        "description": "Ordered impact of one finding or risk.",
+        "enum": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "title": "ReviewSeverity",
+        "type": "string"
+      },
+      "ReviewVerdict": {
+        "description": "Overall release-readiness outcome of one review.",
+        "enum": [
+          "pass",
+          "pass_with_risks",
+          "fail"
+        ],
+        "title": "ReviewVerdict",
         "type": "string"
       },
       "RunCorrelation": {

@@ -10,6 +10,7 @@ from ai_mode import create_app
 from ai_mode.adapters.mcp_tools import McpToolExecutor
 from ai_mode.adapters.retrieval import RETRIEVAL_TOOL, RetrievalToolExecutor
 from ai_mode.configuration import ConfigurationError, Settings
+from ai_mode.release_review import ReviewEvidenceToolExecutor
 from ai_mode.services import AppServices, build_services
 from shared_testkit import ScriptedLLMProvider, assert_problem_detail
 
@@ -106,7 +107,10 @@ def test_service_composition_selects_real_adapters_without_contacting_services(
         assert services.store.health().ready
         assert services.mcp_enabled is mcp
         assert services.rag_corpora == (((FEATURE, "operator-guidance"),) if rag else ())
-        executor = services.closeables[1]
+        review_executor = services.closeables[1]
+        # Evidence reviews wrap the feature transport without changing feature dispatch.
+        assert isinstance(review_executor, ReviewEvidenceToolExecutor)
+        executor = review_executor.delegate
         if rag:
             assert isinstance(executor, RetrievalToolExecutor)
             if mcp:

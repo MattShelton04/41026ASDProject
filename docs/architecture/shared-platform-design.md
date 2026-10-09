@@ -1179,7 +1179,10 @@ their owned browser/build/integration checks. All explicitly disable MCP/RAG. Te
 real SDK objects through in-process transports and inject embedders without starting shared
 servers, downloading weights or using provider credentials. Separate local named `ai validate mcp`
 and `ai validate rag` commands exercise the production loop with real services and deterministic
-model decisions; actual provider/browser evidence remains a separate requirement.
+model decisions; actual provider/browser evidence remains a separate requirement. Release 2 adds
+`ai review multi-agent|testing|cloud`, which runs the loop over bounded, hashed release evidence
+with the `review-*.v1` prompt sets and the `agentic-loop`-scoped `review.evidence.v1` tool; CI
+uses its `--deterministic` in-process form ([review modes](../release-2/review-modes.md)).
 
 The current brief also requires AI-mode to be disabled during CI/CD. Student 5's workflow still
 starts an offline direct-mode host process for its persisted-run degradation smoke; that owner

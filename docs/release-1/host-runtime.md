@@ -253,3 +253,10 @@ complete. RAG separates an answered query from a valid no-match or empty result 
 call as proof of relevant context. `--query` supplies an insufficient-context probe. `--corpus`
 selects an already registered corpus without granting new access. CI refuses the live command and
 runs `scripts/tests/test_release1_validation.py` with injected tool doubles instead.
+
+## Release 2 review modes
+
+`ai review multi-agent`, `ai review testing` and `ai review cloud` extend the same loop to review
+Release 2 evidence. They create persisted AI-mode runs (visible in Activity history) with the
+`review-*.v1` prompt sets, or run the production loop in-process with `--deterministic`. See
+[Release 2 review modes](../release-2/review-modes.md).
