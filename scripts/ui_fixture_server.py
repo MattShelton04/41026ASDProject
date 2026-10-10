@@ -392,7 +392,7 @@ class UIFixtureRequestHandler(BaseHTTPRequestHandler):
             feature_prefix, feature_root = matched
             relative = decoded.removeprefix(feature_prefix) or "index.html"
             if relative.startswith(
-                ("ai-chat/", "browser/", "design-system/", "mapping/", "vendor/")
+                ("ai-chat/", "browser/", "design-system/", "mapping/", "multi-agent/", "vendor/")
             ):
                 root = SHARED_FRONTEND
             else:

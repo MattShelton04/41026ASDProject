@@ -286,6 +286,121 @@ paths:
       operationId: listFeatureAgentRunEvents
       parameters: [{$ref: '#/components/parameters/RunId'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {$ref: '#/components/responses/Page'}, '404': {$ref: '#/components/responses/Problem'}, '503': {$ref: '#/components/responses/Problem'}}
+  /release-reviews:
+    get:
+      operationId: listReleaseReviews
+      description: >-
+        Lists Multi-Agent Server workflow runs of template f1-release-readiness-review for this
+        feature only, newest first. Template and feature filters are fixed server-side; limit is
+        clamped to 1-100 (default 20).
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: state, in: query, schema: {$ref: '#/components/schemas/ReleaseReviewState'}}
+      responses:
+        '200':
+          description: 'WorkflowRunPage {items: [WorkflowRunSummary], count} (shared multi-agent.v1 contract)'
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewPage'}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
+    post:
+      operationId: startReleaseReview
+      description: >-
+        Starts a release readiness review on the shared Multi-Agent Server. The workflow template
+        is fixed to f1-release-readiness-review; the review never publishes. Server Problem
+        Details (for example invalid_workflow_input) are relayed unchanged.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewStartRequest'}}}
+      responses:
+        '202':
+          description: 'WorkflowRun accepted (shared multi-agent.v1 contract); poll Location until state is not planning, working or reviewing'
+          headers:
+            Location: {description: This feature's release-review path for the run, schema: {type: string}}
+            X-Workflow-Run-ID: {schema: {type: string, format: uuid}}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewRun'}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
+  /release-reviews/template:
+    get:
+      operationId: getReleaseReviewTemplate
+      description: Returns the WorkflowTemplateDescriptor for f1-release-readiness-review, including the input schema the review form renders.
+      responses:
+        '200':
+          description: WorkflowTemplateDescriptor (shared multi-agent.v1 contract)
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {type: object, required: [template, input_schema, tools]}}}
+        '404': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
+  /release-reviews/{run_id}:
+    get:
+      operationId: getReleaseReview
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      responses:
+        '200':
+          description: WorkflowRun with plan, Worker evidence, Reviewer findings and decisions
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewRun'}}}
+        '404': {$ref: '#/components/responses/ReleaseReviewNotFound'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
+  /release-reviews/{run_id}/decision:
+    post:
+      operationId: decideReleaseReview
+      description: >-
+        Records the human decision on the Reviewer recommendation (approve, correct, partial,
+        reject). Deciding never publishes; publication remains the separate operator action.
+        The first correct starts round 2.
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewDecisionRequest'}}}
+      responses:
+        '200':
+          description: Updated WorkflowRun
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewRun'}}}
+        '404': {$ref: '#/components/responses/ReleaseReviewNotFound'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
+  /release-reviews/{run_id}/cancel:
+    post:
+      operationId: cancelReleaseReview
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                actor: {type: string, minLength: 1, maxLength: 100}
+      responses:
+        '200':
+          description: Cancelled WorkflowRun
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/ReleaseReviewRun'}}}
+        '404': {$ref: '#/components/responses/ReleaseReviewNotFound'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
+  /release-reviews/{run_id}/history:
+    get:
+      operationId: getReleaseReviewHistory
+      parameters: [{$ref: '#/components/parameters/RunId'}]
+      responses:
+        '200':
+          description: 'WorkflowRunHistory {run_id, state, history[], audit[]} (shared multi-agent.v1 contract)'
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {type: object, required: [run_id, state, history, audit]}}}
+        '404': {$ref: '#/components/responses/ReleaseReviewNotFound'}
+        '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
   /dataset-releases:
     get:
       operationId: listDatasetReleases
@@ -887,6 +1002,53 @@ components:
       properties:
         run_mode: {enum: [full_refresh, reprocess_cached]}
         scope: {type: object, maxProperties: 20}
+    ReleaseReviewState:
+      enum: [planning, working, reviewing, awaiting_human, approved, corrected, partially_accepted, rejected, failed, cancelled]
+    ReleaseReviewStartRequest:
+      type: object
+      additionalProperties: false
+      required: [input]
+      description: A supplied template_id is ignored; the backend always starts f1-release-readiness-review.
+      properties:
+        input:
+          type: object
+          maxProperties: 20
+          description: Validated by the Multi-Agent Server against the template input schema.
+          properties:
+            release_id: {type: string, format: uuid}
+            dataset_id: {type: string, maxLength: 150}
+            reviewer_note: {type: string, maxLength: 500}
+        requested_by: {type: [string, 'null'], minLength: 1, maxLength: 100}
+        template_id: {type: string, description: Ignored.}
+    ReleaseReviewDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, actor]
+      properties:
+        decision: {enum: [approve, correct, partial, reject]}
+        note: {type: string, maxLength: 2000, default: ''}
+        actor: {type: string, minLength: 1, maxLength: 100}
+        accepted_step_ids:
+          type: array
+          maxItems: 10
+          items: {type: string, pattern: '^[a-z][a-z0-9_-]*$', minLength: 1, maxLength: 64}
+    ReleaseReviewRun:
+      type: object
+      description: WorkflowRun from the shared multi-agent.v1 contract (shared/contracts/openapi/multi-agent.v1.openapi.json).
+      required: [id, template_id, feature_id, state, round, available_actions]
+      properties:
+        id: {type: string, format: uuid}
+        template_id: {const: f1-release-readiness-review}
+        feature_id: {const: student-1-propertyscope-data-platform}
+        state: {$ref: '#/components/schemas/ReleaseReviewState'}
+        round: {type: integer, minimum: 1}
+        available_actions: {type: array, items: {enum: [approve, correct, partial, reject, cancel]}}
+    ReleaseReviewPage:
+      type: object
+      required: [items, count]
+      properties:
+        items: {type: array, maxItems: 100, items: {type: object}}
+        count: {type: integer, minimum: 0, maximum: 100}
     Problem:
       type: object
       required: [type, title, status, detail, request_id]
@@ -925,3 +1087,20 @@ components:
   responses:
     Page: {description: Bounded page, content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, maxItems: 100}, next_cursor: {type: [string, 'null']}}}}}}
     Problem: {description: RFC 9457 Problem Details, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+    MultiAgentUnavailable:
+      description: The Multi-Agent Server is unconfigured, unreachable or rejected the service credential.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example:
+            type: https://propertyscope.local/problems/multi_agent_unavailable
+            title: Multi Agent Unavailable
+            status: 503
+            code: multi_agent_unavailable
+            detail: The Multi-Agent Server is unavailable; release review and publication remain usable
+            request_id: example
+    ReleaseReviewNotFound:
+      description: The run does not exist (run_not_found, relayed) or belongs to another feature or template (release_review_not_found).
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+  headers:
+    NoStore: {description: Review responses are never cached, schema: {const: no-store}}

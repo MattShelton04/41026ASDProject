@@ -44,6 +44,15 @@ def python_tool(module: str, *arguments: str) -> tuple[str, ...]:
     return (sys.executable, "-m", module, *arguments)
 
 
+def tool_environment() -> dict[str, str]:
+    """Force UTF-8 file reads in scanner subprocesses.
+
+    detect-secrets opens files with the locale encoding. On Windows that is cp1252, and a UTF-8
+    file it cannot decode is skipped silently, so local scans miss findings that CI reports.
+    """
+    return {**os.environ, "PYTHONUTF8": "1"}
+
+
 def display(command: Sequence[str]) -> str:
     """Show a command as a developer would type it inside `uv run`."""
     parts = list(command)
@@ -65,6 +74,7 @@ def _run(
             errors="replace",
             timeout=timeout,
             check=False,
+            env=tool_environment(),
         )
     except subprocess.TimeoutExpired as exc:
         raise ScanError(f"`{display(command)}` timed out after {timeout:.0f} s") from exc
@@ -199,7 +209,11 @@ def detect_secrets_hook(root: Path, filenames: Sequence[str]) -> int:
     before = baseline.read_bytes() if baseline.exists() else b""
     command = python_tool("detect_secrets.pre_commit_hook", "--baseline", BASELINE_NAME, *filenames)
     completed = subprocess.run(  # noqa: S603 - fixed tool argv and staged paths, no shell
-        command, cwd=root, check=False, timeout=DETECT_SECRETS_TIMEOUT_SECONDS
+        command,
+        cwd=root,
+        check=False,
+        timeout=DETECT_SECRETS_TIMEOUT_SECONDS,
+        env=tool_environment(),
     )
     if baseline.exists() and baseline.read_bytes() != before:
         write_baseline(baseline, normalise_baseline(json.loads(baseline.read_bytes())))

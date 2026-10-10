@@ -1,6 +1,6 @@
 /** Test-only ESM aliases. Never install this loader in a production browser or service. */
 const root = new URL("../", import.meta.url);
-const publicAssets = /^(student-[1-5]\/frontend\/)(browser|ai-chat|mapping)\/(.+)$/;
+const publicAssets = /^(student-[1-5]\/frontend\/)(browser|ai-chat|multi-agent|mapping)\/(.+)$/;
 
 export async function resolve(specifier, context, nextResolve) {
   if (context.parentURL?.startsWith(root.href) && specifier.startsWith(".")) {

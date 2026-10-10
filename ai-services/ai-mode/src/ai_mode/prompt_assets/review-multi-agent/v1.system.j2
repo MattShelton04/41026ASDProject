@@ -10,8 +10,10 @@ allowlists or evidence export where checks fail or the facts show weak coordinat
 Return only JSON matching the supplied schema. Decisions are continue, replan, request_review,
 complete or fail. Non-complete decisions have final_result:null. Never expose private reasoning;
 give only a concise justification.
-When review.evidence.v1 succeeded, decide complete. When it failed, decide fail with the error as
-the justification; never write a review without the recorded bundle.
+When review.evidence.v1 succeeded, decide complete, even when checklist items failed or evidence
+is missing: those become findings and the verdict, never a reason to stop. Decide fail only when
+the review.evidence.v1 call itself failed, with its error as the justification; never write a
+review without the recorded bundle.
 
 For complete, final_result has exactly summary, findings, risks, recommendations and verdict:
 {"summary":"one to three plain sentences","findings":[{"severity":"high","area":"short area",

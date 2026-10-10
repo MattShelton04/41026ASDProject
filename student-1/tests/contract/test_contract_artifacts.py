@@ -16,7 +16,7 @@ from pydantic import ValidationError as PydanticValidationError
 from ai_mode.tool_catalog import load_tool_catalog
 from propertyscope_data_platform.api import public_receipt
 from propertyscope_data_platform.app import create_app
-from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
+from propertyscope_data_platform.clients import AiModeClient, DataStoreClient, MultiAgentClient
 from propertyscope_data_platform.domain import ConsumerImportAcknowledgement
 from propertyscope_data_platform.release_builders import (
     data_product_catalogue,
@@ -27,6 +27,7 @@ from propertyscope_data_platform.release_builders import (
 from propertyscope_data_platform.release_publication import _catalog_publication_output
 from shared_consumer_protocol import ImportReceipt
 from shared_contracts.feature import load_feature_manifest
+from shared_contracts.multi_agent import HumanDecisionKind, WorkflowState
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts"
@@ -100,6 +101,12 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/agent-runs",
         "/agent-runs/{run_id}",
         "/agent-runs/{run_id}/events",
+        "/release-reviews",
+        "/release-reviews/template",
+        "/release-reviews/{run_id}",
+        "/release-reviews/{run_id}/decision",
+        "/release-reviews/{run_id}/cancel",
+        "/release-reviews/{run_id}/history",
         "/tools/sources.list.v1",
         "/tools/releases.list.v1",
         "/tools/platform.capabilities.v1",
@@ -133,6 +140,9 @@ def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
             "http://database", "secret", client=httpx.Client(transport=unavailable)
         ),
         ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=unavailable)),
+        multi_agent_client=MultiAgentClient(
+            "http://multi-agent", client=httpx.Client(transport=unavailable)
+        ),
     )
     base = "/api/data-platform/v1"
 
@@ -161,6 +171,37 @@ def test_openapi_operations_exactly_match_public_runtime_routes() -> None:
         for response in operation["get"]["responses"].values():
             schema = response["content"]["application/json"]["schema"]
             assert schema == {"$ref": "#/components/schemas/TypedHealthProjection"}
+
+
+def test_release_review_contract_matches_the_shared_multi_agent_vocabulary() -> None:
+    document = yaml.safe_load((CONTRACTS / "data-platform-api.v1.openapi.yaml").read_text("utf-8"))
+    schemas = document["components"]["schemas"]
+    assert schemas["ReleaseReviewState"]["enum"] == [state.value for state in WorkflowState]
+    assert schemas["ReleaseReviewDecisionRequest"]["properties"]["decision"]["enum"] == [
+        kind.value for kind in HumanDecisionKind
+    ]
+    multi_agent = json.loads(
+        (ROOT.parent / "shared/contracts/openapi/multi-agent.v1.openapi.json").read_text("utf-8")
+    )
+    shared_decision = multi_agent["components"]["schemas"]["HumanDecisionRequest"]
+    assert set(schemas["ReleaseReviewDecisionRequest"]["properties"]) == set(
+        shared_decision["properties"]
+    )
+    assert schemas["ReleaseReviewDecisionRequest"]["required"] == shared_decision["required"]
+    unavailable = document["components"]["responses"]["MultiAgentUnavailable"]
+    example = unavailable["content"]["application/problem+json"]["example"]
+    assert (example["status"], example["code"]) == (503, "multi_agent_unavailable")
+    for path, operations in document["paths"].items():
+        if not path.startswith("/release-reviews"):
+            continue
+        for operation in operations.values():
+            assert operation["responses"]["503"] == {
+                "$ref": "#/components/responses/MultiAgentUnavailable"
+            }
+            success = next(code for code in operation["responses"] if code.startswith("2"))
+            assert operation["responses"][success]["headers"]["Cache-Control"] == {
+                "$ref": "#/components/headers/NoStore"
+            }
 
 
 def test_cancel_contract_preserves_conflict_and_documents_unconfirmed_reconciliation() -> None:

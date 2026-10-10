@@ -16,8 +16,16 @@ from shared_contracts import (
     REQUEST_ID_HEADER,
     TRACEPARENT_HEADER,
 )
+from shared_contracts.multi_agent import WORKFLOW_RUN_ID_HEADER
 
-_FORWARDED_HEADERS = ("Location", REQUEST_ID_HEADER, AGENT_RUN_ID_HEADER, TRACEPARENT_HEADER)
+# Only the Multi-Agent Server emits X-Workflow-Run-ID, so other upstream projections are unchanged.
+_FORWARDED_HEADERS = (
+    "Location",
+    REQUEST_ID_HEADER,
+    AGENT_RUN_ID_HEADER,
+    TRACEPARENT_HEADER,
+    WORKFLOW_RUN_ID_HEADER,
+)
 
 
 def proxy_collection(store: DataStoreClient, path: str) -> Response:

@@ -1,7 +1,7 @@
 {
   "tool": "ruff",
   "version": "0.16.1",
-  "commit": "fcc28b62ae73e1de9d8d1379094e4b26fb1f1f81",
+  "commit": "831acb64a60255e807b45ed2be066e2985d3e3b7",
   "command": "ruff check . --select S --ignore-noqa --isolated --config 'target-version = \"py312\"' --config 'extend-exclude = [\"Temp\", \"temp\", \"tmp\"]' --config 'lint.per-file-ignores = { \"**/tests/**\" = [\"S101\", \"S105\", \"S106\", \"S107\", \"S108\", \"S311\"], \"scripts/ui_feature_smoke.py\" = [\"S101\"], \"shared/testkit/**\" = [\"S101\"] }' --output-format json --exit-zero --no-cache",
   "findings": [
     {
@@ -456,7 +456,7 @@
     },
     {
       "path": "scripts/security/scans.py",
-      "row": 59,
+      "row": 68,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -466,7 +466,7 @@
     },
     {
       "path": "scripts/security/scans.py",
-      "row": 201,
+      "row": 211,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -756,7 +756,7 @@
     },
     {
       "path": "scripts/tests/test_ui_fixtures.py",
-      "row": 134,
+      "row": 135,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "shared",
@@ -766,7 +766,7 @@
     },
     {
       "path": "scripts/tests/test_ui_fixtures.py",
-      "row": 144,
+      "row": 139,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "shared",
@@ -776,7 +776,7 @@
     },
     {
       "path": "scripts/tests/test_ui_fixtures.py",
-      "row": 148,
+      "row": 149,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "shared",
@@ -786,7 +786,7 @@
     },
     {
       "path": "scripts/tests/test_ui_fixtures.py",
-      "row": 150,
+      "row": 153,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "shared",
@@ -796,7 +796,7 @@
     },
     {
       "path": "scripts/tests/test_ui_fixtures.py",
-      "row": 183,
+      "row": 155,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "shared",
@@ -806,7 +806,17 @@
     },
     {
       "path": "scripts/tests/test_ui_fixtures.py",
-      "row": 184,
+      "row": 188,
+      "code": "S310",
+      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "loopback fixture URL built by the test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_ui_fixtures.py",
+      "row": 189,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "shared",
@@ -896,7 +906,7 @@
     },
     {
       "path": "scripts/validate_architecture.py",
-      "row": 77,
+      "row": 80,
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"MULTI_AGENT_TOKEN_VARIABLE\"",
       "slice": "shared",
