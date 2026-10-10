@@ -447,6 +447,13 @@ review decides on the recommendation only and never publishes. The backend never
 `multi_agent_server`; tests use `shared_testkit.FakeMultiAgentServer`
 (`tests/component/test_release_review_routes.py`).
 
+In the UI, **Readiness review** on a candidate or awaiting-review release (`#releases/{id}`) mounts
+the shared panel (`shared/frontend/multi-agent/`) inline through
+`frontend/integration/release-review.js`. The release and dataset IDs are fixed inputs. The run ID
+is kept as `?review={run_id}`, so a reload reopens the run, and the panel survives the page's
+publication polling. Publish stays the page's separate action. Live evidence of a full UI run is in
+`docs/release-2/evidence/multi-agent/student-1/18740ca5-ui/`.
+
 Tutor approval for the narrow ADR-016 PostgreSQL/PostGIS exception has been confirmed. A durable
 link or copy of that written approval should still be attached to the submission evidence; the
 implementation and executable architecture checks cannot substitute for that record.

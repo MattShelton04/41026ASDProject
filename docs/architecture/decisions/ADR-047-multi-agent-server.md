@@ -63,11 +63,23 @@ and domain-neutral. Each feature still supplies its own task, tools and review r
    No other shared package may import it. Student code, including tests, must not import
    `multi_agent_server`. Students call the HTTP API and test against
    `shared_testkit.FakeMultiAgentServer`, which a parity test keeps aligned with the real API.
+9. **Browsers reach workflows only through their feature backend.** The service token never
+   reaches a browser. Each feature that shows workflows adds proxy routes under its own API root
+   (`GET {root}/template`, `POST {root}`, `GET {root}`, `GET {root}/{run}`,
+   `POST {root}/{run}/decision`, `POST {root}/{run}/cancel`, `GET {root}/{run}/history`). The
+   backend fixes its own `template_id`, returns 404 for runs of other features or templates,
+   relays the server's Problem Details unchanged, and returns 503 `multi_agent_unavailable` when
+   the server is unreachable or unconfigured. The domain-neutral panel
+   `shared/frontend/multi-agent/` renders any template against that contract: the input form, a
+   polled stage timeline, the plan, the Worker evidence, the Reviewer findings and the decision
+   controls allowed by `available_actions`. Feature 1's release readiness review
+   (`/api/data-platform/v1/release-reviews` and the "Readiness review" action) is the reference
+   integration. (Added 10 October 2026, Release 2 Phase 2.)
 
 ## Consequences
 
-- Features get a shared, auditable human-in-the-loop workflow by adding a manifest and calling
-  four endpoints. They change no shared code.
+- Features get a shared, auditable human-in-the-loop workflow by adding a manifest, the proxy
+  routes in decision 9 and a panel mount. They change no shared code.
 - The AI tier gains a fourth host process and a fourth token. `ai status`, `ai logs` and `ai probe`
   cover it, and `stack doctor` reports its port.
 - Backends need `MULTI_AGENT_BASE_URL` and `MULTI_AGENT_SERVICE_TOKEN`. Compose passes both to the
