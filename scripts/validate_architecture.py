@@ -57,6 +57,9 @@ FEATURE_FRONTEND_PATHS = {
     "due-diligence": "student-4",
     "buyer-workspaces": "student-5",
 }
+# Shared frontend packages that feature images copy (and dev overlays mount) under their own
+# frontend root. Feature code must import each one through its public ``index.js`` barrel.
+SHARED_FRONTEND_PACKAGES = frozenset({"ai-chat", "browser", "mapping", "multi-agent"})
 # AI-mode (with the agent loop), MCP, RAG and the Multi-Agent Server run on the host and must
 # not be defined as Compose services or built as images (ADR-043, ADR-046, ADR-047).
 HOST_AI_COMPONENTS = ("ai-mode", "mcp-server", "rag-server", "agent-core", MULTI_AGENT_SERVER)
@@ -639,7 +642,7 @@ def _resolve_frontend_target(
     if target_parts[:2] == ("shared", "frontend"):
         package = (
             target_parts[2]
-            if len(target_parts) > 2 and target_parts[2] in {"ai-chat", "browser", "mapping"}
+            if len(target_parts) > 2 and target_parts[2] in SHARED_FRONTEND_PACKAGES
             else None
         )
         return target, "shared", package
@@ -650,7 +653,7 @@ def _resolve_frontend_target(
         if (
             len(target_parts) > 3
             and target_parts[1] == "frontend"
-            and target_parts[2] in {"ai-chat", "browser", "mapping"}
+            and target_parts[2] in SHARED_FRONTEND_PACKAGES
             and not target.exists()
         ):
             package = target_parts[2]

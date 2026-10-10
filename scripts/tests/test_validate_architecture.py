@@ -258,6 +258,29 @@ def test_student_frontend_public_entrypoints_pass(tmp_path: Path) -> None:
     assert validate_repository(root) == ()
 
 
+def test_student_frontend_must_import_shared_multi_agent_through_its_barrel(
+    tmp_path: Path,
+) -> None:
+    root = _workspace(tmp_path)
+    source = root / "student-1" / "frontend" / "routes" / "reviews.js"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        'import { createMultiAgentPanel } from "../multi-agent/panel.js";\n',
+        encoding="utf-8",
+    )
+
+    violations = validate_repository(root)
+
+    assert len(violations) == 1
+    assert "must import Shared multi-agent through multi-agent/index.js" in violations[0].message
+
+    source.write_text(
+        'import { createMultiAgentPanel } from "../multi-agent/index.js";\n',
+        encoding="utf-8",
+    )
+    assert validate_repository(root) == ()
+
+
 def test_student_local_mapping_module_is_not_mistaken_for_shared_copy(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     mapping = root / "student-1" / "frontend" / "mapping"

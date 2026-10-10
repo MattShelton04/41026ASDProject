@@ -250,6 +250,19 @@ def test_every_feature_loads_the_shared_shell_without_inline_scripts() -> None:
         assert not re.search(r"<script(?![^>]+src=)", html)
 
 
+def test_shared_multi_agent_panel_is_mounted_and_copied_for_feature_1() -> None:
+    import yaml
+
+    services = yaml.safe_load(_read("docker-compose.dev.yml"))["services"]
+    mount = "./shared/frontend/multi-agent:/usr/share/nginx/html/multi-agent:ro"
+    assert mount in services["f1-frontend"]["volumes"]
+    assert "COPY shared/frontend/multi-agent /usr/share/nginx/html/multi-agent" in _read(
+        "student-1/Dockerfile"
+    )
+    mount_point = REPOSITORY_ROOT / "student-1/frontend/multi-agent"
+    assert sorted(path.name for path in mount_point.iterdir()) == ["README.md"]
+
+
 def test_shared_browser_assets_survive_development_directory_mounts() -> None:
     import yaml
 
