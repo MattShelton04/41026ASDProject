@@ -17,6 +17,7 @@ from scripts.security.policy import (
     BASELINE_NAME,
     DETECT_SECRETS_EXCLUDE_FILES,
     DETECT_SECRETS_EXCLUDE_LINES,
+    DETECT_SECRETS_FILTERS,
     RuffPolicy,
     to_posix,
 )
@@ -141,6 +142,8 @@ def detect_secrets_scan_arguments() -> tuple[str, ...]:
         arguments.extend(("--exclude-files", pattern))
     for pattern in DETECT_SECRETS_EXCLUDE_LINES:
         arguments.extend(("--exclude-lines", pattern))
+    for path in DETECT_SECRETS_FILTERS:
+        arguments.extend(("--filter", path))
     return tuple(arguments)
 
 
