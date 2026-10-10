@@ -1,6 +1,6 @@
 /** Start and decision forms. Controls keep native semantics; validation is ours (`noValidate`). */
 import { append, el } from "../browser/index.js";
-import { ACTOR_LIMIT, DECISION_NOTE_LIMIT, DEFAULT_MULTI_AGENT_LABELS, humaniseValue } from "./definitions.js";
+import { ACTOR_LIMIT, DECISION_NOTE_LIMIT, DEFAULT_MULTI_AGENT_LABELS, MAX_WORKFLOW_ROUNDS, humaniseValue } from "./definitions.js";
 
 /** Show or clear one control's accessible error message. */
 export function setFieldError(ref, message) {
@@ -135,69 +135,69 @@ export function buildStartForm({ fields, instanceId, initialInput = {}, labels =
   return { form, heading, refs, problem, submit, values };
 }
 
-/** Decision controls for exactly the actions the run allows. */
+/**
+ * One question with plain-language choices for exactly the actions the run allows. The note,
+ * steps and name appear only after a choice, with labels that say what that choice needs.
+ */
 export function buildDecisionForm({
-  run, options, draft, instanceId, guidance = "", labels = DEFAULT_MULTI_AGENT_LABELS, onChange = () => {},
+  run, options, draft, instanceId, guidance = "", labels = DEFAULT_MULTI_AGENT_LABELS, blocking = 0, onChange = () => {},
 }) {
   const form = el("form", "ps-multi-agent__decision");
   form.noValidate = true;
-  const heading = el("h4", "ps-multi-agent__section-title", labels.decisionHeading);
+  const heading = el("h4", "ps-multi-agent__question", labels.decisionHeading);
   heading.id = `${instanceId}-decision-title`;
+  heading.tabIndex = -1;
   form.setAttribute("aria-labelledby", heading.id);
-  append(form, heading);
-  if (guidance) {
-    const note = el("aside", "ps-multi-agent__guidance");
-    append(note, el("strong", "", labels.guidance), el("p", "", guidance));
-    append(form, note);
-  }
+  const finalRound = (Number(run?.round) || 1) >= MAX_WORKFLOW_ROUNDS;
+  const hint = el("p", "ps-multi-agent__hint", finalRound ? labels.decisionHintFinal : labels.decisionHint);
+  hint.id = `${instanceId}-decision-hint`;
+  append(form, heading, hint);
 
   const choices = el("fieldset", "ps-multi-agent__choices");
-  append(choices, el("legend", "", "Decision"));
+  append(choices, el("legend", "ps-multi-agent__sr-only", "Decision"));
   const decisionError = errorNode(`${instanceId}-decision-error`);
   const radios = options.map((option) => {
     const id = `${instanceId}-decision-${option.action}`;
-    const choice = el("div", `ps-multi-agent__choice ps-multi-agent__choice--${option.action}`);
+    const choice = el("label", `ps-multi-agent__choice ps-multi-agent__choice--${option.action}`);
+    choice.htmlFor = id;
     const radio = el("input", "ps-multi-agent__radio");
     radio.type = "radio";
     radio.name = `${instanceId}-decision`;
     radio.value = option.action;
     radio.id = id;
     radio.checked = draft.decision === option.action;
-    const detailId = `${id}-detail`;
-    describedBy(radio, detailId, decisionError.id);
-    const label = el("label", "ps-multi-agent__choice-label", option.label);
-    label.htmlFor = id;
-    const detail = el("span", "ps-multi-agent__choice-detail", option.detail);
-    detail.id = detailId;
-    append(choice, radio, label, detail);
+    describedBy(radio, hint.id, decisionError.id);
+    append(choice, radio, el("strong", "ps-multi-agent__choice-label", option.label), el("span", "ps-multi-agent__choice-detail", option.detail));
+    if (option.suggested) append(choice, el("span", "ps-multi-agent__choice-tag", "Suggested"));
     append(choices, choice);
     return radio;
   });
-  append(choices, decisionError);
-  append(form, choices);
+  append(form, choices, decisionError);
 
+  const reveal = el("div", "ps-multi-agent__reveal");
   const steps = Array.isArray(run?.plan?.steps) ? run.plan.steps : [];
   const accepted = el("fieldset", "ps-multi-agent__accepted");
   append(accepted, el("legend", "", labels.acceptedSteps));
   const acceptedError = errorNode(`${instanceId}-accepted-error`);
   const checkboxes = steps.map((step) => {
     const id = `${instanceId}-accept-${step.id}`;
-    const row = el("div", "ps-multi-agent__check-row");
+    const row = el("div", "ps-multi-agent__check-row ps-multi-agent__step-choice");
     const box = el("input", "ps-multi-agent__checkbox");
     box.type = "checkbox";
     box.id = id;
     box.value = step.id;
     box.checked = draft.acceptedStepIds.includes(step.id);
     describedBy(box, acceptedError.id);
-    const label = el("label", "", `${step.title || humaniseValue(step.id)} (${step.id})`);
+    const label = el("label", "", step.title || humaniseValue(step.id));
     label.htmlFor = id;
     append(row, box, label);
     append(accepted, row);
     return box;
   });
   append(accepted, acceptedError);
-  accepted.hidden = draft.decision !== "partial";
-  append(form, accepted);
+  const warning = el("p", "ps-multi-agent__warning", blocking
+    ? `${blocking} critical or high check${blocking === 1 ? "" : "s"} failed. The guidance says to approve only when none did.`
+    : "");
 
   const noteId = `${instanceId}-decision-note`;
   const noteField = el("div", "ps-multi-agent__field");
@@ -205,17 +205,15 @@ export function buildDecisionForm({
   noteLabel.htmlFor = noteId;
   const note = el("textarea", "ps-multi-agent__control");
   note.id = noteId;
-  note.rows = 4;
+  note.rows = 3;
   note.maxLength = DECISION_NOTE_LIMIT;
   note.value = draft.note;
-  const noteHelp = el("p", "ps-multi-agent__field-help", labels.noteHelp);
-  noteHelp.id = `${noteId}-help`;
   const noteError = errorNode(`${noteId}-error`);
-  describedBy(note, noteHelp.id, noteError.id);
-  append(noteField, noteLabel, note, noteHelp, noteError);
+  describedBy(note, noteError.id);
+  append(noteField, noteLabel, note, noteError);
 
   const actorId = `${instanceId}-decision-actor`;
-  const actorField = el("div", "ps-multi-agent__field");
+  const actorField = el("div", "ps-multi-agent__field ps-multi-agent__field--actor");
   const actorLabel = el("label", "ps-multi-agent__field-label", labels.actor);
   actorLabel.htmlFor = actorId;
   const actor = el("input", "ps-multi-agent__control");
@@ -230,30 +228,56 @@ export function buildDecisionForm({
   const actorError = errorNode(`${actorId}-error`);
   describedBy(actor, actorHelp.id, actorError.id);
   append(actorField, actorLabel, actor, actorHelp, actorError);
-  append(form, noteField, actorField);
-
-  const problem = el("div", "ps-multi-agent__form-problem");
-  const actions = el("div", "ps-multi-agent__actions");
+  const submitRow = el("div", "ps-multi-agent__submit-row");
   const submit = el("button", "ps-button ps-button--primary", labels.submitDecision);
   submit.type = "submit";
   submit.dataset.action = "decide";
-  append(actions, submit);
-  append(form, problem, actions);
+  append(submitRow, actorField, submit);
+  append(reveal, accepted, warning, noteField, submitRow);
 
+  const problem = el("div", "ps-multi-agent__form-problem");
+  const safety = el("p", "ps-multi-agent__safety", labels.decisionSafety);
+  safety.id = `${instanceId}-decision-safety`;
+  describedBy(submit, safety.id);
+  append(form, reveal, problem, safety);
+  if (guidance) {
+    const how = el("button", "ps-multi-agent__link", labels.guidance);
+    how.type = "button";
+    const aside = el("aside", "ps-multi-agent__guidance");
+    aside.id = `${instanceId}-guidance`;
+    aside.hidden = true;
+    append(aside, el("p", "", guidance));
+    how.setAttribute("aria-expanded", "false");
+    how.setAttribute("aria-controls", aside.id);
+    how.addEventListener("click", () => {
+      aside.hidden = !aside.hidden;
+      how.setAttribute("aria-expanded", String(!aside.hidden));
+    });
+    append(form, how, aside);
+  }
+
+  const byAction = new Map(options.map((option) => [option.action, option]));
   const sync = () => {
     draft.decision = radios.find((radio) => radio.checked)?.value || "";
     draft.note = note.value;
     draft.actor = actor.value;
     draft.acceptedStepIds = checkboxes.filter((box) => box.checked).map((box) => box.value);
+    const option = byAction.get(draft.decision) || null;
+    form.dataset.choice = draft.decision;
+    reveal.hidden = !option;
     accepted.hidden = draft.decision !== "partial";
-    note.required = Boolean(draft.decision) && draft.decision !== "approve";
-    noteLabel.textContent = note.required ? `${labels.note} (required)` : labels.note;
+    warning.hidden = !(draft.decision === "approve" && blocking);
+    note.required = Boolean(option) && !option.optionalNote;
+    noteLabel.textContent = option?.note || labels.note;
+    note.placeholder = option?.placeholder || "";
+    const count = draft.acceptedStepIds.length;
+    submit.textContent = !option ? labels.submitDecision
+      : draft.decision === "partial" && count ? `Accept ${count} step${count === 1 ? "" : "s"}` : option.submit;
     onChange(draft);
   };
   for (const control of [...radios, ...checkboxes]) control.addEventListener("change", sync);
   for (const control of [note, actor]) control.addEventListener("input", sync);
-  note.required = Boolean(draft.decision) && draft.decision !== "approve";
-  if (note.required) noteLabel.textContent = `${labels.note} (required)`;
+  sync();
 
   // Visual order, so validation focuses the first invalid control on the page.
   const refs = {

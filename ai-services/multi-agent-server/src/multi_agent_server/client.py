@@ -104,8 +104,18 @@ class MultiAgentClient:
             self._request("POST", f"/runs/{run_id}/cancel", json={"actor": actor})
         )
 
-    def history(self, run_id: UUID | str) -> WorkflowRunHistory:
-        return WorkflowRunHistory.model_validate(self._request("GET", f"/runs/{run_id}/history"))
+    def history(
+        self, run_id: UUID | str, *, after_history: int = 0, after_audit: int = 0
+    ) -> WorkflowRunHistory:
+        """Transitions and audit; non-zero cursors return only entries after them."""
+        params = {
+            key: value
+            for key, value in (("after_history", after_history), ("after_audit", after_audit))
+            if value
+        }
+        return WorkflowRunHistory.model_validate(
+            self._request("GET", f"/runs/{run_id}/history", params=params or None)
+        )
 
     def wait(
         self, run_id: UUID | str, *, timeout: float = 300.0, interval: float = 0.5

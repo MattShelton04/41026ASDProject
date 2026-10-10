@@ -51,7 +51,14 @@ export function createMultiAgentClient({ fetcher = globalThis.fetch.bind(globalT
     cancel: (runId, { actor = "", ...options } = {}) => request(runPath(root, runId, "/cancel"), {
       ...options, method: "POST", body: actor ? { actor } : {},
     }),
-    getHistory: (runId, options = {}) => request(runPath(root, runId, "/history"), options),
+    // Non-zero cursors return only entries after them; the two sequences are numbered separately.
+    getHistory: (runId, { afterHistory = 0, afterAudit = 0, ...options } = {}) => {
+      const query = new URLSearchParams();
+      if (afterHistory > 0) query.set("after_history", String(afterHistory));
+      if (afterAudit > 0) query.set("after_audit", String(afterAudit));
+      const suffix = query.toString() ? `/history?${query}` : "/history";
+      return request(runPath(root, runId, suffix), options);
+    },
     destroy: () => lifecycle.abort(),
   });
 }

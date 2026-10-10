@@ -41,6 +41,7 @@ from shared_contracts import (
 from shared_contracts.evidence_review import EvidenceReviewBundle, EvidenceReviewOutput
 from shared_contracts.grounding import GroundedAnswer, GroundedClaim, GroundingRequest
 from shared_contracts.multi_agent import (
+    MAX_HISTORY_CURSOR,
     MAX_RUN_PAGE_LIMIT,
     MULTI_AGENT_API_PREFIX,
     WORKFLOW_RUN_ID_HEADER,
@@ -660,9 +661,29 @@ def _multi_agent_openapi() -> dict[str, Any]:
             f"{prefix}/runs/{{run_id}}/history": {
                 "get": {
                     "operationId": "getWorkflowRunHistory",
-                    "parameters": [run_id],
+                    "parameters": [
+                        run_id,
+                        *(
+                            {
+                                "name": name,
+                                "in": "query",
+                                "description": description,
+                                "schema": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": MAX_HISTORY_CURSOR,
+                                    "default": 0,
+                                },
+                            }
+                            for name, description in (
+                                ("after_history", "Return only transitions after this sequence"),
+                                ("after_audit", "Return only audit events after this sequence"),
+                            )
+                        ),
+                    ],
                     "responses": {
                         "200": _json_response("Transitions and audit", "WorkflowRunHistory"),
+                        "400": problem,
                         "401": problem,
                         "404": problem,
                     },

@@ -1,0 +1,1089 @@
+{
+  "available_actions": [],
+  "completed_at": "2026-10-10T03:42:02.121638Z",
+  "created_at": "2026-10-10T03:41:23.027836Z",
+  "decisions": [
+    {
+      "accepted_step_ids": [],
+      "actor": "matthew (agent live check)",
+      "decided_at": "2026-10-10T03:41:47.830583Z",
+      "decision": "correct",
+      "note": "Agent live check: confirm the record count against the source's published totals and say which quarters are covered.",
+      "request_id": "315f3e38-1ca7-4e56-970d-9de777082b78",
+      "resulting_state": "working",
+      "round": 1
+    },
+    {
+      "accepted_step_ids": [
+        "release"
+      ],
+      "actor": "matthew (agent live check)",
+      "decided_at": "2026-10-10T03:42:02.121638Z",
+      "decision": "partial",
+      "note": "Agent live check: accepting the release inspection only; completeness against the source still needs a manual check.",
+      "request_id": "3a5c2e5c-a29d-447a-b866-8a5ed55cbf41",
+      "resulting_state": "partially_accepted",
+      "round": 2
+    }
+  ],
+  "error": null,
+  "feature_id": "student-1-propertyscope-data-platform",
+  "id": "3ba5c95a-03e9-490a-87d3-7df079ae5bdf",
+  "input": {
+    "dataset_id": "abs-cpi",
+    "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e"
+  },
+  "plan": {
+    "evidence_needed": [
+      "Candidate release status, record count, content hash, quality results, provenance, publication receipts or activations, and accepted predecessor.",
+      "Release queue context for abs-cpi, including other release IDs, statuses, record counts, and ingestion runs."
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gpt-5.6-luna",
+      "prompt_hash": "a2e5469ac7219707f115fb2e4251b7523d3f9cad844e59d0dc54e2ffefcfb374",
+      "prompt_id": "planner",
+      "prompt_version": "v1",
+      "provider": "openai",
+      "role": "planner"
+    },
+    "steps": [
+      {
+        "arguments": {
+          "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e"
+        },
+        "expected_evidence": "The release's exact status, record count, content hash, quality summary/results, provenance, publication receipts or activations if present, and accepted predecessor.",
+        "id": "release",
+        "index": 1,
+        "purpose": "Collect the candidate release's status, record count, content hash, quality results, provenance, publication evidence, activations, and accepted predecessor.",
+        "required": true,
+        "title": "Inspect the candidate release",
+        "tool": "data.release_inspect.v1"
+      },
+      {
+        "arguments": {
+          "dataset_id": "abs-cpi",
+          "limit": 10
+        },
+        "expected_evidence": "Up to 10 release summaries for abs-cpi showing release IDs, statuses, record counts, dataset IDs, and ingestion runs.",
+        "id": "queue",
+        "index": 2,
+        "purpose": "Provide context on other releases for dataset abs-cpi, including their statuses and record counts, without changing any release.",
+        "required": true,
+        "title": "Read the dataset release queue",
+        "tool": "data.releases.v1"
+      }
+    ],
+    "summary": "Inspect the specified release for its readiness evidence, then review the bounded release queue for the same dataset to provide comparison and lifecycle context. All planned work is read-only and supports a recommendation without publishing or modifying anything."
+  },
+  "provider_mode": "model",
+  "request_id": "0da94e0f-9eab-430f-b2a1-76d7bf9e0440",
+  "requested_by": "property-data-release-review",
+  "review": {
+    "findings": [
+      {
+        "check_id": "release-found",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-release-found",
+        "message": "Passed: The requested release was inspected. (data.release_inspect.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "release-matches",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-release-matches",
+        "message": "Passed: The inspected release is the one requested. (release.id = 'e9df11fb-5221-4746-ad0d-d8066405855e'; expected eq 'e9df11fb-5221-4746-ad0d-d8066405855e')",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "reviewable-status",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-reviewable-status",
+        "message": "Passed: The release is a candidate or awaiting review, so publication is still a decision to make. (release.status = 'awaiting_review'; expected in ['candidate', 'awaiting_review'])",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "has-records",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-has-records",
+        "message": "Passed: The release contains at least one record. (release.record_count = 680; expected gt 0)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "content-hash-recorded",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-content-hash-recorded",
+        "message": "Passed: The release records a content hash for provenance. (release.content_sha256 is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "quality-recorded",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-quality-recorded",
+        "message": "Passed: Quality checks were run against the release. (quality_summary.total = 3; expected gt 0)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "no-blocking-quality-failures",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-no-blocking-quality-failures",
+        "message": "Passed: No blocking quality check failed. (quality_summary.blocking_failures = 0; expected eq 0)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "no-quality-failures",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-no-quality-failures",
+        "message": "Passed: No quality check failed at all. (quality_summary.failed = 0; expected eq 0)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "accepted-predecessor-known",
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-accepted-predecessor-known",
+        "message": "Failed: An accepted predecessor exists to compare against. (accepted_predecessor.id is missing)",
+        "outcome": "fail",
+        "recommendation": "For a first release, check the record count against the source's published totals.",
+        "severity": "low",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": null,
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "id": "f-model-1",
+        "message": "The correction note required a live confirmation of the 680 records against the source\u2019s published totals and identification of covered quarters. The available inspection evidence provides only release-internal `coverage_json.source_record_count` and manifest `record_count`, both 680, while no source publication, receipt, or external published-total evidence is present. Further, `temporal_coverage` is null and no quarter dates are supplied.",
+        "outcome": "fail",
+        "recommendation": "Obtain and cite the ABS source publication or retrieval evidence showing the published total, and provide the exact covered quarter range(s). If the source does not publish a comparable total or the release cannot establish quarter coverage, explicitly document that limitation for the human reviewer rather than treating the internal count as source confirmation.",
+        "severity": "medium",
+        "source": "model",
+        "step_ids": [
+          "release"
+        ]
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gpt-5.6-terra",
+      "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+      "prompt_id": "reviewer",
+      "prompt_version": "v1",
+      "provider": "openai",
+      "role": "reviewer"
+    },
+    "recommendation": "correct",
+    "round": 2,
+    "summary": "The release inspection and queue lookup were completed and support the Worker\u2019s status, record-count, quality, provenance metadata, and no-predecessor observations. However, the requested correction remains incomplete: the 680-count comparison is only against values declared within the release and manifest, not an independently evidenced source-published total, and the evidence contains no quarter-level temporal coverage. The Worker appropriately acknowledges that the covered quarters cannot be confirmed."
+  },
+  "round": 2,
+  "stages": [
+    {
+      "completed_at": "2026-10-10T03:41:34.126492Z",
+      "detail": null,
+      "round": 1,
+      "stage": "planner",
+      "started_at": "2026-10-10T03:41:23.027836Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-10T03:41:40.268656Z",
+      "detail": null,
+      "round": 1,
+      "stage": "worker",
+      "started_at": "2026-10-10T03:41:34.126492Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-10T03:41:43.564156Z",
+      "detail": null,
+      "round": 1,
+      "stage": "reviewer",
+      "started_at": "2026-10-10T03:41:40.268656Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-10T03:41:47.830583Z",
+      "detail": "correct",
+      "round": 1,
+      "stage": "human",
+      "started_at": "2026-10-10T03:41:43.564156Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-10T03:41:52.550031Z",
+      "detail": null,
+      "round": 2,
+      "stage": "worker",
+      "started_at": "2026-10-10T03:41:47.830583Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-10T03:41:57.471349Z",
+      "detail": null,
+      "round": 2,
+      "stage": "reviewer",
+      "started_at": "2026-10-10T03:41:52.550031Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-10T03:42:02.121638Z",
+      "detail": "partial",
+      "round": 2,
+      "stage": "human",
+      "started_at": "2026-10-10T03:41:57.471349Z",
+      "status": "completed"
+    }
+  ],
+  "state": "partially_accepted",
+  "superseded": [
+    {
+      "review": {
+        "findings": [
+          {
+            "check_id": "release-found",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-release-found",
+            "message": "Passed: The requested release was inspected. (data.release_inspect.v1 succeeded)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "release-matches",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-release-matches",
+            "message": "Passed: The inspected release is the one requested. (release.id = 'e9df11fb-5221-4746-ad0d-d8066405855e'; expected eq 'e9df11fb-5221-4746-ad0d-d8066405855e')",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "reviewable-status",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-reviewable-status",
+            "message": "Passed: The release is a candidate or awaiting review, so publication is still a decision to make. (release.status = 'awaiting_review'; expected in ['candidate', 'awaiting_review'])",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "has-records",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-has-records",
+            "message": "Passed: The release contains at least one record. (release.record_count = 680; expected gt 0)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "content-hash-recorded",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-content-hash-recorded",
+            "message": "Passed: The release records a content hash for provenance. (release.content_sha256 is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "quality-recorded",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-quality-recorded",
+            "message": "Passed: Quality checks were run against the release. (quality_summary.total = 3; expected gt 0)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "no-blocking-quality-failures",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-no-blocking-quality-failures",
+            "message": "Passed: No blocking quality check failed. (quality_summary.blocking_failures = 0; expected eq 0)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "no-quality-failures",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-no-quality-failures",
+            "message": "Passed: No quality check failed at all. (quality_summary.failed = 0; expected eq 0)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": "accepted-predecessor-known",
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "id": "f-accepted-predecessor-known",
+            "message": "Failed: An accepted predecessor exists to compare against. (accepted_predecessor.id is missing)",
+            "outcome": "fail",
+            "recommendation": "For a first release, check the record count against the source's published totals.",
+            "severity": "low",
+            "source": "check",
+            "step_ids": [
+              "release"
+            ]
+          },
+          {
+            "check_id": null,
+            "evidence_ids": [
+              "ev-release-r1",
+              "ev-queue-r1"
+            ],
+            "id": "f-model-1",
+            "message": "No accepted predecessor exists, so the candidate's 680 records cannot be compared with a prior accepted release to detect an unexpected change in volume.",
+            "outcome": "fail",
+            "recommendation": "Before publishing, treat this as a first-release validation and confirm that 680 matches the source's published total or retain that source-total verification in the release review record.",
+            "severity": "low",
+            "source": "model",
+            "step_ids": [
+              "release",
+              "queue"
+            ]
+          }
+        ],
+        "produced_by": {
+          "fallback": false,
+          "invocations": 1,
+          "model": "gpt-5.6-terra",
+          "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+          "prompt_id": "reviewer",
+          "prompt_version": "v1",
+          "provider": "openai",
+          "role": "reviewer"
+        },
+        "recommendation": "approve",
+        "round": 1,
+        "summary": "The worker accurately reports the inspected awaiting-review abs-cpi release, its 680-record count, recorded hash and provenance, clean quality results, and the absence of an accepted predecessor. Both required plan steps have succeeded and their findings are supported by the supplied evidence. Although no predecessor is available for comparison, this is consistent with the queue containing only this candidate and is a low-severity limitation rather than a publication blocker; all critical and high checks passed."
+      },
+      "round": 1,
+      "worker_output": {
+        "correction_note": null,
+        "evidence": [
+          {
+            "arguments": {
+              "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e"
+            },
+            "duration_ms": 1140,
+            "error_code": null,
+            "error_message": null,
+            "excerpt": {
+              "accepted_predecessor": null,
+              "activations": [],
+              "consumer_imports": [],
+              "publication_policy": "producer-owned",
+              "quality_results": [
+                {
+                  "created_at": "2026-09-13T09:35:25.318774+00:00",
+                  "dataset_release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "dimension": "completeness",
+                  "expected_value_json": {
+                    "minimum": 680
+                  },
+                  "id": "89536d9a-0542-4647-aa7d-ecd508c5366f",
+                  "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+                  "message": "Candidate generation contains the complete validated artifact.",
+                  "observed_value_json": {
+                    "accepted": 680
+                  },
+                  "rule_key": "import.abs-cpi.candidate-row-count",
+                  "rule_version": "1.0.0",
+                  "sample_json": null,
+                  "severity": "blocking",
+                  "status": "pass"
+                },
+                {
+                  "created_at": "2026-09-13T09:35:25.318774+00:00",
+                  "dataset_release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "dimension": "validity",
+                  "expected_value_json": {
+                    "invalid": 0
+                  },
+                  "id": "289ae778-a286-4fdf-8018-d79cf9525e3e",
+                  "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+                  "message": "Publisher geometry is preserved without repair; invalid geometry is labelled and excluded from spatial lookup. Missing geometry is not inferred.",
+                  "observed_value_json": {
+                    "not_provided": 680
+                  },
+                  "rule_key": "import.abs-cpi.geometry-evidence",
+                  "rule_version": "1.0.0",
+                  "sample_json": null,
+                  "severity": "warning",
+                  "status": "pass"
+                },
+                {
+                  "created_at": "2026-09-13T09:35:25.318774+00:00",
+                  "dataset_release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "dimension": "schema",
+                  "expected_value_json": {
+                    "schema_version": "propertyscope.canonical-import.v1"
+                  },
+                  "id": "441837bf-93a8-4457-be09-377b33df2b06",
+                  "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+                  "message": "Canonical artifact matches the registered schema.",
+                  "observed_value_json": {
+                    "schema_version": "propertyscope.canonical-import.v1"
+                  },
+                  "rule_key": "import.abs-cpi.schema",
+                  "rule_version": "1.0.0",
+                  "sample_json": null,
+                  "severity": "blocking",
+                  "status": "pass"
+                }
+              ],
+              "quality_summary": {
+                "blocking_failures": 0,
+                "failed": 0,
+                "passed": 3,
+                "total": 3
+              },
+              "receipts": [],
+              "release": {
+                "accepted_at": null,
+                "artifact_record_id": "c8d2ccc8-8b6e-4e95-8bf0-d016add3ebe3",
+                "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+                "coverage_json": {
+                  "all_records": true,
+                  "profile": "full-data",
+                  "source_record_count": 680
+                },
+                "created_at": "2026-09-13T09:35:25.113680+00:00",
+                "dataset_id": "abs-cpi",
+                "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+                "manifest_json": {
+                  "builder_key": "reference-feature",
+                  "builder_version": "1.0.0",
+                  "byte_count": 47154,
+                  "candidate_generation_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "content_encoding": "gzip",
+                  "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+                  "created_at": "2026-09-13T09:35:26.347974Z",
+                  "dataset_id": "abs-cpi",
+                  "download_permitted": true,
+                  "entity_types": [
+                    "abs-cpi"
+                  ],
+                  "geography_coverage": [
+                    "Australia",
+                    "Sydney"
+                  ],
+                  "import_profile": "abs-cpi",
+                  "known_limitations": [
+                    "Source features retain their declared layer, edition, coverage and publisher attributes.",
+                    "A source feature is not a verified property match or a determination of legal applicability.",
+                    "Absent or invalid geometry cannot establish absence of a planning or environmental issue.",
+                    "Feature 1 supplies reference facts; downstream interpretation and integration are separate.",
+                    "All groups, original CPI for Sydney and Australia retains monthly/quarterly series and its published reference base; it is not a local property price index."
+                  ],
+                  "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+                  "manifest_schema_version": "propertyscope.release-manifest.v2",
+                  "measures": [],
+                  "media_type": "application/x-ndjson",
+                  "normalisation_version": "1.0.0",
+                  "product_schema_version": "propertyscope.reference-feature.v1",
+                  "publisher": "Australian Bureau of Statistics",
+                  "record_count": 680,
+                  "record_count_definition": "number of unique layer and source-record identifiers in the declared source",
+                  "redistribution_decision": "attributed-derived-release",
+                  "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "release_version": "release-e666459a36cecb29-ec444c08",
+                  "source": "ABS All groups CPI Sydney and Australia",
+                  "source_effective_at": null,
+                  "source_licence": "cc-by-4-0",
+                  "source_release": "abs-cpi-metadata-2acf8b9642ddc20c",
+                  "source_retrieved_at": "2026-09-13T09:35:24.840705Z",
+                  "supersedes_release_id": null,
+                  "target_feature": "feature-1",
+                  "temporal_coverage": null
+                },
+                "record_count": 680,
+                "release_version": "release-e666459a36cecb29-ec444c08",
+                "review_comment": "Review complete official-source integration: source count, schema, scope, geometry and artifact verification.",
+                "schema_version": "propertyscope.reference-feature.v1",
+                "source_definition_id": "c42f2e20-40b9-5cf1-8db8-09b93809f01f",
+                "status": "awaiting_review",
+                "supersedes_release_id": null,
+                "target_feature": "feature-1",
+                "terminal_reason_json": null,
+                "updated_at": "2026-09-13T10:00:33.403935+00:00",
+                "version": 4
+              },
+              "release_contract": {
+                "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+                "dataset_id": "abs-cpi",
+                "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                "manifest_json": {
+                  "builder_key": "reference-feature",
+                  "builder_version": "1.0.0",
+                  "byte_count": 47154,
+                  "candidate_generation_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "content_encoding": "gzip",
+                  "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+                  "created_at": "2026-09-13T09:35:26.347974Z",
+                  "dataset_id": "abs-cpi",
+                  "download_permitted": true,
+                  "entity_types": [
+                    "abs-cpi"
+                  ],
+                  "geography_coverage": [
+                    "Australia",
+                    "Sydney"
+                  ],
+                  "import_profile": "abs-cpi",
+                  "known_limitations": [
+                    "Source features retain their declared layer, edition, coverage and publisher attributes.",
+                    "A source feature is not a verified property match or a determination of legal applicability.",
+                    "Absent or invalid geometry cannot establish absence of a planning or environmental issue.",
+                    "Feature 1 supplies reference facts; downstream interpretation and integration are separate.",
+                    "All groups, original CPI for Sydney and Australia retains monthly/quarterly series and its published reference base; it is not a local property price index."
+                  ],
+                  "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+                  "manifest_schema_version": "propertyscope.release-manifest.v2",
+                  "measures": [],
+                  "media_type": "application/x-ndjson",
+                  "normalisation_version": "1.0.0",
+                  "product_schema_version": "propertyscope.reference-feature.v1",
+                  "publisher": "Australian Bureau of Statistics",
+                  "record_count": 680,
+                  "record_count_definition": "number of unique layer and source-record identifiers in the declared source",
+                  "redistribution_decision": "attributed-derived-release",
+                  "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "release_version": "release-e666459a36cecb29-ec444c08",
+                  "source": "ABS All groups CPI Sydney and Australia",
+                  "source_effective_at": null,
+                  "source_licence": "cc-by-4-0",
+                  "source_release": "abs-cpi-metadata-2acf8b9642ddc20c",
+                  "source_retrieved_at": "2026-09-13T09:35:24.840705Z",
+                  "supersedes_release_id": null,
+                  "target_feature": "feature-1",
+                  "temporal_coverage": null
+                },
+                "receipts": [],
+                "record_count": 680,
+                "release_version": "release-e666459a36cecb29-ec444c08",
+                "schema_version": "propertyscope.reference-feature.v1",
+                "status": "awaiting_review",
+                "supersedes_release_id": null,
+                "target_feature": "feature-1",
+                "version": 4
+              }
+            },
+            "excerpt_truncated": false,
+            "id": "ev-release-r1",
+            "outcome": "succeeded",
+            "result_digest": "bc2e3e2a321ecb469519e83d7c4218013a9b572b75868b23ef3da8ac8f43f378",
+            "step_id": "release",
+            "tool_call_id": "3e1fe458-a93a-4953-aa45-560cf63c2cc0",
+            "tool_name": "data.release_inspect.v1",
+            "tool_version": "v1",
+            "transport": "mcp"
+          },
+          {
+            "arguments": {
+              "dataset_id": "abs-cpi",
+              "limit": 10
+            },
+            "duration_ms": 32,
+            "error_code": null,
+            "error_message": null,
+            "excerpt": {
+              "count": 1,
+              "items": [
+                {
+                  "accepted_at": null,
+                  "created_at": "2026-09-13T09:35:25.113680+00:00",
+                  "dataset_id": "abs-cpi",
+                  "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+                  "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+                  "record_count": 680,
+                  "release_version": "release-e666459a36cecb29-ec444c08",
+                  "schema_version": "propertyscope.reference-feature.v1",
+                  "source_definition_id": "c42f2e20-40b9-5cf1-8db8-09b93809f01f",
+                  "status": "awaiting_review",
+                  "supersedes_release_id": null,
+                  "target_feature": "feature-1",
+                  "updated_at": "2026-09-13T10:00:33.403935+00:00"
+                }
+              ]
+            },
+            "excerpt_truncated": false,
+            "id": "ev-queue-r1",
+            "outcome": "succeeded",
+            "result_digest": "f00430435232e2e132bcae2bf9c715c83bb21f21c0efced49420ecd62841115b",
+            "step_id": "queue",
+            "tool_call_id": "8669fd30-9b6d-425d-9af1-b4554a09d14f",
+            "tool_name": "data.releases.v1",
+            "tool_version": "v1",
+            "transport": "mcp"
+          }
+        ],
+        "produced_by": {
+          "fallback": false,
+          "invocations": 1,
+          "model": "gpt-5.6-terra",
+          "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+          "prompt_id": "worker",
+          "prompt_version": "v1",
+          "provider": "openai",
+          "role": "worker"
+        },
+        "round": 1,
+        "steps": [
+          {
+            "evidence_ids": [
+              "ev-release-r1"
+            ],
+            "findings": [
+              "Release \"e9df11fb-5221-4746-ad0d-d8066405855e\" for dataset \"abs-cpi\" has status \"awaiting_review\", record_count 680, and release_version \"release-e666459a36cecb29-ec444c08\".",
+              "The release content_sha256 is \"b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d\"; the manifest also records byte_count 47154, content_encoding \"gzip\", and record_count 680.",
+              "The quality summary is total 3, passed 3, failed 0, blocking_failures 0. The blocking completeness rule observed accepted 680 against minimum 680 and passed; the blocking schema rule observed \"propertyscope.canonical-import.v1\" and passed.",
+              "The manifest identifies publisher \"Australian Bureau of Statistics\", source \"ABS All groups CPI Sydney and Australia\", source_licence \"cc-by-4-0\", source_release \"abs-cpi-metadata-2acf8b9642ddc20c\", and source_retrieved_at \"2026-09-13T09:35:24.840705Z\".",
+              "accepted_predecessor is null; receipts, activations, and consumer_imports are empty arrays."
+            ],
+            "status": "completed",
+            "step_id": "release"
+          },
+          {
+            "evidence_ids": [
+              "ev-queue-r1"
+            ],
+            "findings": [
+              "The abs-cpi release queue returned count 1 and lists only release \"e9df11fb-5221-4746-ad0d-d8066405855e\".",
+              "That queue entry has status \"awaiting_review\", record_count 680, ingestion_run_id \"ec444c08-87eb-4ba4-8cf5-f01c08a6b535\", and supersedes_release_id null."
+            ],
+            "status": "completed",
+            "step_id": "queue"
+          }
+        ],
+        "summary": "The inspected abs-cpi candidate release e9df11fb-5221-4746-ad0d-d8066405855e is in \"awaiting_review\" status with 680 records. Its three recorded quality results all passed, with zero blocking failures, and its manifest identifies Australian Bureau of Statistics provenance and a SHA-256 content hash. No accepted predecessor, receipts, activations, or consumer imports are recorded. The dataset queue contains one release, which is this same awaiting-review candidate."
+      }
+    }
+  ],
+  "template_id": "f1-release-readiness-review",
+  "template_version": "v1",
+  "updated_at": "2026-10-10T03:42:02.121638Z",
+  "worker_output": {
+    "correction_note": "Agent live check: confirm the record count against the source's published totals and say which quarters are covered.",
+    "evidence": [
+      {
+        "arguments": {
+          "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e"
+        },
+        "duration_ms": 47,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "accepted_predecessor": null,
+          "activations": [],
+          "consumer_imports": [],
+          "publication_policy": "producer-owned",
+          "quality_results": [
+            {
+              "created_at": "2026-09-13T09:35:25.318774+00:00",
+              "dataset_release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "dimension": "completeness",
+              "expected_value_json": {
+                "minimum": 680
+              },
+              "id": "89536d9a-0542-4647-aa7d-ecd508c5366f",
+              "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+              "message": "Candidate generation contains the complete validated artifact.",
+              "observed_value_json": {
+                "accepted": 680
+              },
+              "rule_key": "import.abs-cpi.candidate-row-count",
+              "rule_version": "1.0.0",
+              "sample_json": null,
+              "severity": "blocking",
+              "status": "pass"
+            },
+            {
+              "created_at": "2026-09-13T09:35:25.318774+00:00",
+              "dataset_release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "dimension": "validity",
+              "expected_value_json": {
+                "invalid": 0
+              },
+              "id": "289ae778-a286-4fdf-8018-d79cf9525e3e",
+              "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+              "message": "Publisher geometry is preserved without repair; invalid geometry is labelled and excluded from spatial lookup. Missing geometry is not inferred.",
+              "observed_value_json": {
+                "not_provided": 680
+              },
+              "rule_key": "import.abs-cpi.geometry-evidence",
+              "rule_version": "1.0.0",
+              "sample_json": null,
+              "severity": "warning",
+              "status": "pass"
+            },
+            {
+              "created_at": "2026-09-13T09:35:25.318774+00:00",
+              "dataset_release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "dimension": "schema",
+              "expected_value_json": {
+                "schema_version": "propertyscope.canonical-import.v1"
+              },
+              "id": "441837bf-93a8-4457-be09-377b33df2b06",
+              "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+              "message": "Canonical artifact matches the registered schema.",
+              "observed_value_json": {
+                "schema_version": "propertyscope.canonical-import.v1"
+              },
+              "rule_key": "import.abs-cpi.schema",
+              "rule_version": "1.0.0",
+              "sample_json": null,
+              "severity": "blocking",
+              "status": "pass"
+            }
+          ],
+          "quality_summary": {
+            "blocking_failures": 0,
+            "failed": 0,
+            "passed": 3,
+            "total": 3
+          },
+          "receipts": [],
+          "release": {
+            "accepted_at": null,
+            "artifact_record_id": "c8d2ccc8-8b6e-4e95-8bf0-d016add3ebe3",
+            "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+            "coverage_json": {
+              "all_records": true,
+              "profile": "full-data",
+              "source_record_count": 680
+            },
+            "created_at": "2026-09-13T09:35:25.113680+00:00",
+            "dataset_id": "abs-cpi",
+            "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+            "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+            "manifest_json": {
+              "builder_key": "reference-feature",
+              "builder_version": "1.0.0",
+              "byte_count": 47154,
+              "candidate_generation_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "content_encoding": "gzip",
+              "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+              "created_at": "2026-09-13T09:35:26.347974Z",
+              "dataset_id": "abs-cpi",
+              "download_permitted": true,
+              "entity_types": [
+                "abs-cpi"
+              ],
+              "geography_coverage": [
+                "Australia",
+                "Sydney"
+              ],
+              "import_profile": "abs-cpi",
+              "known_limitations": [
+                "Source features retain their declared layer, edition, coverage and publisher attributes.",
+                "A source feature is not a verified property match or a determination of legal applicability.",
+                "Absent or invalid geometry cannot establish absence of a planning or environmental issue.",
+                "Feature 1 supplies reference facts; downstream interpretation and integration are separate.",
+                "All groups, original CPI for Sydney and Australia retains monthly/quarterly series and its published reference base; it is not a local property price index."
+              ],
+              "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+              "manifest_schema_version": "propertyscope.release-manifest.v2",
+              "measures": [],
+              "media_type": "application/x-ndjson",
+              "normalisation_version": "1.0.0",
+              "product_schema_version": "propertyscope.reference-feature.v1",
+              "publisher": "Australian Bureau of Statistics",
+              "record_count": 680,
+              "record_count_definition": "number of unique layer and source-record identifiers in the declared source",
+              "redistribution_decision": "attributed-derived-release",
+              "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "release_version": "release-e666459a36cecb29-ec444c08",
+              "source": "ABS All groups CPI Sydney and Australia",
+              "source_effective_at": null,
+              "source_licence": "cc-by-4-0",
+              "source_release": "abs-cpi-metadata-2acf8b9642ddc20c",
+              "source_retrieved_at": "2026-09-13T09:35:24.840705Z",
+              "supersedes_release_id": null,
+              "target_feature": "feature-1",
+              "temporal_coverage": null
+            },
+            "record_count": 680,
+            "release_version": "release-e666459a36cecb29-ec444c08",
+            "review_comment": "Review complete official-source integration: source count, schema, scope, geometry and artifact verification.",
+            "schema_version": "propertyscope.reference-feature.v1",
+            "source_definition_id": "c42f2e20-40b9-5cf1-8db8-09b93809f01f",
+            "status": "awaiting_review",
+            "supersedes_release_id": null,
+            "target_feature": "feature-1",
+            "terminal_reason_json": null,
+            "updated_at": "2026-09-13T10:00:33.403935+00:00",
+            "version": 4
+          },
+          "release_contract": {
+            "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+            "dataset_id": "abs-cpi",
+            "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+            "manifest_json": {
+              "builder_key": "reference-feature",
+              "builder_version": "1.0.0",
+              "byte_count": 47154,
+              "candidate_generation_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "content_encoding": "gzip",
+              "content_sha256": "b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d",
+              "created_at": "2026-09-13T09:35:26.347974Z",
+              "dataset_id": "abs-cpi",
+              "download_permitted": true,
+              "entity_types": [
+                "abs-cpi"
+              ],
+              "geography_coverage": [
+                "Australia",
+                "Sydney"
+              ],
+              "import_profile": "abs-cpi",
+              "known_limitations": [
+                "Source features retain their declared layer, edition, coverage and publisher attributes.",
+                "A source feature is not a verified property match or a determination of legal applicability.",
+                "Absent or invalid geometry cannot establish absence of a planning or environmental issue.",
+                "Feature 1 supplies reference facts; downstream interpretation and integration are separate.",
+                "All groups, original CPI for Sydney and Australia retains monthly/quarterly series and its published reference base; it is not a local property price index."
+              ],
+              "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+              "manifest_schema_version": "propertyscope.release-manifest.v2",
+              "measures": [],
+              "media_type": "application/x-ndjson",
+              "normalisation_version": "1.0.0",
+              "product_schema_version": "propertyscope.reference-feature.v1",
+              "publisher": "Australian Bureau of Statistics",
+              "record_count": 680,
+              "record_count_definition": "number of unique layer and source-record identifiers in the declared source",
+              "redistribution_decision": "attributed-derived-release",
+              "release_id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "release_version": "release-e666459a36cecb29-ec444c08",
+              "source": "ABS All groups CPI Sydney and Australia",
+              "source_effective_at": null,
+              "source_licence": "cc-by-4-0",
+              "source_release": "abs-cpi-metadata-2acf8b9642ddc20c",
+              "source_retrieved_at": "2026-09-13T09:35:24.840705Z",
+              "supersedes_release_id": null,
+              "target_feature": "feature-1",
+              "temporal_coverage": null
+            },
+            "receipts": [],
+            "record_count": 680,
+            "release_version": "release-e666459a36cecb29-ec444c08",
+            "schema_version": "propertyscope.reference-feature.v1",
+            "status": "awaiting_review",
+            "supersedes_release_id": null,
+            "target_feature": "feature-1",
+            "version": 4
+          }
+        },
+        "excerpt_truncated": false,
+        "id": "ev-release-r2",
+        "outcome": "succeeded",
+        "result_digest": "bc2e3e2a321ecb469519e83d7c4218013a9b572b75868b23ef3da8ac8f43f378",
+        "step_id": "release",
+        "tool_call_id": "87d23b27-e965-4f92-b957-638fa2c92867",
+        "tool_name": "data.release_inspect.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      },
+      {
+        "arguments": {
+          "dataset_id": "abs-cpi",
+          "limit": 10
+        },
+        "duration_ms": 15,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "count": 1,
+          "items": [
+            {
+              "accepted_at": null,
+              "created_at": "2026-09-13T09:35:25.113680+00:00",
+              "dataset_id": "abs-cpi",
+              "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+              "ingestion_run_id": "ec444c08-87eb-4ba4-8cf5-f01c08a6b535",
+              "record_count": 680,
+              "release_version": "release-e666459a36cecb29-ec444c08",
+              "schema_version": "propertyscope.reference-feature.v1",
+              "source_definition_id": "c42f2e20-40b9-5cf1-8db8-09b93809f01f",
+              "status": "awaiting_review",
+              "supersedes_release_id": null,
+              "target_feature": "feature-1",
+              "updated_at": "2026-09-13T10:00:33.403935+00:00"
+            }
+          ]
+        },
+        "excerpt_truncated": false,
+        "id": "ev-queue-r2",
+        "outcome": "succeeded",
+        "result_digest": "f00430435232e2e132bcae2bf9c715c83bb21f21c0efced49420ecd62841115b",
+        "step_id": "queue",
+        "tool_call_id": "65d71db7-9084-4eeb-a010-0ef6b6eede07",
+        "tool_name": "data.releases.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gpt-5.6-terra",
+      "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+      "prompt_id": "worker",
+      "prompt_version": "v1",
+      "provider": "openai",
+      "role": "worker"
+    },
+    "round": 2,
+    "steps": [
+      {
+        "evidence_ids": [
+          "ev-release-r2"
+        ],
+        "findings": [
+          "Release `e9df11fb-5221-4746-ad0d-d8066405855e` has status `awaiting_review`, record count `680`, and content SHA-256 `b5166fee9b28c147b2591e2f8a67236fc42381ecfd92ce58b6ec2cd8e02e563d`.",
+          "For the live count check, `coverage_json.source_record_count` is `680` and the manifest `record_count` is `680`; the manifest defines this as the \u201cnumber of unique layer and source-record identifiers in the declared source.\u201d",
+          "The completeness rule `import.abs-cpi.candidate-row-count` passed: expected minimum `680`, observed accepted `680`, with message \u201cCandidate generation contains the complete validated artifact.\u201d",
+          "The source is `ABS All groups CPI Sydney and Australia`; its stated coverage is `Australia` and `Sydney`. The limitations state it retains \u201cmonthly/quarterly series,\u201d but `temporal_coverage` is `null`, so no specific covered quarters are evidenced.",
+          "All 3 quality results passed, with `blocking_failures: 0` and `failed: 0`; `accepted_predecessor` is `null`, and both `receipts` and `activations` are empty."
+        ],
+        "status": "completed",
+        "step_id": "release"
+      },
+      {
+        "evidence_ids": [
+          "ev-queue-r2"
+        ],
+        "findings": [
+          "The `abs-cpi` release queue returned `count: 1`: release `e9df11fb-5221-4746-ad0d-d8066405855e`.",
+          "That queue entry has record count `680`, ingestion run `ec444c08-87eb-4ba4-8cf5-f01c08a6b535`, status `awaiting_review`, and `supersedes_release_id: null`."
+        ],
+        "status": "completed",
+        "step_id": "queue"
+      }
+    ],
+    "summary": "For correction note: the inspected candidate release contains 680 records, matching its declared source record count of 680, and the blocking candidate-row-count check passed with 680 accepted against a minimum of 680. The evidence identifies the source as \u201cABS All groups CPI Sydney and Australia\u201d and states that it retains monthly/quarterly series, but it provides no temporal coverage field or quarter dates; therefore the specific quarters covered cannot be confirmed. The release is awaiting_review, has no accepted predecessor, receipts, or activations, and the dataset queue contains one release."
+  }
+}

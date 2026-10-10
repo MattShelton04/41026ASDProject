@@ -10,6 +10,9 @@ const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const READINESS_REVIEW_LABELS = Object.freeze({
   start: "Start readiness review",
+  // Deciding records an answer to the agents; it never publishes the release.
+  decisionSafety: "This records your decision. It never publishes the release; Publish stays a separate action on this page.",
+  outcomeSafety: "Recording a decision did not publish the release. Publish stays a separate action on this page.",
 });
 
 /** The recorded run to reopen, from `#releases/{id}?review={run_id}`; anything else is ignored. */
@@ -60,7 +63,7 @@ export function createReleaseReadinessReview({
     runId,
     announce,
     title: "Readiness review",
-    description: "A Planner, Worker and Reviewer gather read-only evidence about this exact version and recommend whether it is ready to publish. You decide on that recommendation. Publishing stays the separate Publish action on this page.",
+    description: "A Planner, Worker and Reviewer read evidence about this exact version and suggest whether it is ready to publish. You decide. Publishing stays the separate Publish action on this page.",
     labels: READINESS_REVIEW_LABELS,
     onRunChange: (run) => { if (run?.id) onRunChange(run); },
   });

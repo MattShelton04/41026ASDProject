@@ -122,6 +122,22 @@ def test_full_workflow_over_http(client: FlaskClient) -> None:
     assert history.history[-1].to_state.value == "approved"
     assert history.audit[-1].actor == "analyst"
 
+    # Cursors return only newer entries; history and audit are numbered separately.
+    last_history = history.history[-2].sequence
+    last_audit = history.audit[-3].sequence
+    newer = WorkflowRunHistory.model_validate(
+        client.get(
+            f"{API}/runs/{run_id}/history?after_history={last_history}&after_audit={last_audit}"
+        ).get_json()
+    )
+    assert [entry.sequence for entry in newer.history] == [history.history[-1].sequence]
+    assert [entry.sequence for entry in newer.audit] == [e.sequence for e in history.audit[-2:]]
+    caught_up = client.get(
+        f"{API}/runs/{run_id}/history?after_history=999&after_audit=999"
+    ).get_json()
+    assert caught_up["history"] == [] and caught_up["audit"] == []
+    assert caught_up["state"] == "approved"
+
     page = WorkflowRunPage.model_validate(
         client.get(f"{API}/runs?template_id=example-readiness-review&limit=5").get_json()
     )
@@ -191,6 +207,15 @@ def test_unknown_runs_and_malformed_ids_are_404(client: FlaskClient) -> None:
         f"{API}/runs/{uuid4()}/history",
     ):
         assert_problem_detail(client.get(path).get_json(), status=404, code="run_not_found")
+
+
+@pytest.mark.parametrize(
+    "query", ["after_history=-1", "after_audit=x", "after_history=1000001", "after_audit=1.5"]
+)
+def test_history_cursor_validation(client: FlaskClient, query: str) -> None:
+    run_id = start(client)["id"]
+    response = client.get(f"{API}/runs/{run_id}/history?{query}")
+    assert_problem_detail(response.get_json(), status=400, code="invalid_request")
 
 
 @pytest.mark.parametrize("query", ["limit=0", "limit=101", "limit=x", "state=unknown"])

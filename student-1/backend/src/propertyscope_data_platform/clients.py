@@ -203,8 +203,13 @@ class MultiAgentClient:
         body = dict(payload) if payload is not None else None
         return self._send("POST", f"/runs/{run_id}/cancel", headers, json=body)
 
-    def history(self, run_id: uuid.UUID, headers: Mapping[str, str] | Headers) -> httpx.Response:
-        return self._send("GET", f"/runs/{run_id}/history", headers)
+    def history(
+        self,
+        run_id: uuid.UUID,
+        headers: Mapping[str, str] | Headers,
+        params: Mapping[str, str | int] | None = None,
+    ) -> httpx.Response:
+        return self._send("GET", f"/runs/{run_id}/history", headers, params=params or None)
 
     def _send(
         self,

@@ -44,6 +44,7 @@ from shared_contracts import (
     project_readiness,
 )
 from shared_contracts.multi_agent import (
+    MAX_HISTORY_CURSOR,
     MAX_RUN_PAGE_LIMIT,
     MAX_WORKFLOW_ROUNDS,
     MISSING_INPUT,
@@ -426,7 +427,7 @@ class FakeMultiAgentServer:
         if len(parts) == 3 and parts[0] == "runs":
             action = parts[2]
             if action == "history":
-                return self._only(method, "GET", lambda: self._history_body(parts[1]))
+                return self._only(method, "GET", lambda: self._history_body(parts[1], query))
             if action == "decision":
                 return self._only(
                     method, "POST", lambda: self._decide(parts[1], payload, request_id)
@@ -563,13 +564,29 @@ class FakeMultiAgentServer:
     def _get(self, run_id: str) -> tuple[int, Any, dict[str, str]]:
         return self._run_response(self._record(run_id).run)
 
-    def _history_body(self, run_id: str) -> Any:
+    def _history_body(self, run_id: str, query: str = "") -> Any:
+        # Same order as the server: run ID shape, then cursors, then the lookup.
+        try:
+            UUID(run_id)
+        except ValueError:
+            self._record(run_id)
+        values = {key: items[-1] for key, items in parse_qs(query).items()}
+        cursors = {}
+        for name in ("after_history", "after_audit"):
+            raw = values.get(name, "0")
+            if not raw.isdecimal() or int(raw) > MAX_HISTORY_CURSOR:
+                raise FakeProblem(
+                    400,
+                    "invalid_request",
+                    f"{name} must be an integer from 0 to {MAX_HISTORY_CURSOR}",
+                )
+            cursors[name] = int(raw)
         record = self._record(run_id)
         return WorkflowRunHistory(
             run_id=record.run.id,
             state=record.run.state,
-            history=tuple(record.history),
-            audit=tuple(record.audit),
+            history=tuple(e for e in record.history if e.sequence > cursors["after_history"]),
+            audit=tuple(e for e in record.audit if e.sequence > cursors["after_audit"]),
         ).model_dump(mode="json")
 
     def _decide(

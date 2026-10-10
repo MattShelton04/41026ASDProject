@@ -80,7 +80,16 @@ export function availableDecisions(run, labels = DEFAULT_MULTI_AGENT_LABELS) {
     const definition = action === "correct" && finalRound
       ? labels.finalCorrection
       : labels.decisionOptions?.[action];
-    return { action, label: definition?.label || humaniseValue(action), detail: definition?.detail || "" };
+    return {
+      action,
+      label: definition?.label || humaniseValue(action),
+      detail: definition?.detail || "",
+      submit: definition?.submit || labels.submitDecision || "Record decision",
+      note: definition?.note || labels.note || "Note",
+      placeholder: definition?.placeholder || "",
+      optionalNote: action === "approve",
+      suggested: action === run?.review?.recommendation,
+    };
   });
 }
 
@@ -305,6 +314,7 @@ export function historyView(body) {
     actor: entry.actor || "",
     at: entry.at || "",
     round: Number(entry.round) || 1,
+    detail: entry.detail && typeof entry.detail === "object" ? entry.detail : {},
   }));
   const counts = {};
   for (const entry of audit) counts[entry.event] = (counts[entry.event] || 0) + 1;

@@ -28,6 +28,8 @@ WORKFLOW_RUN_ID_HEADER = "X-Workflow-Run-ID"
 MAX_CORRECTION_ROUNDS = 1
 MAX_WORKFLOW_ROUNDS = 1 + MAX_CORRECTION_ROUNDS
 MAX_RUN_PAGE_LIMIT = 100
+# Upper bound for the history cursors (`after_history`, `after_audit`) on GET /runs/{id}/history.
+MAX_HISTORY_CURSOR = 1_000_000
 MAX_PLAN_STEPS = 10
 MAX_EVIDENCE_EXCERPT_BYTES = 16_384
 
@@ -136,6 +138,7 @@ class AuditEvent(StrEnum):
 
     RUN_CREATED = "run.created"
     HANDOFF = "agent.handoff"
+    MODEL_STARTED = "model.started"
     MODEL_INVOCATION = "model.invocation"
     MODEL_FALLBACK = "model.fallback"
     PLAN_CREATED = "plan.created"

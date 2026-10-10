@@ -27,24 +27,30 @@ const WORKFLOW_STATES = {
   cancelled: { label: "Cancelled", detail: "The workflow was cancelled.", tone: "planned" },
 };
 
+// Plain-language choices; the API vocabulary stays approve | correct | partial | reject.
 const DECISIONS = {
-  approve: { label: "Approve", detail: "Accept the recommendation. A note is optional." },
-  correct: { label: "Request a correction", detail: "Send the Worker and Reviewer back once with your note." },
-  partial: { label: "Accept part", detail: "Accept only the plan steps you select." },
-  reject: { label: "Reject", detail: "Record that the evidence does not support the outcome." },
+  approve: { label: "Approve", detail: "The evidence is enough.", submit: "Approve", note: "Add a note (optional)" },
+  correct: {
+    label: "Send back once", detail: "Ask the agents to check something.", submit: "Send back to the agents",
+    note: "What should the agents check?", placeholder: "For example: compare the record count with the source's published totals.",
+  },
+  partial: { label: "Accept some steps", detail: "Choose the steps that hold up.", submit: "Accept selected steps", note: "What are you not accepting, and why?" },
+  reject: { label: "Reject", detail: "The evidence does not support it.", submit: "Reject", note: "Why is this not ready?" },
 };
 
 // Round 2 is the correction budget's end: `correct` then closes the run as `corrected`.
 const FINAL_CORRECTION = {
-  label: "Record a final correction",
-  detail: "Ends the run as corrected, with your note as the final correction.",
+  label: "Final correction",
+  detail: "Ends the review with your note.",
+  submit: "Record final correction",
+  note: "What is your final correction?",
 };
 
 const STAGES = {
   planner: "Planner",
   worker: "Worker",
   reviewer: "Reviewer",
-  human: "Human decision",
+  human: "You",
 };
 
 const STAGE_STATUSES = {
@@ -70,19 +76,29 @@ export const DEFAULT_MULTI_AGENT_LABELS = Object.freeze({
   worker: "Worker evidence",
   review: "Reviewer recommendation",
   decisions: "Recorded decisions",
-  decisionHeading: "Your decision",
-  guidance: "Guidance",
+  decisionHeading: "What do you want to do?",
+  decisionHint: "You can send it back to the agents once.",
+  decisionHintFinal: "Final round. Sending back again ends the review.",
+  decisionSafety: "This records your decision. It never publishes or changes data.",
+  outcomeSafety: "Recording a decision did not publish or change any data.",
+  reviewerSuggests: "The Reviewer suggests",
+  chooseFirst: "Choose what you want to do.",
+  guidance: "How to decide",
   note: "Note",
   noteHelp: "Required unless you approve. Explain what you checked.",
   actor: "Your name",
   actorHelp: "Recorded with the decision.",
-  acceptedSteps: "Steps to accept",
+  acceptedSteps: "Which steps do you accept?",
   submitDecision: "Record decision",
   submittingDecision: "Recording decision…",
   cancel: "Cancel run",
   cancelling: "Cancelling…",
-  history: "View history",
+  history: "Activity log",
   historyLink: "Open full history",
+  historyUnavailable: "The activity log could not be loaded, so only the stages are shown.",
+  laneKey: "Striped = waiting · solid = recorded model call · pin = tool call · dotted line = hand-off · waits for a person are shortened",
+  yourTurn: "Your turn. The agents have finished and are waiting for you.",
+  replay: "Replay",
   pollWarning: "Progress updates are temporarily unavailable. The last recorded state is shown; this view will retry automatically.",
   unavailableTool: "Some tools are unavailable, so the Worker may not be able to gather every step.",
   states: WORKFLOW_STATES,

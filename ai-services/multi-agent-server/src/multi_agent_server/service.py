@@ -220,14 +220,20 @@ class WorkflowService:
         items = tuple(summarize(run) for run in runs)
         return WorkflowRunPage(items=items, count=len(items))
 
-    def history(self, run_id: UUID) -> WorkflowRunHistory:
-        """The run's transitions and coordination audit."""
+    def history(
+        self, run_id: UUID, *, after_history: int = 0, after_audit: int = 0
+    ) -> WorkflowRunHistory:
+        """The run's transitions and coordination audit, optionally only entries after cursors.
+
+        History and audit sequences are numbered separately, so each has its own cursor. A
+        browser that polls a working run sends the last sequence it holds of each.
+        """
         run = self.get_run(run_id)
         return WorkflowRunHistory(
             run_id=run.id,
             state=run.state,
-            history=self._store.history(run_id),
-            audit=self._store.audit(run_id),
+            history=self._store.history(run_id, after=after_history),
+            audit=self._store.audit(run_id, after=after_audit),
         )
 
     def wait(self, run_id: UUID, *, timeout: float = 60.0, interval: float = 0.05) -> WorkflowRun:

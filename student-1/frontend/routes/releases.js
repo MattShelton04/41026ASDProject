@@ -25,7 +25,7 @@ import { createLatestRequestGuard } from "../core/polling.js";
 import { releasePreviewPanel } from "./release-preview.js?v=46";
 import { collectionPagination, pageOffset } from "../components/pagination.js";
 import { replaceHistoryState } from "../core/router.js";
-import { createReleaseReadinessReview, READINESS_REVIEW_STATUSES, readinessReviewHash, readinessReviewRunId } from "../integration/release-review.js?v=2";
+import { createReleaseReadinessReview, READINESS_REVIEW_STATUSES, readinessReviewHash, readinessReviewRunId } from "../integration/release-review.js?v=3";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },

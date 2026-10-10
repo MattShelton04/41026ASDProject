@@ -141,6 +141,27 @@ def test_invalid_model_output_is_retried_then_accepted(service_factory: Factory)
         if entry.event is AuditEvent.MODEL_INVOCATION
     ]
     assert outcomes[:2] == ["invalid_output", "succeeded"]
+    # Every attempt is announced before it runs, so a live view can show what it waits on.
+    planner_events = [
+        (entry.event, entry.detail.get("attempt"))
+        for entry in service.history(run.id).audit
+        if entry.role.value == "planner"
+        and entry.event in {AuditEvent.MODEL_STARTED, AuditEvent.MODEL_INVOCATION}
+    ]
+    assert planner_events == [
+        (AuditEvent.MODEL_STARTED, 1),
+        (AuditEvent.MODEL_INVOCATION, 1),
+        (AuditEvent.MODEL_STARTED, 2),
+        (AuditEvent.MODEL_INVOCATION, 2),
+    ]
+    started = next(e for e in service.history(run.id).audit if e.event is AuditEvent.MODEL_STARTED)
+    assert started.detail == {
+        "attempt": 1,
+        "model_profile": "test-profile",
+        "prompt_id": "planner",
+        "prompt_version": "v1",
+        "repair_attempt": 0,
+    }
 
 
 @pytest.mark.parametrize(

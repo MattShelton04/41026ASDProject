@@ -25,6 +25,7 @@ from shared_contracts.multi_agent import MAX_RUN_PAGE_LIMIT, WORKFLOW_RUN_ID_HEA
 RELEASE_REVIEW_TEMPLATE_ID = "f1-release-readiness-review"
 RELEASE_REVIEW_FEATURE_ID = ASSISTANT_FEATURE_KEY
 DEFAULT_RELEASE_REVIEW_PAGE_LIMIT = 20
+HISTORY_CURSORS = ("after_history", "after_audit")
 _START_FIELDS = frozenset({"input", "requested_by", "template_id"})
 _INVALID_REQUEST = "invalid_release_review_request"
 
@@ -185,4 +186,11 @@ def register_release_review_routes(
         _, refused = owned_run(run_id)
         if refused is not None:
             return refused
-        return forward(multi_agent.history(run_id, request.headers))
+        # Incremental polling cursors pass through; the server validates them and its
+        # Problem Details are relayed unchanged.
+        cursors: dict[str, str | int] = {
+            name: values[-1]
+            for name in HISTORY_CURSORS
+            if (values := request.args.getlist(name)) and values[-1]
+        }
+        return forward(multi_agent.history(run_id, request.headers, cursors))

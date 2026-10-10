@@ -31,3 +31,13 @@ export {
   workerStepViews,
 } from "./projections.js";
 export { nextWorkflowPollDelay } from "./polling.js";
+export {
+  advanceReplay,
+  buildTimeline,
+  eventSentence,
+  laneView,
+  mergeHistory,
+  nowView,
+  relayView,
+  snapshotAt,
+} from "./timeline.js";
