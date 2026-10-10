@@ -421,6 +421,32 @@ serial loader is the only process besides the database API that owns those crede
 AI-mode loads Feature 1's allowlisted tool catalogue, calls its bounded HTTP tools and stores
 diagnosis history in AI-mode's own database. It never reads PropertyScope PostgreSQL directly.
 
+### Release readiness review (Multi-Agent Server)
+
+The backend proxies the shared Multi-Agent Server's `f1-release-readiness-review` workflow
+(`config/multi-agent/workflow.yaml`) over HTTP with `MultiAgentClient` (`MULTI_AGENT_BASE_URL`,
+default `http://host.docker.internal:5013`, and `MULTI_AGENT_SERVICE_TOKEN` as a bearer token;
+3 s connect and 10 s read timeouts, no redirects, `X-Request-ID`/`traceparent` passed through).
+The browser calls only these routes under `/api/data-platform/v1`:
+
+| Route | Upstream |
+|---|---|
+| `GET /release-reviews/template` | `GET /templates/f1-release-readiness-review` |
+| `POST /release-reviews` `{input, requested_by?}` | `POST /runs` with `template_id` fixed server-side; 202 with `Location` rewritten to `/api/data-platform/v1/release-reviews/{id}` and `X-Workflow-Run-ID` |
+| `GET /release-reviews?limit&state` | `GET /runs` filtered to this template and feature; `limit` clamped to 1-100 |
+| `GET /release-reviews/{run_id}` | `GET /runs/{run_id}` |
+| `POST /release-reviews/{run_id}/decision` | `POST /runs/{run_id}/decision` `{decision, note, actor, accepted_step_ids?}` |
+| `POST /release-reviews/{run_id}/cancel` | `POST /runs/{run_id}/cancel` |
+| `GET /release-reviews/{run_id}/history` | `GET /runs/{run_id}/history` |
+
+Per-run routes first load the run and answer `404 release_review_not_found` unless it belongs to
+this feature and template. The server's Problem Details are relayed unchanged. A missing token, a
+rejected token or an unreachable server returns `503 multi_agent_unavailable`; everything else in
+Feature 1, including publication, keeps working. Responses are `Cache-Control: no-store`. The
+review decides on the recommendation only and never publishes. The backend never imports
+`multi_agent_server`; tests use `shared_testkit.FakeMultiAgentServer`
+(`tests/component/test_release_review_routes.py`).
+
 Tutor approval for the narrow ADR-016 PostgreSQL/PostGIS exception has been confirmed. A durable
 link or copy of that written approval should still be attached to the submission evidence; the
 implementation and executable architecture checks cannot substitute for that record.

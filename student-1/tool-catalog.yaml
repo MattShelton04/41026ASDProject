@@ -164,7 +164,7 @@ tools:
           - release_contract
         additionalProperties: false
       side_effect: read_only
-      timeout_ms: 3000
+      timeout_ms: 10000
       requires_approval: false
     service: propertyscope-data-platform-backend
     method: POST

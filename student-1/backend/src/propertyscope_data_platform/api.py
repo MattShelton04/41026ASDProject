@@ -16,6 +16,7 @@ from propertyscope_data_platform.clients import (
     AiModeClient,
     ConsumerImportClient,
     DataStoreClient,
+    MultiAgentClient,
 )
 from propertyscope_data_platform.configuration import load_job_profiles
 from propertyscope_data_platform.contract_distribution import (
@@ -37,6 +38,7 @@ from propertyscope_data_platform.release_projection import (
 from propertyscope_data_platform.release_projection import (
     release_detail_contract as release_detail_contract,
 )
+from propertyscope_data_platform.release_review_routes import register_release_review_routes
 from propertyscope_data_platform.release_routes import (
     ensure_import_operation,
     finalize_candidate_release,
@@ -64,6 +66,7 @@ def create_blueprint(
     ai_mode: AiModeClient,
     consumers: ConsumerImportClient,
     *,
+    multi_agent: MultiAgentClient,
     artifact_root: Path,
     psi_cached_years: tuple[int, ...] = (),
     psi_cached_weeks: tuple[str, ...] = (),
@@ -216,6 +219,8 @@ def create_blueprint(
         inspect_release=release_inspection,
         publish_release=publish_release,
     )
+
+    register_release_review_routes(api, multi_agent, base=BASE)
 
     register_worker_routes(
         api,

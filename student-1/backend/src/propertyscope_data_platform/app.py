@@ -15,6 +15,7 @@ from propertyscope_data_platform.clients import (
     ConsumerEndpoint,
     ConsumerImportClient,
     DataStoreClient,
+    MultiAgentClient,
 )
 from propertyscope_data_platform.http_support import register_error_handlers
 from propertyscope_data_platform.release_builders import validate_feature_registration
@@ -27,6 +28,7 @@ def create_app(
     store_client: DataStoreClient | None = None,
     ai_mode_client: AiModeClient | None = None,
     consumer_client: ConsumerImportClient | None = None,
+    multi_agent_client: MultiAgentClient | None = None,
     psi_cached_years: tuple[int, ...] | None = None,
     psi_cached_weeks: tuple[str, ...] | None = None,
     feature_root: Path | None = None,
@@ -42,6 +44,10 @@ def create_app(
     ai_mode = ai_mode_client or AiModeClient(
         os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"),
         service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", ""),
+    )
+    multi_agent = multi_agent_client or MultiAgentClient(
+        os.environ.get("MULTI_AGENT_BASE_URL", "http://host.docker.internal:5013"),
+        service_token=os.environ.get("MULTI_AGENT_SERVICE_TOKEN", ""),
     )
     consumers = consumer_client or ConsumerImportClient(
         {
@@ -90,6 +96,7 @@ def create_app(
             store,
             ai_mode,
             consumers,
+            multi_agent=multi_agent,
             artifact_root=artifact_root
             or Path(
                 os.environ.get("PROPERTYSCOPE_ARTIFACT_ROOT", "/var/lib/propertyscope/artifacts")

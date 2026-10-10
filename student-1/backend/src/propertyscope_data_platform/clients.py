@@ -1,7 +1,8 @@
-"""Injected HTTP clients for database-service and AI-mode boundaries."""
+"""Injected HTTP clients for database-service, AI-mode and Multi-Agent Server boundaries."""
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +19,7 @@ from propertyscope_data_platform.domain import (
     SafeError,
 )
 from propertyscope_data_platform.http_headers import forwarded_headers
+from shared_contracts.multi_agent import MULTI_AGENT_API_PREFIX
 
 
 class DependencyUnavailableError(RuntimeError):
@@ -128,6 +130,111 @@ class AiModeClient:
             raise DependencyUnavailableError(
                 "AI mode is unavailable; direct data operations remain usable"
             ) from exc
+
+
+class MultiAgentUnavailableError(DependencyUnavailableError):
+    """The host Multi-Agent Server is unconfigured, unreachable or rejected our credential."""
+
+
+class MultiAgentClient:
+    """Fixed-operation HTTP client for the shared Multi-Agent Server (never imported in-process).
+
+    Every method maps to one documented ``/api/v1/multi-agent`` operation; there is no general
+    upstream proxy. Without a service token the client refuses to send anything, so an
+    unconfigured deployment degrades to ``multi_agent_unavailable`` instead of probing the
+    server anonymously.
+    """
+
+    API_PREFIX = MULTI_AGENT_API_PREFIX
+    CONNECT_TIMEOUT_SECONDS = 3.0
+    READ_TIMEOUT_SECONDS = 10.0
+    UNAVAILABLE_DETAIL = (
+        "The Multi-Agent Server is unavailable; release review and publication remain usable"
+    )
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        service_token: str = "",
+        client: httpx.Client | None = None,
+    ) -> None:
+        self._origin = base_url.rstrip("/")
+        self._token = service_token.strip()
+        self._client = client or httpx.Client(
+            timeout=httpx.Timeout(self.READ_TIMEOUT_SECONDS, connect=self.CONNECT_TIMEOUT_SECONDS),
+            follow_redirects=False,
+        )
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._token)
+
+    def template(self, template_id: str, headers: Mapping[str, str] | Headers) -> httpx.Response:
+        return self._send("GET", f"/templates/{template_id}", headers)
+
+    def create_run(
+        self, payload: Mapping[str, Any], headers: Mapping[str, str] | Headers
+    ) -> httpx.Response:
+        return self._send("POST", "/runs", headers, json=dict(payload))
+
+    def list_runs(
+        self, params: Mapping[str, str | int], headers: Mapping[str, str] | Headers
+    ) -> httpx.Response:
+        return self._send("GET", "/runs", headers, params=params)
+
+    def get_run(self, run_id: uuid.UUID, headers: Mapping[str, str] | Headers) -> httpx.Response:
+        return self._send("GET", f"/runs/{run_id}", headers)
+
+    def decide(
+        self,
+        run_id: uuid.UUID,
+        payload: Mapping[str, Any],
+        headers: Mapping[str, str] | Headers,
+    ) -> httpx.Response:
+        return self._send("POST", f"/runs/{run_id}/decision", headers, json=dict(payload))
+
+    def cancel(
+        self,
+        run_id: uuid.UUID,
+        payload: Mapping[str, Any] | None,
+        headers: Mapping[str, str] | Headers,
+    ) -> httpx.Response:
+        body = dict(payload) if payload is not None else None
+        return self._send("POST", f"/runs/{run_id}/cancel", headers, json=body)
+
+    def history(self, run_id: uuid.UUID, headers: Mapping[str, str] | Headers) -> httpx.Response:
+        return self._send("GET", f"/runs/{run_id}/history", headers)
+
+    def _send(
+        self,
+        method: str,
+        path: str,
+        headers: Mapping[str, str] | Headers,
+        *,
+        params: Mapping[str, str | int] | None = None,
+        json: Mapping[str, Any] | None = None,
+    ) -> httpx.Response:
+        if not self._token:
+            raise MultiAgentUnavailableError(
+                "The Multi-Agent Server is not configured for this deployment"
+            )
+        request_headers = forwarded_headers(headers)
+        request_headers["Authorization"] = f"Bearer {self._token}"
+        try:
+            response = self._client.request(
+                method,
+                f"{self._origin}{self.API_PREFIX}{path}",
+                headers=request_headers,
+                params=params,
+                json=json,
+            )
+        except httpx.TransportError as exc:
+            raise MultiAgentUnavailableError(self.UNAVAILABLE_DETAIL) from exc
+        if response.status_code == 401:
+            # A rejected service credential is a deployment fault, not the browser's problem.
+            raise MultiAgentUnavailableError(self.UNAVAILABLE_DETAIL)
+        return response
 
 
 @dataclass(frozen=True)

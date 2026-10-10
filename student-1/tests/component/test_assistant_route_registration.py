@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 
 from propertyscope_data_platform.app import create_app
-from propertyscope_data_platform.clients import AiModeClient, DataStoreClient
+from propertyscope_data_platform.clients import AiModeClient, DataStoreClient, MultiAgentClient
 
 EXPECTED_ASSISTANT_TOOL_ROUTES: dict[str, tuple[str, frozenset[str]]] = {
     "/api/data-platform/v1/dataset-releases/<uuid:release_id>/agent-runs": (
@@ -130,3 +130,50 @@ def _is_extracted_route(rule: str) -> bool:
             "/tools/",
         )
     )
+
+
+EXPECTED_RELEASE_REVIEW_ROUTES = frozenset(
+    {
+        ("/api/data-platform/v1/release-reviews", "start_release_review", "POST"),
+        ("/api/data-platform/v1/release-reviews", "list_release_reviews", "GET"),
+        ("/api/data-platform/v1/release-reviews/template", "release_review_template", "GET"),
+        ("/api/data-platform/v1/release-reviews/<uuid:run_id>", "release_review_detail", "GET"),
+        (
+            "/api/data-platform/v1/release-reviews/<uuid:run_id>/decision",
+            "decide_release_review",
+            "POST",
+        ),
+        (
+            "/api/data-platform/v1/release-reviews/<uuid:run_id>/cancel",
+            "cancel_release_review",
+            "POST",
+        ),
+        (
+            "/api/data-platform/v1/release-reviews/<uuid:run_id>/history",
+            "release_review_history",
+            "GET",
+        ),
+    }
+)
+
+
+def test_release_review_proxy_routes_are_registered_exactly() -> None:
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json={}))
+    app = create_app(
+        store_client=DataStoreClient(
+            "http://database", "secret", client=httpx.Client(transport=transport)
+        ),
+        ai_mode_client=AiModeClient("http://ai", client=httpx.Client(transport=transport)),
+        multi_agent_client=MultiAgentClient(
+            "http://multi-agent", client=httpx.Client(transport=transport)
+        ),
+    )
+
+    observed = frozenset(
+        (rule.rule, rule.endpoint.removeprefix("propertyscope-data-platform."), method)
+        for rule in app.url_map.iter_rules()
+        if "/release-reviews" in rule.rule
+        for method in set(rule.methods or ()) - {"HEAD", "OPTIONS"}
+    )
+
+    assert observed == EXPECTED_RELEASE_REVIEW_ROUTES
