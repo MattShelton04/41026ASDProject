@@ -111,6 +111,12 @@ textarea.ps-multi-agent__control { min-height: calc(var(--ps-control-height) * 2
 .ps-multi-agent__evidence[open], .ps-multi-agent__arguments[open], .ps-multi-agent__passed[open] { display: grid; gap: var(--ps-space-2); }
 .ps-multi-agent summary { min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ps-space-2); color: var(--ps-color-accent); cursor: pointer; overflow-wrap: anywhere; }
 .ps-multi-agent summary:focus-visible { outline: var(--ps-focus-outline); outline-offset: var(--ps-focus-offset); }
+/* Flex summaries lose the native marker, so draw one that still shows the open state. */
+.ps-multi-agent summary { list-style: none; }
+.ps-multi-agent summary::-webkit-details-marker { display: none; }
+.ps-multi-agent summary::before { content: ""; flex: none; border-block: 0.3em solid transparent; border-inline-start: 0.45em solid currentColor; transition: transform 120ms ease-out; }
+.ps-multi-agent details[open] > summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .ps-multi-agent summary::before { transition: none; } }
 .ps-multi-agent__recommendation { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ps-space-2); margin: 0; font-weight: var(--ps-weight-medium); }
 .ps-multi-agent__finding-counts { margin: 0; color: var(--ps-color-text-muted); font-size: var(--ps-text-caption); }
 .ps-multi-agent__findings { display: grid; gap: var(--ps-space-2); margin: 0; padding: 0; list-style: none; }

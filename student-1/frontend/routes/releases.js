@@ -24,6 +24,8 @@ import { disposeTableRegions } from "../browser/index.js";
 import { createLatestRequestGuard } from "../core/polling.js";
 import { releasePreviewPanel } from "./release-preview.js?v=46";
 import { collectionPagination, pageOffset } from "../components/pagination.js";
+import { replaceHistoryState } from "../core/router.js";
+import { createReleaseReadinessReview, READINESS_REVIEW_STATUSES, readinessReviewHash, readinessReviewRunId } from "../integration/release-review.js?v=2";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
@@ -75,12 +77,14 @@ function releaseStateTabs(selected, filters) {
 }
 
 export function createReleaseRoutes({
-  view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender,
+  view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender, announce,
 }) {
   const publicationKeys = createPublicationAttemptKeys(newRequestId);
   const detailRequests = createLatestRequestGuard();
   const publicationStatusPaths = new Map();
   let evidenceCache = null;
+  // One readiness review per release survives publication polls and same-release re-renders.
+  let readinessReview = null;
   let refreshReleaseList = null;
   let releaseListTimer = null;
   const publicationPolling = {
@@ -209,10 +213,30 @@ export function createReleaseRoutes({
     else await rerender();
   }
 
+  function disposeReadinessReview() {
+    readinessReview?.destroy();
+    readinessReview?.host.remove();
+    readinessReview = null;
+  }
+
+  function openReadinessReview(release, runId = null) {
+    if (readinessReview?.releaseId === release.id && (!runId || readinessReview.run?.id === runId)) return readinessReview;
+    disposeReadinessReview();
+    readinessReview = createReleaseReadinessReview({
+      release, runId, announce,
+      onRunChange: (run) => {
+        // Record the run in the address so a reload reopens it; replaceState does not re-render.
+        if (location.hash.split("?")[0] === readinessReviewHash(release.id)) replaceHistoryState(history.state, readinessReviewHash(release.id, run.id));
+      },
+    });
+    return readinessReview;
+  }
+
   async function renderReleases(id = "") {
     clearTimeout(releaseListTimer);
     refreshReleaseList = null;
     stopPublicationPolling({ reset: true });
+    if (readinessReview && readinessReview.releaseId !== id) disposeReadinessReview();
     const routeEpoch = generationGuard.capture();
     loading("Loading release evidence");
     try {
@@ -391,6 +415,15 @@ export function createReleaseRoutes({
         await rerender();
       }));
     }
+    const reviewSlot = el("div", "stack");
+    const requestedReviewRun = readinessReviewRunId(location.hash);
+    if (requestedReviewRun) openReadinessReview(release, requestedReviewRun);
+    if (READINESS_REVIEW_STATUSES.has(release.status) || readinessReview) actions.push(button("Readiness review", "button secondary", () => {
+      const review = openReadinessReview(release);
+      if (!review.host.isConnected) append(reviewSlot, review.host);
+      review.host.scrollIntoView?.({ block: "start" });
+      review.focus();
+    }));
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
 
     disposeTableRegions(view);
@@ -412,6 +445,8 @@ export function createReleaseRoutes({
     if (release.status === "accepted" && downstreamFailure?.message) append(view, el("div", "notice warning", `Published in the data platform. Downstream import needs attention: ${downstreamFailure.message}`));
     if (publicationInProgress && publicationPolling.attempts >= PUBLICATION_POLL_LIMIT) append(view, el("div", "notice info", "Publication is still running. Progress updates continue every 30 seconds."));
     if (blocking) append(view, el("div", "notice negative", "Required data checks failed, so this version cannot be published. Review the failures, then retry or reject it."));
+    if (readinessReview) append(reviewSlot, readinessReview.host);
+    append(view, reviewSlot);
     const layout = el("div", "detail-layout");
     const releaseBody = el("div");
     append(releaseBody, detailList([["State", badge(displayState)], ["Schema", release.schema_version], ["Source generation records", formatNumber(sourceRecordCount ?? release.record_count)], ["Portable product records", formatNumber(release.record_count)], ["Content hash", el("code", "mono", release.content_sha256)], ["Coverage", release.coverage_json ? technicalDetails(release.coverage_json, "Inspect coverage") : "Unknown"], ["Review note", release.review_comment || "No review note recorded"], ["Created", formatDate(release.created_at)], ["Published", formatDate(release.accepted_at)], ["Request ID", el("code", "mono", requestId)]]), technicalDetails(release, "Inspect version metadata"));
@@ -489,7 +524,7 @@ export function createReleaseRoutes({
     return value;
   }
 
-  return { renderReleases };
+  return { renderReleases, disposeReadinessReview };
 }
 
 export function renderReleaseReviewEvidence(release, predecessor, qualityResults, availability) {
