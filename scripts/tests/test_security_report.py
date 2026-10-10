@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import tomllib
@@ -641,6 +642,7 @@ def test_detect_secrets_hook_keeps_a_rewritten_baseline_portable(
     def fake_hook(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         assert "detect_secrets.pre_commit_hook" in command
         assert kwargs["cwd"] == tmp_path
+        assert kwargs["env"]["PYTHONUTF8"] == "1"
         rewritten = {"results": {"a\\b.py": [{"type": "T", "hashed_secret": "1"}]}}
         baseline.write_text(json.dumps(rewritten), encoding="utf-8")
         return _completed(0)
@@ -649,3 +651,20 @@ def test_detect_secrets_hook_keeps_a_rewritten_baseline_portable(
     assert scans.detect_secrets_hook(tmp_path, ["a/b.py"]) == 0
     assert list(json.loads(baseline.read_text(encoding="utf-8"))["results"]) == ["a/b.py"]
     assert "1 file(s) scanned" in capsys.readouterr().out
+
+
+def test_scanner_subprocesses_read_files_as_utf8(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Windows locale decoding silently skips UTF-8 files, hiding findings CI reports."""
+    seen: list[dict[str, str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.append(kwargs["env"])
+        return _completed(0)
+
+    monkeypatch.setenv("PYTHONUTF8", "0")
+    monkeypatch.setattr(scans.subprocess, "run", fake_run)
+    scans._run(scans.python_tool("detect_secrets", "scan"), tmp_path, 5)
+    assert seen[0]["PYTHONUTF8"] == "1"
+    assert seen[0]["PATH"] == os.environ["PATH"]
