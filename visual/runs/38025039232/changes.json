@@ -1,0 +1,944 @@
+{
+  "schema": 1,
+  "baseSha": "bef57dad0db35a3002f891eac03b86c87546f9bb",
+  "headSha": "e62b20461e0e561efe7de782da0ad7c6c486b92f",
+  "viewport": {
+    "width": 1440,
+    "height": 1000,
+    "fixedTime": "2026-09-01T10:00:00+10:00"
+  },
+  "summary": {
+    "changed": 0,
+    "subtle": 0,
+    "unchanged": 42,
+    "incomplete": 0,
+    "baseUnavailable": 0,
+    "total": 42
+  },
+  "views": [
+    {
+      "id": "shared-home",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#home",
+      "state": "populated home",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 5932,
+        "after": 5932
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png",
+        "after": "../../img/63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-research-areas",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#features",
+      "state": "all five research areas",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1392,
+        "after": 1392
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/586b78f8a51c6589c1309eeefcf444eaefc03b3654b9749fb4fcf6ef20eda4c6.png",
+        "after": "../../img/586b78f8a51c6589c1309eeefcf444eaefc03b3654b9749fb4fcf6ef20eda4c6.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-data-status",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#system-status",
+      "state": "every service healthy; measured response times masked",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1738,
+        "after": 1738
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
+        "after": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-sources-history",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#evidence",
+      "state": "published datasets and AI review history",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1618,
+        "after": 1618
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/6962f8d6881ceb2a04dcf650e5233f55bb1cc3ec260ad1c0a824309002af31e4.png",
+        "after": "../../img/6962f8d6881ceb2a04dcf650e5233f55bb1cc3ec260ad1c0a824309002af31e4.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-assistant",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#assistant",
+      "state": "assistant start screen",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1122,
+        "after": 1122
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/7330d7919d7b8bd31258b9288ab3714c6f155b0396d6a9cf1964d8eff25580b5.png",
+        "after": "../../img/7330d7919d7b8bd31258b9288ab3714c6f155b0396d6a9cf1964d8eff25580b5.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-roadmap",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#release-roadmap",
+      "state": "release roadmap",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1824,
+        "after": 1824
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/5391f3e8c8c62425f6e26a323fe94f9884c93ff087f16102af1ed40693ad25ef.png",
+        "after": "../../img/5391f3e8c8c62425f6e26a323fe94f9884c93ff087f16102af1ed40693ad25ef.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-activity-history",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/operations/ai-mode/",
+      "state": "AI activity history",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1000,
+        "after": 1000
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/1fd8151fbe41d7beabf69624267a16ca0f29a0c5450e7d85450e3b7dc619618b.png",
+        "after": "../../img/1fd8151fbe41d7beabf69624267a16ca0f29a0c5450e7d85450e3b7dc619618b.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-home-empty",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#home",
+      "state": "empty scenario: no published data",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 5932,
+        "after": 5932
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png",
+        "after": "../../img/63710c8c3496d707c31c2f1278c1c35063b74e250947cc8738d1aa7d64583010.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-data-status-error",
+      "section": "shared",
+      "provider": "fixture",
+      "path": "/#system-status",
+      "state": "error scenario: services unavailable",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1738,
+        "after": 1738
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
+        "after": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-property-search",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#properties",
+      "state": "search prompt",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/1978e7edae81a8d47d88ac90b4154affafd6b7085908f0ba791a8c282b66362a.png",
+        "after": "../../img/1978e7edae81a8d47d88ac90b4154affafd6b7085908f0ba791a8c282b66362a.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-property-results",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#properties?q=11%20Example%20Street",
+      "state": "one matching property",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/38fddfa68e2fc8f1a911c709bb1fdc1c6ec70dba14adc6f0ffe9c29d6a5466a0.png",
+        "after": "../../img/38fddfa68e2fc8f1a911c709bb1fdc1c6ec70dba14adc6f0ffe9c29d6a5466a0.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-property-detail",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#properties/11111111-1111-4111-8111-111111111111",
+      "state": "property record",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1219,
+        "after": 1219
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/057caed1fc60550083c7a33ecc71c3c8f23365c9696d62b9243e4214af11a226.png",
+        "after": "../../img/057caed1fc60550083c7a33ecc71c3c8f23365c9696d62b9243e4214af11a226.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-assistant",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#assistant",
+      "state": "feature assistant start screen",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1050,
+        "after": 1050
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/e231948805cdebdf753feb62835d81d4c1b494c891218e3a2aa6a696e0fa58a8.png",
+        "after": "../../img/e231948805cdebdf753feb62835d81d4c1b494c891218e3a2aa6a696e0fa58a8.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-overview",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#overview",
+      "state": "data overview",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1043,
+        "after": 1043
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/dd87ba1a62fc13faabc4c4700f4563207f2a3dd8505a08d713449c9aacaa9d46.png",
+        "after": "../../img/dd87ba1a62fc13faabc4c4700f4563207f2a3dd8505a08d713449c9aacaa9d46.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-jobs",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#jobs",
+      "state": "data update catalogue",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1059,
+        "after": 1059
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/a6e452bfb492b6deb586404016a2a38f48579aad27d40d9ea654b80f84fef0d1.png",
+        "after": "../../img/a6e452bfb492b6deb586404016a2a38f48579aad27d40d9ea654b80f84fef0d1.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-job-detail",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#jobs/20000000-0000-0000-0000-000000000001",
+      "state": "one data update definition",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/cb9e8ff636380707e3c98d668f5835469cfc5ad804906338a4a7983f3fa9e4bc.png",
+        "after": "../../img/cb9e8ff636380707e3c98d668f5835469cfc5ad804906338a4a7983f3fa9e4bc.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-runs",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#runs",
+      "state": "update history",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/949d54edc62d6daa6c9ca31c464219a3bb56000aa6467832a7a43649bbe06299.png",
+        "after": "../../img/949d54edc62d6daa6c9ca31c464219a3bb56000aa6467832a7a43649bbe06299.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-run-detail",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#runs/30000000-0000-0000-0000-000000000001",
+      "state": "completed update",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1811,
+        "after": 1811
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/36d1a712bf93af66701c63f473ad8db1b039093a9a2553099b4c91c35783ee60.png",
+        "after": "../../img/36d1a712bf93af66701c63f473ad8db1b039093a9a2553099b4c91c35783ee60.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-releases",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#releases",
+      "state": "published data versions",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png",
+        "after": "../../img/f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-release-detail",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#releases/60000000-0000-0000-0000-000000000001",
+      "state": "accepted release",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 2072,
+        "after": 2072
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
+        "after": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-sources",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#sources",
+      "state": "registered data sources",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/338de75fe25f7e78862aa3ca6d688bfc157c9a07e16bcb98dc6175feac71fad1.png",
+        "after": "../../img/338de75fe25f7e78862aa3ca6d688bfc157c9a07e16bcb98dc6175feac71fad1.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-source-detail",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#sources/10000000-0000-0000-0000-000000000001",
+      "state": "one data source",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/6fa1ed4cd1dec56946d4667c5dbf7e5757aac048e28f2dd8a9d2315e5d43d53c.png",
+        "after": "../../img/6fa1ed4cd1dec56946d4667c5dbf7e5757aac048e28f2dd8a9d2315e5d43d53c.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-quality",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#quality",
+      "state": "data checks",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/cd51356b7193ac41c21072d194c7296c5ad9ffea1a2d8b0b307c60451f6f27ef.png",
+        "after": "../../img/cd51356b7193ac41c21072d194c7296c5ad9ffea1a2d8b0b307c60451f6f27ef.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-artifacts",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#artifacts",
+      "state": "files and history",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/251e982cd8897babd29dae15ca6e27543bd4b9c3c2b45a70b779a28c33741f44.png",
+        "after": "../../img/251e982cd8897babd29dae15ca6e27543bd4b9c3c2b45a70b779a28c33741f44.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-coverage",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#coverage",
+      "state": "published coverage",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "after": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-property-results-empty",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#properties?q=11%20Example%20Street",
+      "state": "empty scenario: no matching property",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/cbfa41ad6506770e170f25fcd82291787f6df2c197e32425110c2f91653c6d7f.png",
+        "after": "../../img/cbfa41ad6506770e170f25fcd82291787f6df2c197e32425110c2f91653c6d7f.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-overview-error",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#overview",
+      "state": "error scenario: data service unavailable",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "after": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-releases-long-content",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#releases",
+      "state": "long-content scenario: verbose names wrap",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1013,
+        "after": 1013
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png",
+        "after": "../../img/f4b57b849f130cb30b3d12c4a06efc7da0578fa12d42e32ec3ccbdaf948f88bd.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f1-runs-large",
+      "section": "feature-1",
+      "provider": "fixture",
+      "path": "/features/data-platform/#runs",
+      "state": "large scenario: eighty rows",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 6000,
+        "after": 6000
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/e445d72e9ff16c80e781b7fe96adecac42abfcdb65309624ab29f4f23749d479.png",
+        "after": "../../img/e445d72e9ff16c80e781b7fe96adecac42abfcdb65309624ab29f4f23749d479.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "shared-knowledge-sources",
+      "section": "shared",
+      "provider": "stack",
+      "path": "/operations/ai-mode/knowledge/",
+      "state": "knowledge sources with no ingested corpus",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1000,
+        "after": 1000
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png",
+        "after": "../../img/c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f2-market-cases",
+      "section": "feature-2",
+      "provider": "stack",
+      "path": "/features/market-intelligence/",
+      "state": "seeded cases with the first case selected",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1982,
+        "after": 1982
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
+        "after": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f2-new-case-dialog",
+      "section": "feature-2",
+      "provider": "stack",
+      "path": "/features/market-intelligence/",
+      "state": "new market case dialog",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1982,
+        "after": 1982
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
+        "after": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f3-explore",
+      "section": "feature-3",
+      "provider": "stack",
+      "path": "/features/suburb-analytics/#explore",
+      "state": "overview, search and map",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1173,
+        "after": 1173
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/54a04dd58b8978a0415a0c3c28601deb21c0efd7ed0f6568166cfc787c0b5acb.png",
+        "after": "../../img/54a04dd58b8978a0415a0c3c28601deb21c0efd7ed0f6568166cfc787c0b5acb.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f3-trends",
+      "section": "feature-3",
+      "provider": "stack",
+      "path": "/features/suburb-analytics/#trends",
+      "state": "crime trend comparison",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1148,
+        "after": 1148
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png",
+        "after": "../../img/448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f3-published",
+      "section": "feature-3",
+      "provider": "stack",
+      "path": "/features/suburb-analytics/#published",
+      "state": "published evidence",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1017,
+        "after": 1017
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png",
+        "after": "../../img/958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f3-comparisons",
+      "section": "feature-3",
+      "provider": "stack",
+      "path": "/features/suburb-analytics/#comparisons",
+      "state": "saved comparisons",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1844,
+        "after": 1844
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
+        "after": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f3-assistant",
+      "section": "feature-3",
+      "provider": "stack",
+      "path": "/features/suburb-analytics/#assistant",
+      "state": "trend assistant",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1085,
+        "after": 1085
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png",
+        "after": "../../img/55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f4-site-reviews",
+      "section": "feature-4",
+      "provider": "stack",
+      "path": "/features/due-diligence/#site-reviews",
+      "state": "seeded site reviews",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1076,
+        "after": 1076
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/c10667306c2e9b5d93e7a6f350aa2f7e25f7f0a6806afe31d56645a6d23ba546.png",
+        "after": "../../img/c10667306c2e9b5d93e7a6f350aa2f7e25f7f0a6806afe31d56645a6d23ba546.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f4-review-detail",
+      "section": "feature-4",
+      "provider": "stack",
+      "path": "/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001",
+      "state": "one review with evidence",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 3754,
+        "after": 3754
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
+        "after": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f4-new-review-dialog",
+      "section": "feature-4",
+      "provider": "stack",
+      "path": "/features/due-diligence/#site-reviews",
+      "state": "new site review dialog",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 1076,
+        "after": 1076
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/8b2f7d4aec9148025b65f6f63be56bf1953cbe559b3d9d6776d970ab4d08fd00.png",
+        "after": "../../img/8b2f7d4aec9148025b65f6f63be56bf1953cbe559b3d9d6776d970ab4d08fd00.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f5-buyer-cases",
+      "section": "feature-5",
+      "provider": "stack",
+      "path": "/features/buyer-workspaces/#buyer-cases",
+      "state": "seeded buyer cases",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 2103,
+        "after": 2103
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/56b3cf71225c8a575af056bc39a2c4f6c29d4f15525fd5dfc96f41446f69b726.png",
+        "after": "../../img/56b3cf71225c8a575af056bc39a2c4f6c29d4f15525fd5dfc96f41446f69b726.png",
+        "difference": null
+      },
+      "limitations": []
+    },
+    {
+      "id": "f5-case-detail",
+      "section": "feature-5",
+      "provider": "stack",
+      "path": "/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010",
+      "state": "one buyer case",
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
+      "heights": {
+        "before": 4453,
+        "after": 4453
+      },
+      "areas": [],
+      "sameAreasAs": null,
+      "images": {
+        "before": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
+        "after": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
+        "difference": null
+      },
+      "limitations": []
+    }
+  ]
+}
