@@ -1,0 +1,204 @@
+{
+  "allowed_tools": [
+    "data.release_inspect.v1",
+    "data.releases.v1"
+  ],
+  "description": null,
+  "feature_id": "student-1-propertyscope-data-platform",
+  "human_review_guidance": "You are deciding on the recommendation, not publishing. Approve only when every critical and high check passed. Use \"correct\" to send the Worker and Reviewer back once with a note, \"partial\" to accept some steps, and \"reject\" when the release should not be published. Publish separately from the Data Platform release review page if you approve.",
+  "id": "f1-release-readiness-review",
+  "inputs": [
+    {
+      "description": null,
+      "enum": null,
+      "format": "uuid",
+      "max_length": null,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "release_id",
+      "pattern": null,
+      "required": true,
+      "title": "Candidate release ID",
+      "type": "string"
+    },
+    {
+      "description": null,
+      "enum": null,
+      "format": null,
+      "max_length": 150,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "dataset_id",
+      "pattern": null,
+      "required": false,
+      "title": "Dataset ID (optional, narrows the release queue)",
+      "type": "string"
+    },
+    {
+      "description": null,
+      "enum": null,
+      "format": null,
+      "max_length": 500,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "reviewer_note",
+      "pattern": null,
+      "required": false,
+      "title": "Optional context for the reviewers",
+      "type": "string"
+    }
+  ],
+  "objective": "Recommend whether one candidate dataset release is ready for an operator to publish, using its record count, quality results, provenance and accepted predecessor. Do not publish anything.",
+  "planner_guidance": "Inspect the requested release first: its status, record count, content hash, quality summary and accepted predecessor. Then read the release queue for context on other releases of the same dataset. Plan only read-only steps; never plan a publication, retry or any other write.",
+  "reviewer_checks": [
+    {
+      "description": "The requested release was inspected.",
+      "id": "release-found",
+      "recommendation": "Check the release ID and run the review again.",
+      "rule": {
+        "kind": "step_succeeded",
+        "operator": null,
+        "path": null,
+        "step": "release",
+        "value": null
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The inspected release is the one requested.",
+      "id": "release-matches",
+      "recommendation": "Investigate why a different release was returned before deciding.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "eq",
+        "path": "release.id",
+        "step": "release",
+        "value": "{{input.release_id}}"
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The release is a candidate or awaiting review, so publication is still a decision to make.",
+      "id": "reviewable-status",
+      "recommendation": "Only review releases in candidate or awaiting_review status.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "in",
+        "path": "release.status",
+        "step": "release",
+        "value": [
+          "candidate",
+          "awaiting_review"
+        ]
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The release contains at least one record.",
+      "id": "has-records",
+      "recommendation": "Re-run the acquisition; an empty release must not replace accepted data.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "gt",
+        "path": "release.record_count",
+        "step": "release",
+        "value": 0
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The release records a content hash for provenance.",
+      "id": "content-hash-recorded",
+      "recommendation": "Rebuild the release so its artifact has a content hash.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "release.content_sha256",
+        "step": "release",
+        "value": null
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "Quality checks were run against the release.",
+      "id": "quality-recorded",
+      "recommendation": "Run the quality checks before recommending publication.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "gt",
+        "path": "quality_summary.total",
+        "step": "release",
+        "value": 0
+      },
+      "severity": "high"
+    },
+    {
+      "description": "No blocking quality check failed.",
+      "id": "no-blocking-quality-failures",
+      "recommendation": "Fix the source or adapter so the blocking checks pass; do not publish.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "eq",
+        "path": "quality_summary.blocking_failures",
+        "step": "release",
+        "value": 0
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "No quality check failed at all.",
+      "id": "no-quality-failures",
+      "recommendation": "Explain each non-blocking failure in the review comment, or accept only part of the review.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "eq",
+        "path": "quality_summary.failed",
+        "step": "release",
+        "value": 0
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "An accepted predecessor exists to compare against.",
+      "id": "accepted-predecessor-known",
+      "recommendation": "For a first release, check the record count against the source's published totals.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "accepted_predecessor.id",
+        "step": "release",
+        "value": null
+      },
+      "severity": "low"
+    }
+  ],
+  "schema_version": 1,
+  "steps": [
+    {
+      "arguments": {
+        "release_id": "{{input.release_id}}"
+      },
+      "id": "release",
+      "purpose": "Collect status, record count, content hash, quality results and the accepted predecessor.",
+      "required": true,
+      "title": "Inspect the candidate release",
+      "tool": "data.release_inspect.v1"
+    },
+    {
+      "arguments": {
+        "dataset_id": "{{input.dataset_id}}",
+        "limit": 10
+      },
+      "id": "queue",
+      "purpose": "See other releases of the dataset that are candidates or awaiting review.",
+      "required": true,
+      "title": "Read the release queue",
+      "tool": "data.releases.v1"
+    }
+  ],
+  "title": "Release readiness review",
+  "version": "v1"
+}

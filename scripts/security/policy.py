@@ -33,6 +33,9 @@ DETECT_SECRETS_EXCLUDE_LINES = (
     r"(?i)\w*(sha|hash|digest|checksum|fingerprint|corpus_version|baseline|commit)\w*"
     r"[\"']?\s*[:=]\s*\(?\s*[\"']?[0-9a-f]{40,128}\b",
 )
+# Context-aware filters for what one line cannot show: a SHA digest named on the line above or in
+# prose. Loaded by path, relative to the repository root where every scan runs.
+DETECT_SECRETS_FILTERS = ("file://scripts/security/digest_filter.py::is_named_digest",)
 
 # Release 2 slice ownership. The Shared platform is led by the Student 1 owner.
 SHARED_LEAD_STUDENT = 1

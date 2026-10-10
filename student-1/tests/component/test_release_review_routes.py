@@ -206,6 +206,21 @@ def test_get_and_history_return_owned_runs(client: FlaskClient) -> None:
     assert str(record.run_id) == run_id
     assert record.history
 
+    # Polling cursors pass through: only newer entries come back.
+    last_history = record.history[-1].sequence
+    last_audit = record.audit[-1].sequence
+    newer = client.get(
+        f"{BASE}/{run_id}/history?after_history={last_history - 1}&after_audit={last_audit}"
+    )
+    assert newer.status_code == 200
+    body = newer.get_json()
+    assert [entry["sequence"] for entry in body["history"]] == [last_history]
+    assert body["audit"] == []
+
+    # The server's cursor validation is relayed unchanged.
+    invalid = client.get(f"{BASE}/{run_id}/history?after_audit=-1")
+    _assert_problem(invalid, 400, "invalid_request")
+
 
 def test_list_is_scoped_to_feature_template_and_clamps_limit(
     client: FlaskClient, fake: FakeMultiAgentServer
@@ -470,11 +485,13 @@ def test_client_sends_bearer_token_and_only_allowlisted_headers() -> None:
         uuid.UUID(int=1),
         {"X-Request-ID": REQUEST_ID, "Cookie": "session=1", "Authorization": "Bearer user"},
     )
+    multi_agent.history(uuid.UUID(int=1), {}, {"after_history": 3, "after_audit": "12"})
 
     request = seen[0]
     assert str(request.url) == (
         "http://multi-agent/api/v1/multi-agent/runs/00000000-0000-0000-0000-000000000001/history"
     )
+    assert seen[1].url.params == httpx.QueryParams({"after_history": "3", "after_audit": "12"})
     assert request.headers["Authorization"] == "Bearer secret"
     assert request.headers["X-Request-ID"] == REQUEST_ID
     assert "Cookie" not in request.headers

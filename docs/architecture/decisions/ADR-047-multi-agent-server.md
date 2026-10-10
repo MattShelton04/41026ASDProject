@@ -75,6 +75,16 @@ and domain-neutral. Each feature still supplies its own task, tools and review r
    controls allowed by `available_actions`. Feature 1's release readiness review
    (`/api/data-platform/v1/release-reviews` and the "Readiness review" action) is the reference
    integration. (Added 10 October 2026, Release 2 Phase 2.)
+10. **Live progress is read from the evidence, not invented.** `GET /runs/{id}/history` accepts
+    `after_history` and `after_audit` cursors (the two sequences are numbered separately), so a
+    panel can poll only new transitions and audit events while agents work. The Worker's
+    `tool.call` events already land as each call returns; a `model.started` audit event (attempt,
+    model profile, prompt ID and version, repair attempt) is now written before each model call,
+    so a view can say what it is waiting on. Both are additive and backward compatible: no
+    cursor means the full history. Feature proxies pass the cursors through and relay the
+    server's 400 `invalid_request` unchanged. Streaming (SSE) was considered and not adopted,
+    because polling with cursors fits the existing proxy and polling rules. (Added 10 October
+    2026, Release 2 multi-agent panel redesign.)
 
 ## Consequences
 

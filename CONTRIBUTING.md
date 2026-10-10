@@ -202,7 +202,9 @@ When a scan fails:
   a false positive (a test fixture, for example), run `uv run scripts/dev.py security baseline`
   and then `uv run detect-secrets audit .secrets.baseline`, mark the new entry as not a secret, and
   commit the baseline. If the hook only rewrote the baseline to update line numbers, stage it and
-  commit again.
+  commit again. SHA-1/256/512 hex digests are not reported when the same line or one of the two
+  lines above names them (`sha256`, `hexdigest`, `checksum`, ...) and the line names no credential
+  (`scripts/security/digest_filter.py`), so name a pinned digest rather than allowlisting it.
 - **pip-audit.** Upgrade within the existing constraint
   (`uv lock --upgrade-package <name>`). If that is impossible, add a reviewed entry with a reason
   and a follow-up to `scripts/security/accepted-risks.toml`. pip-audit needs network access. If

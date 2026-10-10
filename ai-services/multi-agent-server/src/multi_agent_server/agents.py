@@ -162,6 +162,8 @@ class StructuredCaller:
         last_error = "no attempt made"
         for attempt in range(1, attempts + 1):
             request = self._request(run_id, role, prompt, content, output_model, attempt - 1)
+            # Recorded before the call so a live view can show what it is waiting on.
+            audit(AuditEvent.MODEL_STARTED, agent_role, self._started_detail(request, attempt))
             started = monotonic()
             try:
                 result = self._provider.generate_structured(request)
@@ -250,6 +252,16 @@ class StructuredCaller:
             repair_attempt=min(repair_attempt, 2),
             deadline_at=self._clock() + timedelta(seconds=self._settings.model_timeout_seconds),
         )
+
+    @staticmethod
+    def _started_detail(request: StructuredModelRequest, attempt: int) -> JsonObject:
+        return {
+            "attempt": attempt,
+            "model_profile": request.model_profile,
+            "prompt_id": request.prompt_id,
+            "prompt_version": request.prompt_version,
+            "repair_attempt": request.repair_attempt,
+        }
 
     @staticmethod
     def _invocation_detail(

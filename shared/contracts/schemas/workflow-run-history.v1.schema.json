@@ -17,6 +17,7 @@
       "enum": [
         "run.created",
         "agent.handoff",
+        "model.started",
         "model.invocation",
         "model.fallback",
         "plan.created",

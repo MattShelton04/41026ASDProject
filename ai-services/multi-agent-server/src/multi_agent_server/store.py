@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 """
 _SELECT_DOCUMENTS = {
-    "history": "SELECT document FROM history WHERE run_id = ? ORDER BY sequence",
-    "audit": "SELECT document FROM audit WHERE run_id = ? ORDER BY sequence",
+    "history": "SELECT document FROM history WHERE run_id = ? AND sequence > ? ORDER BY sequence",
+    "audit": "SELECT document FROM audit WHERE run_id = ? AND sequence > ? ORDER BY sequence",
 }
 _NEXT_SEQUENCE = {
     "history": "SELECT COALESCE(MAX(sequence), 0) + 1 FROM history WHERE run_id = ?",
@@ -256,24 +256,26 @@ class WorkflowStore:
             ).fetchall()
         return [WorkflowRun.model_validate_json(row[0]) for row in rows]
 
-    def history(self, run_id: UUID) -> tuple[WorkflowHistoryEntry, ...]:
-        """All transitions for a run in sequence order."""
+    def history(self, run_id: UUID, *, after: int = 0) -> tuple[WorkflowHistoryEntry, ...]:
+        """Transitions for a run in sequence order, optionally only those after ``after``."""
         return tuple(
             WorkflowHistoryEntry.model_validate_json(document)
-            for document in self._documents("history", run_id)
+            for document in self._documents("history", run_id, after)
         )
 
-    def audit(self, run_id: UUID) -> tuple[CoordinationAuditEntry, ...]:
-        """All coordination events for a run in sequence order."""
+    def audit(self, run_id: UUID, *, after: int = 0) -> tuple[CoordinationAuditEntry, ...]:
+        """Coordination events for a run in sequence order, optionally only after ``after``."""
         return tuple(
             CoordinationAuditEntry.model_validate_json(document)
-            for document in self._documents("audit", run_id)
+            for document in self._documents("audit", run_id, after)
         )
 
-    def _documents(self, table: str, run_id: UUID) -> list[str]:
+    def _documents(self, table: str, run_id: UUID, after: int = 0) -> list[str]:
         with self._lock:
             try:
-                rows = self._connection.execute(_SELECT_DOCUMENTS[table], (str(run_id),)).fetchall()
+                rows = self._connection.execute(
+                    _SELECT_DOCUMENTS[table], (str(run_id), after)
+                ).fetchall()
             except sqlite3.Error as exc:
                 raise StoreUnavailableError("Workflow state store is unavailable") from exc
         return [row[0] for row in rows]

@@ -4,6 +4,7 @@ import { DEFAULT_MULTI_AGENT_LABELS, humaniseValue, workflowStatus } from "./def
 import {
   evidenceExcerpt, formatDuration, formatTimestamp, groupFindings, provenanceLabel, workerStepViews,
 } from "./projections.js";
+import { decisionLabel, eventSentence, formatClock } from "./timeline.js";
 
 const TONES = { completed: "confirmed", succeeded: "confirmed", pass: "confirmed", running: "info", waiting: "partial", pending: "planned", skipped: "planned", failed: "danger", fail: "danger", timed_out: "danger", rejected: "danger", cancelled: "planned", not_evaluated: "planned" };
 
@@ -37,10 +38,25 @@ function disclosure(context, key, className, summary) {
   return details;
 }
 
-function section(className, heading, level = "h4") {
+// Inside a drawer the drawer's summary names the section, so the heading is left out.
+function section(className, heading, { titled = true, level = "h4" } = {}) {
   const host = el("section", `ps-multi-agent__section ${className}`);
-  append(host, el(level, "ps-multi-agent__section-title", heading));
+  if (titled) append(host, el(level, "ps-multi-agent__section-title", heading));
   return host;
+}
+
+/**
+ * A closed-by-default drawer whose open state survives re-rendering. Its summary carries a
+ * count, which briefly highlights when it changes while the view is live.
+ */
+export function drawer(context, key, title, count, { className = "", fresh = false } = {}) {
+  const details = disclosure(context, key, `ps-multi-agent__drawer ${className}`.trim(), [
+    el("strong", "ps-multi-agent__drawer-title", title), el("span", "ps-multi-agent__drawer-count", count),
+  ]);
+  if (fresh) details.classList.add("is-fresh");
+  const body = el("div", "ps-multi-agent__drawer-body");
+  append(details, body);
+  return { details, body };
 }
 
 function json(value) {
@@ -69,37 +85,9 @@ export function renderProvenance(producedBy) {
   return node;
 }
 
-export function renderTimeline(items, { elapsed = [] } = {}) {
-  const list = el("ol", "ps-multi-agent__timeline");
-  list.setAttribute("aria-label", "Workflow stages");
-  for (const item of items) {
-    const row = el("li", `ps-multi-agent__stage ps-multi-agent__stage--${item.status}`);
-    row.dataset.stage = item.stage;
-    row.dataset.status = item.status;
-    const marker = el("span", "ps-multi-agent__stage-marker");
-    marker.setAttribute("aria-hidden", "true");
-    const copy = el("div", "ps-multi-agent__stage-copy");
-    const head = el("div", "ps-multi-agent__stage-head");
-    append(head, el("strong", "", item.label), el("span", "ps-multi-agent__stage-round", `Round ${item.round}`));
-    append(copy, head, el("span", "ps-multi-agent__stage-status", item.statusLabel));
-    const timing = el("span", "ps-multi-agent__stage-timing");
-    if (item.durationMs !== null) timing.textContent = formatDuration(item.durationMs);
-    else if (item.startedAt && (item.status === "running" || item.status === "waiting")) {
-      timing.dataset.elapsedStart = item.startedAt;
-      elapsed.push(timing);
-    }
-    if (item.startedAt) timing.title = `Started ${formatTimestamp(item.startedAt)}`;
-    if (timing.textContent || timing.dataset.elapsedStart) append(copy, timing);
-    if (item.detail) append(copy, el("span", "ps-multi-agent__stage-detail", item.detail));
-    append(row, marker, copy);
-    append(list, row);
-  }
-  return list;
-}
-
-export function renderPlan(plan, context) {
+export function renderPlan(plan, context, { titled = true } = {}) {
   const labels = context?.labels || DEFAULT_MULTI_AGENT_LABELS;
-  const host = section("ps-multi-agent__plan", labels.plan);
+  const host = section("ps-multi-agent__plan", labels.plan, { titled });
   if (!plan) {
     append(host, el("p", "ps-multi-agent__empty", "The Planner has not produced a plan yet."));
     return host;
@@ -160,11 +148,12 @@ export function renderEvidence(record, context, scope = "current") {
   return details;
 }
 
-export function renderWorker(plan, workerOutput, context, scope = "current") {
+export function renderWorker(plan, workerOutput, context, scope = "current", { titled = true, toolCalls = [] } = {}) {
   const labels = context?.labels || DEFAULT_MULTI_AGENT_LABELS;
-  const host = section("ps-multi-agent__worker", labels.worker);
+  const host = section("ps-multi-agent__worker", labels.worker, { titled });
   if (!workerOutput) {
-    append(host, el("p", "ps-multi-agent__empty", "The Worker has not recorded evidence yet."));
+    if (toolCalls.length) append(host, renderToolCalls(toolCalls, plan));
+    else append(host, el("p", "ps-multi-agent__empty", "The Worker has not recorded evidence yet."));
     return host;
   }
   if (workerOutput.correction_note) {
@@ -208,16 +197,15 @@ function renderFinding(finding) {
   return item;
 }
 
-export function renderReview(review, context, scope = "current") {
+export function renderReview(review, context, scope = "current", { titled = true, round = 1 } = {}) {
   const labels = context?.labels || DEFAULT_MULTI_AGENT_LABELS;
-  const host = section("ps-multi-agent__review", labels.review);
+  const host = section("ps-multi-agent__review", labels.review, { titled });
   if (!review) {
     append(host, el("p", "ps-multi-agent__empty", "The Reviewer has not reported yet."));
     return host;
   }
   const recommendation = el("p", "ps-multi-agent__recommendation");
-  const option = labels.decisionOptions?.[review.recommendation];
-  append(recommendation, el("span", "", "Recommends "), badge(option?.label || humaniseValue(review.recommendation), review.recommendation === "approve" ? "confirmed" : review.recommendation === "reject" ? "danger" : "partial"));
+  append(recommendation, el("span", "", "Recommends "), badge(decisionLabel(review.recommendation, round, labels), review.recommendation === "approve" ? "confirmed" : review.recommendation === "reject" ? "danger" : "partial"));
   recommendation.dataset.recommendation = review.recommendation || "";
   append(host, recommendation);
   if (review.summary) append(host, el("p", "ps-multi-agent__summary", review.summary));
@@ -241,23 +229,83 @@ export function renderReview(review, context, scope = "current") {
 }
 
 export function renderSuperseded(attempt, plan, context) {
-  const details = disclosure(context, `superseded-${attempt.round}`, "ps-multi-agent__superseded", `Round ${attempt.round} (superseded)`);
-  append(details, el("p", "ps-multi-agent__note", "A person requested a correction, so this round's evidence and review were replaced. They remain here for comparison."));
-  append(details, renderWorker(plan, attempt.worker_output, context, `round-${attempt.round}`), renderReview(attempt.review, context, `round-${attempt.round}`));
+  const labels = context?.labels || DEFAULT_MULTI_AGENT_LABELS;
+  const groups = groupFindings(attempt.review?.findings);
+  const count = attempt.review ? `${decisionLabel(attempt.review.recommendation, attempt.round, labels)} · ${groups.failed.length} failed` : "No review";
+  const { details, body } = drawer(context, `superseded-${attempt.round}`, `Round ${attempt.round} (superseded)`, count, { className: "ps-multi-agent__superseded" });
+  append(body, el("p", "ps-multi-agent__note", "A person sent this round back, so its evidence and review were replaced. They remain here for comparison."));
+  append(body, renderWorker(plan, attempt.worker_output, context, `round-${attempt.round}`), renderReview(attempt.review, context, `round-${attempt.round}`, { round: attempt.round }));
   return details;
 }
 
-export function renderDecisionLog(decisions, context) {
+/** Tool calls recorded so far this round, before the Worker's findings arrive. */
+export function renderToolCalls(toolCalls, plan) {
+  const list = el("ul", "ps-multi-agent__tool-calls");
+  for (const call of toolCalls) {
+    const detail = call.detail || {};
+    const step = (plan?.steps || []).find((item) => item.id === detail.step_id);
+    const item = el("li", `ps-multi-agent__tool-call ps-multi-agent__tool-call--${detail.outcome || "unknown"}`);
+    item.dataset.evidenceId = detail.evidence_id || "";
+    append(item, el("strong", "", step?.title || humaniseValue(detail.step_id || "step")), outcomeBadge(detail.outcome || "unknown"));
+    append(item, el("code", "ps-multi-agent__reference", [detail.tool_name, detail.evidence_id, formatDuration(detail.duration_ms)].filter(Boolean).join(" · ")));
+    append(list, item);
+  }
+  return list;
+}
+
+/** The recorded outcome of a finished run. */
+export function renderOutcome(run, labels = DEFAULT_MULTI_AGENT_LABELS) {
+  const status = workflowStatus(run.state, labels);
+  const host = el("section", `ps-multi-agent__outcome ps-multi-agent__outcome--${status.tone}`);
+  host.dataset.state = status.key;
+  const final = (run.decisions || []).at(-1) || null;
+  append(host, el("p", "ps-multi-agent__kicker", "Outcome"));
+  const headline = el("p", "ps-multi-agent__outcome-title", status.label);
+  if (final) append(headline, el("span", "ps-multi-agent__outcome-by", ` · ${final.actor}, round ${final.round}`));
+  append(host, headline);
+  if (final?.note) append(host, el("p", "ps-multi-agent__outcome-note", final.note));
+  else append(host, el("p", "ps-multi-agent__outcome-note", status.detail));
+  if (final?.accepted_step_ids?.length) {
+    const titles = final.accepted_step_ids.map((id) => run.plan?.steps?.find((step) => step.id === id)?.title || id);
+    append(host, el("p", "ps-multi-agent__note", `Accepted: ${titles.join(", ")}`));
+  }
+  if (final) append(host, el("p", "ps-multi-agent__safety", labels.outcomeSafety));
+  return host;
+}
+
+/** In a replay, the decision a person actually recorded at this point. Nothing is sent. */
+export function renderRecordedDecision(point, labels = DEFAULT_MULTI_AGENT_LABELS, onContinue = null) {
+  const host = el("div", "ps-multi-agent__recorded");
+  append(host, el("h4", "ps-multi-agent__kicker", "What was decided"));
+  const decision = point?.decision;
+  if (decision) {
+    const headline = el("p", "ps-multi-agent__suggest", decisionLabel(decision.decision, point.round, labels));
+    headline.dataset.decision = decision.decision;
+    const waited = point.decidedAt !== null ? formatDuration(point.decidedAt - (point.stageStart ?? point.at)) : "";
+    append(host, headline, el("p", "ps-multi-agent__note", `${decision.actor}${waited ? `, after ${waited}` : ""}`));
+    if (decision.note) append(host, el("p", "ps-multi-agent__recorded-note", decision.note));
+    append(host, el("p", "ps-multi-agent__safety", labels.outcomeSafety));
+  } else append(host, el("p", "ps-multi-agent__note", "The run ended without a decision for this round."));
+  if (onContinue) {
+    const resume = el("button", "ps-button ps-button--primary ps-button--small", "Continue replay");
+    resume.type = "button";
+    resume.dataset.action = "replay-continue";
+    resume.addEventListener("click", onContinue);
+    append(host, resume);
+  }
+  return host;
+}
+
+export function renderDecisionLog(decisions, context, { titled = true } = {}) {
   const labels = context?.labels || DEFAULT_MULTI_AGENT_LABELS;
   if (!Array.isArray(decisions) || !decisions.length) return null;
-  const host = section("ps-multi-agent__decisions", labels.decisions);
+  const host = section("ps-multi-agent__decisions", labels.decisions, { titled });
   const list = el("ol", "ps-multi-agent__decision-log");
   for (const decision of decisions) {
     const item = el("li", "ps-multi-agent__decision-entry");
     item.dataset.decision = decision.decision;
     const head = el("div", "ps-multi-agent__decision-head");
-    const option = labels.decisionOptions?.[decision.decision];
-    append(head, el("strong", "", option?.label || humaniseValue(decision.decision)), el("span", "", `Round ${decision.round} · ${decision.actor}`));
+    append(head, el("strong", "", decisionLabel(decision.decision, Number(decision.round) || 1, labels)), el("span", "", `Round ${decision.round} · ${decision.actor}`));
     const time = el("time", "", formatTimestamp(decision.decided_at));
     if (decision.decided_at) time.setAttribute("datetime", decision.decided_at);
     append(head, time);
@@ -288,8 +336,13 @@ export function renderProblem(view, { heading = "" } = {}) {
   return host;
 }
 
-export function renderHistory(view, labels = DEFAULT_MULTI_AGENT_LABELS) {
+/** Transitions, then every coordination event as a sentence, timed from the run's start. */
+export function renderHistory(view, labels = DEFAULT_MULTI_AGENT_LABELS, { origin = null } = {}) {
   const host = el("div", "ps-multi-agent__history-body");
+  const offset = (at) => {
+    const parsed = Date.parse(at || "");
+    return origin !== null && Number.isFinite(parsed) ? formatClock(parsed - origin) : "";
+  };
   if (!view.transitions.length) append(host, el("p", "ps-multi-agent__empty", "No state transitions have been recorded."));
   else {
     const list = el("ol", "ps-multi-agent__transitions");
@@ -303,13 +356,16 @@ export function renderHistory(view, labels = DEFAULT_MULTI_AGENT_LABELS) {
     }
     append(host, list);
   }
-  const counts = Object.entries(view.eventCounts);
-  if (counts.length) {
+  if (view.audit.length) {
     append(host, el("p", "ps-multi-agent__label", `Coordination audit · ${view.audit.length} event${view.audit.length === 1 ? "" : "s"}`));
-    const list = el("ul", "ps-multi-agent__audit");
-    for (const [event, count] of counts) {
+    const list = el("ol", "ps-multi-agent__audit");
+    for (const entry of view.audit) {
       const item = el("li");
-      append(item, el("code", "", event), el("span", "", ` × ${count}`));
+      item.dataset.event = entry.event;
+      const time = el("time", "ps-multi-agent__audit-time", offset(entry.at));
+      if (entry.at) time.setAttribute("datetime", entry.at);
+      const sentence = eventSentence({ kind: entry.event, role: entry.role, actor: entry.actor, round: entry.round, detail: entry.detail }, labels);
+      append(item, time, el("span", "", sentence), el("code", "ps-multi-agent__audit-event", entry.event));
       append(list, item);
     }
     append(host, list);

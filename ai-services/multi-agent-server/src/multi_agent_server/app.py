@@ -29,6 +29,7 @@ from shared_contracts import (
     project_readiness,
 )
 from shared_contracts.multi_agent import (
+    MAX_HISTORY_CURSOR,
     MAX_RUN_PAGE_LIMIT,
     MULTI_AGENT_API_PREFIX,
     MULTI_AGENT_SERVICE_NAME,
@@ -110,6 +111,14 @@ def _body() -> dict[str, object]:
     if not isinstance(payload, dict):
         raise InvalidRequestError("Request body must be a JSON object")
     return payload
+
+
+def _cursor(name: str) -> int:
+    """A non-negative sequence cursor from the query string (0 when absent)."""
+    raw = request.args.get(name, "0")
+    if not raw.isdecimal() or int(raw) > MAX_HISTORY_CURSOR:
+        raise InvalidRequestError(f"{name} must be an integer from 0 to {MAX_HISTORY_CURSOR}")
+    return int(raw)
 
 
 def _run_id(value: str) -> UUID:
@@ -290,7 +299,14 @@ def create_app(
 
     @app.get(f"{MULTI_AGENT_API_PREFIX}/runs/<run_id>/history")
     def history(run_id: str) -> tuple[Response, int]:
-        return _json(workflows.history(_run_id(run_id)))
+        identifier = _run_id(run_id)
+        return _json(
+            workflows.history(
+                identifier,
+                after_history=_cursor("after_history"),
+                after_audit=_cursor("after_audit"),
+            )
+        )
 
     @app.errorhandler(MultiAgentError)
     def domain_error(error: MultiAgentError) -> tuple[Response, int]:

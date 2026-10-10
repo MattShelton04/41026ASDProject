@@ -31,7 +31,7 @@ Evidence collected for the report goes in `evidence/`, as described in the imple
 | Area | State | Where |
 |---|---|---|
 | Multi-Agent Server (Shared A1–A7) | Done: contracts, state machine, model and deterministic agents, SQLite and JSONL audit, HTTP API, CLI, `FakeMultiAgentServer` | [README](../../ai-services/multi-agent-server/README.md), [ADR-047](../architecture/decisions/ADR-047-multi-agent-server.md) |
-| Shared multi-agent panel (A8) | Done: feature-agnostic panel with the proxy contract every feature implements | [`shared/frontend/multi-agent/`](../../shared/frontend/multi-agent/README.md) |
+| Shared multi-agent panel (A8) | Done: feature-agnostic "mission relay" panel (live lanes, now line, one-question decision, drawers, replay of recorded runs) with the proxy contract every feature implements, including incremental history cursors | [`shared/frontend/multi-agent/`](../../shared/frontend/multi-agent/README.md) |
 | Review modes (B) | Done. The review prompts now treat failed checks as findings, not a run failure | [review-modes.md](review-modes.md) |
 | Pre-commit security (C), endpoint testing (D) | Done | `.pre-commit-config.yaml`, [`shared/testkit`](../../shared/testkit/README.md) |
 | Azure (E/F) | Prepared, **not provisioned** | [deployment/azure](../../deployment/azure/README.md) |

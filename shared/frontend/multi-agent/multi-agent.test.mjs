@@ -84,8 +84,13 @@ test("the stage timeline keeps recorded stages and shows the stages a round has 
 test("decision controls map only the server's available actions and name the final correction", () => {
   const roundOne = { round: 1, available_actions: ["approve", "correct", "partial", "reject", "cancel", "unknown"] };
   assert.deepEqual(availableDecisions(roundOne).map((option) => option.action), ["approve", "correct", "partial", "reject"]);
-  assert.equal(availableDecisions(roundOne)[1].label, "Request a correction");
-  assert.equal(availableDecisions({ ...roundOne, round: 2 })[1].label, "Record a final correction");
+  assert.equal(availableDecisions(roundOne)[1].label, "Send back once");
+  assert.equal(availableDecisions(roundOne)[1].submit, "Send back to the agents");
+  assert.equal(availableDecisions(roundOne)[0].optionalNote, true);
+  assert.equal(availableDecisions({ ...roundOne, round: 2 })[1].label, "Final correction");
+  assert.equal(availableDecisions({ ...roundOne, round: 2 })[1].submit, "Record final correction");
+  const suggested = availableDecisions({ ...roundOne, review: { recommendation: "partial" } });
+  assert.deepEqual(suggested.filter((option) => option.suggested).map((option) => option.action), ["partial"]);
   assert.equal(canCancel(roundOne), true);
   assert.deepEqual(availableDecisions({ round: 1, available_actions: ["cancel"] }), []);
   assert.equal(canCancel({ available_actions: [] }), false);
@@ -246,6 +251,8 @@ test("the client calls only the feature proxy routes with bounded JSON requests"
   await client.decide(RUN_ID, { decision: "approve", note: "", actor: "matthew" });
   await client.cancel(RUN_ID, { actor: "matthew" });
   await client.getHistory(RUN_ID);
+  await client.getHistory(RUN_ID, { afterHistory: 4, afterAudit: 0 });
+  await client.getHistory(RUN_ID, { afterHistory: 4, afterAudit: 17 });
   assert.equal(started.requestId, "request-test");
   assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
     "GET /api/data-platform/v1/release-reviews/template",
@@ -255,6 +262,8 @@ test("the client calls only the feature proxy routes with bounded JSON requests"
     `POST /api/data-platform/v1/release-reviews/${RUN_ID}/decision`,
     `POST /api/data-platform/v1/release-reviews/${RUN_ID}/cancel`,
     `GET /api/data-platform/v1/release-reviews/${RUN_ID}/history`,
+    `GET /api/data-platform/v1/release-reviews/${RUN_ID}/history?after_history=4`,
+    `GET /api/data-platform/v1/release-reviews/${RUN_ID}/history?after_history=4&after_audit=17`,
   ]);
   assert.deepEqual(calls[2].body, { input: { release_id: RELEASE_ID }, requested_by: "matthew" });
   assert.deepEqual(calls[4].body, { decision: "approve", note: "", actor: "matthew" });

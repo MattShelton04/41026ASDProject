@@ -89,7 +89,7 @@ Responses are `Cache-Control: no-store`.
 | `GET /runs/{run_id}` | | 200 `WorkflowRun` | 404 `run_not_found` |
 | `POST /runs/{run_id}/decision` | `HumanDecisionRequest` `{decision, note, actor, accepted_step_ids?}` | 200 `WorkflowRun` (terminal, or `working` round 2 after a first `correct`) | 409 `invalid_state_transition`, 422 `invalid_decision` / `invalid_request_body` |
 | `POST /runs/{run_id}/cancel` | optional `{actor}` | 200 `WorkflowRun` (`cancelled`) | 409 `invalid_state_transition` |
-| `GET /runs/{run_id}/history` | | 200 `WorkflowRunHistory` `{run_id, state, history[], audit[]}` | 404 `run_not_found` |
+| `GET /runs/{run_id}/history` | `after_history`, `after_audit` (0–1,000,000, default 0) | 200 `WorkflowRunHistory` `{run_id, state, history[], audit[]}`; only entries after each cursor | 400 `invalid_request`, 404 `run_not_found` |
 
 A started run is processed in the background, so poll `GET /runs/{id}` until `state` is no longer
 `planning`, `working` or `reviewing`. A `WorkflowRun` contains `plan` (steps with resolved
@@ -220,6 +220,7 @@ uv run multi-agent-server run --deterministic \
 Every state change is appended to `workflow_history.jsonl` (`sequence`, `run_id`, `request_id`,
 `at`, `from_state`, `to_state`, `round`, `actor`, `role`, `reason`). Every coordination event is
 appended to `coordination_audit.jsonl`: `run.created`, `agent.handoff`, `plan.created`,
+`model.started` (attempt, model profile, prompt ID and version, written before the call),
 `model.invocation` (provider, model, prompt hash, tokens, outcome), `model.fallback`, `tool.call`,
 `tool.rejected`, `worker.completed`, `review.completed`, `decision.recorded` (actor, time, note),
 `run.failed` and `run.cancelled`. SQLite is the source of truth, and the JSONL files are

@@ -5,17 +5,24 @@ import {
   workflowStatus,
 } from "./definitions.js";
 import {
-  createRenderContext, renderDecisionLog, renderHistory, renderPlan, renderProblem, renderReview,
-  renderSuperseded, renderTimeline, renderWorker, statusBadge,
+  createRenderContext, drawer, renderDecisionLog, renderHistory, renderOutcome, renderPlan, renderProblem,
+  renderRecordedDecision, renderReview, renderSuperseded, renderWorker, statusBadge,
 } from "./components.js";
 import { buildDecisionForm, buildStartForm, setFieldError } from "./forms.js";
 import { nextWorkflowPollDelay } from "./polling.js";
 import {
-  availableDecisions, canCancel, fieldProblems, formatTimestamp, historyView, problemView,
-  runPresentationKey, stageTimeline, startFields, validateDecision, validateStartInput,
+  availableDecisions, canCancel, fieldProblems, formatTimestamp, groupFindings, historyView, problemView,
+  runPresentationKey, startFields, validateDecision, validateStartInput,
 } from "./projections.js";
+import { createLaneBoard, createNowLine, createRelayStrip, createReplayBar, renderReviewerSide } from "./relay.js";
+import {
+  advanceReplay, blockingFailures, buildTimeline, decisionLabel, emptyHistory, eventSentence, eventTimes,
+  formatClock, laneView, mergeHistory, nowView, relayView, snapshotAt,
+} from "./timeline.js";
 
 let panelInstance = 0;
+// Under reduced motion a replay steps from one recorded moment to the next instead of gliding.
+const REDUCED_STEP_MS = 900;
 
 function isAbort(error) { return error?.name === "AbortError"; }
 
@@ -23,12 +30,37 @@ function emptyDraft(actor = "") {
   return { decision: "", note: "", actor: String(actor || ""), acceptedStepIds: [] };
 }
 
-function elapsedText(start) {
-  const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(start)) / 1000));
-  if (!Number.isFinite(seconds)) return "";
-  if (seconds < 60) return `${seconds} s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
-  return `${Math.floor(seconds / 3600)} h ${Math.floor((seconds % 3600) / 60)} min`;
+function reducedMotion() {
+  try { return Boolean(globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches); } catch { return false; }
+}
+
+const clock = () => globalThis.performance?.now?.() ?? Date.now();
+const requestFrame = (callback) => (typeof globalThis.requestAnimationFrame === "function"
+  ? globalThis.requestAnimationFrame(callback)
+  : setTimeout(() => callback(clock()), 16));
+const cancelFrame = (handle) => {
+  if (typeof globalThis.cancelAnimationFrame === "function") globalThis.cancelAnimationFrame(handle);
+  clearTimeout(handle);
+};
+
+function findDisclosure(node, key) {
+  if (!node || !key) return null;
+  if (node.dataset?.disclosure === key) return node;
+  for (const child of node.children || []) {
+    const match = findDisclosure(child, key);
+    if (match) return match;
+  }
+  return null;
+}
+
+function findById(node, id) {
+  if (!node || !id) return null;
+  if (node.id === id) return node;
+  for (const child of node.children || []) {
+    const match = findById(child, id);
+    if (match) return match;
+  }
+  return null;
 }
 
 export function createMultiAgentPanel({
@@ -73,8 +105,12 @@ export function createMultiAgentPanel({
     cancelConfirm: false,
     cancelPending: false,
     cancelProblem: null,
-    history: { runId: null, state: null, view: null, loading: false, problem: null },
-    elapsed: [],
+    history: { data: emptyHistory(), loaded: false, loading: false, problem: null },
+    frame: null,
+    replay: null,
+    drawerCounts: new Map(),
+    // New lane marks animate only once a run has been drawn, never when a run is first opened.
+    animate: false,
     destroyed: false,
   };
 
@@ -100,7 +136,7 @@ export function createMultiAgentPanel({
   root.replaceChildren(shell);
   let startForm = null;
   // Nodes from the latest run render that later actions move focus to.
-  const refs = { runTitle: null, cancel: null, confirmCancel: null, history: null };
+  const refs = { runTitle: null, cancel: null, confirmCancel: null, article: null };
 
   const publishStatus = (message) => {
     if (!message || state.destroyed) return;
@@ -213,8 +249,10 @@ export function createMultiAgentPanel({
       renderStartForm();
       resetRunScopedState();
       setRun(body, { announceChange: false });
+      state.animate = true;
       publishStatus(`Review started. ${workflowStatus(body?.state, labels).label}.`);
       focusRunHeading();
+      fetchHistory({ force: true });
       return body;
     } catch (error) {
       if (state.destroyed || isAbort(error)) return null;
@@ -228,6 +266,7 @@ export function createMultiAgentPanel({
 
   // ---- run lifecycle -------------------------------------------------------------------------
   function resetRunScopedState() {
+    stopReplay();
     state.decisionDraft = emptyDraft(state.decisionDraft.actor || actor);
     state.decisionErrors = {};
     state.decisionProblem = null;
@@ -235,7 +274,12 @@ export function createMultiAgentPanel({
     state.cancelProblem = null;
     state.pollFailures = 0;
     state.pollWarning = null;
-    state.history = { runId: null, state: null, view: null, loading: false, problem: null };
+    historyTask.cancel();
+    state.history = { data: emptyHistory(), loaded: false, loading: false, problem: null };
+    state.frame = null;
+    state.replay = null;
+    state.drawerCounts.clear();
+    state.animate = false;
     context.disclosures.clear();
   }
 
@@ -275,8 +319,11 @@ export function createMultiAgentPanel({
       state.pollFailures = 0;
       const recovered = Boolean(state.pollWarning);
       state.pollWarning = null;
+      const changed = state.run?.state !== body?.state || state.run?.round !== body?.round;
       if (recovered) renderRun({ force: true });
       setRun(body);
+      // History is read alongside the run; a state change always catches up immediately.
+      fetchHistory({ force: changed });
     } catch (error) {
       if (!task.isCurrent() || state.destroyed || isAbort(error)) return;
       state.pollFailures += 1;
@@ -292,6 +339,7 @@ export function createMultiAgentPanel({
     const task = runTask.start();
     state.startVisible = false;
     renderStartForm();
+    stopReplay();
     runHost.replaceChildren(el("p", "ps-multi-agent__loading", "Loading the review run…"));
     runHost.setAttribute("aria-busy", "true");
     try {
@@ -302,8 +350,10 @@ export function createMultiAgentPanel({
       // The loading message replaced the run DOM, so the reopened run must render even if unchanged.
       state.run = null;
       state.runKey = "";
+      state.frame = null;
       setRun(body, { announceChange: false });
       publishStatus(`Opened review run ${shortRunId(body?.id)}. ${workflowStatus(body?.state, labels).label}.`);
+      fetchHistory({ force: true });
       return body;
     } catch (error) {
       if (!task.isCurrent() || state.destroyed || isAbort(error)) return null;
@@ -321,15 +371,40 @@ export function createMultiAgentPanel({
 
   function focusRunHeading() { refs.runTitle?.focus?.(); }
 
+  // ---- history -------------------------------------------------------------------------------
+  /**
+   * Read new transitions and audit events after the known cursors. While one read is in flight a
+   * routine poll skips; a forced read (open, start, decision, state change) replaces it.
+   */
+  async function fetchHistory({ force = false } = {}) {
+    const run = state.run;
+    if (!run || state.destroyed || (state.history.loading && !force)) return;
+    const current = state.history.data.runId === run.id ? state.history.data : emptyHistory(run.id);
+    const task = historyTask.start();
+    state.history.loading = true;
+    try {
+      const { body } = await client.getHistory(run.id, { afterHistory: current.afterHistory, afterAudit: current.afterAudit, signal: task.signal });
+      if (!task.isCurrent() || state.destroyed || state.run?.id !== run.id) return;
+      state.history = { data: mergeHistory(current, { ...body, run_id: run.id }), loaded: true, loading: false, problem: null };
+    } catch (error) {
+      if (!task.isCurrent() || state.destroyed || isAbort(error)) return;
+      state.history = { ...state.history, loading: false, problem: problemView(error) };
+    }
+    renderRun();
+    // From here on, marks that arrive with later polls are new and may animate.
+    if (!isTerminalWorkflow(state.run?.state)) state.animate = true;
+  }
+
   // ---- decisions and cancellation ------------------------------------------------------------
   async function submitDecision(form) {
     const run = state.run;
     if (state.destroyed || state.decisionPending || !run) return;
     form.sync();
     const result = validateDecision(state.decisionDraft, run);
-    state.decisionErrors = result.errors;
+    // Until a choice is made only the choice can be wrong; the other fields are still hidden.
+    state.decisionErrors = state.decisionDraft.decision ? result.errors : { decision: labels.chooseFirst };
     state.decisionProblem = null;
-    if (!result.valid) {
+    if (!state.decisionDraft.decision || !result.valid) {
       showDecisionErrors(form);
       publishStatus("Check the highlighted decision fields.");
       return;
@@ -340,13 +415,14 @@ export function createMultiAgentPanel({
       const { body } = await client.decide(run.id, result.body);
       if (state.destroyed) return;
       state.decisionPending = false;
-      const recorded = labels.decisionOptions?.[result.body.decision]?.label || humaniseValue(result.body.decision);
+      const recorded = decisionLabel(result.body.decision, Number(run.round) || 1, labels);
       state.decisionDraft = emptyDraft(result.body.actor);
       state.decisionErrors = {};
       setRun(body, { announceChange: false });
       renderRun({ force: true });
       publishStatus(`Decision recorded: ${recorded}. ${workflowStatus(body?.state, labels).label}.`);
       focusRunHeading();
+      fetchHistory({ force: true });
     } catch (error) {
       if (state.destroyed || isAbort(error)) return;
       state.decisionPending = false;
@@ -385,6 +461,7 @@ export function createMultiAgentPanel({
       renderRun({ force: true });
       publishStatus(`${workflowStatus(body?.state, labels).label}.`);
       focusRunHeading();
+      fetchHistory({ force: true });
     } catch (error) {
       if (state.destroyed || isAbort(error)) return;
       state.cancelPending = false;
@@ -395,71 +472,189 @@ export function createMultiAgentPanel({
     }
   }
 
-  // ---- history -------------------------------------------------------------------------------
-  async function loadHistory() {
+  // ---- timeline, frame and replay ------------------------------------------------------------
+  let terminalModel = { key: "", model: null };
+  function currentModel() {
     const run = state.run;
-    if (!run || state.destroyed) return;
-    const fresh = state.history.runId === run.id && state.history.state === run.state && state.history.view;
-    if (fresh || state.history.loading) { renderHistoryContent(); return; }
-    const task = historyTask.start();
-    state.history = { runId: run.id, state: run.state, view: null, loading: true, problem: null };
-    renderHistoryContent();
-    try {
-      const { body } = await client.getHistory(run.id, { signal: task.signal });
-      if (!task.isCurrent() || state.destroyed) return;
-      state.history = { ...state.history, view: historyView(body), loading: false };
-    } catch (error) {
-      if (!task.isCurrent() || state.destroyed || isAbort(error)) return;
-      state.history = { ...state.history, loading: false, problem: problemView(error) };
+    if (!isTerminalWorkflow(run?.state)) return buildTimeline(run, state.history.data, { now: Date.now() });
+    // A finished run never changes, so its model is built once per run and history.
+    const key = `${run.id}|${run.updated_at}|${state.history.data.afterHistory}|${state.history.data.afterAudit}`;
+    if (terminalModel.key !== key) terminalModel = { key, model: buildTimeline(run, state.history.data) };
+    return terminalModel.model;
+  }
+
+  function replaying(model) { return Boolean(state.replay) && state.replay.t < model.end; }
+
+  function currentSnapshot(model) {
+    return snapshotAt(model, replaying(model) ? state.replay.t : model.end);
+  }
+
+  function ensureFrame(run, model) {
+    if (!state.frame || state.frame.runId !== run.id) {
+      state.frame = { runId: run.id, board: createLaneBoard(labels), relay: createRelayStrip(labels), now: createNowLine(), replay: null, replayKey: "" };
     }
-    renderHistoryContent();
+    // A replay needs recorded events, so it is offered only for finished runs with history.
+    const replayKey = isTerminalWorkflow(run.state) && model.hasHistory ? terminalModel.key : "";
+    if (replayKey !== state.frame.replayKey) {
+      state.frame.replayKey = replayKey;
+      state.frame.replay = replayKey ? createReplayBar({ model, labels, onCommand: replayCommand }) : null;
+    }
+    return state.frame;
   }
 
-  // Always render into the latest disclosure; a poll may have replaced the one that asked.
-  function renderHistoryContent() {
-    const body = refs.history;
-    if (!body) return;
-    body.replaceChildren();
-    body.setAttribute("aria-busy", String(state.history.loading));
-    if (state.history.loading) append(body, el("p", "ps-multi-agent__loading", "Loading history…"));
-    else if (state.history.problem) append(body, renderProblem(state.history.problem, { heading: "History could not be loaded" }));
-    else if (state.history.view) append(body, renderHistory(state.history.view, labels));
+  function describe(model, snapshot) {
+    const status = workflowStatus(snapshot.state, labels);
+    return `${formatClock(model.toAxis(snapshot.t))} of ${formatClock(model.axisEnd)}. Round ${snapshot.round}. ${status.label}.`;
   }
 
-  function historyDisclosure(run) {
-    const details = el("details", "ps-multi-agent__history");
-    details.dataset.disclosure = "history";
-    details.open = Boolean(context.disclosures.get("history"));
-    append(details, el("summary", "", labels.history));
-    const body = el("div", "ps-multi-agent__history-content");
-    refs.history = body;
-    append(details, body);
-    details.addEventListener("toggle", () => {
-      context.disclosures.set("history", details.open);
-      if (details.open) loadHistory();
+  function renderFrame(model = currentModel(), snapshot = currentSnapshot(model)) {
+    const frame = state.frame;
+    if (!frame || !state.run) return;
+    const animate = state.replay ? Boolean(state.replay.playing || state.replay.stepping) : state.animate;
+    frame.board.update(laneView(model, snapshot), { animate, live: snapshot.full });
+    frame.relay.update(relayView(snapshot), { live: snapshot.full });
+    frame.now.update(nowView(model, snapshot, labels), { animate });
+    frame.replay?.update({
+      t: snapshot.t, playing: Boolean(state.replay?.playing), speed: state.replay?.speed || 2, description: describe(model, snapshot),
     });
-    if (details.open) {
-      if (state.history.runId === run.id && state.history.state !== run.state) state.history.view = null;
-      loadHistory();
+  }
+
+  function replayState(model) {
+    if (!state.replay) state.replay = { t: model.end, playing: false, stepping: false, speed: 2, pausedAt: new Set(), handle: null, last: 0, lastState: "" };
+    return state.replay;
+  }
+
+  function stopReplay() {
+    if (!state.replay) return;
+    state.replay.playing = false;
+    cancelFrame(state.replay.handle);
+    clearTimeout(state.replay.handle);
+    state.replay.handle = null;
+  }
+
+  function replayCommand(command) {
+    if (state.destroyed || !state.run) return;
+    const model = currentModel();
+    const replay = replayState(model);
+    const pause = () => { stopReplay(); };
+    if (command.type === "toggle") {
+      if (replay.playing) pause();
+      else {
+        if (replay.t >= model.end) { replay.t = 0; replay.pausedAt.clear(); }
+        replay.playing = true;
+        replay.last = clock();
+        scheduleReplay();
+        publishStatus(`Replaying the recorded run. ${describe(model, snapshotAt(model, replay.t))}`);
+      }
+    } else if (command.type === "step") {
+      pause();
+      const times = eventTimes(model);
+      const target = command.direction > 0 ? times.find((time) => time > replay.t + 0.5) : [...times].reverse().find((time) => time < replay.t - 0.5);
+      replay.t = target ?? (command.direction > 0 ? model.end : 0);
+      replay.stepping = command.direction > 0;
+      const snapshot = snapshotAt(model, replay.t);
+      const last = snapshot.events.at(-1);
+      publishStatus(last && last.at === replay.t ? eventSentence(last, labels) : describe(model, snapshot));
+    } else if (command.type === "seek") {
+      pause();
+      replay.t = command.atEnd ? model.end : Math.min(model.end, model.toReal(command.axis));
+    } else if (command.type === "speed") {
+      replay.speed = command.value;
+    } else if (command.type === "jump") {
+      pause();
+      const point = model.decisionPoints.find((item) => item.round === command.round);
+      if (point) {
+        replay.t = point.at;
+        replay.pausedAt.add(point.round);
+        publishStatus(`Replay at the round ${point.round} decision.`);
+      }
+    } else if (command.type === "end") {
+      pause();
+      replay.t = model.end;
+    } else if (command.type === "continue") {
+      const point = model.decisionPoints.find((item) => item.at <= replay.t && (item.decidedAt === null || item.decidedAt > replay.t));
+      if (point?.decidedAt !== null && point?.decidedAt !== undefined) replay.t = point.decidedAt;
+      replay.playing = true;
+      replay.last = clock();
+      scheduleReplay();
     }
-    return details;
+    renderRun();
+    renderFrame(model);
+    replay.stepping = false;
+  }
+
+  function scheduleReplay() {
+    const replay = state.replay;
+    if (!replay?.playing || state.destroyed) return;
+    if (reducedMotion()) replay.handle = setTimeout(() => tickReplay(clock(), true), REDUCED_STEP_MS / replay.speed);
+    else replay.handle = requestFrame((timestamp) => tickReplay(timestamp, false));
+  }
+
+  function tickReplay(timestamp, discrete) {
+    const replay = state.replay;
+    if (!replay?.playing || state.destroyed || !state.run) return;
+    const model = currentModel();
+    let result;
+    if (discrete) {
+      // Jump to the next recorded moment; a decision point still stops the replay.
+      const next = eventTimes(model).find((time) => time > replay.t + 0.5) ?? model.end;
+      const point = model.decisionPoints.find((item) => item.at > replay.t && item.at <= next && !replay.pausedAt.has(item.round));
+      result = point ? { t: point.at, point, ended: false } : { t: next, point: null, ended: next >= model.end };
+    } else {
+      const elapsed = Math.min(100, Math.max(0, timestamp - replay.last)) * replay.speed;
+      result = advanceReplay(model, replay.t, elapsed, replay.pausedAt);
+    }
+    replay.last = timestamp;
+    replay.t = result.t;
+    replay.stepping = true;
+    if (result.point) {
+      replay.pausedAt.add(result.point.round);
+      replay.playing = false;
+      publishStatus(`Replay paused at the round ${result.point.round} decision. Continue when you are ready.`);
+    } else if (result.ended) {
+      replay.playing = false;
+      publishStatus("Replay finished. The recorded outcome is shown.");
+    }
+    const snapshot = snapshotAt(model, replay.t);
+    if (replay.playing && replay.lastState && replay.lastState !== snapshot.state) {
+      publishStatus(`Replay: ${workflowStatus(snapshot.state, labels).label}. Round ${snapshot.round}.`);
+    }
+    replay.lastState = snapshot.state;
+    renderRun();
+    renderFrame(model);
+    replay.stepping = false;
+    scheduleReplay();
   }
 
   // ---- run rendering -------------------------------------------------------------------------
+  function structureKey(snapshot) {
+    const rounds = Object.values(snapshot.rounds).map((view) => [view.round, view.toolCalls.length, Boolean(view.worker), Boolean(view.review)]);
+    return [snapshot.state, snapshot.round, snapshot.full, Boolean(snapshot.plan), rounds, snapshot.decisions.length, snapshot.events.length];
+  }
+
   function renderRun({ force = false } = {}) {
     const run = state.run;
     if (!run) { runHost.replaceChildren(); return; }
-    const key = runPresentationKey(run);
-    if (!force && key === state.runKey && runHost.firstChild) return;
+    const model = currentModel();
+    const snapshot = currentSnapshot(model);
+    const key = JSON.stringify([
+      runPresentationKey(run), structureKey(snapshot), state.history.loaded, Boolean(state.history.problem),
+      Boolean(state.pollWarning), state.decisionPending, state.cancelConfirm, state.cancelPending, state.startVisible,
+    ]);
+    if (!force && key === state.runKey && runHost.firstChild) { renderFrame(model, snapshot); return; }
     state.runKey = key;
-    state.elapsed = [];
-    // A poll replaces the run DOM; keep focus on the equivalent control rather than dropping it.
+    // A re-render replaces the run DOM; keep focus on the equivalent control rather than dropping it.
     const active = globalThis.document?.activeElement;
     const focusKey = active && [refs.runTitle, refs.cancel, refs.confirmCancel].includes(active) ? active.dataset.focusKey : "";
-    const status = workflowStatus(run.state, labels);
+    const focusId = !focusKey && active?.id && findById(refs.article, active.id) === active ? active.id : "";
+    const focusDrawer = !focusKey && !focusId && active?.tagName === "SUMMARY" ? active.parent?.dataset?.disclosure || active.parentElement?.dataset?.disclosure || "" : "";
+    const frame = ensureFrame(run, model);
+    const inReplay = !snapshot.full;
+    const status = workflowStatus(snapshot.state, labels);
     const article = el("article", `ps-multi-agent__run ps-multi-agent__run--${status.key}`);
     article.dataset.runId = run.id || "";
     article.dataset.state = status.key;
+    article.dataset.replay = String(inReplay);
     article.setAttribute("aria-busy", String(isActiveWorkflow(run.state)));
 
     const head = el("header", "ps-multi-agent__run-head");
@@ -472,9 +667,10 @@ export function createMultiAgentPanel({
     refs.confirmCancel = null;
     article.setAttribute("aria-labelledby", runTitle.id);
     const badges = el("div", "ps-multi-agent__run-badges");
-    append(badges, statusBadge(run.state, labels), el("span", "ps-multi-agent__round", `Round ${run.round || 1} of ${MAX_WORKFLOW_ROUNDS}`));
+    if (inReplay) append(badges, el("span", "ps-badge ps-multi-agent__badge ps-multi-agent__badge--replay", labels.replay));
+    append(badges, statusBadge(snapshot.state, labels), el("span", "ps-multi-agent__round", `Round ${snapshot.round || 1} of ${MAX_WORKFLOW_ROUNDS}`));
     append(head, runTitle, badges);
-    append(article, head, el("p", "ps-multi-agent__status-detail", status.detail));
+    append(article, head);
     const meta = [
       run.template_id && `${run.template_id}${run.template_version ? ` ${run.template_version}` : ""}`,
       run.requested_by && `requested by ${run.requested_by}`,
@@ -488,7 +684,17 @@ export function createMultiAgentPanel({
       warning.setAttribute("role", "status");
       append(article, warning);
     }
-    if (run.state === "failed" && run.error) {
+    if (state.history.problem && !state.history.loaded) {
+      const warning = el("div", "ps-multi-agent__history-warning");
+      warning.setAttribute("role", "status");
+      const retry = el("button", "ps-button ps-button--small ps-button--quiet", "Try again");
+      retry.type = "button";
+      retry.dataset.action = "reload-history";
+      retry.addEventListener("click", () => fetchHistory({ force: true }));
+      append(warning, el("p", "", labels.historyUnavailable), retry);
+      append(article, warning);
+    }
+    if (run.state === "failed" && run.error && snapshot.full) {
       append(article, renderProblem({
         title: "The workflow failed",
         detail: run.error.message || "",
@@ -499,30 +705,15 @@ export function createMultiAgentPanel({
       }));
     }
 
-    append(article, renderTimeline(stageTimeline(run, labels), { elapsed: state.elapsed }));
-    append(article, renderPlan(run.plan, context));
-    if (run.worker_output || isActiveWorkflow(run.state)) append(article, renderWorker(run.plan, run.worker_output, context));
-    if (run.review || ["working", "reviewing"].includes(run.state)) append(article, renderReview(run.review, context));
-    for (const attempt of run.superseded || []) append(article, renderSuperseded(attempt, run.plan, context));
-    append(article, renderDecisionLog(run.decisions, context));
+    if (frame.replay) append(article, frame.replay.node);
+    const key_ = el("p", "ps-multi-agent__lane-key", labels.laneKey);
+    key_.setAttribute("aria-hidden", "true");
+    append(article, frame.board.node, key_, frame.relay.node, frame.now.node);
 
-    const options = availableDecisions(run, labels);
-    let decisionForm = null;
-    if (options.length) {
-      decisionForm = buildDecisionForm({
-        run, options, draft: state.decisionDraft, instanceId, labels,
-        guidance: state.descriptor?.template?.human_review_guidance || "",
-      });
-      decisionForm.form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        submitDecision(decisionForm);
-      });
-      decisionForm.form.setAttribute("aria-busy", String(state.decisionPending));
-      for (const control of decisionForm.controls) control.disabled = state.decisionPending;
-      decisionForm.submit.setAttribute("aria-busy", String(state.decisionPending));
-      if (state.decisionPending) decisionForm.submit.textContent = labels.submittingDecision;
-      append(article, decisionForm.form);
-    }
+    const main = el("div", "ps-multi-agent__main");
+    const decisionForm = renderMain(main, model, snapshot);
+    if (main.firstChild) append(article, main);
+    append(article, renderDrawers(model, snapshot));
 
     const footer = el("footer", "ps-multi-agent__run-actions");
     if (canCancel(run)) append(footer, cancelControls());
@@ -545,11 +736,123 @@ export function createMultiAgentPanel({
       link.dataset.action = "history-link";
       append(footer, link);
     }
-    append(article, footer, historyDisclosure(run));
+    append(article, footer);
+    refs.article = article;
     runHost.replaceChildren(article);
     if (focusKey) [refs.runTitle, refs.cancel, refs.confirmCancel].find((node) => node?.dataset.focusKey === focusKey)?.focus?.();
+    else if (focusId) findById(article, focusId)?.focus?.();
+    else if (focusDrawer) findDisclosure(article, focusDrawer)?.children?.[0]?.focus?.();
     if (decisionForm && (Object.keys(state.decisionErrors).length || state.decisionProblem)) showDecisionErrors(decisionForm);
-    updateElapsed();
+    renderFrame(model, snapshot);
+  }
+
+  /** The one thing that needs attention: the decision, a recorded decision in a replay, or the outcome. */
+  function renderMain(host, model, snapshot) {
+    const run = state.run;
+    const roundView = snapshot.rounds[snapshot.round] || {};
+    if (snapshot.state === "awaiting_human" && snapshot.full) {
+      const options = availableDecisions(run, labels);
+      if (!options.length) return null;
+      const card = el("section", "ps-multi-agent__decide");
+      let form = null;
+      // An error clears as soon as the person fixes it; new errors wait for the next submit.
+      const clearFixed = (draft) => {
+        if (!form || !Object.keys(state.decisionErrors).length) return;
+        const remaining = draft.decision ? validateDecision(draft, run).errors : { decision: labels.chooseFirst };
+        for (const name of Object.keys(state.decisionErrors)) {
+          if (remaining[name]) continue;
+          delete state.decisionErrors[name];
+          setFieldError(form.refs[name], "");
+        }
+      };
+      form = buildDecisionForm({
+        run, options, draft: state.decisionDraft, instanceId, labels, blocking: blockingFailures(run.review),
+        guidance: state.descriptor?.template?.human_review_guidance || "", onChange: clearFixed,
+      });
+      card.setAttribute("aria-labelledby", form.heading.id);
+      form.form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitDecision(form);
+      });
+      form.form.setAttribute("aria-busy", String(state.decisionPending));
+      for (const control of form.controls) control.disabled = state.decisionPending;
+      form.submit.setAttribute("aria-busy", String(state.decisionPending));
+      if (state.decisionPending) form.submit.textContent = labels.submittingDecision;
+      append(card, renderReviewerSide(run.review, Number(run.round) || 1, { labels, context }), form.form);
+      append(host, card);
+      return form;
+    }
+    if (snapshot.state === "awaiting_human") {
+      const point = model.decisionPoints.find((item) => item.round === snapshot.round) || null;
+      const card = el("section", "ps-multi-agent__decide ps-multi-agent__decide--recorded");
+      card.setAttribute("aria-label", `Round ${snapshot.round} decision (replay)`);
+      append(card, renderReviewerSide(roundView.review, snapshot.round, { labels, context, scope: `replay-${snapshot.round}` }),
+        renderRecordedDecision(point, labels, () => replayCommand({ type: "continue" })));
+      append(host, card);
+      return null;
+    }
+    if (snapshot.terminal && snapshot.full) append(host, renderOutcome(run, labels));
+    return null;
+  }
+
+  function counted(key, count) {
+    const previous = state.drawerCounts.get(key);
+    state.drawerCounts.set(key, count);
+    const live = state.replay ? Boolean(state.replay.playing || state.replay.stepping) : state.animate;
+    return live && previous !== undefined && previous !== count;
+  }
+
+  /** Closed by default; each summary says what is inside. */
+  function renderDrawers(model, snapshot) {
+    const host = el("div", "ps-multi-agent__drawers");
+    const run = state.run;
+    const view = snapshot.rounds[snapshot.round] || { toolCalls: [], worker: null, review: null };
+    const plan = snapshot.plan;
+    const planCount = plan ? `${plan.steps?.length || 0} read-only step${plan.steps?.length === 1 ? "" : "s"}` : "Not ready yet";
+    const planDrawer = drawer(context, "drawer-plan", labels.plan, planCount, { fresh: counted("plan", planCount) });
+    append(planDrawer.body, plan ? renderPlan(plan, context, { titled: false }) : el("p", "ps-multi-agent__empty", "The plan arrives with the hand-off to the Worker."));
+    append(host, planDrawer.details);
+
+    const evidence = view.worker?.evidence || [];
+    const evidenceCount = view.worker
+      ? `${evidence.length} record${evidence.length === 1 ? "" : "s"} · ${evidence.filter((record) => record.outcome === "succeeded").length} succeeded`
+      : view.toolCalls.length ? `${view.toolCalls.length} tool call${view.toolCalls.length === 1 ? "" : "s"} so far` : "None yet";
+    const evidenceDrawer = drawer(context, "drawer-evidence", labels.worker, evidenceCount, { fresh: counted("evidence", evidenceCount) });
+    append(evidenceDrawer.body, renderWorker(run.plan, view.worker, context, "current", { titled: false, toolCalls: view.toolCalls }));
+    append(host, evidenceDrawer.details);
+
+    const groups = view.review ? groupFindings(view.review.findings) : null;
+    const checksCount = groups ? `${groups.failed.length} failed · ${groups.passed.length} passed` : "Not reviewed yet";
+    const checksDrawer = drawer(context, "drawer-checks", labels.review, checksCount, { fresh: counted("checks", checksCount) });
+    append(checksDrawer.body, renderReview(view.review, context, "current", { titled: false, round: snapshot.round }));
+    append(host, checksDrawer.details);
+
+    for (const [roundNumber, previous] of Object.entries(snapshot.rounds)) {
+      if (Number(roundNumber) >= snapshot.round || !previous.review) continue;
+      append(host, renderSuperseded({ round: Number(roundNumber), worker_output: previous.worker, review: previous.review }, run.plan, context));
+    }
+
+    if (snapshot.decisions.length) {
+      const count = `${snapshot.decisions.length} recorded`;
+      const decisions = drawer(context, "drawer-decisions", labels.decisions, count, { fresh: counted("decisions", count) });
+      append(decisions.body, renderDecisionLog(snapshot.decisions, context, { titled: false }));
+      append(host, decisions.details);
+    }
+
+    const history = state.history;
+    const logCount = history.loaded ? `${snapshot.events.length} event${snapshot.events.length === 1 ? "" : "s"}` : history.problem ? "Unavailable" : "Loading…";
+    const log = drawer(context, "history", labels.history, logCount, { className: "ps-multi-agent__history" });
+    const body = el("div", "ps-multi-agent__history-content");
+    body.setAttribute("aria-busy", String(!history.loaded && !history.problem));
+    if (history.loaded) {
+      const until = model.origin + snapshot.t;
+      const visible = (entry) => snapshot.full || Date.parse(entry.at || "") <= until;
+      append(body, renderHistory(historyView({ history: history.data.history.filter(visible), audit: history.data.audit.filter(visible) }), labels, { origin: model.origin }));
+    } else if (history.problem) append(body, renderProblem(history.problem, { heading: "History could not be loaded" }));
+    else append(body, el("p", "ps-multi-agent__loading", "Loading history…"));
+    append(log.body, body);
+    append(host, log.details);
+    return host;
   }
 
   function cancelControls() {
@@ -592,15 +895,11 @@ export function createMultiAgentPanel({
     return host;
   }
 
-  function updateElapsed() {
-    for (const node of state.elapsed) {
-      const text = elapsedText(node.dataset.elapsedStart);
-      if (text) node.textContent = text;
-    }
-  }
-
-  const elapsedTimer = setInterval(() => {
-    if (!state.destroyed && !globalThis.document?.hidden && state.elapsed.length) updateElapsed();
+  // Open runs redraw once a second so running stages and waits keep growing on the axis.
+  const frameTimer = setInterval(() => {
+    if (state.destroyed || globalThis.document?.hidden || !state.run || isTerminalWorkflow(state.run.state)) return;
+    const model = currentModel();
+    if (!replaying(model)) renderFrame(model);
   }, 1000);
 
   const onVisibility = () => {
@@ -627,7 +926,8 @@ export function createMultiAgentPanel({
       if (state.destroyed) return;
       state.destroyed = true;
       clearTimeout(state.pollTimer);
-      clearInterval(elapsedTimer);
+      clearInterval(frameTimer);
+      stopReplay();
       globalThis.document?.removeEventListener?.("visibilitychange", onVisibility);
       runTask.cancel();
       templateTask.cancel();

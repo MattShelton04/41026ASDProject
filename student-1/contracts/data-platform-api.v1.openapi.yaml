@@ -393,12 +393,17 @@ paths:
   /release-reviews/{run_id}/history:
     get:
       operationId: getReleaseReviewHistory
-      parameters: [{$ref: '#/components/parameters/RunId'}]
+      description: Non-zero cursors return only entries after them, for incremental polling while agents work. Invalid cursors are the Multi-Agent Server's 400 invalid_request, relayed unchanged.
+      parameters:
+        - {$ref: '#/components/parameters/RunId'}
+        - {name: after_history, in: query, description: Return only transitions after this sequence, schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}}
+        - {name: after_audit, in: query, description: Return only audit events after this sequence, schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}}
       responses:
         '200':
           description: 'WorkflowRunHistory {run_id, state, history[], audit[]} (shared multi-agent.v1 contract)'
           headers: {Cache-Control: {$ref: '#/components/headers/NoStore'}}
           content: {application/json: {schema: {type: object, required: [run_id, state, history, audit]}}}
+        '400': {description: Invalid history cursor (Problem Details from the Multi-Agent Server)}
         '404': {$ref: '#/components/responses/ReleaseReviewNotFound'}
         '503': {$ref: '#/components/responses/MultiAgentUnavailable'}
   /dataset-releases:

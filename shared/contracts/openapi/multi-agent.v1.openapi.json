@@ -29,6 +29,7 @@
         "enum": [
           "run.created",
           "agent.handoff",
+          "model.started",
           "model.invocation",
           "model.fallback",
           "plan.created",
@@ -2675,6 +2676,28 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "Return only transitions after this sequence",
+            "in": "query",
+            "name": "after_history",
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Return only audit events after this sequence",
+            "in": "query",
+            "name": "after_audit",
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -2687,6 +2710,16 @@
               }
             },
             "description": "Transitions and audit"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Problem Details error"
           },
           "401": {
             "content": {

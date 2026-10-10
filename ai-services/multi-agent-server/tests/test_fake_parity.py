@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -70,7 +71,16 @@ def scenario(client: httpx.Client) -> list[tuple[int, Any]]:
     )
     record(client.get(f"{API}/runs?limit=0"), problem)
     record(client.get(f"{API}/runs?limit=5"), lambda body: (body["count"], keys(body["items"][0])))
-    record(client.get(f"{API}/runs/{run['id']}/history"), keys)
+    full = record(client.get(f"{API}/runs/{run['id']}/history"), keys)
+    record(
+        client.get(
+            f"{API}/runs/{run['id']}/history",
+            params={"after_history": full["history"][-1]["sequence"] - 1, "after_audit": 999},
+        ),
+        lambda body: (len(body["history"]), body["audit"], body["state"]),
+    )
+    record(client.get(f"{API}/runs/{run['id']}/history?after_audit=-1"), problem)
+    record(client.get(f"{API}/runs/{uuid4()}/history?after_audit=x"), problem)
     record(client.get(f"{API}/runs/not-a-uuid"), problem)
     return observed
 

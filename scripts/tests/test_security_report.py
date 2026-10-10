@@ -18,6 +18,7 @@ from scripts.security.policy import (
     BASELINE_NAME,
     DETECT_SECRETS_EXCLUDE_FILES,
     DETECT_SECRETS_EXCLUDE_LINES,
+    DETECT_SECRETS_FILTERS,
     AcceptedRisks,
     AcceptedVulnerability,
     PolicyError,
@@ -454,6 +455,7 @@ def test_secrets_baseline_is_reviewed_portable_and_uses_the_scan_settings() -> N
     assert filters["detect_secrets.filters.regex.should_exclude_line"] == list(
         DETECT_SECRETS_EXCLUDE_LINES
     )
+    assert set(DETECT_SECRETS_FILTERS) <= set(filters), "the hook loads custom filters from here"
 
 
 @pytest.mark.parametrize(
@@ -668,3 +670,77 @@ def test_scanner_subprocesses_read_files_as_utf8(
     scans._run(scans.python_tool("detect_secrets", "scan"), tmp_path, 5)
     assert seen[0]["PYTHONUTF8"] == "1"
     assert seen[0]["PATH"] == os.environ["PATH"]
+
+
+# A made-up SHA-256-length fixture for the digest filter, not a credential.
+DIGEST = "b5166fee9b28c147b" + "0123456789abcdef" * 2  # pragma: allowlist secret
+DIGEST += "fedcba98765432a"  # pragma: allowlist secret
+
+
+@pytest.mark.parametrize(
+    ("lines", "secret", "ignored"),
+    [
+        # The digest's name is on the line above: hexdigest() == ( then the value.
+        (["assert hashlib.sha256(text).hexdigest() == (", f'    "{DIGEST}"'], DIGEST, True),
+        # Prose in an exported run summary.
+        ([f'The release content_sha256 is "{DIGEST}".'], DIGEST, True),
+        (['createHash("sha256").update(asset).digest("hex"),', f'  "{DIGEST}",'], DIGEST, True),
+        # Not a digest length, a credential on the line, no digest context, or another detector.
+        (["checksum = (", f'    "{DIGEST[:48]}"'], DIGEST[:48], False),
+        (["# sha256 of the payload", f'API_TOKEN = "{DIGEST}"'], DIGEST, False),
+        ([f'value = "{DIGEST}"'], DIGEST, False),
+        (["sha256 of the release", "", "", f'"{DIGEST}"'], DIGEST, False),
+    ],
+)
+def test_digest_filter_drops_only_named_sha_digests(
+    lines: list[str], secret: str, ignored: bool
+) -> None:
+    from detect_secrets.plugins.high_entropy_strings import HexHighEntropyString
+    from detect_secrets.util.code_snippet import get_code_snippet
+    from scripts.security.digest_filter import is_named_digest
+
+    context = get_code_snippet(lines, len(lines))
+    assert is_named_digest(secret, HexHighEntropyString(), context) is ignored
+
+
+def test_digest_filter_never_hides_other_detectors() -> None:
+    from detect_secrets.plugins.keyword import KeywordDetector
+    from detect_secrets.util.code_snippet import get_code_snippet
+    from scripts.security.digest_filter import is_named_digest
+
+    context = get_code_snippet([f'sha256_secret = "{DIGEST}"'], 1)
+    assert is_named_digest(DIGEST, KeywordDetector(), context) is False
+
+
+def test_detect_secrets_scan_still_flags_unexplained_hex_and_credentials(tmp_path: Path) -> None:
+    (tmp_path / "scripts" / "security").mkdir(parents=True)
+    filter_source = ROOT / "scripts" / "security" / "digest_filter.py"
+    (tmp_path / "scripts" / "security" / "digest_filter.py").write_text(
+        filter_source.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (tmp_path / "digests.py").write_text(
+        "assert hashlib.sha256(b'x').hexdigest() == (\n"
+        f'    "{DIGEST}"\n'
+        ")\n"
+        f'NOTE = "The release content_sha256 is {DIGEST}."\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "leaks.py").write_text(
+        f'RANDOM = "{DIGEST}"\n# sha256 of the payload\nAPI_TOKEN = "{DIGEST[::-1]}"\n',
+        encoding="utf-8",
+    )
+    completed = subprocess.run(  # noqa: S603 - fixed tool argv in a temporary directory
+        scans.python_tool(
+            "detect_secrets", *scans.detect_secrets_scan_arguments(), "digests.py", "leaks.py"
+        ),
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+        env=scans.tool_environment(),
+    )
+    results = json.loads(completed.stdout)["results"]
+    assert "digests.py" not in results, "named digests are not findings"
+    flagged = {(entry["line_number"], entry["type"]) for entry in results["leaks.py"]}
+    assert (1, "Hex High Entropy String") in flagged, "unexplained hex is still a finding"
+    assert any(line == 3 for line, _ in flagged), "a credential next to 'sha256' is still a finding"

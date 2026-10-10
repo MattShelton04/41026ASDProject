@@ -60,6 +60,8 @@ test("the readiness review mounts the shared panel against the feature proxy onl
   assert.equal(calls.panel.runId, RUN_ID);
   assert.equal(calls.panel.requestedBy, "property-data-release-review");
   assert.match(calls.panel.description, /Publishing stays the separate Publish action/);
+  assert.match(calls.panel.labels.decisionSafety, /never publishes the release/);
+  assert.match(calls.panel.labels.outcomeSafety, /did not publish the release/);
   calls.panel.onRunChange({ id: RUN_ID, state: "awaiting_human" });
   calls.panel.onRunChange(null);
   assert.deepEqual(changes, [RUN_ID]);
