@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sqlite3
 from pathlib import Path
 
+import httpx
 import psutil
 import pytest
 import yaml
@@ -282,6 +284,14 @@ def test_multi_agent_token_and_environment_are_host_projections(isolated: Path) 
     assert direct["MULTI_AGENT_TOOL_CATALOG_PATHS"] == direct["AI_MODE_TOOL_CATALOG_PATHS"]
     assert direct["MULTI_AGENT_MCP_ENABLED"] == "false"
     assert runtime.prepare_environment({}, mode="mcp")["MULTI_AGENT_MCP_ENABLED"] == "true"
+    # AI-mode observes the server for the shared status page, but only where it runs.
+    assert direct["AI_MODE_MULTI_AGENT_URL"] == "http://127.0.0.1:5013"
+    moved = runtime.prepare_environment({"MULTI_AGENT_PORT": "6013"}, mode="direct")
+    assert moved["AI_MODE_MULTI_AGENT_URL"] == "http://127.0.0.1:6013"
+    ci = runtime.prepare_environment(
+        {"CI": "true", "AI_MODE_MULTI_AGENT_URL": "http://127.0.0.1:5013"}, mode="direct"
+    )
+    assert "AI_MODE_MULTI_AGENT_URL" not in ci
     for invalid in ("short", "a" * 32 + '"; injection'):
         with pytest.raises(RuntimeError, match="MULTI_AGENT_SERVICE_TOKEN"):
             runtime.multi_agent_service_token({"MULTI_AGENT_SERVICE_TOKEN": invalid})
@@ -448,3 +458,235 @@ def _write_projection(
                 catalogue.read_text(encoding="utf-8"), encoding="utf-8"
             )
     monkeypatch.setattr(runtime, "REPOSITORY_ROOT", root)
+
+
+class _FakeClock:
+    """Deterministic monotonic clock advanced only by the injected sleep."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+def _live_after(clock: _FakeClock, seconds: float) -> httpx.MockTransport:
+    began = clock.now
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if clock.now - began < seconds:
+            raise httpx.ConnectError("not listening yet", request=request)
+        return httpx.Response(200, json={"status": "ok"})
+
+    return httpx.MockTransport(handler)
+
+
+def test_ready_timeout_defaults_give_rag_room_and_reject_bad_overrides() -> None:
+    assert runtime.ready_timeout("rag", {}) >= 120
+    assert runtime.ready_timeout("ai-mode", {}) == runtime.DEFAULT_READY_TIMEOUTS["ai-mode"]
+    assert runtime.ready_timeout("rag", {runtime.READY_TIMEOUT_VARIABLE: " 45 "}) == 45
+    for invalid in ("0", "-5", "1.5", "ten", str(runtime.MAXIMUM_READY_TIMEOUT + 1)):
+        with pytest.raises(RuntimeError, match=runtime.READY_TIMEOUT_VARIABLE):
+            runtime.ready_timeout("rag", {runtime.READY_TIMEOUT_VARIABLE: invalid})
+
+
+def test_slow_rag_start_beyond_thirty_seconds_still_becomes_ready(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression: a cold embedding-model load used to fail `stack up` at a fixed 30 s."""
+    clock = _FakeClock()
+    monkeypatch.setattr(runtime, "_owned_process", lambda _service: object())
+
+    runtime._wait_ready(
+        "rag",
+        {"RAG_SERVICE_TOKEN": "t" * 43},
+        transport=_live_after(clock, 75),
+        clock=clock,
+        sleep=clock.sleep,
+    )
+
+    output = capsys.readouterr().out
+    assert "Waiting for host rag on 127.0.0.1:5012 (up to 180 s" in output
+    assert "Host rag         live on 127.0.0.1:5012 after 75." in output
+
+
+def test_readiness_timeout_names_the_override_and_shows_only_this_launchs_log(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = _FakeClock()
+    monkeypatch.setattr(runtime, "_owned_process", lambda _service: object())
+    log = runtime.HOST_DIRECTORY / "rag.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("previous run line\n", encoding="utf-8")
+    offset = log.stat().st_size
+    with log.open("a", encoding="utf-8") as stream:
+        stream.write("loading embedding model\n")
+
+    with pytest.raises(RuntimeError) as failure:
+        runtime._wait_ready(
+            "rag",
+            {"RAG_SERVICE_TOKEN": "t" * 43, runtime.READY_TIMEOUT_VARIABLE: "20"},
+            log_offset=offset,
+            transport=_live_after(clock, 10_000),
+            clock=clock,
+            sleep=clock.sleep,
+        )
+
+    message = str(failure.value)
+    assert "did not become live on 127.0.0.1:5012 within 20 seconds" in message
+    assert "loading embedding model" in message
+    assert "previous run line" not in message
+    assert f"{runtime.READY_TIMEOUT_VARIABLE}=<seconds>" in message
+    assert "ai logs rag" in message
+
+
+def test_a_process_that_exits_during_startup_reports_its_log(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runtime, "_owned_process", lambda _service: None)
+    log = runtime.HOST_DIRECTORY / "ai-mode.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("OSError: [WinError 10048] address already in use\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="exited before it became live") as failure:
+        runtime._wait_ready("ai-mode", {}, log_offset=0)
+    assert "WinError 10048" in str(failure.value)
+
+
+def test_wait_override_does_not_force_live_processes_to_restart() -> None:
+    base = {"AI_MODE_PORT": "5005"}
+    assert runtime.configuration_fingerprint(base) == runtime.configuration_fingerprint(
+        {**base, runtime.READY_TIMEOUT_VARIABLE: "600"}
+    )
+    assert runtime.configuration_fingerprint(base) != runtime.configuration_fingerprint(
+        {"AI_MODE_PORT": "6005"}
+    )
+
+
+def test_malformed_wait_override_is_rejected_before_any_state(isolated: Path) -> None:
+    with pytest.raises(RuntimeError, match=runtime.READY_TIMEOUT_VARIABLE):
+        runtime.start({runtime.READY_TIMEOUT_VARIABLE: "soon"}, mode="direct")
+    assert not runtime.HOST_DIRECTORY.exists()
+
+
+@pytest.mark.parametrize("listen_on", ["0.0.0.0", "127.0.0.1"])  # noqa: S104 - test listener
+def test_port_check_sees_wildcard_and_loopback_listeners(listen_on: str) -> None:
+    """Regression: on Windows a loopback-only probe succeeds beside a 0.0.0.0 listener,
+    so a running AI-mode or Multi-Agent Server from another checkout looked free."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind((listen_on, 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        assert not runtime.port_is_free(port)
+    assert runtime.port_is_free(port)
+    assert runtime.bind_host("ai-mode") == runtime.bind_host("multi-agent") == "0.0.0.0"  # noqa: S104
+    assert runtime.bind_host("mcp") == runtime.bind_host("rag") == "127.0.0.1"
+
+
+def test_port_owner_names_the_listening_process() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        description = runtime.port_owner(listener.getsockname()[1])
+    # Some platforms hide socket owners from unprivileged users; then the text stays generic.
+    assert f"PID {os.getpid()}" in description or description == "another process"
+
+
+def test_start_refuses_an_occupied_port_before_launching_anything(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runtime, "port_is_free", lambda _port: False)
+    monkeypatch.setattr(runtime, "port_owner", lambda _port: "python.exe (PID 4242)")
+
+    def unexpected(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("no process may start on an occupied port")
+
+    monkeypatch.setattr(runtime.subprocess, "Popen", unexpected)
+    with pytest.raises(RuntimeError) as failure:
+        runtime.start({}, mode="direct")
+    message = str(failure.value)
+    assert "port 5005 (AI_MODE_PORT) is already in use by python.exe (PID 4242)" in message
+    assert "set AI_MODE_PORT to a free port" in message
+
+
+def _probe(service: str, response: httpx.Response | Exception) -> tuple[str, str]:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        return runtime.probe_health(service, {}, client)
+
+
+def test_probe_explains_an_unprepared_rag_model() -> None:
+    health, detail = _probe(
+        "rag",
+        httpx.Response(
+            503, json={"status": "unavailable", "embedding_model": "unprepared-local-model"}
+        ),
+    )
+    assert health == "not ready"
+    assert "rag-server prepare-model" in detail
+
+
+def test_probe_reports_degraded_checks_tokens_and_silence() -> None:
+    degraded = {
+        "status": "degraded",
+        "checks": {
+            "state_store": {"status": "healthy", "detail": "ok"},
+            "llm_provider": {"status": "degraded", "detail": "Provider is not configured"},
+        },
+    }
+    assert _probe("ai-mode", httpx.Response(200, json=degraded)) == (
+        "degraded",
+        "llm_provider: Provider is not configured",
+    )
+    assert _probe("mcp", httpx.Response(200, json={"status": "ready", "registered_tools": 9})) == (
+        "ready",
+        "9 tools registered",
+    )
+    assert _probe(
+        "rag", httpx.Response(200, json={"status": "ok", "embedding_model": "BAAI/bge@abc"})
+    ) == ("ready", "embedding model BAAI/bge")
+    assert _probe("multi-agent", httpx.Response(401))[0] == "token mismatch"
+    unhealthy = {"status": "unhealthy", "checks": {"state_store": {"status": "unhealthy"}}}
+    assert _probe("multi-agent", httpx.Response(503, json=unhealthy)) == (
+        "not ready",
+        "state_store: unhealthy",
+    )
+    assert _probe("ai-mode", httpx.ConnectError("refused"))[0] == "not responding"
+
+
+def test_probed_status_reads_persisted_tokens_and_flags_foreign_port_holders(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime.HOST_DIRECTORY.mkdir()
+    (runtime.HOST_DIRECTORY / "rag.token").write_text("r" * 43, encoding="utf-8")
+    monkeypatch.setattr(
+        runtime, "_owned_process", lambda service: object() if service == "rag" else None
+    )
+    monkeypatch.setattr(runtime, "port_is_free", lambda port: port != 5005)
+    monkeypatch.setattr(runtime, "port_owner", lambda _port: "python.exe (PID 7)")
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("Authorization", ""))
+        return httpx.Response(200, json={"status": "ok", "embedding_model": "model@digest"})
+
+    entries = {
+        entry["service"]: entry
+        for entry in runtime.status({}, probe=True, transport=httpx.MockTransport(handler))
+    }
+
+    assert seen == ["Bearer " + "r" * 43]
+    assert entries["rag"]["health"] == "ready"
+    assert entries["ai-mode"]["health"] == "port in use"
+    assert "python.exe (PID 7) holds AI_MODE_PORT=5005" in entries["ai-mode"]["detail"]
+    assert entries["mcp"]["health"] == "-"
+    lines = runtime.render_status(list(entries.values()))
+    assert any(line.split()[:3] == ["rag", "running", "ready"] for line in lines)
+    assert not (runtime.HOST_DIRECTORY / "ai-mode.token").exists()

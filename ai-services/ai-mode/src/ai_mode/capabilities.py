@@ -15,12 +15,20 @@ def capability_snapshot(settings: Settings) -> dict[str, object]:
             settings.mcp_service_token,
         ),
         ("rag", settings.rag_enabled, settings.rag_server_url, settings.rag_service_token),
+        # The launcher starts the Multi-Agent Server beside AI-mode in every local mode
+        # (never in CI) and passes its URL only then (ADR-047).
+        (
+            "multi-agent",
+            settings.multi_agent_url is not None,
+            settings.multi_agent_url or "",
+            settings.multi_agent_service_token,
+        ),
     ):
         state, detail = "disabled", "This capability is disabled in the current local mode."
         if enabled:
             try:
                 response = httpx.get(
-                    base_url + ("/health" if name == "mcp" else "/health/ready"),
+                    base_url.rstrip("/") + ("/health" if name == "mcp" else "/health/ready"),
                     headers={"Authorization": f"Bearer {token}"},
                     timeout=1,
                     follow_redirects=False,

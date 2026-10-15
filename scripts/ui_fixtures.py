@@ -538,7 +538,7 @@ def fixture_response(
                         "status": "disabled",
                         "detail": "This optional service is disabled in the deterministic fixture.",
                     }
-                    for name in ("mcp", "rag")
+                    for name in ("mcp", "rag", "multi-agent")
                 ],
                 "grounding_features": [],
             },
