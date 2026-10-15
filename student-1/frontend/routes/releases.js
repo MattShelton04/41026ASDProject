@@ -9,7 +9,9 @@ import {
   PUBLICATION_POLL_LIMIT,
   publicationDisplayState,
   reconcilePublication,
-} from "../core/publication.js?v=48";
+  shouldResumePublicationPolling,
+} from "../core/publication.js?v=49";
+import { captureViewState, restoreViewState } from "../core/refresh-state.js";
 import {
   consumerImportStatusPath,
   publicationSuccessMessage,
@@ -25,7 +27,14 @@ import { createLatestRequestGuard } from "../core/polling.js";
 import { releasePreviewPanel } from "./release-preview.js?v=46";
 import { collectionPagination, pageOffset } from "../components/pagination.js";
 import { replaceHistoryState } from "../core/router.js";
-import { createReleaseReadinessReview, READINESS_REVIEW_STATUSES, readinessReviewHash, readinessReviewRunId } from "../integration/release-review.js?v=3";
+import {
+  createReleaseReadinessReview,
+  READINESS_REVIEW_STATUSES,
+  readinessReviewHash,
+  readinessReviewRunId,
+  rememberedReadinessReview,
+  resumableReadinessReview,
+} from "../integration/release-review.js?v=4";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
@@ -141,7 +150,7 @@ export function createReleaseRoutes({
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) return;
     if (refreshReleaseList) { refreshReleaseList(); return; }
-    if (!publicationPolling.routeEpoch?.isCurrent()) return;
+    if (!publicationPolling.routeEpoch?.isCurrent() || !shouldResumePublicationPolling(publicationPolling)) return;
     stopPublicationPolling();
     refreshPublicationStatus();
   });
@@ -418,14 +427,43 @@ export function createReleaseRoutes({
     const reviewSlot = el("div", "stack");
     const requestedReviewRun = readinessReviewRunId(location.hash);
     if (requestedReviewRun) openReadinessReview(release, requestedReviewRun);
-    if (READINESS_REVIEW_STATUSES.has(release.status) || readinessReview) actions.push(button("Readiness review", "button secondary", () => {
-      const review = openReadinessReview(release);
-      if (!review.host.isConnected) append(reviewSlot, review.host);
+    const showReadinessReview = READINESS_REVIEW_STATUSES.has(release.status) || readinessReview || rememberedReadinessReview(release.id);
+    const readinessTrigger = showReadinessReview ? button("Readiness review", "button secondary", async () => {
+      let review = readinessReview?.releaseId === release.id ? readinessReview : null;
+      if (!review) {
+        // Reopen the review last started for this release instead of offering a duplicate run.
+        readinessTrigger.disabled = true;
+        readinessTrigger.setAttribute("aria-busy", "true");
+        let runId = null;
+        try {
+          runId = await resumableReadinessReview(release, { request });
+        } catch (error) {
+          if (error?.name !== "AbortError") throw error;
+          return;
+        } finally {
+          readinessTrigger.disabled = false;
+          readinessTrigger.removeAttribute("aria-busy");
+        }
+        if (!routeEpoch.isCurrent()) return;
+        review = openReadinessReview(release, runId);
+      }
+      const slot = view.querySelector(".release-review-slot") || reviewSlot;
+      if (!review.host.isConnected) append(slot, review.host);
+      readinessTrigger.setAttribute("aria-expanded", "true");
       review.host.scrollIntoView?.({ block: "start" });
       review.focus();
-    }));
+    }) : null;
+    if (readinessTrigger) {
+      // The action reveals the panel below the heading; say so to assistive technology.
+      readinessTrigger.setAttribute("aria-controls", "release-readiness-review");
+      readinessTrigger.setAttribute("aria-expanded", String(Boolean(readinessReview)));
+      actions.push(readinessTrigger);
+    }
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
+    reviewSlot.classList.add("release-review-slot");
 
+    // Publication polls rebuild this page; keep the reader's place, open details and review focus.
+    const viewState = polling ? captureViewState(view, { keep: readinessReview?.host }) : null;
     disposeTableRegions(view);
     view.replaceChildren();
     const sourceRecordCount = release.coverage_json?.source_record_count;
@@ -499,6 +537,7 @@ export function createReleaseRoutes({
         : panel("Dataset preview", "Records in this version", el("div", "notice warning", "A record preview is unavailable for this dataset. Version details and data checks remain available.")));
     });
     append(view, renderReleaseReviewEvidence(release, predecessor, qualityResults, { qualityUnavailable: qualityResult.status === "rejected", predecessorUnavailable: acceptedResult.status === "rejected" }));
+    restoreViewState(view, viewState, { keep: readinessReview?.host });
     const newestConsumerImport = [...consumerImports].reverse()[0] || null;
     const statusPath = newestConsumerImport?.id
       ? consumerImportStatusPath(
@@ -539,6 +578,6 @@ export function renderReleaseReviewEvidence(release, predecessor, qualityResults
   if (availability.qualityUnavailable) append(qualityBody, el("div", "notice warning", "Data checks are temporarily unavailable."));
   else if (!qualityResults.length) append(qualityBody, el("p", "", "No quality results are linked to this release run."));
   else append(qualityBody, makeTable([{ label: "Rule" }, { label: "Severity" }, { label: "Outcome" }, { label: "Observed / expected" }, { label: "Message" }, { label: "Sample" }], qualityResults, (item) => { const row = el("tr"); append(row, cell(primaryCell(item.rule_key, item.dimension)), cell(badge(item.severity)), cell(badge(item.status)), cell(technicalDetails({ observed: item.observed_value_json, expected: item.expected_value_json }, "Compare")), cell(item.message), cell(item.sample_json ? technicalDetails(item.sample_json, "View sample") : "—")); return row; }));
-  append(section, panel("New and published versions", "Schema, count, checksum and coverage", comparisonBody), panel("Data checks", `${qualityResults.length} linked checks`, qualityBody));
+  append(section, panel("New and published versions", "Schema, count, checksum and coverage", comparisonBody), panel("Data checks", `${qualityResults.length} linked ${qualityResults.length === 1 ? "check" : "checks"}`, qualityBody));
   return section;
 }
