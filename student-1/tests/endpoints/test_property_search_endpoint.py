@@ -10,6 +10,8 @@ import pytest
 from shared_contracts import REQUEST_ID_HEADER
 from shared_testkit.endpoints import EndpointClient, expect_json, expect_problem
 
+from .search_query import SearchQuery
+
 pytestmark = pytest.mark.endpoint
 
 ContractValidator = Callable[[object, dict[str, Any]], None]
@@ -18,13 +20,19 @@ SEARCH_PAGE = {"$ref": "#/components/schemas/PropertySearchPage"}
 PROBLEM = {"$ref": "#/components/schemas/Problem"}
 
 
-def test_seeded_address_returns_typed_ranked_matches(
-    endpoint_client: EndpointClient, validate_contract: ContractValidator, search_query: str
+def test_accepted_address_returns_typed_ranked_matches(
+    endpoint_client: EndpointClient,
+    validate_contract: ContractValidator,
+    search_query: SearchQuery,
+    record_property: Callable[[str, object], None],
 ) -> None:
+    query = search_query.text
+    record_property("search_query", query)
+    record_property("search_query_origin", search_query.origin)
     request_id = endpoint_client.new_request_id()
     response = endpoint_client.get(
         SEARCH,
-        params={"q": search_query, "state": "NSW", "limit": 10},
+        params={"q": query, "state": "NSW", "limit": 10},
         request_id=request_id,
     )
 
@@ -32,8 +40,8 @@ def test_seeded_address_returns_typed_ranked_matches(
     validate_contract(page, SEARCH_PAGE)
     assert response.headers[REQUEST_ID_HEADER] == request_id
     assert page["supported"] is True
-    assert page["query"] == search_query
-    assert page["items"], f"no accepted property matched {search_query!r}: {page}"
+    assert page["query"] == query
+    assert page["items"], f"no accepted property matched {query!r} ({search_query.origin})"
     assert page["count"] == len(page["items"])
     assert page["limit"] == 10
     assert page["total"] >= page["count"]
@@ -42,7 +50,7 @@ def test_seeded_address_returns_typed_ranked_matches(
     assert best["state"] == "NSW"
     assert best["score"] > 0
     matched = best["matched_address"].lower()
-    missing = [term for term in search_query.lower().split() if term not in matched]
+    missing = [term for term in query.lower().split() if term not in matched]
     assert not missing, f"best match {best['matched_address']!r} lacks query terms {missing}"
 
 

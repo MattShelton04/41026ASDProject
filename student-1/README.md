@@ -325,7 +325,7 @@ these tests do not count towards the slice's coverage threshold.
 
 | Endpoint function | Happy path | Failure cases |
 |---|---|---|
-| `GET /api/data-platform/v1/properties/search` | The seeded `11 Example Street` returns matches that validate against `PropertySearchPage` in the OpenAPI contract; the best match contains every query term and the request ID is echoed | Missing, one-character, whitespace-padded and over-long `q` each return a 422 `invalid_request` problem that echoes the request ID |
+| `GET /api/data-platform/v1/properties/search` | An address held by the accepted data (the seeded `11 Example Street`, or one read from the accepted G-NAF release) returns matches that validate against `PropertySearchPage` in the OpenAPI contract; the best match contains every query term and the request ID is echoed | Missing, one-character, whitespace-padded and over-long `q` each return a 422 `invalid_request` problem that echoes the request ID |
 | Source-definition CRUD, `/api/data-platform/v1/sources[/{id}]` | Create a uniquely named draft, find it in the list, read it, update it (version 1 to 2), delete it, then get 404 `not_found` | Seven invalid payloads and a non-JSON body return 422 `invalid_request`; a duplicate name returns 409 `conflict`. The list is checked afterwards, so nothing was persisted |
 
 Every created definition is a draft that the test deletes; a teardown fixture removes any left
@@ -338,9 +338,12 @@ Run them against a local stack:
 PROPERTYSCOPE_ENDPOINT_BASE_URL=http://localhost:5200 uv run pytest student-1/tests/endpoints -m endpoint --no-cov -q
 ```
 
-The search case expects the seeded demonstration address. If your local database has accepted
-real G-NAF data in place of the seed, set `PROPERTYSCOPE_F1_ENDPOINT_SEARCH_QUERY` to an address
-that exists, for example `10 Boyce Street Glebe`. To test through the Shared edge, use
+The search case uses the seeded demonstration address while it still matches. When accepted
+real G-NAF data has replaced the seed, it reads an address from the accepted `gnaf-nsw` (then
+`fixture-property`) release's bounded record preview, keeps the first one search finds, and
+records the query and its origin as `search_query` properties in the JUnit report
+(`tests/endpoints/search_query.py`). Set `PROPERTYSCOPE_F1_ENDPOINT_SEARCH_QUERY` to pin a
+specific address, for example `10 Boyce Street Glebe`. To test through the Shared edge, use
 `PROPERTYSCOPE_ENDPOINT_BASE_URL=http://localhost:5100` with
 `PROPERTYSCOPE_ENDPOINT_READY_PATH=/healthz`.
 
