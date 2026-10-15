@@ -101,3 +101,29 @@ def test_cli_prints_writes_and_optionally_enforces_success(
     capsys.readouterr()
     assert main([str(tmp_path / "missing.xml")]) == 2
     assert "error:" in capsys.readouterr().err
+
+
+def test_min_passed_requires_enough_passing_tests(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    one = tmp_path / "one.xml"
+    one.write_text('<testsuite><testcase name="a"/></testsuite>', encoding="utf-8")
+    two = tmp_path / "two.xml"
+    two.write_text(
+        '<testsuite><testcase name="a"/><testcase name="b"/>'
+        '<testcase name="c"><skipped/></testcase></testsuite>',
+        encoding="utf-8",
+    )
+
+    assert main([str(one), "--require-success", "--min-passed", "2"]) == 1
+    printed = capsys.readouterr().out
+    assert "**FAILED**: 1 passed, 0 failed, 0 errors, 0 skipped of 1 tests" in printed
+    assert "(at least 2 passing tests are required)" in printed
+    assert main([str(one), "--min-passed", "2"]) == 0, "without --require-success it only reports"
+    capsys.readouterr()
+    assert main([str(two), "--require-success", "--min-passed", "2"]) == 0
+    assert "**PASSED**: 2 passed" in capsys.readouterr().out
+    report = load_junit(two)
+    assert report.succeeded_with(min_passed=2) and not report.succeeded_with(min_passed=3)
+    with pytest.raises(SystemExit):
+        main([str(two), "--min-passed", "0"])

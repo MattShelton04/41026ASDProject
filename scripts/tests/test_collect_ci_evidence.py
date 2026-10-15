@@ -240,6 +240,12 @@ def test_main_writes_green_evidence_and_refuses_red_endpoints(
     assert "**PASSED**" in written
     assert "wrote" in capsys.readouterr().out
 
+    single = FakeGh(
+        artifact={"a.xml": '<testsuite><testcase classname="c" name="only"/></testsuite>'}
+    )
+    assert main(["--student", "1", "--output-dir", str(tmp_path / "one")], gh=single) == 1
+    assert "at least 2 passing tests" in capsys.readouterr().err
+
     red = FakeGh(artifact={"a.xml": FAILING_JUNIT})
     red_dir = tmp_path / "red"
     assert main(["--student", "1", "--output-dir", str(red_dir)], gh=red) == 1

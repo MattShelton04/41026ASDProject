@@ -46,6 +46,8 @@ RUN_FIELDS = (
     "attempt,conclusion,createdAt,databaseId,displayTitle,event,headBranch,headSha,jobs,"
     "number,startedAt,status,updatedAt,url,workflowName"
 )
+# R2-32: each student tests two endpoint functions, so a report needs two passing tests.
+MIN_PASSING_ENDPOINT_TESTS = 2
 RUN_LOG_NAME = "run.log"
 MAX_RUN_LOG_BYTES = 512 * 1024
 ENDPOINT_STEP = re.compile(r"endpoint", re.IGNORECASE)
@@ -227,8 +229,10 @@ def download_endpoint_reports(
             reports.append(
                 EndpointReport(
                     file_name=path.name,
-                    markdown=markdown_summary(report, title=f"`{path.name}`"),
-                    succeeded=report.succeeded,
+                    markdown=markdown_summary(
+                        report, title=f"`{path.name}`", min_passed=MIN_PASSING_ENDPOINT_TESTS
+                    ),
+                    succeeded=report.succeeded_with(min_passed=MIN_PASSING_ENDPOINT_TESTS),
                 )
             )
     if not reports:
@@ -520,7 +524,8 @@ def main(argv: Sequence[str] | None = None, *, gh: GhRunner = run_gh) -> int:
         if not endpoint_green and not arguments.allow_failed_endpoints:
             print(
                 f"student-{student}: error: run {evidence.run.get('url')} has no fully passing "
-                "endpoint-test report; pass --allow-failed-endpoints to record it anyway",
+                f"endpoint-test report (at least {MIN_PASSING_ENDPOINT_TESTS} passing tests, "
+                "none failed); pass --allow-failed-endpoints to record it anyway",
                 file=sys.stderr,
             )
             failures += 1

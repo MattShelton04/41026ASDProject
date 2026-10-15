@@ -70,7 +70,15 @@ class JUnitReport:
     @property
     def succeeded(self) -> bool:
         """True when at least one test passed and none failed or errored."""
-        return self.count("passed") > 0 and self.count("failed") == 0 and self.count("error") == 0
+        return self.succeeded_with(min_passed=1)
+
+    def succeeded_with(self, *, min_passed: int) -> bool:
+        """True when at least ``min_passed`` tests passed and none failed or errored."""
+        return (
+            self.count("passed") >= max(1, min_passed)
+            and self.count("failed") == 0
+            and self.count("error") == 0
+        )
 
 
 def _first_line(text: str | None) -> str:
@@ -138,14 +146,20 @@ def markdown_table(report: JUnitReport) -> str:
     return "\n".join(lines)
 
 
-def markdown_summary(report: JUnitReport, *, title: str) -> str:
-    """Return a heading, totals line and per-test table suitable for a step summary."""
-    verdict = "PASSED" if report.succeeded else "FAILED"
+def markdown_summary(report: JUnitReport, *, title: str, min_passed: int = 1) -> str:
+    """Return a heading, totals line and per-test table suitable for a step summary.
+
+    The verdict is ``PASSED`` only when at least ``min_passed`` tests passed and none failed
+    or errored.
+    """
+    verdict = "PASSED" if report.succeeded_with(min_passed=min_passed) else "FAILED"
     totals = (
         f"**{verdict}**: {report.count('passed')} passed, {report.count('failed')} failed, "
         f"{report.count('error')} errors, {report.count('skipped')} skipped "
         f"of {report.total} tests in {report.time_seconds:.2f}s"
     )
+    if 0 < report.count("passed") < min_passed:
+        totals += f" (at least {min_passed} passing tests are required)"
     if not report.cases:
         return f"### {_cell(title)}\n\n{totals}\n\nNo test cases were recorded.\n"
     return f"### {_cell(title)}\n\n{totals}\n\n{markdown_table(report)}\n"
@@ -162,20 +176,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--require-success",
         action="store_true",
-        help="Exit 1 unless at least one test passed and none failed or errored",
+        help="Exit 1 unless --min-passed tests passed and none failed or errored",
+    )
+    parser.add_argument(
+        "--min-passed",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Passing tests needed for success (default 1; Release 2 endpoint evidence uses 2)",
     )
     arguments = parser.parse_args(argv)
+    if arguments.min_passed < 1:
+        parser.error("--min-passed must be at least 1")
     try:
         report = load_junit(arguments.junit)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    summary = markdown_summary(report, title=arguments.title)
+    summary = markdown_summary(report, title=arguments.title, min_passed=arguments.min_passed)
     if arguments.output is not None:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
         arguments.output.write_text(summary, encoding="utf-8")
     sys.stdout.write(summary)
-    if arguments.require_success and not report.succeeded:
+    if arguments.require_success and not report.succeeded_with(min_passed=arguments.min_passed):
         return 1
     return 0
 
