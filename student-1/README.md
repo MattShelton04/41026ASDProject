@@ -326,7 +326,7 @@ these tests do not count towards the slice's coverage threshold.
 | Endpoint function | Happy path | Failure cases |
 |---|---|---|
 | `GET /api/data-platform/v1/properties/search` | An address held by the accepted data (the seeded `11 Example Street`, or one read from the accepted G-NAF release) returns matches that validate against `PropertySearchPage` in the OpenAPI contract; the best match contains every query term and the request ID is echoed | Missing, one-character, whitespace-padded and over-long `q` each return a 422 `invalid_request` problem that echoes the request ID |
-| Source-definition CRUD, `/api/data-platform/v1/sources[/{id}]` | Create a uniquely named draft, find it in the list, read it, update it (version 1 to 2), delete it, then get 404 `not_found` | Seven invalid payloads and a non-JSON body return 422 `invalid_request`; a duplicate name returns 409 `conflict`. The list is checked afterwards, so nothing was persisted |
+| Source-definition CRUD, `/api/data-platform/v1/sources[/{id}]` | Create a uniquely named draft, find it in the list, read it, update it (version 1 to 2), delete it, then get 404 `not_found` | Seven invalid payloads, a non-JSON body and an unknown `status` list filter return 422 `invalid_request`; a duplicate name returns 409 `conflict`. The list is checked afterwards, so nothing was persisted |
 
 Every created definition is a draft that the test deletes; a teardown fixture removes any left
 behind by a failed assertion. Payloads are validated against
