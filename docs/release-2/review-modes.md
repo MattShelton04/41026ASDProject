@@ -67,7 +67,8 @@ AI-mode rejects review prompt sets for any other feature key, any other prompt s
 `--deterministic` mirrors `ai validate`: it runs the production `AgentRunner`, prompt registry,
 review tool and completion validator in-process with a temporary SQLite store and scripted
 decisions (`deterministic-review` / `checklist-review.v1`). Its findings are exactly the failed
-checks and its verdict is exactly the checklist verdict. Use it in tests, CI and offline work. CI
+checks, required ones first (beyond the schema's 30 findings, a final finding names the rest),
+and its verdict is exactly the checklist verdict. Use it in tests, CI and offline work. CI
 refuses the live mode, because AI-mode stays disabled there.
 
 Without `--deterministic`, an unreachable AI-mode, a failed or timed-out run, or a review that
@@ -131,7 +132,8 @@ For each `student-1` to `student-5`, files up to three levels below
 | `security/ruff-security.json` | `ruff check --select S --output-format json` (a list) |
 | `security/detect-secrets.json` | `detect-secrets` scan or audited baseline (`{"results": {path: [...]}}`) |
 | `security/pip-audit.json` | `pip-audit --format json` (`{"dependencies": [{"name", "version", "vulns"}]}`) |
-| `ci/student-N.md` | The Actions run URL (`https://github.com/<owner>/<repo>/actions/runs/<id>`), the 40-character commit SHA, a `Conclusion: success` line (a `\| Conclusion \| success \|` table row also works), and the `shared_testkit.junit_summary` totals line and per-test table |
+| `ci/student-N.md` | The Actions run URL (`https://github.com/<owner>/<repo>/actions/runs/<id>`), the 40-character commit SHA, a line or table row that starts with `Conclusion` (`Conclusion: success` or `\| Conclusion \| success \|`), and the `shared_testkit.junit_summary` totals line and per-test table. `scripts/collect_ci_evidence.py` writes exactly this |
+| `ci/student-N/run.log` | The retained log of the endpoint-test steps, also written by `collect_ci_evidence.py`; the last 512 KiB are read |
 
 | Check | Required | Passes when |
 |---|---|---|
@@ -144,7 +146,8 @@ For each `student-1` to `student-5`, files up to three levels below
 | `ci.student-N.run` | yes | Run URL and commit SHA are present |
 | `ci.student-N.green` | yes | The conclusion is `success` |
 | `ci.student-N.endpoints` | yes | At least two endpoint tests passed and none failed or errored |
-| `ci.student-N.junit` | advisory | A JUnit totals line shows at least two tests and no failures or errors |
+| `ci.student-N.junit` | advisory | The JUnit totals lines, summed over every report, show at least two tests and no failures or errors |
+| `ci.student-N.log` | advisory | The run log exists and every pytest result line in it passed with no failures or errors |
 
 ### `cloud`
 

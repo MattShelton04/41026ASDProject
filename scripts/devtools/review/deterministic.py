@@ -17,6 +17,7 @@ from shared_contracts.evidence_review import (
     ReviewSeverity,
 )
 
+MAX_FINDINGS = 30  # EvidenceReviewOutput.findings max_length
 MODE_TITLES = {
     "multi-agent": "Multi-Agent Workflow Review",
     "testing": "Testing Report Review",
@@ -49,6 +50,8 @@ REMEDIATION = {
     "green": "Fix the failing CI job and re-collect evidence from a green run.",
     "endpoints": "Add or fix endpoint tests so at least two endpoint functions pass in CI.",
     "junit": "Publish the JUnit totals line from shared_testkit.junit_summary in the CI evidence.",
+    "log": "Re-run `uv run python scripts/collect_ci_evidence.py --student N` so the endpoint "
+    "run log is retained beside the CI evidence.",
     "smoke": "Re-run the public smoke test after fixing the failing case.",
     "frontend": "Restore public access to the shared frontend before release.",
     "crud": "Fix the feature's CRUD path on the cloud deployment and re-run its smoke case.",
@@ -72,6 +75,10 @@ def check_kind(check: EvidenceCheck) -> str:
 def deterministic_review(bundle: EvidenceReviewBundle) -> EvidenceReviewOutput:
     """Turn the checklist into findings, risks and recommendations without a model."""
     failed = [check for check in bundle.checks if check.status is CheckStatus.FAILED]
+    # Required failures first; anything beyond the schema's finding limit is summarised in one
+    # final finding, so no failed check silently disappears from the review.
+    ordered = sorted(failed, key=lambda item: not item.required)
+    shown = ordered if len(ordered) <= MAX_FINDINGS else ordered[: MAX_FINDINGS - 1]
     findings = [
         EvidenceReviewFinding(
             severity=ReviewSeverity.HIGH if check.required else ReviewSeverity.MEDIUM,
@@ -79,8 +86,25 @@ def deterministic_review(bundle: EvidenceReviewBundle) -> EvidenceReviewOutput:
             message=f"{check.title}: {check.detail}"[:1_000],
             evidence_refs=(check.id, *check.evidence_refs[:9]),
         )
-        for check in failed[:30]
+        for check in shown
     ]
+    overflow = ordered[len(shown) :]
+    if overflow:
+        findings.append(
+            EvidenceReviewFinding(
+                severity=(
+                    ReviewSeverity.HIGH
+                    if any(check.required for check in overflow)
+                    else ReviewSeverity.MEDIUM
+                ),
+                area=bundle.mode,
+                message=(
+                    f"{len(overflow)} further failed check(s), listed in the checklist: "
+                    + ", ".join(check.id for check in overflow)
+                )[:1_000],
+                evidence_refs=tuple(check.id for check in overflow[:10]),
+            )
+        )
     if not findings:
         findings.append(
             EvidenceReviewFinding(

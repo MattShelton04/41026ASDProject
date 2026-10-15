@@ -24,7 +24,7 @@ cases in `student-N/tests/endpoints/`.
 | `EndpointClient.wait_until_ready(path)` | Polls a health route through connection errors and `5xx` until a deadline; a `4xx` fails at once because the route is wrong |
 | `expect_status`, `expect_json`, `expect_problem` | Assertions that print the method, URL, request ID and a body excerpt on failure. `expect_problem` validates the shared `ProblemDetail` contract, the `application/problem+json` media type and, optionally, the echoed request ID |
 | `shared_testkit.pytest_endpoints` | The `endpoint_client` session fixture (ready client, or a skip), the `endpoint_ready_path` fixture, and the skip hook |
-| `python -m shared_testkit.junit_summary` | Renders a pytest JUnit XML file as a Markdown table for `$GITHUB_STEP_SUMMARY`; `--require-success` exits 1 unless something passed and nothing failed |
+| `python -m shared_testkit.junit_summary` | Renders a pytest JUnit XML file as a Markdown table for `$GITHUB_STEP_SUMMARY`; `--require-success` exits 1 unless at least `--min-passed N` tests (default 1; workflows use 2, one per endpoint function) passed and nothing failed |
 
 Environment variables:
 
@@ -91,7 +91,7 @@ Environment variables:
            run: uv run --locked pytest student-N/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-N-endpoints.xml
          - name: Publish endpoint test summary
            if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
-           run: uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-N-endpoints.xml --title "Feature N endpoint tests" --output endpoint-results/student-N-endpoints.md --require-success >> "$GITHUB_STEP_SUMMARY"
+           run: uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-N-endpoints.xml --title "Feature N endpoint tests" --output endpoint-results/student-N-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
          - name: Upload endpoint test results
            if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
            uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

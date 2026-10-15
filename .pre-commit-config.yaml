@@ -1,3 +1,6 @@
+# A plain `pre-commit install` installs the commit hooks (lint, types, security scans) and the
+# pre-push quality gate; CONTRIBUTING.md's explicit `--hook-type` flags still work.
+default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: local
     hooks:

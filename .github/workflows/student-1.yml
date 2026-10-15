@@ -177,7 +177,7 @@ jobs:
           for origin in feature-origin shared-edge; do
             report="endpoint-results/student-1-${origin}.xml"
             if [ -f "$report" ]; then
-              uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 1 endpoint tests (${origin})" --output "endpoint-results/student-1-${origin}.md" --require-success >> "$GITHUB_STEP_SUMMARY" || status=1
+              uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 1 endpoint tests (${origin})" --output "endpoint-results/student-1-${origin}.md" --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY" || status=1
             else
               echo "::error::Missing $report" && status=1
             fi

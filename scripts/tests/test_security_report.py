@@ -492,6 +492,8 @@ def test_secret_scanning_skips_only_generated_vendor_and_binary_files(
 
 def test_commit_hooks_include_the_three_security_scans() -> None:
     config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    # A plain `pre-commit install` must install both the commit scans and the pre-push gate.
+    assert config["default_install_hook_types"] == ["pre-commit", "pre-push"]
     hooks = {hook["id"]: hook for repo in config["repos"] for hook in repo["hooks"]}
     for hook_id in ("security-ruff", "security-detect-secrets", "security-pip-audit"):
         hook = hooks[hook_id]

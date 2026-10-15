@@ -14,7 +14,9 @@ import httpx
 import pytest
 from flask import Flask
 from scripts import dev
+from scripts.collect_ci_evidence import main as collect_ci_main
 from scripts.devtools.review import cli as review_cli
+from scripts.devtools.review import testing as review_testing
 from scripts.devtools.review.bounded import EvidenceReader
 from scripts.devtools.review.deterministic import deterministic_review
 from scripts.devtools.review.loop import (
@@ -32,6 +34,7 @@ from scripts.devtools.review.workflow import (
 )
 from scripts.devtools.service_auth import AI_SERVICE_TOKEN_HEADER, protect_entry
 from scripts.tests import review_fixtures as fixtures
+from scripts.tests.test_collect_ci_evidence import PASSING_JUNIT, FakeGh
 
 from agent_core import AgentRunner, ModelMetrics, StructuredModelResult, ToolRegistry
 from ai_mode import create_app
@@ -206,6 +209,64 @@ def test_testing_review_flags_unexplained_findings_and_red_ci(evidence: Path) ->
     assert "ci.student-1.endpoints" not in failed
 
 
+def test_collect_ci_evidence_output_passes_every_ci_check(evidence: Path) -> None:
+    """The producer and the reviewer must agree: real collector output is green evidence."""
+    for stale in ("ci/student-1.md", "ci/student-1/run.log"):
+        (evidence / stale).unlink()
+    gh = FakeGh(artifact={"feature-origin.xml": PASSING_JUNIT, "shared-edge.xml": PASSING_JUNIT})
+
+    assert collect_ci_main(["--student", "1", "--output-dir", str(evidence / "ci")], gh=gh) == 0
+
+    bundle = collect_bundle("testing", evidence)
+    checks = _checks(bundle)
+    for suffix in ("run", "green", "endpoints", "junit", "log"):
+        assert checks[f"ci.student-1.{suffix}"] is CheckStatus.PASSED, suffix
+    facts = bundle.facts["ci"]["student-1"]  # type: ignore[index,call-overload]
+    assert facts["conclusion"] == "success"
+    assert facts["totals"]["tests"] == 4, "totals are summed over both JUnit reports"
+    assert facts["run_log"]["pytest_results"] == ["2 passed in 0.42s"]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Conclusion: success", "success"),
+        ("| Conclusion | success |", "success"),
+        ("| Conclusion | **success** |", "success"),
+        ("**Conclusion:** failure", "failure"),
+        ("- Conclusion: cancelled", "cancelled"),
+        ("| Status / conclusion | completed / **success** |", None),
+        ("| Job | Conclusion | Started |\n| build | success | x |", None),
+    ],
+)
+def test_ci_conclusion_is_read_only_from_a_conclusion_field(
+    text: str, expected: str | None
+) -> None:
+    match = review_testing.CONCLUSION.search(text)
+    assert (match.group(1).lower() if match else None) == expected
+
+
+def test_ci_run_log_check_is_advisory_and_reads_pytest_results(evidence: Path) -> None:
+    (evidence / "ci/student-2/run.log").unlink()
+    (evidence / "ci/student-3/run.log").write_text(
+        "job\tRun endpoint tests\t2026-10-09T04:09:00Z 1 passed, 1 failed in 0.50s\n",
+        encoding="utf-8",
+    )
+    (evidence / "ci/student-4/run.log").write_text("no pytest output\n", encoding="utf-8")
+
+    bundle = collect_bundle("testing", evidence)
+    failed = _failed(bundle)
+    details = {check.id: check.detail for check in bundle.checks}
+    required = {check.id: check.required for check in bundle.checks}
+
+    assert {"ci.student-2.log", "ci.student-3.log", "ci.student-4.log"} <= failed
+    assert not any(required[f"ci.student-{n}.log"] for n in range(1, 6))
+    assert "Evidence gap: ci/student-2/run.log is missing" in details["ci.student-2.log"]
+    assert "1 passed, 1 failed in 0.50s" in details["ci.student-3.log"]
+    assert "no passing pytest result" in details["ci.student-4.log"]
+    assert bundle.checklist_verdict() is ReviewVerdict.PASS_WITH_RISKS
+
+
 def test_oversize_evidence_is_hashed_but_not_parsed(evidence: Path) -> None:
     path = evidence / "security/ruff-security.json"
     path.write_text("[" + ",".join(["{}"] * 600_000) + "]", encoding="utf-8")
@@ -355,7 +416,16 @@ def test_deterministic_review_of_missing_evidence_fails_with_findings(tmp_path: 
     )
 
     assert result.record.verdict is ReviewVerdict.FAIL
-    assert len(result.record.output.findings) == len(_failed(result.record.bundle))
+    failed = _failed(result.record.bundle)
+    findings = result.record.output.findings
+    assert len(failed) > 30, "more failed checks than the schema allows findings"
+    assert len(findings) == 30
+    cited = {ref for finding in findings for ref in finding.evidence_refs}
+    named = " ".join(finding.message for finding in findings)
+    assert all(check in cited or check in named for check in failed), "none silently dropped"
+    required = {check.id for check in result.record.bundle.checks if check.required}
+    assert all(f.evidence_refs[0] in required for f in findings[: len(failed & required)])
+    assert findings[-1].message.startswith(f"{len(failed) - 29} further failed check(s)")
     assert result.record.output.recommendations
     assert "Evidence gap" in result.report_path.read_text(encoding="utf-8")
 
