@@ -31,6 +31,8 @@ def test_capabilities_observe_optional_services_without_exposing_targets(
         mcp_service_token=TOKEN,
         rag_service_token=TOKEN,
         rag_corpora=((FEATURE, "operator-guidance"),),
+        multi_agent_url="http://127.0.0.1:5013" if enabled else None,
+        multi_agent_service_token=TOKEN,
     )
     probe = Mock(return_value=httpx.Response(200 if state == "ready" else 503))
     if state == "timeout":
@@ -40,19 +42,25 @@ def test_capabilities_observe_optional_services_without_exposing_targets(
     response = client.get("/api/v1/capabilities")
     assert response.status_code == 200
     result = response.get_json()
+    assert [item["id"] for item in result["services"]] == ["mcp", "rag", "multi-agent"]
     assert [item["status"] for item in result["services"]] == [
         "unavailable" if state == "timeout" else state
-    ] * 2
+    ] * 3
     assert result["grounding_features"] == ([FEATURE] if enabled else [])
     assert TOKEN not in response.text and "127.0.0.1" not in response.text
     assert "secret transport" not in response.text
-    assert probe.call_count == (2 if enabled else 0)
+    assert probe.call_count == (3 if enabled else 0)
     if enabled:
         assert [call.args[0] for call in probe.call_args_list] == [
             "http://127.0.0.1:5011/health",
             "http://127.0.0.1:5012/health/ready",
+            "http://127.0.0.1:5013/health/ready",
         ]
         assert all(call.kwargs["follow_redirects"] is False for call in probe.call_args_list)
+        assert all(
+            call.kwargs["headers"] == {"Authorization": f"Bearer {TOKEN}"}
+            for call in probe.call_args_list
+        )
     assert client.get("/health/live").status_code == 200
 
 
@@ -68,6 +76,11 @@ def test_capabilities_observe_optional_services_without_exposing_targets(
         {"AI_MODE_RAG_CORPORA": "invalid-scope"},
         {"AI_MODE_RAG_CORPORA": "feature:one,feature:two"},
         {"AI_MODE_ENVIRONMENT": "azure", "AI_MODE_MCP_ENABLED": "true", "MCP_SERVICE_TOKEN": TOKEN},
+        {"AI_MODE_MULTI_AGENT_URL": "http://127.0.0.1:5013"},
+        {
+            "AI_MODE_MULTI_AGENT_URL": "http://external.example:5013",
+            "MULTI_AGENT_SERVICE_TOKEN": TOKEN,
+        },
     ],
 )
 def test_unsafe_local_service_configuration_fails_before_network(

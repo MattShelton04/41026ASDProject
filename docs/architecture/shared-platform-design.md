@@ -1065,6 +1065,9 @@ The shared UI renders text-only findings, literal excerpts, evidence kind, sourc
 date and version, with safe HTTP(S) links and native keyboard disclosures. Polling preserves focus
 and open sources. Capability health is separately observed at `/api/v1/capabilities` (shared edge:
 `/api/ai-mode/capabilities`); healthy MCP/RAG does not establish per-feature corpus coverage.
+The snapshot also reports the Multi-Agent Server's readiness when the launcher gave AI-mode its
+loopback URL (`AI_MODE_MULTI_AGENT_URL`, set in every local mode and never in CI). AI-mode only
+probes `/health/ready`; it never calls the server's workflow API.
 
 Eligible local grounded runs now select immutable `default.v9` (planner v8, adapter v9).
 Successful tool facts can answer a factual question without adding irrelevant document citations.

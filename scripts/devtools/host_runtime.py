@@ -585,6 +585,11 @@ def prepare_environment(
     result["MULTI_AGENT_REPOSITORY_ROOT"] = str(REPOSITORY_ROOT)
     result["MULTI_AGENT_TOOL_CATALOG_PATHS"] = result["AI_MODE_TOOL_CATALOG_PATHS"]
     result["MULTI_AGENT_MCP_ENABLED"] = result["AI_MODE_MCP_ENABLED"]
+    if _is_ci(result):
+        result.pop("AI_MODE_MULTI_AGENT_URL", None)
+    else:
+        # AI-mode only observes its readiness for the shared status page's capability snapshot.
+        result["AI_MODE_MULTI_AGENT_URL"] = f"http://127.0.0.1:{port_for('multi-agent', result)}"
     return result
 
 

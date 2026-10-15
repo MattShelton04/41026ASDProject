@@ -75,7 +75,7 @@ screenshots under `tmp/` or a scratch directory; they are not committed unless a
 The shared edge adds the AI-mode service token, so these read-only calls work from the host:
 
 ```text
-curl -s http://localhost:5100/api/ai-mode/capabilities                     # MCP/RAG readiness
+curl -s http://localhost:5100/api/ai-mode/capabilities                     # MCP/RAG/Multi-Agent readiness
 curl -s "http://localhost:5100/api/v1/agent-runs?limit=5"                   # recent runs
 curl -s http://localhost:5100/api/v1/operations/agent-runs/<run-id>         # steps, tool calls, final_result
 curl -s http://localhost:5100/api/v1/operations/knowledge                   # registered corpora

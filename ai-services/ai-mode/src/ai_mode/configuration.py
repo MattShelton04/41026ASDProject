@@ -77,6 +77,9 @@ class Settings:
     mcp_service_token: str | None = field(default=None, repr=False)
     rag_service_token: str | None = field(default=None, repr=False)
     rag_corpora: tuple[tuple[str, str], ...] = ()
+    # Observed only for the capability snapshot; AI-mode never calls the server's API.
+    multi_agent_url: str | None = None
+    multi_agent_service_token: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Keep safety-critical timing invariants true for injected settings too."""
@@ -84,11 +87,15 @@ class Settings:
         _require_positive_finite(self.openai_health_timeout_seconds, "OpenAI health timeout")
         if self.environment != "local" and (self.mcp_enabled or self.rag_enabled):
             raise ConfigurationError("MCP and RAG are local-only capabilities")
-        # MCP and RAG run only as non-containerised host processes (ADR-043, ADR-046).
-        for enabled, token, url in (
+        # MCP, RAG and the Multi-Agent Server run only as non-containerised host processes
+        # (ADR-043, ADR-046, ADR-047).
+        local_services = [
             (self.mcp_enabled, self.mcp_service_token, self.mcp_server_url),
             (self.rag_enabled, self.rag_service_token, self.rag_server_url),
-        ):
+        ]
+        if self.multi_agent_url is not None:
+            local_services.append((True, self.multi_agent_service_token, self.multi_agent_url))
+        for enabled, token, url in local_services:
             if enabled and (not token or len(token) < 32):
                 raise ConfigurationError("Enabled local AI services require a 32-character token")
             parsed = urlparse(url)
@@ -98,7 +105,9 @@ class Settings:
                 "::1",
             }
             if not is_loopback:
-                raise ConfigurationError("Shared MCP/RAG URLs must be loopback HTTP endpoints")
+                raise ConfigurationError(
+                    "Shared MCP/RAG/Multi-Agent URLs must be loopback HTTP endpoints"
+                )
             if parsed.username or parsed.password or parsed.query or parsed.fragment:
                 raise ConfigurationError("Shared service URL cannot contain credentials or query")
         _require_positive_finite(
@@ -290,6 +299,8 @@ class Settings:
             rag_server_url=values.get("RAG_SERVER_URL", "http://127.0.0.1:5012"),
             mcp_service_token=values.get("MCP_SERVICE_TOKEN"),
             rag_service_token=values.get("RAG_SERVICE_TOKEN"),
+            multi_agent_url=values.get("AI_MODE_MULTI_AGENT_URL", "").strip() or None,
+            multi_agent_service_token=values.get("MULTI_AGENT_SERVICE_TOKEN"),
             rag_corpora=_corpus_scopes(
                 values.get(
                     "AI_MODE_RAG_CORPORA", "student-1-propertyscope-data-platform:operator-guidance"

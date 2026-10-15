@@ -284,6 +284,14 @@ def test_multi_agent_token_and_environment_are_host_projections(isolated: Path) 
     assert direct["MULTI_AGENT_TOOL_CATALOG_PATHS"] == direct["AI_MODE_TOOL_CATALOG_PATHS"]
     assert direct["MULTI_AGENT_MCP_ENABLED"] == "false"
     assert runtime.prepare_environment({}, mode="mcp")["MULTI_AGENT_MCP_ENABLED"] == "true"
+    # AI-mode observes the server for the shared status page, but only where it runs.
+    assert direct["AI_MODE_MULTI_AGENT_URL"] == "http://127.0.0.1:5013"
+    moved = runtime.prepare_environment({"MULTI_AGENT_PORT": "6013"}, mode="direct")
+    assert moved["AI_MODE_MULTI_AGENT_URL"] == "http://127.0.0.1:6013"
+    ci = runtime.prepare_environment(
+        {"CI": "true", "AI_MODE_MULTI_AGENT_URL": "http://127.0.0.1:5013"}, mode="direct"
+    )
+    assert "AI_MODE_MULTI_AGENT_URL" not in ci
     for invalid in ("short", "a" * 32 + '"; injection'):
         with pytest.raises(RuntimeError, match="MULTI_AGENT_SERVICE_TOKEN"):
             runtime.multi_agent_service_token({"MULTI_AGENT_SERVICE_TOKEN": invalid})

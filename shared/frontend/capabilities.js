@@ -24,9 +24,12 @@ export const RELEASE_STAGES = Object.freeze([
   },
 ]);
 
+// Host processes whose readiness AI-mode observes in /api/ai-mode/capabilities.
+export const LOCAL_RESEARCH_SERVICES = Object.freeze(["mcp", "rag", "multi-agent"]);
+
 export function capabilityManifest(config = {}, snapshot = null) {
   const runtime = new Map((Array.isArray(snapshot?.services) ? snapshot.services : [])
-    .filter((item) => item && ["mcp", "rag"].includes(item.id))
+    .filter((item) => item && LOCAL_RESEARCH_SERVICES.includes(item.id))
     .map((item) => [item.id, item]));
   function localService(id, label) {
     const observed = runtime.get(id);
@@ -46,7 +49,7 @@ export function capabilityManifest(config = {}, snapshot = null) {
       { id: "ai-mode", label: "AI review history", implemented: true, enabled: true, href: config.agentRuns, detail: "Recorded AI reviews, source checks and results." },
       localService("mcp", "Structured tool access (MCP)"),
       localService("rag", "Cited document retrieval (RAG)"),
-      { id: "multi-agent", label: "Coordinated research roles", implemented: false, enabled: false, detail: "Planned; not active." },
+      localService("multi-agent", "Coordinated research roles (Multi-Agent Server)"),
     ],
   };
 }

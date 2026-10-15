@@ -233,8 +233,9 @@ def test_shared_services_are_loopback_only_and_never_container_origins() -> None
         ("RAG_SERVER_URL", "http://rag-server:5012"),
         ("MCP_SERVER_URL", "http://host.docker.internal:5011/mcp"),
         ("RAG_SERVER_URL", "http://rag-server.attacker.test:5012"),
+        ("AI_MODE_MULTI_AGENT_URL", "http://host.docker.internal:5013"),
     ],
 )
 def test_non_loopback_shared_service_urls_are_rejected(name: str, url: str) -> None:
-    with pytest.raises(ConfigurationError, match="Shared MCP/RAG URLs"):
-        Settings.from_env({name: url})
+    with pytest.raises(ConfigurationError, match="Shared MCP/RAG/Multi-Agent URLs"):
+        Settings.from_env({name: url, "MULTI_AGENT_SERVICE_TOKEN": "t" * 32})
