@@ -263,6 +263,23 @@ Endpoints under test: GET /api/v1/items and POST /api/v1/items.
 """,
         encoding="utf-8",
     )
+    result = f"{passed} passed" + (f", {failed} failed" if failed else "") + " in 1.42s"
+    log = root / "ci" / student / "run.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "".join(
+            f"Feature integrated stack\tRun {student} endpoint tests\t2026-10-09T04:09:0{i}Z "
+            f"{line}\n"
+            for i, line in enumerate(
+                (
+                    f"{outcomes[0].upper()} tests/endpoints/test_api.py::test_list_items",
+                    f"{outcomes[1].upper()} tests/endpoints/test_api.py::test_create_item",
+                    result,
+                )
+            )
+        ),
+        encoding="utf-8",
+    )
 
 
 def smoke(**changes: object) -> dict[str, object]:

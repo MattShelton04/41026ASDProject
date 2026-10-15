@@ -5,7 +5,10 @@ For each requested student the script asks the GitHub CLI for the latest success
 ID, downloads the run's ``student-N-endpoint-tests`` artifact when it exists, and writes
 ``docs/release-2/evidence/ci/student-N.md`` with the run URL, head SHA, branch, event,
 conclusion, timestamps, every job and step result, and the endpoint-test table rendered
-from the JUnit XML.
+from the JUnit XML. It also retains the raw JUnit XML and the log of the endpoint-test steps
+in ``docs/release-2/evidence/ci/student-N/`` (``run.log``: bounded, ANSI-free and with
+secret-shaped lines redacted), so the CI test reports and run logs outlive GitHub's artifact
+and log retention.
 
 It only reads from GitHub (``gh`` must be installed and authenticated) and never triggers,
 re-runs or cancels a workflow::
@@ -19,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -29,6 +33,10 @@ from typing import Any
 
 import yaml
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.devtools.review.cloud import SECRET_PATTERNS
 from shared_testkit.junit_summary import load_junit, markdown_summary
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +46,11 @@ RUN_FIELDS = (
     "attempt,conclusion,createdAt,databaseId,displayTitle,event,headBranch,headSha,jobs,"
     "number,startedAt,status,updatedAt,url,workflowName"
 )
+RUN_LOG_NAME = "run.log"
+MAX_RUN_LOG_BYTES = 512 * 1024
+ENDPOINT_STEP = re.compile(r"endpoint", re.IGNORECASE)
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+REDACTED = "[line redacted: matched a secret pattern]"
 
 GhRunner = Callable[[Sequence[str]], str]
 
@@ -78,6 +91,17 @@ class EndpointReport:
 
 
 @dataclass(frozen=True, slots=True)
+class RunLog:
+    """The retained log of the jobs that ran the endpoint tests."""
+
+    text: str
+    jobs: tuple[str, ...]
+    scope: str
+    truncated_bytes: int = 0
+    redacted_lines: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class Evidence:
     """Everything recorded for one student's run."""
 
@@ -87,6 +111,9 @@ class Evidence:
     run: Mapping[str, Any]
     endpoint_reports: tuple[EndpointReport, ...]
     artifact_note: str | None
+    junit_files: tuple[tuple[str, bytes], ...] = ()
+    run_log: RunLog | None = None
+    log_note: str | None = None
 
 
 def workflow_file(student: int) -> str:
@@ -169,9 +196,10 @@ def expected_workflow_name(student: int, root: Path) -> str:
 
 def download_endpoint_reports(
     gh: GhRunner, student: int, run_id: int, *, repository: str | None
-) -> tuple[tuple[EndpointReport, ...], str | None]:
-    """Download the endpoint artifact and render each JUnit file it contains."""
+) -> tuple[tuple[EndpointReport, ...], str | None, tuple[tuple[str, bytes], ...]]:
+    """Download the endpoint artifact; render each JUnit file and keep its raw bytes."""
     name = artifact_name(student)
+    raw_files: list[tuple[str, bytes]] = []
     with tempfile.TemporaryDirectory(prefix=f"ci-evidence-{student}-") as directory:
         try:
             gh(
@@ -187,13 +215,15 @@ def download_endpoint_reports(
                 ]
             )
         except EvidenceError as exc:
-            return (), f"The `{name}` artifact could not be downloaded ({exc})."
+            return (), f"The `{name}` artifact could not be downloaded ({exc}).", ()
         reports: list[EndpointReport] = []
         for path in sorted(Path(directory).rglob("*.xml")):
             try:
                 report = load_junit(path)
             except ValueError as exc:
-                return (), f"`{path.name}` in `{name}` is not a JUnit report ({exc})."
+                return (), f"`{path.name}` in `{name}` is not a JUnit report ({exc}).", ()
+            flat_name = path.relative_to(directory).as_posix().replace("/", "-")
+            raw_files.append((flat_name, path.read_bytes()))
             reports.append(
                 EndpointReport(
                     file_name=path.name,
@@ -202,8 +232,91 @@ def download_endpoint_reports(
                 )
             )
     if not reports:
-        return (), f"The `{name}` artifact contains no JUnit XML report."
-    return tuple(reports), None
+        return (), f"The `{name}` artifact contains no JUnit XML report.", ()
+    return tuple(reports), None, tuple(raw_files)
+
+
+def _endpoint_jobs(run: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Jobs with an endpoint-test step, or every job when no step names endpoints."""
+    jobs = [job for job in run.get("jobs") or () if isinstance(job, Mapping)]
+    with_endpoints = [
+        job
+        for job in jobs
+        if any(
+            isinstance(step, Mapping) and ENDPOINT_STEP.search(str(step.get("name", "")))
+            for step in job.get("steps") or ()
+        )
+    ]
+    return with_endpoints or jobs
+
+
+def _step_name(line: str) -> str:
+    """Return the step column of a ``gh run view --log`` line (``job<TAB>step<TAB>text``)."""
+    parts = line.split("\t", 2)
+    return parts[1] if len(parts) == 3 else ""
+
+
+def bound_log(text: str, *, max_bytes: int = MAX_RUN_LOG_BYTES) -> tuple[str, int, int]:
+    """Strip ANSI codes, redact secret-shaped lines and keep at most the final ``max_bytes``.
+
+    Returns the text, the number of bytes dropped from the start and the number of lines
+    redacted. GitHub already masks registered secrets; this also catches unregistered ones.
+    """
+    lines: list[str] = []
+    redacted = 0
+    for line in ANSI_ESCAPE.sub("", text).splitlines():
+        if any(pattern.search(line) for pattern in SECRET_PATTERNS):
+            parts = line.split("\t", 2)
+            prefix = "\t".join(parts[:2]) + "\t" if len(parts) == 3 else ""
+            lines.append(prefix + REDACTED)
+            redacted += 1
+        else:
+            lines.append(line)
+    encoded = ("\n".join(lines) + "\n").encode("utf-8") if lines else b""
+    dropped = max(0, len(encoded) - max_bytes)
+    if dropped:
+        tail = encoded[dropped:]
+        # Start at a whole line so the retained log never begins mid-line or mid-character.
+        newline = tail.find(b"\n")
+        if 0 <= newline < len(tail) - 1:
+            dropped += newline + 1
+            tail = tail[newline + 1 :]
+        encoded = tail
+    return encoded.decode("utf-8", errors="replace"), dropped, redacted
+
+
+def download_run_log(
+    gh: GhRunner, run: Mapping[str, Any], *, repository: str | None
+) -> tuple[RunLog | None, str | None]:
+    """Fetch the log of each job that ran endpoint tests, keeping only those steps if possible."""
+    selected: list[str] = []
+    endpoint_lines: list[str] = []
+    all_lines: list[str] = []
+    for job in _endpoint_jobs(run):
+        job_id = job.get("databaseId")
+        if job_id is None:
+            continue
+        try:
+            text = gh(
+                ["run", "view", "--job", str(job_id), "--log", *_repository_arguments(repository)]
+            )
+        except EvidenceError as exc:
+            return None, f"The log of job `{job.get('name')}` could not be downloaded ({exc})."
+        selected.append(str(job.get("name") or job_id))
+        lines = text.splitlines()
+        all_lines.extend(lines)
+        endpoint_lines.extend(line for line in lines if ENDPOINT_STEP.search(_step_name(line)))
+    if not selected:
+        return None, "The run lists no jobs with an ID, so no run log was retained."
+    if endpoint_lines:
+        kept, scope = endpoint_lines, "Endpoint-test steps"
+    else:
+        # gh labels some archived steps "UNKNOWN STEP"; keep the whole job log instead.
+        kept, scope = all_lines, "Complete job log (step names unavailable)"
+    if not kept:
+        return None, "The run log is empty, so no run log was retained."
+    text, dropped, redacted = bound_log("\n".join(kept))
+    return RunLog(text, tuple(selected), scope, dropped, redacted), None
 
 
 def collect(
@@ -225,7 +338,10 @@ def collect(
         raise EvidenceError(
             f"run {resolved_run_id} belongs to {run.get('workflowName')!r}, not {expected!r}"
         )
-    reports, note = download_endpoint_reports(gh, student, resolved_run_id, repository=repository)
+    reports, note, raw_files = download_endpoint_reports(
+        gh, student, resolved_run_id, repository=repository
+    )
+    run_log, log_note = download_run_log(gh, run, repository=repository)
     return Evidence(
         student=student,
         workflow_file=workflow_file(student),
@@ -233,7 +349,15 @@ def collect(
         run=run,
         endpoint_reports=reports,
         artifact_note=note,
+        junit_files=raw_files,
+        run_log=run_log,
+        log_note=log_note,
     )
+
+
+def evidence_directory(student: int) -> str:
+    """Directory, relative to the CI evidence root, for the retained raw files."""
+    return f"student-{student}"
 
 
 def _cell(value: object) -> str:
@@ -257,8 +381,9 @@ def render(evidence: Evidence) -> str:
         f"| Workflow | {_cell(run.get('workflowName'))} (`{evidence.workflow_file}`) |",
         f"| Run | [#{_cell(run.get('number'))} (ID {_cell(run.get('databaseId'))}, "
         f"attempt {_cell(run.get('attempt'))})]({run.get('url', '')}) |",
-        f"| Status / conclusion | {_cell(run.get('status'))} / "
-        f"**{_cell(run.get('conclusion'))}** |",
+        # One field per row: `ai review testing` reads the `| Conclusion | ... |` row.
+        f"| Status | {_cell(run.get('status'))} |",
+        f"| Conclusion | **{_cell(run.get('conclusion'))}** |",
         f"| Event | {_cell(run.get('event'))} |",
         f"| Branch | {_cell(run.get('headBranch'))} |",
         f"| Head SHA | `{_cell(head_sha)}` |",
@@ -300,11 +425,44 @@ def render(evidence: Evidence) -> str:
     for report in evidence.endpoint_reports:
         lines.append(report.markdown.rstrip("\n"))
         lines.append("")
+    directory = evidence_directory(evidence.student)
+    lines.extend(["", "## Retained test reports and run log", ""])
+    if evidence.junit_files:
+        lines.extend(
+            f"- JUnit XML: [`{directory}/{name}`]({directory}/{name})"
+            for name, _ in evidence.junit_files
+        )
+    if evidence.run_log is not None:
+        log = evidence.run_log
+        detail = [f"{log.scope} of {', '.join(f'`{_cell(job)}`' for job in log.jobs)}"]
+        if log.truncated_bytes:
+            detail.append(f"first {log.truncated_bytes} bytes omitted")
+        if log.redacted_lines:
+            detail.append(f"{log.redacted_lines} secret-shaped line(s) redacted")
+        lines.append(
+            f"- Run log: [`{directory}/{RUN_LOG_NAME}`]({directory}/{RUN_LOG_NAME}) "
+            f"({'; '.join(detail)})"
+        )
+    else:
+        lines.append(f"- Run log: not retained. {evidence.log_note or ''}".rstrip())
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def write_evidence(evidence: Evidence, output_directory: Path) -> Path:
+    """Write ``student-N.md`` and replace the retained JUnit XML and run log beside it."""
     output_directory.mkdir(parents=True, exist_ok=True)
+    raw_directory = output_directory / evidence_directory(evidence.student)
+    if raw_directory.is_dir():
+        # Remove only files this script writes, so a previous run's reports cannot linger.
+        for stale in (*raw_directory.glob("*.xml"), raw_directory / RUN_LOG_NAME):
+            if stale.is_file():
+                stale.unlink()
+    if evidence.junit_files or evidence.run_log is not None:
+        raw_directory.mkdir(parents=True, exist_ok=True)
+    for name, content in evidence.junit_files:
+        (raw_directory / name).write_bytes(content)
+    if evidence.run_log is not None:
+        (raw_directory / RUN_LOG_NAME).write_bytes(evidence.run_log.text.encode("utf-8"))
     path = output_directory / f"student-{evidence.student}.md"
     path.write_text(render(evidence), encoding="utf-8")
     return path
@@ -369,6 +527,8 @@ def main(argv: Sequence[str] | None = None, *, gh: GhRunner = run_gh) -> int:
             continue
         path = write_evidence(evidence, arguments.output_dir)
         print(f"student-{student}: wrote {path} for {evidence.run.get('url')}")
+        if evidence.run_log is None:
+            print(f"student-{student}: warning: {evidence.log_note}", file=sys.stderr)
     return 1 if failures else 0
 
 

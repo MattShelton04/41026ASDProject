@@ -63,6 +63,10 @@ temp/
 *.tmp
 *.bak
 *.swp
+# Release evidence is committed on purpose, logs included: the review modes read
+# ci/student-N/run.log and cloud/**/*.log, so these must never be silently ignored.
+!docs/release-*/evidence/**/logs/
+!docs/release-*/evidence/**/*.log
 
 # Docker and local overrides
 docker-compose.override.yml

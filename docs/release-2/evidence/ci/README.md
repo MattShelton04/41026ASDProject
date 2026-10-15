@@ -24,9 +24,24 @@ endpoint tests against the running Compose stack.
    - the run URL, number, attempt, head SHA, branch, event, status and conclusion;
    - created, started and updated timestamps;
    - every job and step with its conclusion;
-   - one table per JUnit report: test, outcome, duration and failure message.
+   - one table per JUnit report: test, outcome, duration and failure message;
+   - links to the retained raw reports and run log below.
 
-3. Commit the regenerated file. Do not edit it by hand; re-run the script instead.
+   It also writes `student-N/`, replacing what a previous run left there:
+
+   - the raw JUnit XML files from the artifact (the CI test reports);
+   - `run.log`, the log of the job that ran the endpoint tests (`gh run view --job ID --log`),
+     reduced to the steps whose names mention "endpoint" (the whole job log if `gh` cannot
+     name the steps), without ANSI colour codes, with any line that matches a secret pattern
+     redacted, and capped at the final 512 KiB.
+
+   GitHub deletes artifacts after 30 days and run logs after 90, so these copies are the
+   retained evidence. `.gitignore` ignores `*.log` and `logs/` elsewhere but not under
+   `docs/release-*/evidence/`.
+
+3. Commit the regenerated files. Do not edit them by hand; re-run the script instead.
+4. Run `uv run scripts/dev.py ai review testing --deterministic`. Every `ci.student-N.*` check
+   for the recorded students should pass, including the advisory `ci.student-N.log`.
 
 Options:
 
