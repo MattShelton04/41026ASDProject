@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Mapping
 from typing import Any
 
 import httpx
 from flask import Response, jsonify, request
+from werkzeug.exceptions import HTTPException, InternalServerError
 
 from propertyscope_data_platform.clients import DataStoreClient, DependencyUnavailableError
 from shared_contracts import (
@@ -58,6 +60,19 @@ def json_body(*, optional: bool = False) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("request body must be a JSON object")
     return value
+
+
+def tool_limit(body: Mapping[str, Any], *, default: int, maximum: int) -> int:
+    """Read a tool's optional ``limit`` as a positive JSON integer, capped at its contract.
+
+    Values above ``maximum`` are capped so the tool's bounded output schema holds. Anything
+    that is not a positive integer (``null``, strings, lists, booleans) is the caller's error,
+    reported as a structured 422 instead of an unhandled ``int()`` failure.
+    """
+    raw: object = body.get("limit", default)
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
+        raise ValueError(f"limit must be an integer from 1 to {maximum}")
+    return min(raw, maximum)
 
 
 def required_uuid(body: Mapping[str, Any], name: str) -> uuid.UUID:
@@ -138,13 +153,41 @@ def problem(status: int, code: str, detail: str) -> Response:
     return response
 
 
+def _unreadable_dependency(_: json.JSONDecodeError) -> Response:
+    # Request bodies are parsed with ``get_json(silent=True)``, so a decode failure that
+    # escapes a view comes from a dependency's ``.json()``. Without this, the ValueError
+    # handler would blame the caller with a 422 that echoes parser internals.
+    return problem(
+        503, "dependency_unavailable", "A dependency returned an unreadable JSON response"
+    )
+
+
+def _http_error(error: HTTPException) -> Response:
+    status = error.code or 500
+    if status >= 500:
+        return _internal_error(error)
+    name = (error.name or "HTTP error").lower().replace(" ", "_")
+    return problem(status, name, error.description or "The request could not be processed")
+
+
+def _internal_error(_: Exception) -> Response:
+    # Flask logs the original exception before calling this handler. Never echo its text:
+    # it can contain dependency payloads, paths or SQL.
+    return problem(500, "internal_error", "The service could not complete the request")
+
+
 def register_error_handlers(app: Any) -> None:
     app.register_error_handler(
         DependencyUnavailableError, lambda error: problem(503, "dependency_unavailable", str(error))
     )
+    app.register_error_handler(json.JSONDecodeError, _unreadable_dependency)
     app.register_error_handler(
         ValueError, lambda error: problem(422, "invalid_request", str(error))
     )
+    # Every other HTTP error and any unhandled exception still answers with problem details,
+    # never Werkzeug's HTML page, so browsers, tools and agents can read the failure.
+    app.register_error_handler(HTTPException, _http_error)
+    app.register_error_handler(InternalServerError, _internal_error)
     app.register_error_handler(
         404, lambda _: problem(404, "route_not_found", "Route does not exist")
     )

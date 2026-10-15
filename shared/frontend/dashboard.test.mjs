@@ -152,7 +152,29 @@ test("capability manifest separates implemented, enabled and planned states", ()
     "/features/market-intelligence/#market-cases",
   );
   assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "rag")), { label: "Runtime unknown", tone: "unknown" });
-  assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "multi-agent")), { label: "Planned", tone: "planned" });
+  assert.deepEqual(capabilityState(manifest.services.find((item) => item.id === "multi-agent")), { label: "Runtime unknown", tone: "unknown" });
+});
+
+test("the Multi-Agent Server is a live research dependency, not a planned tool", () => {
+  const [, , multiAgent] = researchServiceComponents({ services: [
+    { id: "mcp", implemented: true, enabled: true, status: "ready" },
+    { id: "rag", implemented: true, enabled: true, status: "ready" },
+    { id: "multi-agent", implemented: true, enabled: true, status: "ready", detail: "Local service is ready." },
+  ] });
+  assert.equal(multiAgent.name, "Coordinated research roles (Multi-Agent Server)");
+  assert.equal(multiAgent.readiness, "ready");
+  assert.equal(multiAgent.label, "Ready when checked");
+  const [, , down] = researchServiceComponents({ services: [
+    { id: "multi-agent", implemented: true, enabled: true, status: "unavailable", detail: "Local service is unavailable." },
+  ] });
+  assert.equal(down.readiness, "unavailable");
+  const [, , ci] = researchServiceComponents({ services: [
+    { id: "multi-agent", implemented: true, enabled: false, status: "disabled" },
+  ] });
+  assert.equal(ci.label, "Disabled by configuration");
+  assert.equal(ci.enabled, false);
+  const statusRoute = readFileSync(new URL("./routes/status.js", import.meta.url), "utf8");
+  assert.doesNotMatch(statusRoute, /\["Coordinated research roles", "Planned"/);
 });
 
 test("local research service configuration, observation and feature readiness stay distinct", () => {

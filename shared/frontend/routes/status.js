@@ -1,6 +1,6 @@
 import { append, badge, cell, el, formatDate, link, notice, pageHeader, panel, requestJson, requestText, table } from "../core.js";
 import { featureRegistry } from "../features.js";
-import { capabilityManifest, capabilityState } from "../capabilities.js";
+import { capabilityManifest, capabilityState, LOCAL_RESEARCH_SERVICES } from "../capabilities.js";
 
 export function classifyHealth(payload) {
   const raw = String(payload?.status || "unknown").toLowerCase();
@@ -11,7 +11,7 @@ export function classifyHealth(payload) {
 }
 
 export function researchServiceComponents(snapshot, config = {}) {
-  return capabilityManifest(config, snapshot).services.filter((item) => ["mcp", "rag"].includes(item.id)).map((item) => {
+  return capabilityManifest(config, snapshot).services.filter((item) => LOCAL_RESEARCH_SERVICES.includes(item.id)).map((item) => {
     const state = capabilityState(item);
     return {
       name: item.label, kind: "Local research dependency", owner: "Shared platform",
@@ -99,6 +99,8 @@ export function createStatusRoute({
     const cards = el("div", "health-grid");
     cards.setAttribute("aria-label", "Live service checks");
     const contracts = panel("Research area availability", "Planned areas stay unavailable until their data and workflows are ready.");
+    const availability = el("div");
+    append(contracts.body, availability);
     append(root, summary, cards, contracts.card);
 
     async function load() {
@@ -182,14 +184,15 @@ export function createStatusRoute({
           feature.implemented ? "Disabled" : "Planned",
           feature.implemented ? "Temporarily disabled" : "Coming later",
         ]),
-        ["Coordinated research roles", "Planned", "Coming later"],
       ];
-      contracts.body.querySelector(".dashboard-table-wrap")?.remove();
-      append(contracts.body, table(["Research tool", "Availability", "Status"], planned, (row) => {
-        const tr = el("tr");
-        append(tr, cell(row[0], "primary-cell"), cell(badge(row[1], "planned")), cell(row[2]));
-        return tr;
-      }, "Planned research tools"));
+      // Coordinated research roles are a live check above (the Multi-Agent Server), not planned.
+      availability.replaceChildren(planned.length
+        ? table(["Research tool", "Availability", "Status"], planned, (row) => {
+          const tr = el("tr");
+          append(tr, cell(row[0], "primary-cell"), cell(badge(row[1], "planned")), cell(row[2]));
+          return tr;
+        }, "Planned research tools")
+        : el("p", "", "Every research area and research tool is implemented and enabled in this deployment."));
       root.setAttribute("aria-busy", "false");
       root.dataset.loadState = "settled";
       refresh.disabled = false;

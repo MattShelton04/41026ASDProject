@@ -13,7 +13,6 @@ import os
 import re
 import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import time
@@ -206,14 +205,9 @@ def _ui_fixture_port(argument: int | None) -> int:
 
 
 def _host_port_is_available(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        try:
-            listener.bind(("127.0.0.1", port))
-        except OSError:
-            return False
-    return True
+    # One check for Compose and host AI ports: a loopback-only probe misses Windows listeners
+    # on 0.0.0.0, such as a running AI-mode or Multi-Agent Server.
+    return host_runtime.port_is_free(port)
 
 
 def _capture(command: Sequence[str]) -> str:
@@ -569,6 +563,7 @@ def _up(*, offline: bool, build: bool = False, reload: bool = True) -> None:
     )
     _reload_shared_edge(environment=compose_environment)
     print(f"AI runtime:         host processes, {mode} mode (not containerised)", flush=True)
+    _print_host_ai_health()
     print(
         "Source refresh:     "
         + ("development reload" if reload else "built images; use --build after edits"),
@@ -629,9 +624,15 @@ def _production_build(services: Sequence[str]) -> None:
     _run(tuple(command))
 
 
+def _print_host_ai_health() -> None:
+    """One line per host AI service: process state, probed readiness, URL and next step."""
+    for line in host_runtime.render_status(host_runtime.status(probe=True)):
+        print(line, flush=True)
+
+
 def _ai_status() -> None:
     print("AI runtime: host processes (not containerised; Compose defines no AI service)")
-    print(json.dumps(host_runtime.status(), indent=2), flush=True)
+    _print_host_ai_health()
 
 
 def _down(*, remove_volumes: bool = False) -> None:
@@ -678,8 +679,7 @@ def _doctor() -> None:
     )
     print(f"Compose project: {compose_project_name()}", flush=True)
     print("AI runtime: host processes (Compose defines no AI-mode, MCP or RAG)", flush=True)
-    for service in host_runtime.status():
-        print(f"  {service['service']:<8} {service['state']:<8} {service['url']}", flush=True)
+    _print_host_ai_health()
     if FEATURE_1_KEY in ENABLED_FEATURE_KEYS:
         cache = _source_cache_root()
         gnaf = "present" if (cache / "gnaf.zip").is_file() else "absent"
@@ -706,6 +706,8 @@ def _host_port_report(services: Sequence[str]) -> tuple[str, ...]:
                 state = "in use by this project"
             elif owners:
                 state = "in use by " + ", ".join(f"{p}/{s}" for p, s in owners)
+            elif service in host_runtime.SERVICES and host_runtime.is_managed(service):
+                state = "in use by this checkout's managed host process"
             else:
                 state = "in use by a non-Compose process (host AI runtime or another program)"
         lines.append(f"{service:<18} 127.0.0.1:{port:<6} {variable:<36} {state}")

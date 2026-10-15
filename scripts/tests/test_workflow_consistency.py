@@ -170,7 +170,8 @@ def test_feature_endpoint_tests_run_in_ci_with_junit_evidence(number: int) -> No
         assert "--junitxml=" in step["run"]
     summary = [step for step in steps if "shared_testkit.junit_summary" in step.get("run", "")]
     assert summary and all("$GITHUB_STEP_SUMMARY" in step["run"] for step in summary)
-    assert all("--require-success" in step["run"] for step in summary)
+    # Two endpoint functions per student (R2-32), so a report needs two passing tests.
+    assert all("--require-success --min-passed 2" in step["run"] for step in summary)
     uploads = [
         step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@")
     ]

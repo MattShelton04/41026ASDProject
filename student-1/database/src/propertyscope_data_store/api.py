@@ -21,6 +21,9 @@ from propertyscope_data_store.migrations import SCHEMA_FINGERPRINT_POLICY_VERSIO
 from propertyscope_data_store.repository import PropertyScopeStore
 from shared_contracts import PROBLEM_DETAIL_MEDIA_TYPE, REQUEST_ID_HEADER, is_valid_request_id
 
+# Source and job definitions share this lifecycle (CHECK constraints in sql/001_initial.sql).
+LIFECYCLE_STATUSES = ("draft", "active", "disabled", "retired")
+
 
 def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Blueprint:
     """Build the private database API around its injected store."""
@@ -83,7 +86,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def sources_list() -> Response:
         limit, offset = pagination()
         items = store.list_sources(
-            status=request.args.get("status"),
+            status=optional_lifecycle_status(),
             query_text=optional_query_text(),
             limit=limit,
             offset=offset,
@@ -111,7 +114,7 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def jobs_list() -> Response:
         limit, offset = pagination()
         items = store.list_jobs(
-            status=request.args.get("status"),
+            status=optional_lifecycle_status(),
             query_text=optional_query_text(),
             limit=limit,
             offset=offset,
@@ -719,6 +722,20 @@ def optional_query_text() -> str | None:
     if len(value) > 200:
         raise ValidationError("q must be at most 200 characters")
     return value or None
+
+
+def optional_lifecycle_status() -> str | None:
+    """Read a source/job ``status`` filter, rejecting values the schema can never hold.
+
+    An unknown status used to match nothing and return an empty 200 page, which a caller
+    (or the assistant) could misread as "no definitions are registered".
+    """
+    value = request.args.get("status", "").strip()
+    if not value:
+        return None
+    if value not in LIFECYCLE_STATUSES:
+        raise ValidationError(f"status must be one of {', '.join(LIFECYCLE_STATUSES)}")
+    return value
 
 
 def optional_uuid_query(name: str) -> uuid.UUID | None:

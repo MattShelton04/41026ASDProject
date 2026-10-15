@@ -347,6 +347,56 @@ def test_history_job_filter_rejects_invalid_uuid_before_querying() -> None:
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("collection", ["sources", "jobs"])
+@pytest.mark.parametrize("status", ["published", "all", "Active", "x" * 300])
+def test_definition_lists_reject_unknown_lifecycle_status_before_querying(
+    collection: str, status: str
+) -> None:
+    class DefinitionStore(StrictScalarStore):
+        def list_sources(self, **kwargs: Any) -> list[dict[str, Any]]:
+            raise AssertionError("invalid filters must not reach persistence")
+
+        list_jobs = list_sources
+
+    response = _store_client(DefinitionStore()).get(
+        f"/internal/data-platform/v1/{collection}",
+        query_string={"status": status},
+        headers=_internal_headers(),
+    )
+
+    assert response.status_code == 422
+    assert response.content_type == "application/problem+json"
+    assert response.get_json()["detail"] == "status must be one of draft, active, disabled, retired"
+
+
+@pytest.mark.parametrize("collection", ["sources", "jobs"])
+@pytest.mark.parametrize(
+    ("supplied", "forwarded"),
+    [(None, None), ("", None), ("  ", None), ("retired", "retired"), (" draft ", "draft")],
+)
+def test_definition_lists_pass_known_or_absent_lifecycle_status(
+    collection: str, supplied: str | None, forwarded: str | None
+) -> None:
+    seen: list[str | None] = []
+
+    class DefinitionStore(StrictScalarStore):
+        def list_sources(self, **kwargs: Any) -> list[dict[str, Any]]:
+            seen.append(kwargs["status"])
+            return []
+
+        list_jobs = list_sources
+
+    response = _store_client(DefinitionStore()).get(
+        f"/internal/data-platform/v1/{collection}",
+        query_string={} if supplied is None else {"status": supplied},
+        headers=_internal_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["items"] == []
+    assert seen == [forwarded]
+
+
 @pytest.mark.parametrize("retryable", ["false", 0, 1, None])
 def test_task_failure_rejects_non_boolean_retryable(retryable: object) -> None:
     store = StrictScalarStore()

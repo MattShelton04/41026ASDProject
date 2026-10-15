@@ -6,6 +6,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from multi_agent_server.service import not_accepted_step_ids
 from multi_agent_server.store import AUDIT_FILE, HISTORY_FILE, jsonl
 from shared_contracts.multi_agent import (
     FindingOutcome,
@@ -158,8 +159,11 @@ def render_summary(run: WorkflowRun, history: WorkflowRunHistory) -> str:
             "|---|---|---|---|---|---|",
         ]
         for decision in run.decisions:
+            left_out = not_accepted_step_ids(run, decision.accepted_step_ids)
             accepted = (
-                f" (accepted: {', '.join(decision.accepted_step_ids)})"
+                f" (accepted: {', '.join(decision.accepted_step_ids)}"
+                + (f"; not accepted: {', '.join(left_out)}" if left_out else "")
+                + ")"
                 if decision.accepted_step_ids
                 else ""
             )

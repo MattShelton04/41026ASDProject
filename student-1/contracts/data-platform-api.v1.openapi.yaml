@@ -183,8 +183,13 @@ paths:
   /sources:
     get:
       operationId: listSources
-      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Cursor'}]
-      responses: {'200': {$ref: '#/components/responses/Page'}}
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {$ref: '#/components/parameters/SearchQuery'}
+        - {name: status, in: query, description: Omit to list every lifecycle status., schema: {type: string, enum: [draft, active, disabled, retired]}}
+      responses: {'200': {$ref: '#/components/responses/Page'}, '422': {$ref: '#/components/responses/Problem'}}
     post:
       operationId: createSource
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SourceDefinition'}}}}

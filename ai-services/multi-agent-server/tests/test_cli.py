@@ -86,7 +86,8 @@ def test_in_process_workflow_end_to_end(capsys: pytest.CaptureFixture[str], tmp_
     code, out, _ = invoke(capsys, *local("status", run_id))
     assert "State:     awaiting_human" in out
     assert "recommends APPROVE" in out
-    assert "Next: multi-agent-server decide" in out
+    assert "Next: multi-agent-server review" in out
+    assert "multi-agent-server decide" in out
 
     code, out, _ = invoke(
         capsys,
@@ -127,6 +128,7 @@ def test_in_process_workflow_end_to_end(capsys: pytest.CaptureFixture[str], tmp_
     assert json.loads(written[0].read_text(encoding="utf-8"))["allowed_tools"]
     summary = written[4].read_text(encoding="utf-8")
     assert "partially_accepted" in summary
+    assert "partial (accepted: record; not accepted: quality)" in summary
     assert "## Coordination audit" in summary
 
 
@@ -343,3 +345,124 @@ def test_client_errors() -> None:
                 uuid4(), HumanDecisionRequest(decision=HumanDecisionKind.APPROVE, actor="a")
             )
         assert (gateway.value.status, gateway.value.code) == (502, "http_error")
+
+
+def answers(monkeypatch: pytest.MonkeyPatch, *replies: str) -> list[str]:
+    """Feed ``input()`` for the interactive review; returns the prompts it was shown."""
+    pending = list(replies)
+    prompts: list[str] = []
+
+    def fake_input(prompt: str = "") -> str:
+        prompts.append(prompt)
+        if not pending:
+            raise EOFError
+        return pending.pop(0)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    return prompts
+
+
+def test_run_with_review_asks_for_the_decision_in_the_terminal(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prompts = answers(monkeypatch, "", "Evidence is complete", "", "")
+    code, out, _ = invoke(
+        capsys,
+        *local(
+            "run",
+            "--template",
+            "example-readiness-review",
+            "--input",
+            json.dumps({"record_id": RECORD_ID}),
+            "--review",
+            "--actor",
+            "analyst",
+        ),
+    )
+    assert code == 0
+    assert "plan.created" in out and "review.completed" in out
+    assert "== Human review: round 1 of 2 ==" in out
+    assert "Recorded approve by analyst for round 1." in out
+    assert "analyst decided approve in round 1 -> approved" in out
+    assert "State:     approved" in out
+    assert prompts[0] == "Decision [1]: "
+    assert "Recorded as [analyst]: " in prompts
+
+
+def test_review_command_and_follow(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code, out, _ = invoke(
+        capsys,
+        *local(
+            "run",
+            "--template",
+            "example-readiness-review",
+            "--input",
+            json.dumps({"record_id": RECORD_ID}),
+            "--follow",
+        ),
+    )
+    assert code == 0
+    assert "started; following the agents" in out
+    assert "tool.call" in out and "State:     awaiting_human" in out
+    run_id = out.split("Run ", 1)[1].split()[0]
+
+    answers(monkeypatch, "q")
+    code, out, _ = invoke(capsys, *local("review", run_id))
+    assert code == 0
+    assert "Nothing recorded. Resume with: multi-agent-server review" in out
+    # Reviewing an already waiting run does not repeat its trail.
+    assert "plan.created" not in out
+
+    answers(monkeypatch)
+    code, out, _ = invoke(capsys, *local("review", run_id))
+    assert code == 2 and "Input ended; nothing recorded." in out
+
+
+def test_review_over_http(
+    capsys: pytest.CaptureFixture[str], server: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MULTI_AGENT_SERVICE_TOKEN", TOKEN)
+    code, out, _ = invoke(
+        capsys,
+        "run",
+        "--server",
+        "--template",
+        "example-readiness-review",
+        "--input",
+        json.dumps({"record_id": RECORD_ID}),
+        "--json",
+    )
+    run_id = json.loads(out)["id"]
+    answers(monkeypatch, "partial", "2", "Quality only", "remote", "y")
+
+    code, out, _ = invoke(capsys, "review", run_id, "--server")
+
+    assert code == 0
+    assert "remote decided partial in round 1 -> partially_accepted" in out
+    assert "not accepted record" in out
+    code, out, _ = invoke(capsys, "history", run_id, "--server")
+    assert "coordination event(s)" in out and "decision.recorded" in out
+
+
+def test_main_writes_utf8_so_piped_windows_logs_keep_model_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import io
+    import sys
+
+    streams = {
+        name: io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
+        for name in ("stdout", "stderr")
+    }
+    for name, stream in streams.items():
+        monkeypatch.setattr(sys, name, stream)
+
+    quote = chr(0x2019)
+    cli._use_utf8_output()
+    print(f"The candidate{quote}s lineage reviewed")
+
+    assert {stream.encoding for stream in streams.values()} == {"utf-8"}
+    sys.stdout.flush()
+    assert quote in streams["stdout"].buffer.getvalue().decode("utf-8")  # type: ignore[attr-defined]

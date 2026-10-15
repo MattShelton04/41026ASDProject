@@ -14,7 +14,10 @@ Expected files below the evidence root:
     ``pip-audit --format json`` output: ``{"dependencies": [{"name", "version", "vulns"}]}``.
 ``ci/student-N.md`` (N = 1..5)
     CI endpoint evidence: the Actions run URL, the 40-character commit SHA, a
-    ``Conclusion: success`` line and the JUnit summary from ``shared_testkit.junit_summary``.
+    ``Conclusion: success`` line (or ``| Conclusion | success |`` row) and the JUnit summary
+    from ``shared_testkit.junit_summary``. ``scripts/collect_ci_evidence.py`` writes it.
+``ci/student-N/run.log`` (optional, advisory)
+    The retained log of the run's endpoint-test steps, also written by the collector.
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from collections.abc import Mapping
 
 from pydantic import JsonValue
 
-from scripts.devtools.review.bounded import EvidenceReader
+from scripts.devtools.review.bounded import DEFAULT_LOG_TAIL_BYTES, EvidenceReader
 from scripts.devtools.review.checklist import SHA_PATTERN, Checklist, summarise
 from shared_contracts.evidence_review import EvidenceReviewBundle
 
@@ -35,7 +38,19 @@ SECRETS = "security/detect-secrets.json"
 AUDIT = "security/pip-audit.json"
 MIN_ENDPOINT_TESTS = 2
 RUN_URL = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/actions/runs/\d+(?:/attempts/\d+)?")
-CONCLUSION = re.compile(r"conclusion\W{1,8}([a-z_]+)", re.IGNORECASE)
+# The run conclusion is a line or table row that *starts* with "Conclusion", so a "Status /
+# conclusion | completed" row or a jobs-table header can never be read as the conclusion.
+CONCLUSION = re.compile(
+    r"^[ \t]*(?:[-*][ \t]+)?\|?[ \t]*\**conclusion\**[ \t]*[|:][ \t]*\**[ \t]*([a-z_]+)",
+    re.IGNORECASE | re.MULTILINE,
+)
+# pytest's final line, for example "4 passed, 1 skipped in 2.31s".
+PYTEST_RESULT = re.compile(
+    r"\b\d+ (?:passed|failed|errors?|skipped|deselected|xfailed|xpassed|warnings?)"
+    r"(?:, \d+ [a-z]+)* in \d+(?:\.\d+)?s\b",
+    re.IGNORECASE,
+)
+PYTEST_FAILURE = re.compile(r"\b\d+ (?:failed|errors?)\b", re.IGNORECASE)
 TOTALS = re.compile(
     r"(\d+) passed, (\d+) failed, (\d+) errors?, (\d+) skipped of (\d+) tests", re.IGNORECASE
 )
@@ -310,6 +325,7 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
         ),
         refs=(path,),
     )
+    log = _run_log(reader, checklist, student)
     return {
         "run_url": run_url.group(0) if run_url else None,
         "commit": sha.group(0) if sha else None,
@@ -318,7 +334,44 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
         "failing_tests": len(failing),
         "endpoints": list(endpoints[:10]),
         "totals": dict(totals) if totals is not None else None,
+        "run_log": log,
     }
+
+
+def _run_log(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str, JsonValue]:
+    """Advisory: the retained endpoint-step log shows pytest finishing with no failures."""
+    path = f"ci/{student}/run.log"
+    if not reader.exists(path):
+        checklist.add(
+            f"ci.{student}.log",
+            f"{student} CI run log of the endpoint tests is retained",
+            passed=False,
+            required=False,
+            detail=f"Evidence gap: {path} is missing; re-run scripts/collect_ci_evidence.py.",
+            refs=(f"ci/{student}.md",),
+        )
+        return {"present": False, "pytest_results": []}
+    loaded = reader.read_text(path, tail_bytes=DEFAULT_LOG_TAIL_BYTES)
+    results = [match.group(0) for match in PYTEST_RESULT.finditer(loaded.text or "")]
+    failing = [result for result in results if PYTEST_FAILURE.search(result)]
+    passed = bool(results) and not failing and all("passed" in r.lower() for r in results)
+    checklist.add(
+        f"ci.{student}.log",
+        f"{student} CI run log of the endpoint tests is retained",
+        passed=passed,
+        required=False,
+        detail=(
+            f"Endpoint pytest result(s) in the log: {summarise(results, limit=3)}."
+            if passed
+            else f"Evidence gap: {path} is {loaded.status.value}."
+            if loaded.text is None
+            else f"The log records failing pytest results: {summarise(failing, limit=3)}."
+            if failing
+            else "The log records no passing pytest result line."
+        ),
+        refs=(path,),
+    )
+    return {"present": loaded.text is not None, "pytest_results": list(results[:6])}
 
 
 def _test_outcomes(text: str) -> dict[str, str]:
@@ -331,15 +384,12 @@ def _test_outcomes(text: str) -> dict[str, str]:
 
 
 def _totals(text: str) -> Mapping[str, int] | None:
-    match = TOTALS.search(text)
-    if match:
-        passed, failed, errors, skipped, tests = (int(group) for group in match.groups())
+    """Sum every JUnit totals line, so a failure in any one report is counted."""
+    matches = TOTALS.findall(text)
+    if matches:
+        keys = ("passed", "failed", "errors", "skipped", "tests")
         return {
-            "passed": passed,
-            "failed": failed,
-            "errors": errors,
-            "skipped": skipped,
-            "tests": tests,
+            key: sum(int(groups[index]) for groups in matches) for index, key in enumerate(keys)
         }
     attributes = JUNIT_ATTRIBUTES.search(text)
     if attributes:

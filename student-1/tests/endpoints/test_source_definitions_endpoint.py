@@ -172,6 +172,19 @@ def test_invalid_source_definition_is_rejected_and_not_persisted(
     assert _listed(endpoint_client, validate_contract, name) == []
 
 
+@pytest.mark.parametrize("status", ["published", "all"])
+def test_unknown_status_filter_is_a_structured_problem(
+    endpoint_client: EndpointClient, validate_contract: ContractValidator, status: str
+) -> None:
+    request_id = endpoint_client.new_request_id()
+
+    response = endpoint_client.get(SOURCES, params={"status": status}, request_id=request_id)
+
+    problem = expect_problem(response, status=422, code="invalid_request", request_id=request_id)
+    validate_contract(response.json(), PROBLEM)
+    assert problem.detail == "status must be one of draft, active, disabled, retired"
+
+
 def test_non_json_body_is_rejected(endpoint_client: EndpointClient) -> None:
     request_id = endpoint_client.new_request_id()
     response = endpoint_client.post(

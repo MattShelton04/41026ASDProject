@@ -95,6 +95,12 @@ FAKE_MULTI_AGENT_TOKEN = "fake-multi-agent-token-0123456789abcdef"  # noqa: S105
 FAKE_PROVIDER = "fake"
 FAKE_MODEL = "fake-multi-agent-v1"
 _ZERO_HASH = "0" * 64
+# The agent working in each active state; a failure names it, like the real server.
+_STATE_STAGES = {
+    WorkflowState.PLANNING: AgentRole.PLANNER,
+    WorkflowState.WORKING: AgentRole.WORKER,
+    WorkflowState.REVIEWING: AgentRole.REVIEWER,
+}
 _DECISION_STATES = {
     HumanDecisionKind.APPROVE: WorkflowState.APPROVED,
     HumanDecisionKind.PARTIAL: WorkflowState.PARTIALLY_ACCEPTED,
@@ -277,17 +283,29 @@ class FakeMultiAgentServer:
                 raise ValueError("run is already finished")
             now = self._clock()
             previous = record.run.state
+            stage = _STATE_STAGES.get(previous)
             record.run = record.run.evolve(
                 state=WorkflowState.FAILED,
                 updated_at=now,
                 completed_at=now,
-                error=WorkflowError(code=code, message=message, stage=AgentRole.WORKER),
+                error=WorkflowError(code=code, message=message, stage=stage),
                 available_actions=(),
             )
             self._history(
                 record, previous, WorkflowState.FAILED, "system", AgentRole.SYSTEM, message
             )
-            self._audit(record, AuditEvent.RUN_FAILED, AgentRole.SYSTEM, "system", {"code": code})
+            self._audit(
+                record,
+                AuditEvent.RUN_FAILED,
+                AgentRole.SYSTEM,
+                "system",
+                {
+                    "code": code,
+                    "stage": stage.value if stage else None,
+                    "previous_state": previous.value,
+                    "message": message,
+                },
+            )
             return record.run
 
     # ------------------------------------------------------------ transports
@@ -603,6 +621,7 @@ class FakeMultiAgentServer:
             )
         assert run.plan is not None and run.worker_output is not None and run.review is not None
         known = {step.id for step in run.plan.steps}
+        accepted = set(decision.accepted_step_ids)
         unknown = [step for step in decision.accepted_step_ids if step not in known]
         if unknown:
             raise FakeProblem(
@@ -655,7 +674,20 @@ class FakeMultiAgentServer:
             AuditEvent.DECISION_RECORDED,
             AgentRole.HUMAN,
             decision.actor,
-            {"decision": decision.decision.value, "resulting_state": target.value},
+            {
+                "decision": decision.decision.value,
+                "note": decision.note,
+                "accepted_step_ids": list(decision.accepted_step_ids),
+                "not_accepted_step_ids": (
+                    [step.id for step in run.plan.steps if step.id not in accepted]
+                    if accepted
+                    else []
+                ),
+                "decided_at": now.isoformat(),
+                "decision_round": run.round,
+                "resulting_state": target.value,
+                "reviewer_recommendation": run.review.recommendation.value,
+            },
         )
         if rework and self.auto_settle:
             self._settle(record)

@@ -64,7 +64,9 @@ import {
   PUBLICATION_POLL_LIMIT,
   publicationDisplayState,
   reconcilePublication,
+  shouldResumePublicationPolling,
 } from "../../frontend/core/publication.js";
+import { captureViewState, restoreViewState } from "../../frontend/core/refresh-state.js";
 import {
   consumerImportStatusPath,
   publicationSuccessMessage,
@@ -255,6 +257,62 @@ test("publication polling backs off, pauses while hidden, and follows long impor
   assert.equal(nextPublicationPollDelay(0, "failed"), null);
   assert.equal(nextPublicationPollDelay(1, "pending", { visible: false }), null);
   assert.equal(nextPublicationPollDelay(PUBLICATION_POLL_LIMIT, "pending"), 30000);
+});
+
+test("returning to the tab refreshes a release page only while its publication is pending", () => {
+  assert.equal(shouldResumePublicationPolling({ releaseId: "release-1", outcome: "pending" }), true);
+  for (const outcome of ["completed", "failed", "unknown"]) {
+    assert.equal(shouldResumePublicationPolling({ releaseId: "release-1", outcome }), false, outcome);
+  }
+  assert.equal(shouldResumePublicationPolling({ releaseId: "", outcome: "pending" }), false);
+  assert.equal(shouldResumePublicationPolling(), false);
+});
+
+function refreshDoubles() {
+  const summary = (text) => ({ tagName: "SUMMARY", textContent: ` ${text} `, focused: false, focus() { this.focused = true; } });
+  const details = (text, open = false) => {
+    const label = summary(text);
+    return { open, label, querySelector: (selector) => (selector === "summary" ? label : null), contains: (node) => node === label };
+  };
+  const reviewControl = { tagName: "TEXTAREA", isConnected: true, focused: null, focus(options) { this.focused = options; } };
+  const reviewDrawer = details("Plan", true);
+  const keep = { contains: (node) => node === reviewControl || node === reviewDrawer };
+  const root = (items) => ({ querySelectorAll: (selector) => (selector === "details" ? items : []) });
+  return { details, reviewControl, reviewDrawer, keep, root };
+}
+
+test("a rebuilt release page keeps open details, the focused disclosure and the scroll position", () => {
+  const { details, reviewDrawer, keep, root } = refreshDoubles();
+  const before = [details("Inspect coverage", true), details("Compare"), details("Compare", true), reviewDrawer];
+  const scrolls = [];
+  const snapshot = captureViewState(root(before), {
+    keep, doc: { activeElement: before[2].label }, win: { scrollY: 640 },
+  });
+  assert.equal(snapshot.focus, null);
+  assert.equal(snapshot.disclosures.size, 3, "the surviving review panel keeps its own drawers");
+
+  const after = [details("Inspect coverage"), details("Compare", true), details("Compare"), details("New disclosure"), reviewDrawer];
+  reviewDrawer.open = false;
+  restoreViewState(root(after), snapshot, { keep, win: { scrollTo: (options) => scrolls.push(options) } });
+  assert.deepEqual(after.slice(0, 4).map((item) => item.open), [true, false, true, false]);
+  assert.equal(reviewDrawer.open, false, "details inside the kept region are not touched");
+  assert.equal(after[2].label.focused, true, "focus returns to the same repeated disclosure");
+  assert.deepEqual(scrolls, [{ top: 640, behavior: "instant" }]);
+  assert.doesNotThrow(() => restoreViewState(root(after), null));
+});
+
+test("focus inside the surviving readiness review returns after the page is rebuilt", () => {
+  const { reviewControl, keep, root } = refreshDoubles();
+  const snapshot = captureViewState(root([]), { keep, doc: { activeElement: reviewControl }, win: { scrollY: 0 } });
+  assert.equal(snapshot.focus, reviewControl);
+  restoreViewState(root([]), snapshot, { keep, win: {} });
+  assert.deepEqual(reviewControl.focused, { preventScroll: true });
+
+  reviewControl.focused = null;
+  reviewControl.isConnected = false;
+  restoreViewState(root([]), snapshot, { keep, win: {} });
+  assert.equal(reviewControl.focused, null, "a control removed from the page is not focused");
+  assert.equal(captureViewState(root([]), { doc: { activeElement: reviewControl }, win: {} }).focus, null);
 });
 
 test("a retried consumer delivery takes precedence over its historical failed activation", () => {
@@ -1152,6 +1210,9 @@ test("release publication renders durable delivery evidence and polls only pendi
   assert.match(releases, /request\(statusPath\)/);
   assert.match(releases, /nextPublicationPollDelay\(/);
   assert.match(releases, /visibilitychange/);
+  assert.match(releases, /shouldResumePublicationPolling\(publicationPolling\)/);
+  assert.match(releases, /captureViewState\(view, \{ keep: readinessReview\?\.host \}\)/);
+  assert.match(releases, /restoreViewState\(view, viewState/);
   assert.match(releases, /PUBLICATION_POLL_LIMIT/);
   assert.match(releases, /current version remains live/);
   assert.doesNotMatch(releases, /continues in the database loader/);

@@ -419,7 +419,7 @@ def test_shared_capability_fixture_keeps_disabled_and_failed_checks_distinct(pat
     response = fixture_response("GET", path, "", "populated")
     assert response.status == 200
     assert response.body["grounding_features"] == []
-    assert {item["id"] for item in response.body["services"]} == {"mcp", "rag"}
+    assert {item["id"] for item in response.body["services"]} == {"mcp", "rag", "multi-agent"}
     assert all(
         item["implemented"] and not item["enabled"] and item["status"] == "disabled"
         for item in response.body["services"]

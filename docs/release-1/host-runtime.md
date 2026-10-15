@@ -54,8 +54,31 @@ uv run scripts/dev.py ai logs mcp rag
 ```
 
 `stack up` starts AI-mode, MCP and RAG on the host first, waits for them to become ready, and then
-starts the feature containers. `stack status` and `ai status` list each host process with its
-local URL. The `--ai-runtime` option has been retired. `--ai-runtime docker` is rejected, and
+starts the feature containers. Each service gets 60 s to become live, except RAG, which gets
+180 s because it verifies and loads its embedding model before it listens (a cold Windows start
+can take longer than 30 s). After 5 s the launcher prints what it is waiting for, and it prints
+`Host <service> live on 127.0.0.1:<port> after N s` for each service. If a service exits or misses
+its wait, the error includes that launch's last log lines. Set
+`PROPERTYSCOPE_HOST_READY_TIMEOUT=<seconds>` (1–1800, in `.env` or the shell) to wait longer, then
+rerun. Changing it does not restart processes that are already live.
+
+`stack status`, `ai status`, `stack doctor` and the end of `stack up` print one line per host
+service with its process state, probed health and local URL:
+
+```text
+  ai-mode      running  degraded        http://127.0.0.1:5005  (llm_provider: ...)
+  mcp          running  ready           http://127.0.0.1:5011/mcp  (9 tools registered)
+  rag          running  not ready       http://127.0.0.1:5012  (embedding model not prepared: ...)
+  multi-agent  stopped  port in use     http://127.0.0.1:5013  (python.exe (PID 4242) holds ...)
+```
+
+Health is `ready`, `degraded` (an optional check failed, such as the provider in offline mode),
+`not ready` (with the failing check), `not responding`, `token mismatch` (the process was
+started with a different service token; run `ai stop` then `ai start`), or, for a stopped
+service, `port in use` when another process already holds its port. `ai start` refuses that
+port and names the owner. Port checks probe both `127.0.0.1` and `0.0.0.0`, because on Windows a
+loopback-only probe misses another checkout's AI-mode or Multi-Agent Server listening on
+`0.0.0.0`. The `--ai-runtime` option has been retired. `--ai-runtime docker` is rejected, and
 `--ai-runtime host` is accepted with a note that it is no longer needed.
 
 The first start after upgrading from the old Docker placement stops and removes any
@@ -191,7 +214,7 @@ uv run scripts/dev.py ai validate rag --output .propertyscope-runtime/release-1/
 docker compose ps
 ```
 
-1. `ai status` shows three host processes with their loopback URLs.
+1. `ai status` shows each host process with its probed health and loopback URL.
 2. `ai probe` calls each server directly. It checks that:
    - AI-mode, MCP and RAG each reject an unauthenticated caller;
    - MCP `tools/list` exposes every enabled feature's registered tools;
@@ -227,6 +250,8 @@ These deterministic tests cover:
 - idempotent history migration and wrong-volume-owner rejection;
 - host catalogue projection;
 - start and stop ordering;
+- readiness waits, the wait override and failure log excerpts (with a fake clock);
+- occupied-port detection for wildcard and loopback listeners, and probed status health;
 - retirement of old AI containers;
 - the probe's pass and fail paths;
 - the architecture rule that keeps AI out of Compose.

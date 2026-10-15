@@ -32,6 +32,8 @@ from propertyscope_data_platform.http_support import (
     problem,
     required_uuid,
     tool_envelope,
+    tool_limit,
+    upstream_json_object,
 )
 from propertyscope_data_platform.run_insight import build_run_inspection
 
@@ -210,7 +212,7 @@ def register_assistant_tool_routes(
     @api.post(f"{base}/tools/sources.list.v1")
     def tool_sources() -> Response:
         body = json_body()
-        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
+        params: dict[str, Any] = {"limit": tool_limit(body, default=25, maximum=50)}
         if body.get("status"):
             params["status"] = str(body["status"])
         return tool_envelope(
@@ -220,7 +222,7 @@ def register_assistant_tool_routes(
     @api.post(f"{base}/tools/releases.list.v1")
     def tool_releases() -> Response:
         body = json_body()
-        params: dict[str, Any] = {"limit": min(int(body.get("limit", 25)), 50)}
+        params: dict[str, Any] = {"limit": tool_limit(body, default=25, maximum=50)}
         for name in ("status", "dataset_id", "target_feature"):
             if body.get(name):
                 params[name] = str(body[name])
@@ -262,7 +264,7 @@ def register_assistant_tool_routes(
     def tool_runs() -> Response:
         body = json_body()
         params: dict[str, Any] = {
-            "limit": min(int(body.get("limit", 10)), 25),
+            "limit": tool_limit(body, default=10, maximum=25),
             "status": str(body.get("status", "succeeded")),
         }
         upstream = store.request("GET", f"{internal}/runs", headers=request.headers, params=params)
@@ -397,7 +399,10 @@ def register_assistant_tool_routes(
                 f"{internal}/properties/{item['property_ref']}/coverage",
                 headers=request.headers,
             )
-            for row in response.json().get("items", []):
+            if response.status_code >= 400:
+                # A partial answer would under-report coverage as if datasets were missing.
+                return forward(response)
+            for row in upstream_json_object(response).get("items", []):
                 evidence[(row["dataset_id"], row["target_feature"])] = row
         return jsonify({"items": list(evidence.values())[:50]})
 
@@ -408,7 +413,11 @@ def register_assistant_tool_routes(
             "GET",
             f"{internal}/properties/search",
             headers=request.headers,
-            params={"q": body.get("query", ""), "state": "NSW", "limit": body.get("limit", 10)},
+            params={
+                "q": body.get("query", ""),
+                "state": "NSW",
+                "limit": tool_limit(body, default=10, maximum=25),
+            },
         )
         if response.status_code >= 400:
             return forward(response)

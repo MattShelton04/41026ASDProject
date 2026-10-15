@@ -188,7 +188,8 @@ critical check.
 uv run multi-agent-server serve [--host 127.0.0.1] [--port 5013]
 uv run multi-agent-server validate MANIFEST [--catalog CATALOG ...]
 uv run multi-agent-server templates [--json]
-uv run multi-agent-server run --template ID --input JSON|@file.json [--requested-by NAME] [--wait] [--json]
+uv run multi-agent-server run --template ID --input JSON|@file.json [--requested-by NAME] [--wait | --follow | --review [--actor NAME]] [--json]
+uv run multi-agent-server review RUN_ID [--actor NAME]
 uv run multi-agent-server status RUN_ID
 uv run multi-agent-server list [--template ID] [--feature KEY] [--limit N] [--json]
 uv run multi-agent-server decide RUN_ID --decision approve|correct|partial|reject --note TEXT [--actor NAME] [--accept STEP ...] [--wait]
@@ -196,6 +197,18 @@ uv run multi-agent-server cancel RUN_ID [--actor NAME]
 uv run multi-agent-server history RUN_ID [--json]
 uv run multi-agent-server export RUN_ID [--out DIR]
 ```
+
+**Human review in the terminal.** `review RUN_ID` (or `run ... --review`) follows the run while
+the agents work, printing every state change (`==`) and coordination event (`.`, with its audit
+event name) as it is recorded. At `awaiting_human` it shows the plan, evidence and findings, the
+Reviewer's suggestion and the template's guidance, then asks for one of the decisions the server
+offers (Enter takes the suggestion, `q` leaves the run waiting). Partial acceptance lists the plan
+steps to pick from, every decision except approve asks for a note, approving over a failed
+critical or high check asks again, and nothing is recorded until the person confirms. After a
+first correction it follows the round-2 re-run and asks again. Exit codes: 0 decided or deferred,
+1 failed or cancelled, 2 input ended before a decision. Answers can be piped for a scripted demo.
+`run --follow` prints the same live trail without asking, and `history RUN_ID` prints the
+recorded trail in the same format (`--json` keeps the raw entries).
 
 Workflow commands run **in-process** by default. They open the state directory and run the agents
 synchronously, so `run` returns at `awaiting_human`. Combine this with `--deterministic`,
@@ -222,8 +235,11 @@ Every state change is appended to `workflow_history.jsonl` (`sequence`, `run_id`
 appended to `coordination_audit.jsonl`: `run.created`, `agent.handoff`, `plan.created`,
 `model.started` (attempt, model profile, prompt ID and version, written before the call),
 `model.invocation` (provider, model, prompt hash, tokens, outcome), `model.fallback`, `tool.call`,
-`tool.rejected`, `worker.completed`, `review.completed`, `decision.recorded` (actor, time, note),
-`run.failed` and `run.cancelled`. SQLite is the source of truth, and the JSONL files are
+`tool.rejected`, `worker.completed`, `review.completed`, `decision.recorded` (actor, time, note,
+round, the Reviewer's recommendation, and for a partial acceptance both `accepted_step_ids` and
+`not_accepted_step_ids`), `run.failed` (code, the stage that was running, previous state and
+message) and `run.cancelled`. A failure is attributed to the agent that owned the run's state when
+it failed (`planning` → planner, `working` → worker, `reviewing` → reviewer), in either round. SQLite is the source of truth, and the JSONL files are
 append-only mirrors that span runs.
 
 `multi-agent-server export RUN_ID [--out DIR]` writes `run.json`, that run's
@@ -245,6 +261,7 @@ plan, evidence, findings, decisions and the audit trail). The default directory 
 | `service.py`, `execution.py` | Run orchestration, decisions, cancellation, recovery and bounded background execution |
 | `store.py`, `evidence.py` | SQLite state with optimistic versioning, JSONL mirrors and export |
 | `app.py`, `client.py`, `cli.py`, `settings.py` | HTTP API, typed client, CLI and composition root |
+| `terminal.py` | Live coordination trail and the interactive terminal human review (`review`, `run --review`) |
 
 Tests (`ai-services/multi-agent-server/tests`) need no Docker, network or model key. They use a
 domain-neutral fixture template, fixture tools, `ScriptedLLMProvider` for model paths, and a

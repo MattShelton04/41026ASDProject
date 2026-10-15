@@ -15,6 +15,8 @@ export {
   workflowStatus,
 } from "./definitions.js";
 export {
+  acceptanceText,
+  acceptanceView,
   availableDecisions,
   canCancel,
   evidenceExcerpt,
