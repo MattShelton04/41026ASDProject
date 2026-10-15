@@ -657,6 +657,52 @@ def test_detect_secrets_hook_keeps_a_rewritten_baseline_portable(
     assert "1 file(s) scanned" in capsys.readouterr().out
 
 
+def _baseline_entry(path: str, line: int, hashed: str = "1") -> dict[str, Any]:
+    return {"type": "T", "filename": path, "hashed_secret": hashed, "line_number": line}
+
+
+def test_detect_secrets_hook_passes_when_only_reviewed_line_numbers_moved(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Editing above a reviewed test token must not fail the CI security gate."""
+    baseline = tmp_path / BASELINE_NAME
+    committed = json.dumps({"results": {"a/b.py": [_baseline_entry("a/b.py", 66)]}}) + "\n"
+    baseline.write_text(committed, encoding="utf-8")
+
+    def drifted(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        moved = {"results": {"a/b.py": [_baseline_entry("a/b.py", 74)]}, "generated_at": "now"}
+        baseline.write_text(json.dumps(moved), encoding="utf-8")
+        return _completed(scans.BASELINE_REWRITTEN)
+
+    monkeypatch.setattr(scans.subprocess, "run", drifted)
+    assert scans.detect_secrets_hook(tmp_path, ["a/b.py"]) == 0
+    assert baseline.read_text(encoding="utf-8") == committed
+    assert "line numbers are out of date" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("returncode", "rewritten_hash"),
+    [(1, None), (scans.BASELINE_REWRITTEN, "2")],
+    ids=["new-secret", "rewrite-adds-an-identity"],
+)
+def test_detect_secrets_hook_still_fails_on_new_secrets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, returncode: int, rewritten_hash: str | None
+) -> None:
+    baseline = tmp_path / BASELINE_NAME
+    baseline.write_text(
+        json.dumps({"results": {"a/b.py": [_baseline_entry("a/b.py", 66)]}}), encoding="utf-8"
+    )
+
+    def hook(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if rewritten_hash is not None:
+            entries = [_baseline_entry("a/b.py", 66), _baseline_entry("a/b.py", 9, rewritten_hash)]
+            baseline.write_text(json.dumps({"results": {"a/b.py": entries}}), encoding="utf-8")
+        return _completed(returncode)
+
+    monkeypatch.setattr(scans.subprocess, "run", hook)
+    assert scans.detect_secrets_hook(tmp_path, ["a/b.py"]) == returncode
+
+
 def test_scanner_subprocesses_read_files_as_utf8(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

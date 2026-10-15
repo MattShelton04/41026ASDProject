@@ -582,7 +582,8 @@ def test_port_check_sees_wildcard_and_loopback_listeners(listen_on: str) -> None
         port = listener.getsockname()[1]
         assert not runtime.port_is_free(port)
     assert runtime.port_is_free(port)
-    assert runtime.bind_host("ai-mode") == runtime.bind_host("multi-agent") == "0.0.0.0"  # noqa: S104
+    wildcard = "0.0.0.0"  # noqa: S104 - asserts the documented bind address, never listens
+    assert runtime.bind_host("ai-mode") == runtime.bind_host("multi-agent") == wildcard
     assert runtime.bind_host("mcp") == runtime.bind_host("rag") == "127.0.0.1"
 
 

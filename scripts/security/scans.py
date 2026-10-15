@@ -206,8 +206,29 @@ def run_detect_secrets(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return committed, fresh
 
 
+#: Upstream `detect_secrets.pre_commit_hook` exit code for "no new secrets, but I rewrote the
+#: baseline" (line numbers moved, entries removed or a version upgrade). New secrets exit 1.
+BASELINE_REWRITTEN = 3
+
+
+def _secret_identities(document: Mapping[str, Any]) -> set[tuple[str, str, str]]:
+    """What the report and audit decisions key on: path, hashed secret and type, never lines."""
+    return {
+        (to_posix(path), str(entry["hashed_secret"]), str(entry["type"]))
+        for path, entries in document.get("results", {}).items()
+        for entry in entries
+    }
+
+
 def detect_secrets_hook(root: Path, filenames: Sequence[str]) -> int:
-    """Run the upstream pre-commit hook, then keep any baseline rewrite in POSIX form."""
+    """Run the upstream pre-commit hook; fail on new secrets, not on baseline bookkeeping.
+
+    Upstream rewrites the baseline and exits 3 whenever a reviewed secret's line number moves.
+    Editing any line above a reviewed test token, or merging two branches that each refreshed
+    the baseline, then failed the security gate in CI (`--all-files`) although nothing new was
+    found. When the rewrite adds no secret identity, the committed baseline is restored and the
+    hook passes with a refresh hint; any new identity still fails.
+    """
     baseline = root / BASELINE_NAME
     before = baseline.read_bytes() if baseline.exists() else b""
     command = python_tool("detect_secrets.pre_commit_hook", "--baseline", BASELINE_NAME, *filenames)
@@ -218,14 +239,29 @@ def detect_secrets_hook(root: Path, filenames: Sequence[str]) -> int:
         timeout=DETECT_SECRETS_TIMEOUT_SECONDS,
         env=tool_environment(),
     )
+    returncode = completed.returncode
     if baseline.exists() and baseline.read_bytes() != before:
-        write_baseline(baseline, normalise_baseline(json.loads(baseline.read_bytes())))
-    if completed.returncode == 0:
+        rewritten = normalise_baseline(json.loads(baseline.read_bytes()))
+        bookkeeping_only = (
+            returncode == BASELINE_REWRITTEN
+            and before
+            and _secret_identities(rewritten) <= _secret_identities(json.loads(before))
+        )
+        if bookkeeping_only:
+            baseline.write_bytes(before)
+            print(
+                f"detect-secrets: no new secrets. {BASELINE_NAME} line numbers are out of date; "
+                "refresh them with `uv run python -m scripts.security baseline`."
+            )
+            returncode = 0
+        else:
+            write_baseline(baseline, rewritten)
+    if returncode == 0:
         print(
             f"detect-secrets: {len(filenames)} file(s) scanned; no secrets beyond the reviewed "
             f"{BASELINE_NAME}"
         )
-    return completed.returncode
+    return returncode
 
 
 # --------------------------------------------------------------------------------------------
