@@ -787,7 +787,7 @@ export function createMultiAgentPanel({
       const card = el("section", "ps-multi-agent__decide ps-multi-agent__decide--recorded");
       card.setAttribute("aria-label", `Round ${snapshot.round} decision (replay)`);
       append(card, renderReviewerSide(roundView.review, snapshot.round, { labels, context, scope: `replay-${snapshot.round}` }),
-        renderRecordedDecision(point, labels, () => replayCommand({ type: "continue" })));
+        renderRecordedDecision(point, labels, () => replayCommand({ type: "continue" }), run.plan));
       append(host, card);
       return null;
     }
@@ -835,7 +835,7 @@ export function createMultiAgentPanel({
     if (snapshot.decisions.length) {
       const count = `${snapshot.decisions.length} recorded`;
       const decisions = drawer(context, "drawer-decisions", labels.decisions, count, { fresh: counted("decisions", count) });
-      append(decisions.body, renderDecisionLog(snapshot.decisions, context, { titled: false }));
+      append(decisions.body, renderDecisionLog(snapshot.decisions, context, { titled: false, plan: run.plan }));
       append(host, decisions.details);
     }
 

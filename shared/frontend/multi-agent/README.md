@@ -62,7 +62,9 @@ Mutations time out after 15 s and reads after 10 s. Nothing is retried automatic
 The pure projections are exported for features and tests: `stageTimeline`, `availableDecisions`,
 `canCancel`, `validateDecision`, `startFields`, `validateStartInput`, `groupFindings`,
 `workerStepViews`, `evidenceExcerpt`, `problemView`, `fieldProblems`, `historyView`,
-`provenanceLabel`, `formatDuration` and `nextWorkflowPollDelay`. The timeline projections in
+`provenanceLabel`, `formatDuration`, `acceptanceView` / `acceptanceText` (the steps a partial
+acceptance kept and left out, shown in the outcome, decision log and replay) and
+`nextWorkflowPollDelay`. The timeline projections in
 `timeline.js` are exported too: `mergeHistory`, `buildTimeline`, `snapshotAt`, `laneView`,
 `relayView`, `nowView`, `advanceReplay` and `eventSentence`.
 
@@ -149,7 +151,7 @@ and `.ps-multi-agent__decision` (decision form), `.ps-multi-agent__recorded` (re
 `.ps-multi-agent__outcome`, `.ps-multi-agent__drawer[data-disclosure]`, `.ps-multi-agent__plan`,
 `.ps-multi-agent__worker`, `.ps-multi-agent__review`,
 `.ps-multi-agent__recommendation[data-recommendation]`, `.ps-multi-agent__superseded`,
-`.ps-multi-agent__decisions`, `.ps-multi-agent__problem`, `.ps-multi-agent__history` and
+`.ps-multi-agent__decisions`, `.ps-multi-agent__acceptance`, `.ps-multi-agent__problem`, `.ps-multi-agent__history` and
 `.ps-multi-agent__replay`. Buttons carry `data-action` (`start`, `decide`, `cancel`,
 `confirm-cancel`, `start-again`, `history-link`, `reload-template`, `reload-run`,
 `reload-history`, `keep-run`, and for replays `replay`, `replay-previous`, `replay-next`,

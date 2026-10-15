@@ -279,3 +279,43 @@ def test_agent_settings_bounds() -> None:
             settings=AgentSettings(model_attempts=4),
             prompts=PromptRegistry(),
         )
+
+
+def test_a_reviewer_failure_is_attributed_to_the_reviewer(service_factory: Factory) -> None:
+    fatal = ModelProviderError("down", code="provider_down", retryable=False)
+    run, _, service = run_with(
+        service_factory, [result(PLAN), result(WORK), fatal], fallback="fail"
+    )
+
+    assert run.state is WorkflowState.FAILED
+    assert run.error.code == "reviewer_output_unavailable"
+    assert run.error.stage.value == "reviewer"
+    failed = service.history(run.id).audit[-1]
+    assert failed.event is AuditEvent.RUN_FAILED
+    assert failed.detail["stage"] == "reviewer"
+    assert failed.detail["previous_state"] == "reviewing"
+    assert [stage.status for stage in run.stages if stage.stage.value == "reviewer"] == ["failed"]
+
+
+def test_a_failure_in_the_correction_round_names_the_agent_that_failed(
+    service_factory: Factory,
+) -> None:
+    from shared_contracts.multi_agent import HumanDecisionRequest
+
+    fatal = ModelProviderError("down", code="provider_down", retryable=False)
+    run, _, service = run_with(
+        service_factory, [result(PLAN), result(WORK), result(REVIEW), fatal], fallback="fail"
+    )
+    assert run.state is WorkflowState.AWAITING_HUMAN
+
+    failed = service.decide(
+        run.id,
+        HumanDecisionRequest(decision=HumanDecisionKind.CORRECT, note="Recheck", actor="me"),
+        request_id="req-correct",
+    )
+
+    assert failed.state is WorkflowState.FAILED
+    assert failed.round == 2
+    assert failed.error.code == "worker_output_unavailable"
+    assert failed.error.stage.value == "worker"
+    assert service.history(run.id).audit[-1].detail["stage"] == "worker"

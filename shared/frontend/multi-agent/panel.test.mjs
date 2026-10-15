@@ -412,6 +412,24 @@ test("a terminal run shows its outcome, loads history once and links the full hi
   }
 });
 
+test("a partially accepted run says which steps were kept and which were left out", async () => {
+  const partial = makeRun("partially_accepted", {
+    plan, worker_output: worker(1), review: review(1, "partial"), available_actions: [],
+    decisions: [{ decision: "partial", note: "Queue only.", actor: "matthew", round: 1, decided_at: "2026-10-09T09:43:11Z", resulting_state: "partially_accepted", accepted_step_ids: ["queue"] }],
+    stages: [stage("planner", 1, "completed", "1:41", "1:52"), stage("human", 1, "completed", "2:07", "3:11", "partial")],
+  });
+  const { root, panel } = mount({ client: fakeClient({ runs: [partial] }), runId: RUN_ID });
+  try {
+    await waitFor(() => byClass(root, "ps-multi-agent__outcome").length, "outcome");
+    const outcome = textOf(one(root, "ps-multi-agent__outcome"));
+    assert.match(outcome, /Queue only\./);
+    assert.match(outcome, /Accepted: Read the release queue · Not accepted: Inspect the candidate release/);
+    assert.match(textOf(one(root, "ps-multi-agent__decisions")), /Not accepted: Inspect the candidate release/);
+  } finally {
+    panel.destroy();
+  }
+});
+
 test("a failed run shows its error; poll failures warn and retry; cancel is confirmed", async () => {
   const failed = makeRun("failed", { error: { code: "planner_output_unavailable", message: "The Planner returned no valid plan", stage: "planner" }, available_actions: [], stages: [stage("planner", 1, "failed", "1:41", "1:45")] });
   const unavailable = new MultiAgentApiError("down", { status: 503, problem: { title: "Unavailable", status: 503, code: "multi_agent_unavailable" } });

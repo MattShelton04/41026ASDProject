@@ -2,7 +2,7 @@
 import { append, el } from "../browser/index.js";
 import { DEFAULT_MULTI_AGENT_LABELS, humaniseValue, workflowStatus } from "./definitions.js";
 import {
-  evidenceExcerpt, formatDuration, formatTimestamp, groupFindings, provenanceLabel, workerStepViews,
+  acceptanceText, evidenceExcerpt, formatDuration, formatTimestamp, groupFindings, provenanceLabel, workerStepViews,
 } from "./projections.js";
 import { decisionLabel, eventSentence, formatClock } from "./timeline.js";
 
@@ -265,16 +265,14 @@ export function renderOutcome(run, labels = DEFAULT_MULTI_AGENT_LABELS) {
   append(host, headline);
   if (final?.note) append(host, el("p", "ps-multi-agent__outcome-note", final.note));
   else append(host, el("p", "ps-multi-agent__outcome-note", status.detail));
-  if (final?.accepted_step_ids?.length) {
-    const titles = final.accepted_step_ids.map((id) => run.plan?.steps?.find((step) => step.id === id)?.title || id);
-    append(host, el("p", "ps-multi-agent__note", `Accepted: ${titles.join(", ")}`));
-  }
+  const acceptance = acceptanceText(final, run.plan);
+  if (acceptance) append(host, el("p", "ps-multi-agent__note ps-multi-agent__acceptance", acceptance));
   if (final) append(host, el("p", "ps-multi-agent__safety", labels.outcomeSafety));
   return host;
 }
 
 /** In a replay, the decision a person actually recorded at this point. Nothing is sent. */
-export function renderRecordedDecision(point, labels = DEFAULT_MULTI_AGENT_LABELS, onContinue = null) {
+export function renderRecordedDecision(point, labels = DEFAULT_MULTI_AGENT_LABELS, onContinue = null, plan = null) {
   const host = el("div", "ps-multi-agent__recorded");
   append(host, el("h4", "ps-multi-agent__kicker", "What was decided"));
   const decision = point?.decision;
@@ -284,6 +282,8 @@ export function renderRecordedDecision(point, labels = DEFAULT_MULTI_AGENT_LABEL
     const waited = point.decidedAt !== null ? formatDuration(point.decidedAt - (point.stageStart ?? point.at)) : "";
     append(host, headline, el("p", "ps-multi-agent__note", `${decision.actor}${waited ? `, after ${waited}` : ""}`));
     if (decision.note) append(host, el("p", "ps-multi-agent__recorded-note", decision.note));
+    const acceptance = acceptanceText(decision, plan);
+    if (acceptance) append(host, el("p", "ps-multi-agent__note ps-multi-agent__acceptance", acceptance));
     append(host, el("p", "ps-multi-agent__safety", labels.outcomeSafety));
   } else append(host, el("p", "ps-multi-agent__note", "The run ended without a decision for this round."));
   if (onContinue) {
@@ -296,7 +296,7 @@ export function renderRecordedDecision(point, labels = DEFAULT_MULTI_AGENT_LABEL
   return host;
 }
 
-export function renderDecisionLog(decisions, context, { titled = true } = {}) {
+export function renderDecisionLog(decisions, context, { titled = true, plan = null } = {}) {
   const labels = context?.labels || DEFAULT_MULTI_AGENT_LABELS;
   if (!Array.isArray(decisions) || !decisions.length) return null;
   const host = section("ps-multi-agent__decisions", labels.decisions, { titled });
@@ -311,7 +311,8 @@ export function renderDecisionLog(decisions, context, { titled = true } = {}) {
     append(head, time);
     append(item, head);
     if (decision.note) append(item, el("p", "", decision.note));
-    if (decision.accepted_step_ids?.length) append(item, el("p", "ps-multi-agent__note", `Accepted steps: ${decision.accepted_step_ids.join(", ")}`));
+    const acceptance = acceptanceText(decision, plan);
+    if (acceptance) append(item, el("p", "ps-multi-agent__note ps-multi-agent__acceptance", acceptance));
     append(list, item);
   }
   append(host, list);

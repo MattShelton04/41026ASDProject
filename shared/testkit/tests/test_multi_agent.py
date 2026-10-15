@@ -161,6 +161,20 @@ def test_terminal_decisions(client: httpx.Client, decision: dict[str, Any], stat
     assert response.json()["completed_at"] is not None
 
 
+def test_partial_decision_audit_matches_the_server(client: httpx.Client) -> None:
+    run_id = client.post(f"{API}/runs", json=START).json()["id"]
+    client.post(
+        f"{API}/runs/{run_id}/decision",
+        json={"decision": "partial", "note": "Some", "actor": "a", "accepted_step_ids": ["record"]},
+    )
+    history = WorkflowRunHistory.model_validate(client.get(f"{API}/runs/{run_id}/history").json())
+    detail = history.audit[-1].detail
+    assert detail["accepted_step_ids"] == ["record"]
+    assert detail["not_accepted_step_ids"] == ["quality"]
+    assert (detail["note"], detail["decision_round"]) == ("Some", 1)
+    assert detail["reviewer_recommendation"] == "approve"
+
+
 def test_listing_filters_and_validation(client: httpx.Client) -> None:
     first = client.post(f"{API}/runs", json=START).json()["id"]
     second = client.post(f"{API}/runs", json=START).json()["id"]
@@ -280,6 +294,10 @@ def test_manual_settlement_failure_and_failed_checks() -> None:
     other = client.post(f"{API}/runs", json=START).json()["id"]
     failed_run = fake.fail(other, code="tools_unavailable", message="MCP is down")
     assert failed_run.error is not None and failed_run.error.code == "tools_unavailable"
+    # Like the real server, the failure names the agent working in the run's state.
+    assert failed_run.error.stage is not None and failed_run.error.stage.value == "planner"
+    audit = client.get(f"{API}/runs/{other}/history").json()["audit"][-1]
+    assert (audit["detail"]["stage"], audit["detail"]["previous_state"]) == ("planner", "planning")
     with pytest.raises(ValueError, match="already finished"):
         fake.fail(other)
     assert len(fake.runs()) == 2

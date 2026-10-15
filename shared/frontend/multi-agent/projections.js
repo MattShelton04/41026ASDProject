@@ -101,6 +101,29 @@ export function planStepIds(run) {
   return (Array.isArray(run?.plan?.steps) ? run.plan.steps : []).map((step) => step.id).filter(Boolean);
 }
 
+/**
+ * What a partial acceptance kept and left out, as plan step titles in plan order. Returns null
+ * for any decision without accepted steps. Steps the plan no longer lists keep their ID.
+ */
+export function acceptanceView(decision, plan) {
+  const accepted = Array.isArray(decision?.accepted_step_ids) ? decision.accepted_step_ids.map(String) : [];
+  if (!accepted.length) return null;
+  const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+  const title = (id) => steps.find((step) => step.id === id)?.title || humaniseValue(id);
+  const kept = new Set(accepted);
+  return {
+    accepted: accepted.map(title),
+    notAccepted: steps.filter((step) => step.id && !kept.has(step.id)).map((step) => title(step.id)),
+  };
+}
+
+/** One line for a partial acceptance: "Accepted: A, B · Not accepted: C". */
+export function acceptanceText(decision, plan) {
+  const view = acceptanceView(decision, plan);
+  if (!view) return "";
+  return `Accepted: ${view.accepted.join(", ")}${view.notAccepted.length ? ` · Not accepted: ${view.notAccepted.join(", ")}` : ""}`;
+}
+
 /** Mirrors `HumanDecisionRequest` and the server's decision rules before anything is sent. */
 export function validateDecision(draft = {}, run = null) {
   const errors = {};

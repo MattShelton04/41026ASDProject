@@ -214,6 +214,25 @@ def test_partial_acceptance_names_known_steps(service: WorkflowService) -> None:
         decide(service, run.id, "partial", accepted_step_ids=("ghost",))
 
 
+def test_partial_acceptance_records_the_steps_left_out(service: WorkflowService) -> None:
+    run = start(service)
+
+    decided = decide(service, run.id, "partial", accepted_step_ids=("record",), note="Only one")
+
+    assert decided.state is WorkflowState.PARTIALLY_ACCEPTED
+    recorded = service.history(run.id).audit[-1]
+    assert recorded.event is AuditEvent.DECISION_RECORDED
+    assert recorded.detail["accepted_step_ids"] == ["record"]
+    assert recorded.detail["not_accepted_step_ids"] == ["quality"]
+    assert recorded.detail["note"] == "Only one"
+
+
+def test_other_decisions_leave_no_steps_out(service: WorkflowService) -> None:
+    run = start(service)
+    decide(service, run.id, "reject")
+    assert service.history(run.id).audit[-1].detail["not_accepted_step_ids"] == []
+
+
 def test_cancel_stops_queued_and_running_work(service_factory: Factory, deferred: Any) -> None:
     service = service_factory(executor=deferred)
     run = start(service)
@@ -325,6 +344,7 @@ def test_recover_interrupted_runs(service_factory: Factory, deferred: Any) -> No
     failed = service.get_run(run.id)
     assert failed.state is WorkflowState.FAILED
     assert failed.error.code == "interrupted"
+    assert failed.error.stage is AgentRole.PLANNER  # the agent that was interrupted
     deferred.run_all()  # the stale task must not resurrect the run
     assert service.get_run(run.id).state is WorkflowState.FAILED
 

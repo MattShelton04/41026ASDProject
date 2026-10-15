@@ -61,6 +61,12 @@ from shared_contracts.multi_agent import (
 LOGGER = logging.getLogger(__name__)
 SERVER_ACTOR = "multi-agent-server"
 MAX_SAVE_ATTEMPTS = 3
+# The agent that owns each active state, so a failure names the stage that was actually running.
+STATE_STAGES: Mapping[WorkflowState, AgentRole] = {
+    WorkflowState.PLANNING: AgentRole.PLANNER,
+    WorkflowState.WORKING: AgentRole.WORKER,
+    WorkflowState.REVIEWING: AgentRole.REVIEWER,
+}
 
 
 def _attribution_detail(attribution: ModelAttribution) -> JsonObject:
@@ -321,6 +327,10 @@ class WorkflowService:
                         "decision": request.decision.value,
                         "note": request.note,
                         "accepted_step_ids": list(request.accepted_step_ids),
+                        # Partial acceptance records what was left out, not only what was kept.
+                        "not_accepted_step_ids": list(
+                            not_accepted_step_ids(run, request.accepted_step_ids)
+                        ),
                         "decided_at": now.isoformat(),
                         "decision_round": run.round,
                         "resulting_state": target.value,
@@ -422,7 +432,6 @@ class WorkflowService:
     # ------------------------------------------------------------------ execution
 
     def _execute(self, run_id: UUID) -> None:
-        stage = AgentRole.PLANNER
         try:
             run = self.get_run(run_id)
             if run.state is not WorkflowState.PLANNING:
@@ -461,15 +470,14 @@ class WorkflowService:
                     _handoff(AgentRole.PLANNER, AgentRole.WORKER, steps=len(plan.steps)),
                 ),
             )
-            stage = AgentRole.WORKER
             self._work_and_review(run_id, template, plan, None)
         except RunCancelledSignal:
             return
         except AgentStageError as exc:
-            self._fail(run_id, exc.code, exc.message, stage)
+            self._fail(run_id, exc.code, exc.message)
         except Exception:
             LOGGER.exception("Workflow run failed", extra={"run_id": str(run_id)})
-            self._fail(run_id, "internal_error", "The workflow failed unexpectedly", stage)
+            self._fail(run_id, "internal_error", "The workflow failed unexpectedly")
 
     def _rework(self, run_id: UUID) -> None:
         try:
@@ -621,7 +629,12 @@ class WorkflowService:
             return updated
         raise ConcurrentUpdateError("Workflow run was concurrently updated")
 
-    def _fail(self, run_id: UUID, code: str, message: str, stage: AgentRole | None = None) -> None:
+    def _fail(self, run_id: UUID, code: str, message: str) -> None:
+        """Move an active run to ``failed``, naming the stage that was running from its state.
+
+        The state, not the caller, decides the stage: a Reviewer failure in round 1 and any
+        failure in a correction round are attributed to the agent that was actually working.
+        """
         for _ in range(MAX_SAVE_ATTEMPTS):
             try:
                 run, version = self._store.get(run_id)
@@ -630,6 +643,7 @@ class WorkflowService:
                 return
             if run.state in TERMINAL_WORKFLOW_STATES or run.state not in ACTIVE_WORKFLOW_STATES:
                 return
+            stage = STATE_STAGES.get(run.state)
             now = self._store.now()
             updated = run.evolve(
                 state=WorkflowState.FAILED,
@@ -653,7 +667,12 @@ class WorkflowService:
                             AuditEvent.RUN_FAILED,
                             AgentRole.SYSTEM,
                             SERVER_ACTOR,
-                            {"code": code, "stage": stage.value if stage else None},
+                            {
+                                "code": code,
+                                "stage": stage.value if stage else None,
+                                "previous_state": run.state.value,
+                                "message": message[:500],
+                            },
                         ),
                     ),
                 )
@@ -686,6 +705,14 @@ def _finish_running(
         stage.evolve(status=status, completed_at=at) if stage.status == "running" else stage
         for stage in stages
     )
+
+
+def not_accepted_step_ids(run: WorkflowRun, accepted: Sequence[str]) -> list[str]:
+    """Plan steps a partial acceptance left out, in plan order (empty for other decisions)."""
+    if not accepted or run.plan is None:
+        return []
+    kept = set(accepted)
+    return [step.id for step in run.plan.steps if step.id not in kept]
 
 
 def summarize(run: WorkflowRun) -> WorkflowRunSummary:
