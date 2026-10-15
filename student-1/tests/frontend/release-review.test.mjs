@@ -173,5 +173,7 @@ test("the release page reopens the remembered review instead of offering a dupli
   assert.match(source, /READINESS_REVIEW_STATUSES\.has\(release\.status\) \|\| readinessReview \|\| rememberedReadinessReview\(release\.id\)/);
   assert.match(source, /runId = await resumableReadinessReview\(release, \{ request \}\)/);
   assert.match(source, /review = openReadinessReview\(release, runId\)/);
-  assert.match(source, /trigger\.setAttribute\("aria-busy", "true"\)/);
+  assert.match(source, /readinessTrigger\.setAttribute\("aria-busy", "true"\)/);
+  assert.match(source, /readinessTrigger\.setAttribute\("aria-controls", "release-readiness-review"\)/);
+  assert.match(source, /readinessTrigger\.setAttribute\("aria-expanded", String\(Boolean\(readinessReview\)\)\)/);
 });

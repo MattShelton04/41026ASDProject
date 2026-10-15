@@ -1893,7 +1893,11 @@ def test_readiness_review_reopens_after_leaving_the_release_page(
 
     page.route("**/api/data-platform/v1/release-reviews**", reviews)
     _open(page, fixture_origin, f"releases/{REVIEW_ID}")
-    page.get_by_role("button", name="Readiness review", exact=True).click()
+    trigger = page.get_by_role("button", name="Readiness review", exact=True)
+    expect(trigger).to_have_attribute("aria-expanded", "false")
+    expect(trigger).to_have_attribute("aria-controls", "release-readiness-review")
+    trigger.click()
+    expect(trigger).to_have_attribute("aria-expanded", "true")
     page.get_by_role("button", name="Start readiness review", exact=True).click()
     expect(page.get_by_role("heading", name=re.compile(r"80000000"))).to_be_visible()
     page.wait_for_function(

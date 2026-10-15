@@ -428,13 +428,12 @@ export function createReleaseRoutes({
     const requestedReviewRun = readinessReviewRunId(location.hash);
     if (requestedReviewRun) openReadinessReview(release, requestedReviewRun);
     const showReadinessReview = READINESS_REVIEW_STATUSES.has(release.status) || readinessReview || rememberedReadinessReview(release.id);
-    if (showReadinessReview) actions.push(button("Readiness review", "button secondary", async (event) => {
+    const readinessTrigger = showReadinessReview ? button("Readiness review", "button secondary", async () => {
       let review = readinessReview?.releaseId === release.id ? readinessReview : null;
       if (!review) {
         // Reopen the review last started for this release instead of offering a duplicate run.
-        const trigger = event.currentTarget;
-        trigger.disabled = true;
-        trigger.setAttribute("aria-busy", "true");
+        readinessTrigger.disabled = true;
+        readinessTrigger.setAttribute("aria-busy", "true");
         let runId = null;
         try {
           runId = await resumableReadinessReview(release, { request });
@@ -442,17 +441,24 @@ export function createReleaseRoutes({
           if (error?.name !== "AbortError") throw error;
           return;
         } finally {
-          trigger.disabled = false;
-          trigger.removeAttribute("aria-busy");
+          readinessTrigger.disabled = false;
+          readinessTrigger.removeAttribute("aria-busy");
         }
         if (!routeEpoch.isCurrent()) return;
         review = openReadinessReview(release, runId);
       }
       const slot = view.querySelector(".release-review-slot") || reviewSlot;
       if (!review.host.isConnected) append(slot, review.host);
+      readinessTrigger.setAttribute("aria-expanded", "true");
       review.host.scrollIntoView?.({ block: "start" });
       review.focus();
-    }));
+    }) : null;
+    if (readinessTrigger) {
+      // The action reveals the panel below the heading; say so to assistive technology.
+      readinessTrigger.setAttribute("aria-controls", "release-readiness-review");
+      readinessTrigger.setAttribute("aria-expanded", String(Boolean(readinessReview)));
+      actions.push(readinessTrigger);
+    }
     actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
     reviewSlot.classList.add("release-review-slot");
 
