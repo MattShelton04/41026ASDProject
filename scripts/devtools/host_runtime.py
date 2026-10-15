@@ -18,7 +18,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,8 +29,8 @@ import yaml
 
 from scripts.devtools.config import REPOSITORY_ROOT, RUNTIME_DIRECTORY, compose_project_name
 from scripts.devtools.runtime_settings import AI_SERVICE_PORTS, validate_capability_mode
+from scripts.devtools.service_auth import AI_SERVICE_TOKEN_HEADER, validate_service_token
 from scripts.devtools.service_auth import protect_entry as protect_host_entry
-from scripts.devtools.service_auth import validate_service_token
 from shared_contracts.deployment import DeploymentProjectionV1
 
 HOST_DIRECTORY = RUNTIME_DIRECTORY / "host"
@@ -40,6 +40,16 @@ PORTS = AI_SERVICE_PORTS
 RETIRED_CONTAINER_SERVICES = ("shared-ai-mode", "mcp-server", "rag-server")
 RETIRED_PROJECTION_DIRECTORY = RUNTIME_DIRECTORY / "docker-ai"
 RETIRED_PLACEMENT_STATE = RUNTIME_DIRECTORY / "ai-runtime.json"
+# Bounded first-start allowances. RAG verifies and loads a local ONNX embedding model before it
+# listens, which on a cold Windows start (antivirus scanning onnxruntime) can exceed 30 s.
+READY_TIMEOUT_VARIABLE = "PROPERTYSCOPE_HOST_READY_TIMEOUT"
+DEFAULT_READY_TIMEOUTS = {"ai-mode": 60, "mcp": 60, "rag": 180, "multi-agent": 60}
+MAXIMUM_READY_TIMEOUT = 1800
+# Seconds of silence before the launcher says what it is waiting for.
+WAIT_NOTICE_AFTER = 5.0
+FAILURE_LOG_LINES = 15
+# AI-mode and the Multi-Agent Server accept host-gateway traffic; MCP and RAG bind loopback.
+WILDCARD_SERVICES = frozenset({"ai-mode", "multi-agent"})
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -57,6 +67,56 @@ def port_for(service: str, environment: Mapping[str, str]) -> int:
     if not raw.isdecimal() or not 1 <= int(raw) <= 65535:
         raise RuntimeError(f"{variable} must be an integer between 1 and 65535")
     return int(raw)
+
+
+def bind_host(service: str) -> str:
+    """Return the interface a managed service listens on (ADR-046, ADR-047)."""
+    if service in WILDCARD_SERVICES:
+        return "0.0.0.0"  # noqa: S104 - containers reach AI-mode and Multi-Agent via the host gateway
+    return "127.0.0.1"
+
+
+def port_is_free(port: int) -> bool:
+    """Report whether no process listens on ``port`` on loopback or any IPv4 address.
+
+    Windows lets a loopback bind succeed beside another process's ``0.0.0.0`` listener, even
+    with ``SO_EXCLUSIVEADDRUSE`` on the probe. A loopback-only probe therefore let a stale
+    AI-mode or Multi-Agent Server from another checkout look free: it answered this checkout's
+    liveness wait, and the new process then exited on its own bind failure. Probing the
+    wildcard address as well catches that listener on every platform.
+    """
+    for host in ("127.0.0.1", "0.0.0.0"):  # noqa: S104 - bind probe only, never listens
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            try:
+                probe.bind((host, port))
+            except OSError:
+                return False
+    return True
+
+
+def port_owner(port: int) -> str:
+    """Name the local process listening on ``port`` when the platform allows it."""
+    try:
+        for connection in psutil.net_connections(kind="tcp"):
+            if (
+                connection.status == psutil.CONN_LISTEN
+                and connection.laddr
+                and connection.laddr.port == port
+                and connection.pid
+            ):
+                process = psutil.Process(connection.pid)
+                command = process.cmdline()
+                if "scripts.devtools.host_runtime" in command and "serve" in command:
+                    return (
+                        f"PropertyScope host process PID {connection.pid}, which this checkout "
+                        "does not manage (another checkout, or a foreground `ai serve`)"
+                    )
+                return f"{process.name()} (PID {connection.pid})"
+    except (OSError, psutil.Error):
+        pass
+    return "another process"
 
 
 def _owned_process(service: str) -> psutil.Process | None:
@@ -78,6 +138,11 @@ def _owned_process(service: str) -> psutil.Process | None:
         return process
     except (OSError, ValueError, KeyError, TypeError, psutil.Error):
         return None
+
+
+def is_managed(service: str) -> bool:
+    """Whether this checkout launched the identity-verified process for ``service``."""
+    return _owned_process(service) is not None
 
 
 def stop(services: Sequence[str] = SERVICES) -> None:
@@ -113,10 +178,20 @@ def local_url(service: str, environment: Mapping[str, str]) -> str:
     )
 
 
-def status(environment: Mapping[str, str] | None = None) -> list[dict[str, object]]:
-    """Return process state and local URLs without exposing configuration or credentials."""
+def status(
+    environment: Mapping[str, str] | None = None,
+    *,
+    probe: bool = False,
+    transport: httpx.BaseTransport | None = None,
+) -> list[dict[str, str]]:
+    """Return process state and local URLs without exposing configuration or credentials.
+
+    With ``probe`` each running process is asked for readiness, so a process that is alive
+    but unusable (an unprepared RAG model, an unreachable provider, a stale token) is visible,
+    and a stopped service whose port another process holds is reported before ``ai start``.
+    """
     values = os.environ if environment is None else environment
-    return [
+    entries = [
         {
             "service": service,
             "state": "running" if _owned_process(service) else "stopped",
@@ -124,6 +199,113 @@ def status(environment: Mapping[str, str] | None = None) -> list[dict[str, objec
         }
         for service in SERVICES
     ]
+    if not probe:
+        return entries
+    authenticated = _with_existing_tokens(values)
+    with httpx.Client(timeout=5, follow_redirects=False, transport=transport) as client:
+        for entry in entries:
+            service = entry["service"]
+            port = port_for(service, values)
+            if entry["state"] == "running":
+                entry["health"], entry["detail"] = probe_health(service, authenticated, client)
+            elif not port_is_free(port):
+                entry["health"] = "port in use"
+                entry["detail"] = (
+                    f"{port_owner(port)} holds {PORTS[service][0]}={port}; `ai start` will "
+                    "refuse it"
+                )
+            else:
+                entry["health"], entry["detail"] = "-", ""
+    return entries
+
+
+READINESS_PATHS = {
+    "ai-mode": "/health/ready",
+    "mcp": "/health",
+    "rag": "/health/ready",
+    "multi-agent": "/health/ready",
+}
+TOKEN_VARIABLES = {
+    "ai-mode": "AI_MODE_SERVICE_TOKEN",
+    "mcp": "MCP_SERVICE_TOKEN",
+    "rag": "RAG_SERVICE_TOKEN",
+    "multi-agent": "MULTI_AGENT_SERVICE_TOKEN",
+}
+
+
+def _with_existing_tokens(environment: Mapping[str, str]) -> dict[str, str]:
+    """Add the launcher's persisted tokens for probing; never create or print one."""
+    values = dict(environment)
+    for service, variable in TOKEN_VARIABLES.items():
+        path = HOST_DIRECTORY / f"{service}.token"
+        if not values.get(variable) and path.is_file():
+            values[variable] = path.read_text(encoding="utf-8").strip()
+    return values
+
+
+def _unhealthy_checks(body: Mapping[str, object]) -> str:
+    checks = body.get("checks")
+    if not isinstance(checks, dict):
+        return ""
+    problems = [
+        f"{name}: {check.get('detail') or check.get('status')}"
+        for name, check in checks.items()
+        if isinstance(check, dict) and check.get("status") != "healthy"
+    ]
+    text = "; ".join(problems)
+    return text if len(text) <= 160 else text[:157] + "..."
+
+
+def probe_health(
+    service: str, environment: Mapping[str, str], client: httpx.Client
+) -> tuple[str, str]:
+    """Classify one running service as ready, degraded, not ready or not responding."""
+    url = f"http://127.0.0.1:{port_for(service, environment)}{READINESS_PATHS[service]}"
+    try:
+        response = client.get(url, headers=_service_headers(service, environment))
+    except httpx.HTTPError:
+        return "not responding", f"no answer; see `uv run scripts/dev.py ai logs {service}`"
+    if response.status_code in {401, 403}:
+        return (
+            "token mismatch",
+            "the process rejects this checkout's service token; run `ai stop` then `ai start`",
+        )
+    try:
+        body = response.json()
+    except ValueError:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    if response.status_code == 200:
+        if str(body.get("status", "")).lower() == "degraded":
+            return "degraded", _unhealthy_checks(body)
+        if service == "mcp":
+            return "ready", f"{body.get('registered_tools', '?')} tools registered"
+        if service == "rag":
+            model = str(body.get("embedding_model", "?")).split("@", 1)[0]
+            return "ready", f"embedding model {model}"
+        return "ready", ""
+    if service == "rag" and body.get("embedding_model") == "unprepared-local-model":
+        return (
+            "not ready",
+            "embedding model not prepared: run `uv run rag-server prepare-model`, "
+            "then `ai stop rag` and `ai start`",
+        )
+    return "not ready", _unhealthy_checks(body) or f"HTTP {response.status_code}"
+
+
+def render_status(entries: Sequence[Mapping[str, str]]) -> list[str]:
+    """Format status entries as aligned terminal lines for logs and evidence."""
+    lines = []
+    for entry in entries:
+        line = f"  {entry['service']:<12} {entry['state']:<8} "
+        if "health" in entry:
+            line += f"{entry['health']:<15} "
+        line += entry["url"]
+        if entry.get("detail"):
+            line += f"  ({entry['detail']})"
+        lines.append(line.rstrip())
+    return lines
 
 
 def logs(services: Sequence[str] = SERVICES, *, lines: int = 100) -> str:
@@ -417,12 +599,23 @@ def selected_services(mode: str, environment: Mapping[str, str]) -> list[str]:
     ]
 
 
+def configuration_fingerprint(resolved: Mapping[str, str]) -> str:
+    """Identify a process configuration so capability changes never reuse an old process.
+
+    The launcher's own wait allowance is not service configuration: retrying with a longer
+    wait keeps the processes that are already live.
+    """
+    relevant = {key: value for key, value in resolved.items() if key != READY_TIMEOUT_VARIABLE}
+    return hashlib.sha256(json.dumps(relevant, sort_keys=True).encode()).hexdigest()
+
+
 def start(environment: Mapping[str, str], *, mode: str = "combined") -> None:
     """Start managed services, waiting for bounded health without implicit model downloads."""
+    # Reject a malformed wait override before creating state or stopping anything.
+    ready_timeout("ai-mode", environment)
     resolved = prepare_environment(environment, mode=mode)
     selected = selected_services(mode, resolved)
-    # Capability changes must not accidentally reuse an older AI process configuration.
-    fingerprint = hashlib.sha256(json.dumps(resolved, sort_keys=True).encode()).hexdigest()
+    fingerprint = configuration_fingerprint(resolved)
     stop(tuple(service for service in SERVICES if service not in selected))
     started: list[str] = []
     try:
@@ -434,15 +627,16 @@ def start(environment: Mapping[str, str], *, mode: str = "combined") -> None:
                     continue
                 stop((service,))
             port = port_for(service, resolved)
-            with socket.socket() as probe:
-                try:
-                    probe.bind(("127.0.0.1", port))
-                except OSError as exc:
-                    raise RuntimeError(
-                        f"Host {service} port {port} is occupied by an unmanaged process"
-                    ) from exc
+            if not port_is_free(port):
+                variable = PORTS[service][0]
+                raise RuntimeError(
+                    f"Host {service} port {port} ({variable}) is already in use by "
+                    f"{port_owner(port)}. Stop that process (for another checkout, run "
+                    f"`uv run scripts/dev.py ai stop` there) or set {variable} to a free port."
+                )
             command = [sys.executable, "-m", "scripts.devtools.host_runtime", "serve", service]
             log_path = HOST_DIRECTORY / f"{service}.log"
+            log_offset = log_path.stat().st_size if log_path.exists() else 0
             with log_path.open("ab") as log:
                 process = subprocess.Popen(  # noqa: S603 - fixed docker/python argv, no shell
                     command,
@@ -466,37 +660,106 @@ def start(environment: Mapping[str, str], *, mode: str = "combined") -> None:
                 },
             )
             started.append(service)
-            _wait_ready(service, resolved)
+            _wait_ready(service, resolved, log_offset=log_offset)
     except Exception:
         stop(started)
         raise
 
 
-def _wait_ready(service: str, environment: Mapping[str, str]) -> None:
+def ready_timeout(service: str, environment: Mapping[str, str]) -> int:
+    """Seconds to wait for one service: the shared override, or that service's default."""
+    raw = environment.get(READY_TIMEOUT_VARIABLE, "").strip()
+    if not raw:
+        return DEFAULT_READY_TIMEOUTS[service]
+    if not raw.isdecimal() or not 1 <= int(raw) <= MAXIMUM_READY_TIMEOUT:
+        raise RuntimeError(
+            f"{READY_TIMEOUT_VARIABLE} must be a whole number of seconds between 1 and "
+            f"{MAXIMUM_READY_TIMEOUT}"
+        )
+    return int(raw)
+
+
+def _log_excerpt(service: str, offset: int | None) -> str:
+    """Return the last lines this launch wrote, or the newest lines for a reused process."""
+    path = HOST_DIRECTORY / f"{service}.log"
+    if not path.exists():
+        return ""
+    size = path.stat().st_size
+    start = max(size - 65_536, offset if offset is not None and offset <= size else 0)
+    with path.open("rb") as stream:
+        stream.seek(start)
+        lines = stream.read().decode("utf-8", errors="replace").splitlines()
+    tail = [line for line in lines if line.strip()][-FAILURE_LOG_LINES:]
+    if not tail:
+        return ""
+    return f"\nLast {service} log lines ({path}):\n" + "\n".join(f"  {line}" for line in tail)
+
+
+def _service_headers(service: str, environment: Mapping[str, str]) -> dict[str, str]:
+    """Authentication for a health request; MCP, RAG and Multi-Agent use bearer tokens."""
+    if service == "ai-mode":
+        token = environment.get("AI_MODE_SERVICE_TOKEN", "")
+        return {AI_SERVICE_TOKEN_HEADER: token} if token else {}
+    token = environment.get(f"{service.upper().replace('-', '_')}_SERVICE_TOKEN", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _wait_ready(
+    service: str,
+    environment: Mapping[str, str],
+    *,
+    log_offset: int | None = None,
+    transport: httpx.BaseTransport | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Wait for liveness, say what is slow, and show this launch's log when it fails."""
     port = port_for(service, environment)
-    path = "/health" if service == "mcp" else "/health/live"
-    headers = (
-        {}
-        if service == "ai-mode"
-        else {
-            "Authorization": "Bearer "
-            + environment[f"{service.upper().replace('-', '_')}_SERVICE_TOKEN"]
-        }
+    url = f"http://127.0.0.1:{port}" + ("/health" if service == "mcp" else "/health/live")
+    headers = {} if service == "ai-mode" else _service_headers(service, environment)
+    timeout = ready_timeout(service, environment)
+    began = clock()
+    deadline = began + timeout
+    announced = False
+    next_steps = (
+        f"Inspect `uv run scripts/dev.py ai logs {service}`. Give a slow first start longer with "
+        f"{READY_TIMEOUT_VARIABLE}=<seconds> (this wait was {timeout} s), then rerun the same "
+        "command."
     )
-    deadline = time.monotonic() + 30
-    with httpx.Client(timeout=1, follow_redirects=False) as client:
-        while time.monotonic() < deadline:
+    with httpx.Client(timeout=1, follow_redirects=False, transport=transport) as client:
+        while True:
             if _owned_process(service) is None:
                 raise RuntimeError(
-                    f"Host {service} exited; inspect `uv run scripts/dev.py ai logs {service}`"
+                    f"Host {service} exited before it became live on 127.0.0.1:{port}."
+                    + _log_excerpt(service, log_offset)
+                    + f"\n{next_steps}"
                 )
             try:
-                if client.get(f"http://127.0.0.1:{port}{path}", headers=headers).status_code == 200:
+                if client.get(url, headers=headers).status_code == 200:
+                    print(
+                        f"Host {service:<11} live on 127.0.0.1:{port} after "
+                        f"{clock() - began:.1f} s",
+                        flush=True,
+                    )
                     return
             except httpx.HTTPError:
                 pass
-            time.sleep(0.2)
-    raise RuntimeError(f"Host {service} did not become live within 30 seconds")
+            now = clock()
+            if now >= deadline:
+                break
+            if not announced and now - began >= WAIT_NOTICE_AFTER:
+                print(
+                    f"Waiting for host {service} on 127.0.0.1:{port} (up to {timeout} s; "
+                    f"follow it with `uv run scripts/dev.py ai logs {service}`)...",
+                    flush=True,
+                )
+                announced = True
+            sleep(0.2)
+    raise RuntimeError(
+        f"Host {service} did not become live on 127.0.0.1:{port} within {timeout} seconds."
+        + _log_excerpt(service, log_offset)
+        + f"\n{next_steps}"
+    )
 
 
 def serve(service: str) -> None:
@@ -530,7 +793,7 @@ def serve(service: str) -> None:
         application = create_rag_app()
     serve_wsgi(
         application,
-        host="0.0.0.0" if service in {"ai-mode", "multi-agent"} else "127.0.0.1",  # noqa: S104 - containers reach AI-mode and Multi-Agent via the host gateway (ADR-046, ADR-047)
+        host=bind_host(service),
         port=port_for(service, os.environ),
         threads=8,
     )

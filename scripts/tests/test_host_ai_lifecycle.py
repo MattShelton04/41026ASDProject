@@ -143,6 +143,50 @@ def test_status_reports_host_processes_then_containers(
     assert _compose_calls(lifecycle)[-1][-1] == "ps"
 
 
+def test_stack_up_summary_and_ai_status_show_probed_host_health(
+    lifecycle: list[tuple[str, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    probed: list[bool] = []
+
+    def status(
+        environment: Mapping[str, str] | None = None, *, probe: bool = False
+    ) -> list[dict[str, str]]:
+        probed.append(probe)
+        return [
+            {
+                "service": "rag",
+                "state": "running",
+                "url": "http://127.0.0.1:5012",
+                "health": "not ready",
+                "detail": "embedding model not prepared",
+            }
+        ]
+
+    monkeypatch.setattr(host_runtime, "status", status)
+    dev._up(offline=False)
+    assert dev.main(["ai", "status"]) == 0
+
+    output = capsys.readouterr().out
+    assert probed == [True, True]
+    assert output.count("rag          running  not ready") == 2
+    assert "(embedding model not prepared)" in output
+
+
+def test_doctor_names_this_checkouts_host_process_as_the_port_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dev, "_host_port_is_available", lambda port: port != 5005)
+    monkeypatch.setattr(dev, "_published_port_owners", lambda _port: ())
+    monkeypatch.setattr(host_runtime, "is_managed", lambda service: service == "ai-mode")
+
+    report = dev._host_port_report(("ai-mode", "mcp"))
+
+    assert "in use by this checkout's managed host process" in report[0]
+    assert report[1].endswith("free")
+
+
 def test_status_lists_every_host_service_with_its_local_url() -> None:
     urls = {
         entry["service"]: entry["url"]
