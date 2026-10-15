@@ -41,7 +41,7 @@ Evidence collected for the report goes in `evidence/`, as described in the imple
 
 | Item | Owner | Notes |
 |---|---|---|
-| F-8 CI evidence | Matthew, after merge | Once `student-1.yml` is green on `main`, run `uv run python scripts/collect_ci_evidence.py --student 1`, then `ai review testing` |
+| F-8 CI evidence | Matthew, after merge | Once `student-1.yml` is green on `main`, run `uv run python scripts/collect_ci_evidence.py --student 1` (it also saves the JUnit XML and the endpoint job's run log under `evidence/ci/student-1/`), then `ai review testing` |
 | Azure provisioning and deploy (R2-42..45) | Matthew | Follow the checklist in `deployment/azure/README.md` (subscription, resource group, federated credential `repo:MattShelton04/41026ASDProject:environment:production`, GitHub `production` environment and variables), then `deploy.sh provision` and `secrets`, the workflow, `ai review cloud` and `ai review decide` |
 | Bicep compile | Matthew | Not yet compiled locally. Run `az bicep build --file deployment/azure/main.bicep`; a BCP318 warning on the conditional module output is possible |
 | Bonus B1–B6 | Matthew | Prepared only. Order B5, B6, B1..B4 (implementation plan §F) |
@@ -60,10 +60,9 @@ Evidence collected for the report goes in `evidence/`, as described in the imple
   exact environment, so Student 3 adds the variables and updates that test.
 - `ai review multi-agent` reports `fail` until Students 2–5 export workflow evidence. Every
   Student 1 check passes.
-- The F1 search endpoint test's default query (`11 Example Street`) exists only in a fresh seeded
-  database. Set `PROPERTYSCOPE_F1_ENDPOINT_SEARCH_QUERY` against a database holding real G-NAF data.
 - Under heavy load, `test_ui_audit_browser.py::test_configured_named_flows_reach_their_response_state`
-  and a Student 3 MCP socket test have each failed once and passed on rerun. Host RAG can exceed
-  the 30 s readiness wait in `scripts/devtools/host_runtime.py`; rerun `stack up`.
+  and a Student 3 MCP socket test have each failed once and passed on rerun.
+- The committed `evidence/reviews/testing-review.md` and multi-agent exports predate the
+  `ci.student-N.log` check and `not_accepted_step_ids`; regenerate them at the evidence freeze.
 - The package is named `multi-agent-server`, like its siblings, not
   `propertyscope-multi-agent-server` as `parts/shared.md` says.

@@ -444,3 +444,25 @@ def test_review_over_http(
     assert "not accepted record" in out
     code, out, _ = invoke(capsys, "history", run_id, "--server")
     assert "coordination event(s)" in out and "decision.recorded" in out
+
+
+def test_main_writes_utf8_so_piped_windows_logs_keep_model_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import io
+    import sys
+
+    streams = {
+        name: io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
+        for name in ("stdout", "stderr")
+    }
+    for name, stream in streams.items():
+        monkeypatch.setattr(sys, name, stream)
+
+    quote = chr(0x2019)
+    cli._use_utf8_output()
+    print(f"The candidate{quote}s lineage reviewed")
+
+    assert {stream.encoding for stream in streams.values()} == {"utf-8"}
+    sys.stdout.flush()
+    assert quote in streams["stdout"].buffer.getvalue().decode("utf-8")  # type: ignore[attr-defined]

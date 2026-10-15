@@ -547,8 +547,17 @@ def _workflow(arguments: argparse.Namespace) -> int:
         backend.close()
 
 
+def _use_utf8_output() -> None:
+    """Keep model text intact when output is piped or teed to a log on Windows (cp1252)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for ``uv run multi-agent-server``."""
+    _use_utf8_output()
     arguments = build_parser().parse_args(argv)
     try:
         if arguments.command == "serve":
