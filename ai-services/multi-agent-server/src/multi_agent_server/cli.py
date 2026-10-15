@@ -26,7 +26,7 @@ from uuid import UUID
 from multi_agent_server.client import MultiAgentClient, MultiAgentClientError
 from multi_agent_server.errors import MultiAgentError
 from multi_agent_server.evidence import export_run
-from multi_agent_server.service import WorkflowService
+from multi_agent_server.service import WorkflowService, not_accepted_step_ids
 from multi_agent_server.settings import (
     DEFAULT_PORT,
     MultiAgentSettings,
@@ -35,6 +35,7 @@ from multi_agent_server.settings import (
     build_service,
 )
 from multi_agent_server.templates import validate_manifest
+from multi_agent_server.terminal import Cursors, follow, interactive_review, trail_lines
 from shared_contracts.multi_agent import (
     FindingOutcome,
     HumanDecisionKind,
@@ -61,7 +62,9 @@ class Backend(Protocol):
     ) -> WorkflowRunPage: ...
     def decide(self, run_id: UUID, request: HumanDecisionRequest) -> WorkflowRun: ...
     def cancel(self, run_id: UUID, actor: str) -> WorkflowRun: ...
-    def history(self, run_id: UUID) -> WorkflowRunHistory: ...
+    def history(
+        self, run_id: UUID, after_history: int = 0, after_audit: int = 0
+    ) -> WorkflowRunHistory: ...
     def wait(self, run_id: UUID, timeout: float) -> WorkflowRun: ...
     def close(self) -> None: ...
 
@@ -90,8 +93,10 @@ class LocalBackend:
     def cancel(self, run_id: UUID, actor: str) -> WorkflowRun:
         return self._service.cancel(run_id, actor=actor, request_id=f"cli-{os.getpid()}")
 
-    def history(self, run_id: UUID) -> WorkflowRunHistory:
-        return self._service.history(run_id)
+    def history(
+        self, run_id: UUID, after_history: int = 0, after_audit: int = 0
+    ) -> WorkflowRunHistory:
+        return self._service.history(run_id, after_history=after_history, after_audit=after_audit)
 
     def wait(self, run_id: UUID, timeout: float) -> WorkflowRun:
         return self._service.wait(run_id, timeout=timeout)
@@ -129,8 +134,10 @@ class RemoteBackend:
     def cancel(self, run_id: UUID, actor: str) -> WorkflowRun:
         return self._client.cancel(run_id, actor=actor)
 
-    def history(self, run_id: UUID) -> WorkflowRunHistory:
-        return self._client.history(run_id)
+    def history(
+        self, run_id: UUID, after_history: int = 0, after_audit: int = 0
+    ) -> WorkflowRunHistory:
+        return self._client.history(run_id, after_history=after_history, after_audit=after_audit)
 
     def wait(self, run_id: UUID, timeout: float) -> WorkflowRun:
         return self._client.wait(run_id, timeout=timeout)
@@ -193,6 +200,17 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--input", default="{}", help="JSON object, or @path to a JSON file")
     run.add_argument("--requested-by", default=None)
     run.add_argument("--wait", action="store_true", help="Wait until a human decision is needed")
+    run.add_argument(
+        "--follow",
+        action="store_true",
+        help="Print each hand-off, tool call and state change as the agents work (implies --wait)",
+    )
+    run.add_argument(
+        "--review",
+        action="store_true",
+        help="Follow the agents, then ask for the human decision here (interactive)",
+    )
+    run.add_argument("--actor", default=None, help="Default decision name for --review")
     run.add_argument("--timeout", type=float, default=300.0)
     status = commands.add_parser("status", help="Show a run")
     _common(status)
@@ -209,9 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--decision", required=True, choices=[kind.value for kind in HumanDecisionKind]
     )
     decide.add_argument("--note", default="")
-    decide.add_argument(
-        "--actor", default=os.environ.get("USERNAME") or os.environ.get("USER") or "terminal"
-    )
+    decide.add_argument("--actor", default=_default_actor())
     decide.add_argument(
         "--accept",
         action="append",
@@ -223,6 +239,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--wait", action="store_true", help="After a correction, wait for the re-run"
     )
     decide.add_argument("--timeout", type=float, default=300.0)
+    review = commands.add_parser(
+        "review",
+        help="Interactive human review: follow the agents, show the evidence, record a decision",
+    )
+    _common(review)
+    review.add_argument("run_id", type=UUID)
+    review.add_argument("--actor", default=None, help="Default name recorded with the decision")
+    review.add_argument("--timeout", type=float, default=300.0)
     cancel = commands.add_parser("cancel", help="Cancel an unfinished run")
     _common(cancel)
     cancel.add_argument("run_id", type=UUID)
@@ -280,6 +304,33 @@ def _backend(arguments: argparse.Namespace) -> Backend:
     return LocalBackend(build_service(_settings(arguments), inline=True))
 
 
+def _default_actor() -> str:
+    return os.environ.get("USERNAME") or os.environ.get("USER") or "terminal"
+
+
+def _say(line: str) -> None:
+    print(line, flush=True)
+
+
+def _review(
+    backend: Backend,
+    run_id: UUID,
+    actor: str | None,
+    timeout: float,
+    follow_from: Cursors | None = None,
+) -> int:
+    return interactive_review(
+        backend,
+        run_id,
+        actor=actor or _default_actor(),
+        ask=input,
+        say=_say,
+        render=lambda run: render_run(run, next_steps=False),
+        follow_from=follow_from,
+        timeout=timeout,
+    )
+
+
 def _input(value: str) -> dict[str, object]:
     raw = Path(value[1:]).read_text(encoding="utf-8") if value.startswith("@") else value
     payload = json.loads(raw)
@@ -288,7 +339,7 @@ def _input(value: str) -> dict[str, object]:
     return payload
 
 
-def render_run(run: WorkflowRun) -> str:
+def render_run(run: WorkflowRun, *, next_steps: bool = True) -> str:
     """Readable terminal summary of a run."""
     lines = [
         f"Run {run.id}",
@@ -327,11 +378,19 @@ def render_run(run: WorkflowRun) -> str:
             f"{decision.resulting_state.value}"
             + (f"\n  Note: {decision.note}" if decision.note else "")
         )
+        if decision.accepted_step_ids:
+            left_out = not_accepted_step_ids(run, decision.accepted_step_ids)
+            lines.append(
+                f"  Accepted steps: {', '.join(decision.accepted_step_ids)}"
+                + (f"; not accepted: {', '.join(left_out)}" if left_out else "")
+            )
     if run.error is not None:
-        lines.append(f"\nFailed: {run.error.code}: {run.error.message}")
-    if run.state is WorkflowState.AWAITING_HUMAN:
+        stage = f" (during {run.error.stage.value})" if run.error.stage else ""
+        lines.append(f"\nFailed{stage}: {run.error.code}: {run.error.message}")
+    if next_steps and run.state is WorkflowState.AWAITING_HUMAN:
         lines.append(
-            f"\nNext: multi-agent-server decide {run.id} --decision "
+            f"\nNext: multi-agent-server review {run.id}   (interactive), or\n"
+            f"      multi-agent-server decide {run.id} --decision "
             'approve|correct|partial|reject --note "..."'
         )
     return "\n".join(lines)
@@ -402,10 +461,23 @@ def _workflow(arguments: argparse.Namespace) -> int:
                 WorkflowRunRequest(
                     template_id=arguments.template,
                     input=_input(arguments.input),
-                    requested_by=arguments.requested_by,
+                    requested_by=arguments.requested_by
+                    or (arguments.actor if arguments.review else None),
                 )
             )
-            if arguments.wait:
+            if arguments.review:
+                return _review(
+                    backend,
+                    run.id,
+                    arguments.actor or arguments.requested_by,
+                    arguments.timeout,
+                    follow_from=Cursors(),
+                )
+            if arguments.follow:
+                _say(f"Run {run.id} started; following the agents...")
+                run, _ = follow(backend, run.id, say=_say, timeout=arguments.timeout)
+                _say("")
+            elif arguments.wait:
                 run = backend.wait(run.id, arguments.timeout)
             _print_run(run, arguments.json)
             return 1 if run.state is WorkflowState.FAILED else 0
@@ -436,6 +508,8 @@ def _workflow(arguments: argparse.Namespace) -> int:
                 run = backend.wait(run.id, arguments.timeout)
             _print_run(run, arguments.json)
             return 0
+        if command == "review":
+            return _review(backend, arguments.run_id, arguments.actor, arguments.timeout)
         if command == "cancel":
             _print_run(backend.cancel(arguments.run_id, arguments.actor), arguments.json)
             return 0
@@ -444,18 +518,13 @@ def _workflow(arguments: argparse.Namespace) -> int:
             if arguments.json:
                 print(json.dumps(history.model_dump(mode="json"), indent=2))
                 return 0
-            for entry in history.history:
-                print(
-                    f"{entry.sequence:>3} {entry.at.isoformat()} "
-                    f"{entry.from_state.value if entry.from_state else '-':>18} -> "
-                    f"{entry.to_state.value:<18} {entry.actor}: {entry.reason}"
-                )
-            print()
-            for audit in history.audit:
-                print(
-                    f"{audit.sequence:>3} {audit.at.isoformat()} {audit.event.value:<18} "
-                    f"{audit.role.value:<8} {json.dumps(audit.detail, sort_keys=True)[:160]}"
-                )
+            print(
+                f"Run {history.run_id} is {history.state.value}: "
+                f"{len(history.history)} transition(s) (==), {len(history.audit)} "
+                "coordination event(s) (.)"
+            )
+            for line in trail_lines(history):
+                print(line)
             return 0
         run = backend.run(arguments.run_id)
         history = backend.history(arguments.run_id)

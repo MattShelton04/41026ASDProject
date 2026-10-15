@@ -7,7 +7,7 @@ import {
 } from "./definitions.js";
 import { nextWorkflowPollDelay } from "./polling.js";
 import {
-  availableDecisions, canCancel, evidenceExcerpt, fieldProblems, formatDuration, groupFindings,
+  acceptanceText, acceptanceView, availableDecisions, canCancel, evidenceExcerpt, fieldProblems, formatDuration, groupFindings,
   historyView, problemView, provenanceLabel, runPresentationKey, stageTimeline, startFields,
   validateDecision, validateStartInput, workerStepViews,
 } from "./projections.js";
@@ -110,6 +110,17 @@ test("decision validation mirrors the server's note, actor and partial-step rule
   assert.deepEqual(partial.body, { decision: "partial", note: "Queue only", actor: "A", accepted_step_ids: ["queue"] });
   assert.match(validateDecision({ decision: "approve", actor: "A" }, { ...run, available_actions: ["cancel"] }).errors.decision, /not waiting/);
   assert.match(validateDecision({ decision: "", actor: "A" }, run).errors.decision, /Choose one/);
+});
+
+test("a partial acceptance names the steps it kept and the steps it left out", () => {
+  const partial = { decision: "partial", accepted_step_ids: ["queue"] };
+  assert.deepEqual(acceptanceView(partial, plan), { accepted: ["Read the release queue"], notAccepted: ["Inspect the candidate release"] });
+  assert.equal(acceptanceText(partial, plan), "Accepted: Read the release queue · Not accepted: Inspect the candidate release");
+  assert.equal(acceptanceText({ decision: "partial", accepted_step_ids: ["release", "queue"] }, plan), "Accepted: Inspect the candidate release, Read the release queue");
+  // Without the plan the IDs are humanised and nothing can be said about the rest.
+  assert.equal(acceptanceText(partial, null), "Accepted: Queue");
+  assert.equal(acceptanceView({ decision: "approve", accepted_step_ids: [] }, plan), null);
+  assert.equal(acceptanceText(null, plan), "");
 });
 
 test("template inputs become typed fields; hidden inputs are kept and validated", () => {
