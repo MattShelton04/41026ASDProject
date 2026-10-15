@@ -1794,6 +1794,128 @@ def test_release_state_refreshes_without_waiting_for_record_preview(
     previews[0].abort()
 
 
+def test_settled_release_page_is_not_rebuilt_when_the_tab_returns(
+    page: Page, fixture_origin: str
+) -> None:
+    reads = {"detail": 0}
+
+    def detail(route: Route) -> None:
+        reads["detail"] += 1
+        route.continue_()
+
+    page.route(f"**/api/data-platform/v1/dataset-releases/{REVIEW_ID}", detail)
+    _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    expect(page.get_by_role("heading", name="Version under review", exact=True)).to_be_visible()
+    expect(page.get_by_text("1 linked check", exact=True)).to_be_visible()
+    coverage = page.get_by_text("Inspect coverage", exact=True)
+    coverage.click()
+    coverage.focus()
+    assert reads["detail"] == 1
+
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    page.wait_for_timeout(500)
+    assert reads["detail"] == 1
+    expect(coverage.locator("..")).to_have_attribute("open", "")
+    expect(coverage).to_be_focused()
+
+
+READINESS_RUN_ID = "80000000-0000-4000-8000-000000000001"
+
+
+def _readiness_run(release_id: str) -> dict[str, Any]:
+    return {
+        "id": READINESS_RUN_ID,
+        "template_id": "f1-release-readiness-review",
+        "template_version": "1",
+        "feature_id": "student-1-propertyscope-data-platform",
+        "state": "working",
+        "round": 1,
+        "requested_by": "property-data-release-review",
+        "provider_mode": "deterministic",
+        "created_at": "2026-09-01T00:00:00Z",
+        "updated_at": "2026-09-01T00:00:00Z",
+        "completed_at": None,
+        "input": {"release_id": release_id, "dataset_id": "property-identities"},
+        "stages": [],
+        "plan": None,
+        "worker_output": None,
+        "review": None,
+        "decisions": [],
+        "superseded": [],
+        "available_actions": ["cancel"],
+        "error": None,
+    }
+
+
+def test_readiness_review_reopens_after_leaving_the_release_page(
+    page: Page, fixture_origin: str
+) -> None:
+    calls: list[str] = []
+    template = {
+        "template": {
+            "id": "f1-release-readiness-review",
+            "title": "Release readiness review",
+            "objective": "Review one candidate release.",
+            "inputs": [
+                {
+                    "name": "release_id",
+                    "title": "Candidate release ID",
+                    "type": "string",
+                    "format": "uuid",
+                    "required": True,
+                },
+                {
+                    "name": "dataset_id",
+                    "title": "Dataset ID",
+                    "type": "string",
+                    "required": False,
+                    "max_length": 150,
+                },
+            ],
+        },
+        "input_schema": {},
+        "tools": [],
+        "source": "e2e",
+    }
+
+    def reviews(route: Route) -> None:
+        request = route.request
+        path = request.url.split("/release-reviews", 1)[1].split("?", 1)[0]
+        calls.append(f"{request.method} {path}")
+        if path == "/template":
+            route.fulfill(json=template)
+        elif path.endswith("/history"):
+            route.fulfill(json={"run_id": READINESS_RUN_ID, "history": [], "audit": []})
+        elif request.method == "POST" and path == "":
+            route.fulfill(status=202, json=_readiness_run(REVIEW_ID))
+        else:
+            route.fulfill(json=_readiness_run(REVIEW_ID))
+
+    page.route("**/api/data-platform/v1/release-reviews**", reviews)
+    _open(page, fixture_origin, f"releases/{REVIEW_ID}")
+    page.get_by_role("button", name="Readiness review", exact=True).click()
+    page.get_by_role("button", name="Start readiness review", exact=True).click()
+    expect(page.get_by_role("heading", name=re.compile(r"80000000"))).to_be_visible()
+    page.wait_for_function(
+        "expected => location.hash.endsWith(`?review=${expected}`)", arg=READINESS_RUN_ID
+    )
+    assert calls.count("POST ") == 1
+
+    page.evaluate("location.hash = '#releases'")
+    expect(page.get_by_role("heading", name="Published data", exact=True)).to_be_visible()
+    page.evaluate(f"location.hash = '#releases/{REVIEW_ID}'")
+    expect(page.get_by_role("heading", name="Version under review", exact=True)).to_be_visible()
+    expect(page.locator("#release-readiness-review")).to_have_count(0)
+
+    page.get_by_role("button", name="Readiness review", exact=True).click()
+    expect(page.get_by_role("heading", name=re.compile(r"80000000"))).to_be_visible()
+    expect(page.get_by_role("button", name="Start readiness review", exact=True)).to_have_count(0)
+    page.wait_for_function(
+        "expected => location.hash.endsWith(`?review=${expected}`)", arg=READINESS_RUN_ID
+    )
+    assert calls.count("POST ") == 1, "reopening must not start a duplicate run"
+
+
 def test_stale_submit_review_action_refreshes_before_opening_a_dialog(
     page: Page, fixture_origin: str
 ) -> None:

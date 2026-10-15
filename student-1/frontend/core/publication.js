@@ -72,6 +72,15 @@ export function activePublicationOperation(body) {
   return ACTIVE_CONSUMER_IMPORT_STATES.includes(latest?.status) ? latest : null;
 }
 
+/**
+ * Whether a tab that becomes visible again should refresh the release page. Only unfinished
+ * publication work needs it; rebuilding a settled page would close the reader's disclosures and
+ * take focus from the readiness review for no new information.
+ */
+export function shouldResumePublicationPolling(polling = {}) {
+  return Boolean(polling.releaseId) && polling.outcome === "pending";
+}
+
 export function nextPublicationPollDelay(attempt, outcome, { visible = true } = {}) {
   if (outcome !== "pending" || !visible) return null;
   if (attempt >= PUBLICATION_POLL_LIMIT) return 30000;

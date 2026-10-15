@@ -26,6 +26,68 @@ export function readinessReviewHash(releaseId, runId = null) {
   return runId && RUN_ID.test(runId) ? `${base}?review=${runId}` : base;
 }
 
+// The latest review started for each release, so leaving the page does not lose a running review.
+// Browser storage is a per-viewer convenience only: the Multi-Agent Server stays the record.
+export const READINESS_REVIEW_STORAGE_KEY = "propertyscope:readiness-reviews";
+export const READINESS_REVIEW_MEMORY_LIMIT = 20;
+
+function browserStorage() {
+  try { return globalThis.localStorage ?? null; } catch { return null; }
+}
+
+function readMemory(storage) {
+  try {
+    const value = JSON.parse(storage?.getItem(READINESS_REVIEW_STORAGE_KEY) || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch { return {}; }
+}
+
+function writeMemory(storage, memory) {
+  try { storage?.setItem(READINESS_REVIEW_STORAGE_KEY, JSON.stringify(memory)); } catch { /* Storage is optional. */ }
+}
+
+export function rememberedReadinessReview(releaseId, storage = browserStorage()) {
+  const value = readMemory(storage)[String(releaseId)];
+  return typeof value === "string" && RUN_ID.test(value) ? value.toLowerCase() : null;
+}
+
+export function rememberReadinessReview(releaseId, runId, storage = browserStorage()) {
+  if (!releaseId || !RUN_ID.test(String(runId || ""))) return;
+  const memory = readMemory(storage);
+  delete memory[releaseId];
+  memory[releaseId] = String(runId).toLowerCase();
+  // Insertion order is recency order; keep only the newest releases.
+  const kept = Object.entries(memory).slice(-READINESS_REVIEW_MEMORY_LIMIT);
+  writeMemory(storage, Object.fromEntries(kept));
+}
+
+export function forgetReadinessReview(releaseId, runId, storage = browserStorage()) {
+  const memory = readMemory(storage);
+  if (memory[releaseId] !== runId) return;
+  delete memory[releaseId];
+  writeMemory(storage, memory);
+}
+
+/**
+ * The remembered review to reopen for this release, checked through the feature proxy first: a run
+ * the server no longer has, or one for another release, is forgotten instead of opening as an error.
+ * When the server cannot answer, nothing is reopened and the memory is kept for next time.
+ */
+export async function resumableReadinessReview(release, { request, storage = browserStorage() }) {
+  const runId = rememberedReadinessReview(release.id, storage);
+  if (!runId) return null;
+  try {
+    const { body } = await request(`release-reviews/${encodeURIComponent(runId)}`);
+    if (String(body?.input?.release_id || "").toLowerCase() === String(release.id).toLowerCase()) return runId;
+    forgetReadinessReview(release.id, runId, storage);
+    return null;
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    if (error?.status === 404) forgetReadinessReview(release.id, runId, storage);
+    return null;
+  }
+}
+
 /** Template inputs supplied by the page: the exact release and its dataset narrow the queue step. */
 export function readinessReviewInput(release) {
   return {
@@ -43,6 +105,7 @@ export function createReleaseReadinessReview({
   runId = null,
   announce,
   onRunChange = () => {},
+  storage = browserStorage(),
   document: doc = globalThis.document,
   createClient = createMultiAgentClient,
   createPanel = createMultiAgentPanel,
@@ -65,7 +128,11 @@ export function createReleaseReadinessReview({
     title: "Readiness review",
     description: "A Planner, Worker and Reviewer read evidence about this exact version and suggest whether it is ready to publish. You decide. Publishing stays the separate Publish action on this page.",
     labels: READINESS_REVIEW_LABELS,
-    onRunChange: (run) => { if (run?.id) onRunChange(run); },
+    onRunChange: (run) => {
+      if (!run?.id) return;
+      rememberReadinessReview(release.id, run.id, storage);
+      onRunChange(run);
+    },
   });
   return Object.freeze({
     host,

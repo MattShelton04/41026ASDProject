@@ -16,7 +16,7 @@ import { createDataProductRoutes } from "./routes/data-products.js?v=51";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=50";
 import { renderOverview } from "./routes/overview.js?v=50";
 import { createPropertyRoutes } from "./routes/properties.js?v=50";
-import { createReleaseRoutes } from "./routes/releases.js?v=51";
+import { createReleaseRoutes } from "./routes/releases.js?v=52";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js";
 import { mountNotifications } from "./components/notifications.js";
