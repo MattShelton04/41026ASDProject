@@ -22,6 +22,8 @@ from shared_testkit.pytest_endpoints import (
     pytest_collection_modifyitems,
 )
 
+from .search_query import SEARCH_QUERY_ENV, SearchQuery, resolve_search_query
+
 __all__ = [
     "endpoint_client",
     "endpoint_ready_path",
@@ -30,9 +32,6 @@ __all__ = [
 
 API = "/api/data-platform/v1"
 OPENAPI_PATH = Path(__file__).resolve().parents[2] / "contracts/data-platform-api.v1.openapi.yaml"
-SEARCH_QUERY_ENV = "PROPERTYSCOPE_F1_ENDPOINT_SEARCH_QUERY"
-# Present in every fresh database through the showcase seed and the fixture-property job.
-DEFAULT_SEARCH_QUERY = "11 Example Street"
 
 ContractValidator = Callable[[object, dict[str, Any]], None]
 
@@ -58,9 +57,9 @@ def validate_contract() -> ContractValidator:
 
 
 @pytest.fixture(scope="session")
-def search_query() -> str:
-    """A seeded address; override for a stack whose accepted data replaced the seed."""
-    return os.environ.get(SEARCH_QUERY_ENV, "").strip() or DEFAULT_SEARCH_QUERY
+def search_query(endpoint_client: EndpointClient) -> SearchQuery:
+    """An address present in the running stack's accepted data (seeded or real G-NAF)."""
+    return resolve_search_query(endpoint_client, override=os.environ.get(SEARCH_QUERY_ENV, ""))
 
 
 @pytest.fixture
