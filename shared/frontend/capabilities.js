@@ -41,7 +41,7 @@ export function capabilityManifest(config = {}, snapshot = null) {
     };
   }
   return {
-    release: "release-1",
+    release: "release-2",
     deploymentMode: "local",
     features: featureRegistry(config),
     services: [
