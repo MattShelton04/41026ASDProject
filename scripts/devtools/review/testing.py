@@ -6,10 +6,12 @@ Expected files below the evidence root:
     Human-readable scan report. It must name all three scans; a finding is *explained* when
     the report mentions it (Ruff code and file, pip-audit vulnerability ID or alias).
 ``security/ruff-security.json``
-    ``ruff check --select S --output-format json`` output: a list of findings.
+    Either what ``dev.py security report`` writes, ``{"tool": "ruff", "findings": [...]}`` with
+    a status per finding, or raw ``ruff check --select S --output-format json`` output (a list).
 ``security/detect-secrets.json``
-    ``detect-secrets`` scan or audited baseline: ``{"results": {path: [secret, ...]}}``. A
-    potential secret passes only when audited as ``"is_secret": false``.
+    Either the report's ``{"tool": "detect-secrets", "findings": [...]}`` with a status per
+    potential secret, or a raw scan or audited baseline ``{"results": {path: [secret, ...]}}``,
+    where a potential secret passes only when audited as ``"is_secret": false``.
 ``security/pip-audit.json``
     ``pip-audit --format json`` output: ``{"dependencies": [{"name", "version", "vulns"}]}``.
 ``ci/student-N.md`` (N = 1..5)
@@ -29,6 +31,12 @@ from pydantic import JsonValue
 
 from scripts.devtools.review.bounded import DEFAULT_LOG_TAIL_BYTES, EvidenceReader
 from scripts.devtools.review.checklist import SHA_PATTERN, Checklist, summarise
+from scripts.security.report import (
+    CANDIDATE_CONFIRMED,
+    FAILING_STATUSES,
+    FALSE_POSITIVE,
+    PENDING_OWNER,
+)
 from shared_contracts.evidence_review import EvidenceReviewBundle
 
 STUDENTS = tuple(f"student-{number}" for number in range(1, 6))
@@ -109,57 +117,130 @@ def _security(reader: EvidenceReader, checklist: Checklist) -> dict[str, JsonVal
     }
 
 
+def _report_findings(value: JsonValue, tool: str) -> list[dict[str, JsonValue]] | None:
+    """Findings from the JSON ``dev.py security report`` writes, or None for another shape."""
+    if not isinstance(value, dict) or value.get("tool") != tool:
+        return None
+    findings = value.get("findings")
+    if not isinstance(findings, list):
+        return None
+    return [item for item in findings if isinstance(item, dict)]
+
+
+def _count(finding: Mapping[str, JsonValue]) -> int:
+    count = finding.get("count")
+    return count if isinstance(count, int) and count > 0 else 1
+
+
+def _shape_gap(path: str, status: str, expected: str) -> str:
+    if status == "read":
+        return f"Evidence gap: {path} is neither security-report JSON nor {expected}."
+    return f"Evidence gap: {path} is {status}."
+
+
 def _ruff(reader: EvidenceReader, checklist: Checklist, report: str) -> dict[str, JsonValue]:
     loaded, value = reader.read_json(RUFF)
-    findings = [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+    classified = _report_findings(value, "ruff")
     unexplained: list[str] = []
+    pending: dict[str, int] = {}
     codes: dict[str, int] = {}
-    for finding in findings:
-        code = str(finding.get("code") or "unknown")
-        codes[code] = codes.get(code, 0) + 1
-        filename = str(finding.get("filename") or "").replace("\\", "/")
-        tail = "/".join(filename.split("/")[-2:]).lower()
-        if code.lower() not in report or (tail and tail not in report):
-            location = finding.get("location")
-            row = location.get("row") if isinstance(location, dict) else None
-            unexplained.append(f"{code} {tail}:{row}")
-    valid = isinstance(value, list)
+    total = 0
+    if classified is not None:
+        # The security report has already classified every finding against the policy.
+        for finding in classified:
+            code = str(finding.get("code") or "unknown")
+            count = _count(finding)
+            total += count
+            codes[code] = codes.get(code, 0) + count
+            status = str(finding.get("status") or "")
+            if status in FAILING_STATUSES or not status:
+                unexplained.append(f"{code} {finding.get('path')}:{finding.get('row')} ({status})")
+            elif status == PENDING_OWNER:
+                owner = str(finding.get("slice") or "unknown")
+                pending[owner] = pending.get(owner, 0) + count
+        valid = True
+    else:
+        findings = (
+            [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+        )
+        for finding in findings:
+            code = str(finding.get("code") or "unknown")
+            total += 1
+            codes[code] = codes.get(code, 0) + 1
+            filename = str(finding.get("filename") or "").replace("\\", "/")
+            tail = "/".join(filename.split("/")[-2:]).lower()
+            if code.lower() not in report or (tail and tail not in report):
+                location = finding.get("location")
+                row = location.get("row") if isinstance(location, dict) else None
+                unexplained.append(f"{code} {tail}:{row}")
+        valid = isinstance(value, list)
     checklist.add(
         "security.ruff",
         "Ruff security (S) findings are fixed or explained",
         passed=valid and not unexplained,
         detail=(
-            f"{len(findings)} finding(s), all explained in the report."
+            f"{total} finding(s), all fixed, justified or explained."
             if valid and not unexplained
-            else f"Evidence gap: {RUFF} is {loaded.status.value} or not a JSON list."
+            else _shape_gap(RUFF, loaded.status.value, "a Ruff JSON list")
             if not valid
             else f"Unexplained findings: {summarise(unexplained)}."
         ),
         refs=(RUFF, REPORT),
     )
-    return {"findings": len(findings), "by_code": dict(sorted(codes.items()))}
+    if classified is not None:
+        owners = [f"{owner} {count}" for owner, count in sorted(pending.items())]
+        checklist.add(
+            "security.ruff-owners",
+            "No Ruff security finding is still waiting on its owner",
+            passed=not pending,
+            required=False,
+            detail=(
+                "No finding is temporarily allowed as pending-owner."
+                if not pending
+                else f"{sum(pending.values())} finding(s) are temporarily allowed until their "
+                f"owner fixes or justifies them: {summarise(owners)}."
+            ),
+            refs=(RUFF, REPORT),
+        )
+    return {
+        "findings": total,
+        "by_code": dict(sorted(codes.items())),
+        "pending_owner": dict(sorted(pending.items())),
+    }
 
 
 def _secrets(reader: EvidenceReader, checklist: Checklist) -> dict[str, JsonValue]:
     loaded, value = reader.read_json(SECRETS)
-    results = value.get("results") if isinstance(value, dict) else None
+    classified = _report_findings(value, "detect-secrets")
     potential = 0
     unaudited: list[str] = []
     confirmed: list[str] = []
-    if isinstance(results, dict):
-        for path, entries in sorted(results.items()):
-            if not isinstance(entries, list):
-                continue
-            for entry in entries:
-                if not isinstance(entry, dict):
+    if classified is not None:
+        for entry in classified:
+            potential += 1
+            label = f"{entry.get('path')}:{entry.get('line')} ({entry.get('type')})"
+            status = entry.get("status")
+            if status == CANDIDATE_CONFIRMED:
+                confirmed.append(label)
+            elif status != FALSE_POSITIVE:
+                unaudited.append(label)
+        valid = True
+    else:
+        results = value.get("results") if isinstance(value, dict) else None
+        if isinstance(results, dict):
+            for path, entries in sorted(results.items()):
+                if not isinstance(entries, list):
                     continue
-                potential += 1
-                label = f"{path}:{entry.get('line_number')} ({entry.get('type')})"
-                if entry.get("is_secret") is True:
-                    confirmed.append(label)
-                elif entry.get("is_secret") is not False:
-                    unaudited.append(label)
-    valid = isinstance(results, dict)
+                for secret in entries:
+                    if not isinstance(secret, dict):
+                        continue
+                    potential += 1
+                    label = f"{path}:{secret.get('line_number')} ({secret.get('type')})"
+                    if secret.get("is_secret") is True:
+                        confirmed.append(label)
+                    elif secret.get("is_secret") is not False:
+                        unaudited.append(label)
+        valid = isinstance(results, dict)
     checklist.add(
         "security.secrets",
         "detect-secrets reports no confirmed or unaudited secrets",
@@ -167,7 +248,7 @@ def _secrets(reader: EvidenceReader, checklist: Checklist) -> dict[str, JsonValu
         detail=(
             f"{potential} potential secret(s), all audited as false positives."
             if valid and not unaudited and not confirmed
-            else f"Evidence gap: {SECRETS} is {loaded.status.value} or has no results object."
+            else _shape_gap(SECRETS, loaded.status.value, "a detect-secrets results object")
             if not valid
             else f"Confirmed: {summarise(confirmed) or 'none'}; unaudited: "
             f"{summarise(unaudited) or 'none'}."
