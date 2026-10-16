@@ -47,7 +47,29 @@ Select `.venv` as the Python interpreter in your editor. The same commands work 
 Command Prompt, Bash, and zsh.
 
 `pre-commit install` is required: every `git commit` then runs Ruff, formatting, mypy and the three
-[security scans](#security-scans) on the staged files, and `git push` runs the full gate.
+[security scans](#security-scans) on the staged files, and `git push` runs only the full gate
+(`scripts/check.py pre-push`), which includes Ruff and mypy. The push skips the gate when the pushed commit's tree already passed
+`uv run python scripts/check.py` in this clone, so pushing straight after a green local run is
+instant. Each passing run records its working-tree hash in the Git directory
+(`propertyscope-check/passed-trees`, shared by every worktree). The hash is recorded only if the
+tree did not change during the run. A push of any other tree runs the full gate first. Set
+`PROPERTYSCOPE_CHECK_FORCE=1` to run it regardless. pre-commit shows the hook's output only when it
+finishes, so a push that runs the gate is quiet for a few minutes.
+
+### How the gate runs
+
+`scripts/check.py` runs the commands of a multi-command stage concurrently. The default is one slot
+per logical CPU; set `--jobs N` or `PROPERTYSCOPE_CHECK_JOBS`. The long-running pytest and mypy
+commands start first. Each command's output is printed as one block when it finishes, followed by a
+per-command timing summary. Every command runs to completion, so one run reports every failure, and
+the exit status is the first failure in declared order. Test suites with at least 20 test modules
+(Shared/AI and Feature 1) also run on `pytest-xdist` workers (`--dist worksteal`), at half the jobs
+up to six. Coverage from all workers is combined before the same thresholds are applied, and each
+pytest run writes its coverage data to a private file. `--jobs 1` restores the old behaviour: one
+command at a time, live output, stopping at the first failure, and no xdist workers. Use it when
+debugging a failure, or when timing-sensitive browser canaries are flaky on a heavily loaded
+machine. Tests must collect identical IDs on every run (no random values in `parametrize`),
+because xdist workers compare their collections.
 
 ## Day-to-day workflow
 

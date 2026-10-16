@@ -19,6 +19,8 @@ build establishes report completeness, not demonstration attendance or a predict
 from __future__ import annotations
 
 import argparse
+import copy
+import functools
 import json
 import os
 import re
@@ -98,13 +100,27 @@ def _image_max_height(path: Path) -> float:
     return 200 * mm
 
 
+@functools.lru_cache(maxsize=32)
+def _parse_yaml(text: str) -> Any:
+    return yaml.safe_load(text)
+
+
+def _read_yaml(path: Path) -> Any:
+    """Parse a YAML file; one build re-reads the same catalogues hundreds of times.
+
+    The cache is keyed by file content, so an edited file is always parsed again, and callers
+    receive their own copy to mutate.
+    """
+    return copy.deepcopy(_parse_yaml(path.read_text(encoding="utf-8")))
+
+
 def _feature_manifests() -> list[dict[str, Any]]:
     """Enabled feature manifests in registry order."""
-    registry = yaml.safe_load((ROOT / "deployment" / "features.yaml").read_text(encoding="utf-8"))
+    registry = _read_yaml(ROOT / "deployment" / "features.yaml")
     enabled = [item["feature_key"] for item in registry["features"] if item.get("enabled")]
     manifests = {}
     for path in sorted(ROOT.glob("student-*/feature.yaml")):
-        manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest = _read_yaml(path)
         manifest["_student"] = path.parent.name
         manifests[manifest["feature_key"]] = manifest
     return [manifests[key] for key in enabled]
@@ -119,7 +135,7 @@ def _catalog_tools(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     catalog = (manifest.get("onboarding") or {}).get("ai", {}).get("tool_catalog")
     if not catalog:
         return []
-    document = yaml.safe_load((ROOT / catalog).read_text(encoding="utf-8"))
+    document = _read_yaml(ROOT / catalog)
     return [tool["definition"] for tool in document.get("tools", [])]
 
 

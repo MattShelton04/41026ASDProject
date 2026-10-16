@@ -69,7 +69,7 @@ process owns each port.
 
 ```text
 uv sync --locked --all-packages --all-groups     # reproduce the environment
-uv run python scripts/check.py                   # full gate, required before handoff (~6-7 min)
+uv run python scripts/check.py                   # full gate, required before handoff (~3-5 min)
 uv run scripts/dev.py stack up [--offline]       # complete Docker stack; --offline needs no model key
 uv run scripts/dev.py stack status               # what is running
 uv run scripts/dev.py ai probe                   # check the running MCP and RAG servers directly
@@ -92,7 +92,13 @@ Choose the smallest relevant check while iterating, then run the full gate once:
 | Browser JavaScript | `uv run python scripts/check.py compile` then the `node --import ./scripts/frontend-test-bootstrap.mjs --test <files>` command in `CONTRIBUTING.md` |
 
 Bare `pytest` runs do not enforce coverage; `check.py` does (90% shared/AI core, per-feature
-thresholds from each `feature.yaml`). Source-only Python and frontend edits reload inside the
+thresholds from each `feature.yaml`). The gate runs its commands concurrently, puts the large
+suites on `pytest-xdist` workers and ends with a per-command timing table. `--jobs 1` runs one
+command at a time with live output. Keep test IDs deterministic: no random values in
+`parametrize`, because xdist workers must collect identical tests. A passing full gate records its
+working-tree hash, and the `pre-push` hook (`check.py pre-push`) skips pushes of a tree that
+already passed. Do not set `PROPERTYSCOPE_CHECK_FORCE` to bypass a failure; it only forces a
+re-run. Source-only Python and frontend edits reload inside the
 stack. After dependency, lockfile, or Dockerfile changes use `uv run scripts/dev.py stack rebuild`.
 AI services need `ai stop` then `ai start --mode combined` after their source changes. Change
 dependencies with `uv add --package <project-name> <dependency>` and commit `pyproject.toml` with

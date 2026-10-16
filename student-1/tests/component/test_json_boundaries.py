@@ -486,16 +486,20 @@ class UuidBodyStore(StrictScalarStore):
     attach_consumer_import_activation = create_run
 
 
+# Fixed so every pytest-xdist worker collects identical test IDs.
+PARAMETER_UUID = "00000000-0000-4000-8000-000000000489"
+
+
 @pytest.mark.parametrize(
     ("path", "body", "field"),
     [
         (
-            f"/internal/data-platform/v1/jobs/{uuid.uuid4()}/runs",
+            f"/internal/data-platform/v1/jobs/{PARAMETER_UUID}/runs",
             {"idempotency_key": "key-1", "request_id": "req-1", "parent_run_id": "nope"},
             "parent_run_id",
         ),
         (
-            f"/internal/data-platform/v1/consumer-imports/{uuid.uuid4()}/receipt",
+            f"/internal/data-platform/v1/consumer-imports/{PARAMETER_UUID}/receipt",
             {
                 "worker_id": "worker-1",
                 "lease_token": "lease-1",
@@ -505,7 +509,7 @@ class UuidBodyStore(StrictScalarStore):
             "publication_receipt_id",
         ),
         (
-            f"/internal/data-platform/v1/consumer-imports/{uuid.uuid4()}/activation",
+            f"/internal/data-platform/v1/consumer-imports/{PARAMETER_UUID}/activation",
             {"worker_id": "worker-1", "lease_token": "lease-1", "release_activation_id": "nope"},
             "release_activation_id",
         ),
