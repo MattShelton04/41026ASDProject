@@ -218,8 +218,10 @@ def test_local_and_cloud_evidence_summarise_their_reports(evidence: Path) -> Non
         "# Local deployment report\n\n**Verdict: PASSED**, 3 of 3 checks passed.\n\n"
         "| Field | Value |\n|---|---|\n| Captured | 2026-10-16T08:38:05+00:00 |\n"
         "| Commit | `d449a43455ca6b20365ed95d1560aa3546b504ab` on `main` |\n\n"
-        "## Terminals\n\n| # | Terminal | Command | Log | Bytes |\n|---|---|---|---|---|\n"
-        "| 1 | MCP | `dev.py ai serve mcp` | [terminal-3-mcp.log](terminal-3-mcp.log) | 9 |\n\n"
+        "## Terminals\n\n| # | Terminal | Ran as | Foreground command | Log | Bytes |\n"
+        "|---|---|---|---|---|---|\n"
+        "| 3 | MCP | managed | `dev.py ai serve mcp` "
+        "| [terminal-3-mcp.log](terminal-3-mcp.log) | 9 |\n\n"
         "## All checks\n\n### Host AI services\n\n| Result | Check |\n|---|---|\n"
         "| PASS | mcp is a host process |\n| PASS | mcp is ready |\n\n### Data\n\n"
         "| Result | Check |\n|---|---|\n| PASS | seeded |\n",
@@ -241,7 +243,11 @@ def test_local_and_cloud_evidence_summarise_their_reports(evidence: Path) -> Non
     local = report.local_evidence("")
     assert "**PASSED**, 3 of 3 checks passed, captured 2026-10-16 at commit `d449a43`" in local[0]
     assert "| Host AI services | 2 | 0 |" in local and "| Data | 1 | 0 |" in local
-    assert any("`dev.py ai serve mcp`" in line and "terminal-3-mcp.log" in line for line in local)
+    assert any(
+        line.startswith("| MCP | managed | `dev.py ai serve mcp` |")
+        and "terminal-3-mcp.log" in line
+        for line in local
+    )
     assert not _todos(local)
     summary = report.cloud_summary("")
     assert "| Deployment | **succeeded**" in summary[2]

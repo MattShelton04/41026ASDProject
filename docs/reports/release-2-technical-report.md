@@ -144,7 +144,7 @@ security: detect-secrets against .secrets.baseline..............Passed
 security: pip-audit of locked dependencies (uv.lock)............Passed
 ```
 
-[[TODO: Matthew Shelton | Regenerate the security report on main at the evidence freeze; the committed one scanned 831acb6 with uncommitted changes]]
+[[TODO: Matthew Shelton | Regenerate the security report on main at the evidence freeze; the committed one scanned a release-2/wrap-up-shared-f1 branch commit]]
 
 [[TODO: Burhan Naeem | Fix or justify F2's pending-owner Ruff S findings, then regenerate the report]]
 
@@ -209,7 +209,7 @@ terminal.
 
 [[LOCAL_EVIDENCE]]
 
-[[TODO: Matthew Shelton | Recapture the local deployment report on main at the evidence freeze; this capture had uncommitted changes]]
+[[TODO: Matthew Shelton | Recapture the local deployment report on main at the evidence freeze; this capture ran on a branch commit]]
 
 ## 9 Cloud deployment report and review
 

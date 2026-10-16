@@ -488,11 +488,15 @@ def local_evidence(argument: str) -> list[str]:
             rows.append(_todo(SHARED_OWNER, f"`{_shown(report)}` must record every check passing"))
         terminals = [row for row in _table_after(text, "## Terminals") if len(row) >= 4]
     if terminals:
-        rows += ["", "| Terminal command | Log |", "|---|---|"]
+        rows += ["", "| Terminal | Ran as | Command | Log |", "|---|---|---|---|"]
         for row in terminals:
-            log = re.search(r"\(([^)]+)\)", row[3])
-            target = f"[`{Path(log[1]).name}`]({_link(directory / log[1])})" if log else row[3]
-            rows.append(f"| {_cell(row[2])} | {target} |")
+            # Find cells by content, so a column added to the capture's table never shifts them.
+            log_cell = next((cell for cell in row if re.search(r"\]\(terminal-", cell)), "")
+            log = re.search(r"\]\(([^)]+)\)", log_cell)
+            target = f"[`{Path(log[1]).name}`]({_link(directory / log[1])})" if log else "-"
+            command = next((cell for cell in row[2:] if cell.startswith("`")), "-")
+            ran_as = next((cell for cell in row if cell in {"managed", "foreground"}), "-")
+            rows.append(f"| {_cell(row[1])} | {ran_as} | {_cell(command)} | {target} |")
         return rows
     logs = sorted(directory.glob("terminal-*.log")) if directory.is_dir() else []
     if logs:
