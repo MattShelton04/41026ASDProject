@@ -305,6 +305,31 @@ def test_jobs_come_from_the_option_environment_or_cpu_count(
         check._parser().parse_args(["--jobs", "0"])
 
 
+def test_hook_git_environment_never_reaches_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in check.GIT_REPOSITORY_ENVIRONMENT:
+        monkeypatch.setenv(name, str(tmp_path / "hook-repository"))
+    monkeypatch.setenv("GIT_TERMINAL_PROMPT", "0")
+    seen: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        check, "commands_for", lambda _stage, *, write=False: (check.SHARED_TEST_COMMAND, ("x",))
+    )
+
+    def run(command: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        environment = kwargs["env"]
+        seen.append(dict(environment) if isinstance(environment, dict) else dict(check.os.environ))
+        return _completed(command, 0)
+
+    monkeypatch.setattr(check.subprocess, "run", run)
+
+    assert check.main(["--jobs", "2", "test"]) == 0
+    assert len(seen) == 2
+    for environment in seen:
+        assert not set(check.GIT_REPOSITORY_ENVIRONMENT) & set(environment)
+        assert environment["GIT_TERMINAL_PROMPT"] == "0"
+
+
 def test_default_stage_is_the_full_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     stages: list[tuple[str, bool]] = []
     monkeypatch.setattr(

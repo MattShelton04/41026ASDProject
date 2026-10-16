@@ -54,6 +54,26 @@ DISPLAY_WIDTH = 110
 # Kept in the Git common directory: shared by every worktree of this clone, never committed.
 PASSED_TREES_FILE = Path("propertyscope-check") / "passed-trees"
 PASSED_TREES_LIMIT = 50
+# `git rev-parse --local-env-vars`: Git exports these to hooks (githooks(5)). Inherited by the
+# gate's tests, they would point a test's temporary repository at this checkout instead, so the
+# gate drops them and every command finds the repository from its working directory.
+GIT_REPOSITORY_ENVIRONMENT = (
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+)
 
 FORMAT_CHECK_COMMANDS: tuple[Command, ...] = (
     (sys.executable, "-m", "ruff", "format", "--check", "."),
@@ -576,6 +596,8 @@ def pre_push(*, jobs: int) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the selected checks; multi-command stages run their commands concurrently."""
     arguments = _parser().parse_args(argv)
+    for name in GIT_REPOSITORY_ENVIRONMENT:
+        os.environ.pop(name, None)
     stage = arguments.stage or "check"
     write = bool(getattr(arguments, "write", False))
     jobs = arguments.jobs if arguments.jobs is not None else default_jobs()
