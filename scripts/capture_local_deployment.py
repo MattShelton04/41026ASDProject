@@ -1352,17 +1352,24 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "## Terminals",
         "",
         "Each server ran as its own process and wrote its own log; each log below is what that "
-        "server wrote during the capture window (plus a few lines of context before it). See "
-        "[README.md](README.md) for running each one in a separate terminal.",
+        "server wrote during the capture window (plus a few lines of context before it). "
+        "*managed* means `ai start` ran it in the background; *foreground* means it ran in its "
+        "own terminal with the command shown. See [README.md](README.md) for running each one "
+        "in a separate terminal.",
         "",
-        "| # | Terminal | Command | Log | Bytes | Lines with this capture's IDs |",
-        "|---|---|---|---|---|---|",
+        "| # | Terminal | Ran as | Foreground command | Log | Bytes "
+        "| Lines with this capture's IDs |",
+        "|---|---|---|---|---|---|---|",
     ]
+    # A managed service was started by `ai start` in the background; its foreground command is
+    # the equivalent one-terminal way to run it, not what produced this log.
+    modes = {host["terminal"]: host["mode"] for host in report["host_services"]}
     for terminal in sorted(report["terminals"], key=lambda item: item["number"]):
+        ran_as = modes.get(terminal["file"], "foreground")
         lines.append(
-            f"| {terminal['number']} | {terminal['title']} | `{terminal['command']}` | "
-            f"[{terminal['file']}]({terminal['file']}) | {terminal['bytes']:,} | "
-            f"{terminal['correlated_lines']} |"
+            f"| {terminal['number']} | {terminal['title']} | {ran_as} | "
+            f"`{terminal['command']}` | [{terminal['file']}]({terminal['file']}) | "
+            f"{terminal['bytes']:,} | {terminal['correlated_lines']} |"
         )
     lines += [
         "",
