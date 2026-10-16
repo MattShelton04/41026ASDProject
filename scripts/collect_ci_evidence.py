@@ -68,7 +68,9 @@ def run_gh(arguments: Sequence[str]) -> str:
             ["gh", *arguments],  # noqa: S607 - gh is resolved from PATH like the other dev tools
             check=True,
             capture_output=True,
-            text=True,
+            # gh writes UTF-8; the Windows locale default (cp1252) crashes on run logs.
+            encoding="utf-8",
+            errors="replace",
             timeout=120,
         )
     except FileNotFoundError as exc:
@@ -254,6 +256,27 @@ def _endpoint_jobs(run: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return with_endpoints or jobs
 
 
+GROUP_RUN = re.compile(r"##\[group\]Run (?P<command>.*)")
+
+
+def _endpoint_sections(lines: Sequence[str]) -> list[str]:
+    """Lines of each ``##[group]Run`` step whose command mentions endpoints.
+
+    ``gh`` names archived steps "UNKNOWN STEP", but each step still opens with a
+    ``##[group]Run <command>`` line, so the endpoint-test steps can be located by command.
+    """
+    kept: list[str] = []
+    keeping = False
+    for line in lines:
+        text = line.split("	", 2)[-1]
+        match = GROUP_RUN.search(text)
+        if match:
+            keeping = bool(ENDPOINT_STEP.search(match.group("command")))
+        if keeping:
+            kept.append(line)
+    return kept
+
+
 def _step_name(line: str) -> str:
     """Return the step column of a ``gh run view --log`` line (``job<TAB>step<TAB>text``)."""
     parts = line.split("\t", 2)
@@ -312,8 +335,11 @@ def download_run_log(
         endpoint_lines.extend(line for line in lines if ENDPOINT_STEP.search(_step_name(line)))
     if not selected:
         return None, "The run lists no jobs with an ID, so no run log was retained."
+    by_command = [] if endpoint_lines else _endpoint_sections(all_lines)
     if endpoint_lines:
         kept, scope = endpoint_lines, "Endpoint-test steps"
+    elif by_command:
+        kept, scope = by_command, "Endpoint-test steps, matched by run command,"
     else:
         # gh labels some archived steps "UNKNOWN STEP"; keep the whole job log instead.
         kept, scope = all_lines, "Complete job log (step names unavailable)"
