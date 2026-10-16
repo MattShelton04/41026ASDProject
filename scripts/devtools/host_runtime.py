@@ -20,8 +20,10 @@ import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import IO
 
 import httpx
 import psutil
@@ -802,6 +804,59 @@ def serve(service: str) -> None:
         port=port_for(service, os.environ),
         threads=8,
     )
+
+
+def serve_in_terminal(
+    service: str,
+    *,
+    environment: Mapping[str, str],
+    log_path: Path | None = None,
+    popen: Callable[..., subprocess.Popen[bytes]] = subprocess.Popen,
+    out: IO[str] = sys.stdout,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> int:
+    """Run one host service in this terminal (``dev.py ai serve``), teeing it to its host log.
+
+    ``environment`` is the prepared environment ``start`` would give the service, so the
+    existing tokens, state paths and catalogues apply and the containers reach it unchanged.
+    Appending to the managed log keeps ``ai logs`` and the local deployment capture working
+    whichever way the service was started.
+    """
+    port = port_for(service, environment)
+    if not port_is_free(port):
+        print(
+            f"Port {port} is in use by {port_owner(port)}. Stop the managed "
+            f"process first: uv run scripts/dev.py ai stop {service}",
+            file=sys.stderr,
+        )
+        return 1
+    log_path = log_path or HOST_DIRECTORY / f"{service}.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [sys.executable, "-m", "scripts.devtools.host_runtime", "serve", service]
+    with log_path.open("ab") as log:
+        process = popen(
+            command,
+            cwd=REPOSITORY_ROOT,
+            env=dict(environment),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        banner = (
+            f"=== {service} serving in the foreground on port {port}, PID {process.pid}, "
+            f"started {clock().isoformat(timespec='seconds')} (Ctrl+C stops it) ===\n"
+        )
+        log.write(banner.encode("utf-8"))
+        out.write(banner)
+        try:
+            for raw in process.stdout or ():
+                log.write(raw)
+                log.flush()
+                out.write(raw.decode("utf-8", "replace"))
+                out.flush()
+        except KeyboardInterrupt:
+            process.terminate()
+        return process.wait(timeout=15)
 
 
 if __name__ == "__main__":

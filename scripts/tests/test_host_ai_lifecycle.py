@@ -261,3 +261,29 @@ def test_failed_retirement_keeps_the_projection_so_the_next_start_retries(
     with pytest.raises(RuntimeError, match="not running"):
         host_runtime.retire_container_placement()
     assert projection.exists()
+
+
+def test_ai_serve_gives_the_foreground_service_the_prepared_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh terminal has no service tokens; `ai serve` must prepare them like `ai start`."""
+    prepared: list[str] = []
+    served: list[tuple[str, dict[str, str]]] = []
+
+    def prepare(environment: dict[str, str], *, mode: str) -> dict[str, str]:
+        prepared.append(mode)
+        return {**environment, "MCP_SERVICE_TOKEN": "prepared"}
+
+    def serve(service: str, *, environment: dict[str, str]) -> int:
+        served.append((service, environment))
+        return 0
+
+    monkeypatch.setattr(dev, "_compose_environment", lambda *, offline: {"OFFLINE": str(offline)})
+    monkeypatch.setattr(dev.host_runtime, "prepare_environment", prepare)
+    monkeypatch.setattr(dev.host_runtime, "serve_in_terminal", serve)
+
+    assert dev.main(["ai", "serve", "mcp"]) == 0
+    assert dev.main(["ai", "serve", "ai-mode", "--offline"]) == 0
+    assert prepared == ["combined", "direct"]
+    assert [service for service, _ in served] == ["mcp", "ai-mode"]
+    assert served[0][1]["MCP_SERVICE_TOKEN"] == "prepared"
