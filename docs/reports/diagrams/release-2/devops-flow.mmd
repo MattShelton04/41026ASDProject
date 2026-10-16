@@ -1,0 +1,33 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","wrappingWidth":400,"nodeSpacing":26,"rankSpacing":38}}}%%
+flowchart TB
+    dev["Developer: git commit"] --> hooks
+    subgraph hooks["1 Pre-commit hooks (.pre-commit-config.yaml)"]
+        direction LR
+        h1["Ruff lint,<br/>format, mypy"] --> h2["Ruff S<br/>rules"] --> h3["detect-secrets vs<br/>.secrets.baseline"] --> h4["pip-audit<br/>of uv.lock"]
+    end
+    hooks -->|"git push to main"| gh[("2 GitHub repository: source control")]
+    gh --> students
+    gh --> integ
+    subgraph students["3 student-1.yml … student-5.yml, post-commit"]
+        direction LR
+        s1["Build feature<br/>images, start its<br/>Compose stack"] --> s2["Two endpoint<br/>functions per student<br/>pytest -m endpoint"] --> s3["JUnit step<br/>summary and<br/>artifact"]
+    end
+    subgraph integ["4 integration-ci.yml"]
+        direction LR
+        i1["Quality gate<br/>scripts/check.py"] --> i2["Docker Compose<br/>validation"]
+        i3["Security scans<br/>and report"]
+    end
+    integ -->|"workflow_run: success on push"| cd
+    students ~~~ cd
+    subgraph cd["5 cloud-deployment.yml, environment: production"]
+        direction LR
+        c1["OIDC<br/>login"] --> c2["provision<br/>Bicep"] --> c3["push<br/>images to ACR"] --> c4["deploy<br/>VM run-command"] --> c5["smoke<br/>CRUD, AI off"] --> c6["report and<br/>logs artifact"]
+    end
+    cd --> azure[("6 Azure VM: public HTTPS endpoint")]
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class h1,h2,h3,h4,i1,i2,i3,c1,c2,c3,c4,c5,c6 shared;
+    class s1,s2,s3 feature;
+    class dev,gh,azure note;

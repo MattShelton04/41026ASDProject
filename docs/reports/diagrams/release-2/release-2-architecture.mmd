@@ -1,0 +1,37 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","wrappingWidth":400,"nodeSpacing":28,"rankSpacing":46}}}%%
+flowchart TB
+    user([User browser]) --> compose
+
+    subgraph compose["Docker Compose: containerised application, no AI service"]
+        direction LR
+        edge["shared-frontend<br/>:5100 home,<br/>route proxy"] --> fe["Feature frontends<br/>F1 :5200 · F2 :5300<br/>F3 :5600 · F4 :5400<br/>F5 :5500"]
+        fe --> be["Feature backends/APIs<br/>CRUD · assistant turns<br/>multi-agent proxy routes"]
+        be --> db[("Owned databases<br/>F1, F4 PostGIS<br/>F2, F3, F5 SQLite")]
+    end
+
+    compose <-->|"Backends call AI-mode (AI_MODE_BASE_URL) and the Multi-Agent Server<br/>(MULTI_AGENT_BASE_URL) via host.docker.internal with service tokens;<br/>MCP calls the owning backend's tool endpoints"| host
+
+    subgraph host["Host processes started by dev.py stack up: never containerised"]
+        direction LR
+        terminal["Terminal<br/>dev.py ai validate, ai review<br/>multi-agent-server run, decide"]
+        ai["AI-mode :5005<br/>Plan/Act/Observe/Adapt loop<br/>R1 validation, R2 review modes"]
+        ma["Multi-Agent Server :5013<br/>Planner → Worker → Reviewer<br/>→ Human decision<br/>SQLite, history and audit JSONL"]
+        mcp["MCP server :5011<br/>registered feature tools"]
+        rag["RAG server :5012<br/>per-feature corpora"]
+        terminal -.-> ai
+        terminal -.-> ma
+        ai -->|tools/call| mcp
+        ai -->|retrieve| rag
+        ma -->|"Worker: allowlisted<br/>read-only tools"| mcp
+    end
+
+    host --> model["Model provider: OpenAI, or deterministic offline"]
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef new fill:#e6effa,stroke:#2f5f98,color:#111827;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class edge,ai,mcp,rag shared;
+    class fe,be,db feature;
+    class ma new;
+    class model,terminal note;

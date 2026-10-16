@@ -1,0 +1,21 @@
+{
+  "mermaid_version": "11.12.0",
+  "diagrams": {
+    "release-2-architecture.mmd": {
+      "source_sha256": "4a6db727b9a5f1c98b83e9542c65dde1e1c38b7471465bb4e74b18b43ab87986",
+      "asset_sha256": "9d1e42dbd6c7ceddda2658d271b66f0416606240bae9b6a6da8b7022133c9199"
+    },
+    "multi-agent-sequence.mmd": {
+      "source_sha256": "b5c8add5a28afb25f1b1e018d13b3de81e126eaa9f3b86243da984d0fcd133bc",
+      "asset_sha256": "45a4a425ad38fd646f1a131a8b69cd8b1d15d6fa32a7162cdfdd69b26dfc07c1"
+    },
+    "azure-reference-architecture.mmd": {
+      "source_sha256": "086d53d4b7ee7d4ff0d38b143069f2bf7e1114480e0e2d0dee3819f646a900c7",
+      "asset_sha256": "6db970095d3e4db02d6e59fbac2caf4fd8effed3e18ef6d9a8550e4004605da4"
+    },
+    "devops-flow.mmd": {
+      "source_sha256": "04ed316c8d11a852b06b24c21a5bebd4aa791eac9024087a704c9af405e946e6",
+      "asset_sha256": "085cc0676da0eada044f5bce6597d37bb598bff405b089b48e5f055ff159c6fc"
+    }
+  }
+}
