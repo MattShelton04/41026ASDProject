@@ -47,8 +47,8 @@ Select `.venv` as the Python interpreter in your editor. The same commands work 
 Command Prompt, Bash, and zsh.
 
 `pre-commit install` is required: every `git commit` then runs Ruff, formatting, mypy and the three
-[security scans](#security-scans) on the staged files, and `git push` runs the full gate
-(`scripts/check.py pre-push`). The push skips the gate when the pushed commit's tree already passed
+[security scans](#security-scans) on the staged files, and `git push` runs only the full gate
+(`scripts/check.py pre-push`), which includes Ruff and mypy. The push skips the gate when the pushed commit's tree already passed
 `uv run python scripts/check.py` in this clone, so pushing straight after a green local run is
 instant. Each passing run records its working-tree hash in the Git directory
 (`propertyscope-check/passed-trees`, shared by every worktree). The hash is recorded only if the
