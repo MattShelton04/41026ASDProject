@@ -1,0 +1,6 @@
+# Terminal 4: RAG host process
+# Equivalent foreground command: uv run scripts/dev.py ai serve rag
+# Source: .propertyscope-runtime/host/rag.log from byte 0
+--- last 0 line(s) before the capture window ---
+--- capture window 2026-10-16T09:01:51+00:00 to 2026-10-16T09:02:24+00:00 ---
+(rag wrote no log lines during the capture window. It answered 17 direct probe(s) from terminal 6 in this window, 17 passed; see terminal-6-system-test.log.)

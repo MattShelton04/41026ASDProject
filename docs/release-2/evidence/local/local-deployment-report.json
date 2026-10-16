@@ -1,0 +1,1555 @@
+{
+  "schema_version": 1,
+  "tool": "scripts/capture_local_deployment.py",
+  "requirement": "R2-41 local deployment report with multi-terminal system-test logs",
+  "started_at": "2026-10-16T09:01:51+00:00",
+  "finished_at": "2026-10-16T09:02:24+00:00",
+  "source": {
+    "commit": "1a68f0ad11a727e445b9ac453f501f7204112401",
+    "branch": "release-2/wrap-up-shared-f1",
+    "uncommitted_paths": 18,
+    "compose_project": "ps-dev",
+    "edge_url": "http://localhost:5100",
+    "platform": "Windows 11",
+    "python": "3.12.13"
+  },
+  "containers": [
+    {
+      "name": "ps-dev-f1-backend-1",
+      "service": "f1-backend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5201/tcp"
+    },
+    {
+      "name": "ps-dev-f1-db-api-1",
+      "service": "f1-db-api",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5202/tcp"
+    },
+    {
+      "name": "ps-dev-f1-db-loader-1",
+      "service": "f1-db-loader",
+      "state": "running",
+      "status": "Up 38 minutes",
+      "health": "none",
+      "ports": ""
+    },
+    {
+      "name": "ps-dev-f1-frontend-1",
+      "service": "f1-frontend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "127.0.0.1:5200->8080/tcp"
+    },
+    {
+      "name": "ps-dev-f1-postgres-1",
+      "service": "f1-postgres",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5432/tcp"
+    },
+    {
+      "name": "ps-dev-f1-runner-1",
+      "service": "f1-runner",
+      "state": "running",
+      "status": "Up 38 minutes",
+      "health": "none",
+      "ports": ""
+    },
+    {
+      "name": "ps-dev-f2-backend-1",
+      "service": "f2-backend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5301/tcp"
+    },
+    {
+      "name": "ps-dev-f2-db-api-1",
+      "service": "f2-db-api",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5302/tcp"
+    },
+    {
+      "name": "ps-dev-f2-frontend-1",
+      "service": "f2-frontend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "127.0.0.1:5300->8080/tcp"
+    },
+    {
+      "name": "ps-dev-f3-backend-1",
+      "service": "f3-backend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5301/tcp"
+    },
+    {
+      "name": "ps-dev-f3-database-1",
+      "service": "f3-database",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5302/tcp"
+    },
+    {
+      "name": "ps-dev-f3-frontend-1",
+      "service": "f3-frontend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "127.0.0.1:5600->8080/tcp"
+    },
+    {
+      "name": "ps-dev-f4-backend-1",
+      "service": "f4-backend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5401/tcp"
+    },
+    {
+      "name": "ps-dev-f4-db-api-1",
+      "service": "f4-db-api",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5402/tcp"
+    },
+    {
+      "name": "ps-dev-f4-frontend-1",
+      "service": "f4-frontend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "127.0.0.1:5400->8080/tcp"
+    },
+    {
+      "name": "ps-dev-f4-postgres-1",
+      "service": "f4-postgres",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5432/tcp"
+    },
+    {
+      "name": "ps-dev-f5-backend-1",
+      "service": "f5-backend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5501/tcp"
+    },
+    {
+      "name": "ps-dev-f5-db-api-1",
+      "service": "f5-db-api",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "5502/tcp"
+    },
+    {
+      "name": "ps-dev-f5-frontend-1",
+      "service": "f5-frontend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "127.0.0.1:5500->8080/tcp"
+    },
+    {
+      "name": "ps-dev-shared-frontend-1",
+      "service": "shared-frontend",
+      "state": "running",
+      "status": "Up 38 minutes (healthy)",
+      "health": "healthy",
+      "ports": "127.0.0.1:5100->8080/tcp"
+    }
+  ],
+  "host_services": [
+    {
+      "service": "ai-mode",
+      "terminal": "terminal-2-ai-mode.log",
+      "port": 5005,
+      "url": "http://127.0.0.1:5005",
+      "mode": "managed",
+      "pid": 31512,
+      "listener_pids": [
+        17916
+      ],
+      "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+      "launcher": ".venv/Scripts/python.exe",
+      "command": [
+        "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
+        "-m",
+        "scripts.devtools.host_runtime",
+        "serve",
+        "ai-mode"
+      ],
+      "state": "running",
+      "health": "ready",
+      "detail": "",
+      "capability": {
+        "AI_MODE_MCP_ENABLED": "true",
+        "AI_MODE_RAG_ENABLED": "true",
+        "AI_MODE_LLM_PROVIDER": "openai",
+        "AI_MODE_DEFAULT_MODEL_PROFILE": "remote-standard.v1"
+      },
+      "container_publishes_port": false
+    },
+    {
+      "service": "mcp",
+      "terminal": "terminal-3-mcp.log",
+      "port": 5011,
+      "url": "http://127.0.0.1:5011/mcp",
+      "mode": "managed",
+      "pid": 28304,
+      "listener_pids": [
+        24956
+      ],
+      "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+      "launcher": ".venv/Scripts/python.exe",
+      "command": [
+        "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
+        "-m",
+        "scripts.devtools.host_runtime",
+        "serve",
+        "mcp"
+      ],
+      "state": "running",
+      "health": "ready",
+      "detail": "29 tools registered",
+      "capability": {},
+      "container_publishes_port": false
+    },
+    {
+      "service": "rag",
+      "terminal": "terminal-4-rag.log",
+      "port": 5012,
+      "url": "http://127.0.0.1:5012",
+      "mode": "managed",
+      "pid": 31644,
+      "listener_pids": [
+        30516
+      ],
+      "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+      "launcher": ".venv/Scripts/python.exe",
+      "command": [
+        "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
+        "-m",
+        "scripts.devtools.host_runtime",
+        "serve",
+        "rag"
+      ],
+      "state": "running",
+      "health": "ready",
+      "detail": "embedding model BAAI/bge-small-en-v1.5",
+      "capability": {},
+      "container_publishes_port": false
+    },
+    {
+      "service": "multi-agent",
+      "terminal": "terminal-5-multi-agent.log",
+      "port": 5013,
+      "url": "http://127.0.0.1:5013",
+      "mode": "managed",
+      "pid": 9256,
+      "listener_pids": [
+        6940
+      ],
+      "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+      "launcher": ".venv/Scripts/python.exe",
+      "command": [
+        "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
+        "-m",
+        "scripts.devtools.host_runtime",
+        "serve",
+        "multi-agent"
+      ],
+      "state": "running",
+      "health": "ready",
+      "detail": "",
+      "capability": {
+        "MULTI_AGENT_MCP_ENABLED": "true"
+      },
+      "container_publishes_port": false
+    }
+  ],
+  "data": {
+    "label": "includes published official releases: 12,915,219 records in abs-seifa-2021 (4,320), gnaf-nsw (5,190,134), nsw-psi-sales (7,402,643), bocsar-crime (318,122); still seeded or synthetic: fixture-property, nsw-government-schools",
+    "datasets": [
+      {
+        "dataset_id": "abs-cpi",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+            "status": "awaiting_review",
+            "records": 680
+          }
+        ]
+      },
+      {
+        "dataset_id": "abs-geography-2021",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "d91279f1-5628-44ea-a037-f8de0a0ad4ff",
+            "status": "awaiting_review",
+            "records": 4675
+          }
+        ]
+      },
+      {
+        "dataset_id": "abs-seifa-2021",
+        "accepted_release_id": "0320c071-6ee7-451e-83a6-8a7870252be4",
+        "accepted_records": 4320,
+        "kind": "published official release",
+        "open_releases": [
+          {
+            "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+            "status": "candidate",
+            "records": 4320
+          }
+        ]
+      },
+      {
+        "dataset_id": "fixture-property",
+        "accepted_release_id": "60000000-0000-0000-0000-000000000010",
+        "accepted_records": 3,
+        "kind": "seeded demonstration baseline",
+        "open_releases": [
+          {
+            "id": "f4a48747-0a65-40ef-ab82-720266fd6e7c",
+            "status": "candidate",
+            "records": 10
+          }
+        ]
+      },
+      {
+        "dataset_id": "gnaf-nsw",
+        "accepted_release_id": "291863ec-a12d-4a03-a80c-8f334feae2d0",
+        "accepted_records": 5190134,
+        "kind": "published official release",
+        "open_releases": [
+          {
+            "id": "cad26be0-c1cf-43db-9b86-0336ffe83dda",
+            "status": "candidate",
+            "records": 5190134
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-amenities",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "36460dde-c3fe-4ca4-8e5e-f3c12c645bcd",
+            "status": "awaiting_review",
+            "records": 9866
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-bushfire-prone-land",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "e8fc243a-068d-46d7-8e4b-44d596e9c993",
+            "status": "awaiting_review",
+            "records": 235550
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-cadastre",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "0ce38fb3-dabf-4248-a6b0-c315d0ba746a",
+            "status": "awaiting_review",
+            "records": 3355160
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-flood-planning",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "3949d345-2310-4205-b2d6-f3c350cbaf9d",
+            "status": "awaiting_review",
+            "records": 622
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-planning-controls",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "b42dd939-de0a-4b6c-8eee-cdac7ccc68a7",
+            "status": "awaiting_review",
+            "records": 235350
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-school-catchments",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "ab41d18a-fa19-4cdd-aae7-312052da814c",
+            "status": "awaiting_review",
+            "records": 2191
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-strata-schemes",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "1b4b88b0-07f3-4e8d-a8f2-90e588b1d52a",
+            "status": "awaiting_review",
+            "records": 88926
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-suburb-boundaries",
+        "accepted_release_id": null,
+        "accepted_records": null,
+        "kind": "not loaded",
+        "open_releases": [
+          {
+            "id": "a5a79703-da08-47e0-b281-c37d531263c5",
+            "status": "awaiting_review",
+            "records": 4607
+          }
+        ]
+      },
+      {
+        "dataset_id": "nsw-psi-sales",
+        "accepted_release_id": "a7078066-1bde-4b31-8b4d-4acab03939e6",
+        "accepted_records": 7402643,
+        "kind": "published official release",
+        "open_releases": [
+          {
+            "id": "5c90aa91-3ae7-4481-bba1-964a9f6ed822",
+            "status": "candidate",
+            "records": 638125
+          },
+          {
+            "id": "0037b5e8-9c16-4c00-8b10-63b56bec8ff6",
+            "status": "candidate",
+            "records": 237661
+          },
+          {
+            "id": "1d8fca70-33f6-47e3-91fd-994c4d07c06e",
+            "status": "awaiting_review",
+            "records": 7402643
+          }
+        ]
+      },
+      {
+        "dataset_id": "bocsar-crime",
+        "accepted_release_id": "71537336-0c2d-4f2b-9d2e-dbabc29fa9f9",
+        "accepted_records": 318122,
+        "kind": "published official release",
+        "open_releases": []
+      },
+      {
+        "dataset_id": "nsw-government-schools",
+        "accepted_release_id": "60000000-0000-0000-0000-000000000004",
+        "accepted_records": 10,
+        "kind": "seeded demonstration baseline",
+        "open_releases": [
+          {
+            "id": "a6ffd6c2-fd5e-4696-85c2-bb228059373b",
+            "status": "candidate",
+            "records": 2210
+          },
+          {
+            "id": "47e3fab4-4b4d-4588-9e70-79e4e04cb372",
+            "status": "awaiting_review",
+            "records": 2210
+          }
+        ]
+      }
+    ],
+    "open_releases": [
+      {
+        "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+        "dataset_id": "abs-seifa-2021",
+        "status": "candidate",
+        "record_count": 4320
+      },
+      {
+        "id": "a6ffd6c2-fd5e-4696-85c2-bb228059373b",
+        "dataset_id": "nsw-government-schools",
+        "status": "candidate",
+        "record_count": 2210
+      },
+      {
+        "id": "f4a48747-0a65-40ef-ab82-720266fd6e7c",
+        "dataset_id": "fixture-property",
+        "status": "candidate",
+        "record_count": 10
+      },
+      {
+        "id": "cad26be0-c1cf-43db-9b86-0336ffe83dda",
+        "dataset_id": "gnaf-nsw",
+        "status": "candidate",
+        "record_count": 5190134
+      },
+      {
+        "id": "5c90aa91-3ae7-4481-bba1-964a9f6ed822",
+        "dataset_id": "nsw-psi-sales",
+        "status": "candidate",
+        "record_count": 638125
+      },
+      {
+        "id": "0037b5e8-9c16-4c00-8b10-63b56bec8ff6",
+        "dataset_id": "nsw-psi-sales",
+        "status": "candidate",
+        "record_count": 237661
+      },
+      {
+        "id": "e8fc243a-068d-46d7-8e4b-44d596e9c993",
+        "dataset_id": "nsw-bushfire-prone-land",
+        "status": "awaiting_review",
+        "record_count": 235550
+      },
+      {
+        "id": "b42dd939-de0a-4b6c-8eee-cdac7ccc68a7",
+        "dataset_id": "nsw-planning-controls",
+        "status": "awaiting_review",
+        "record_count": 235350
+      },
+      {
+        "id": "0ce38fb3-dabf-4248-a6b0-c315d0ba746a",
+        "dataset_id": "nsw-cadastre",
+        "status": "awaiting_review",
+        "record_count": 3355160
+      },
+      {
+        "id": "1b4b88b0-07f3-4e8d-a8f2-90e588b1d52a",
+        "dataset_id": "nsw-strata-schemes",
+        "status": "awaiting_review",
+        "record_count": 88926
+      },
+      {
+        "id": "36460dde-c3fe-4ca4-8e5e-f3c12c645bcd",
+        "dataset_id": "nsw-amenities",
+        "status": "awaiting_review",
+        "record_count": 9866
+      },
+      {
+        "id": "1d8fca70-33f6-47e3-91fd-994c4d07c06e",
+        "dataset_id": "nsw-psi-sales",
+        "status": "awaiting_review",
+        "record_count": 7402643
+      },
+      {
+        "id": "a5a79703-da08-47e0-b281-c37d531263c5",
+        "dataset_id": "nsw-suburb-boundaries",
+        "status": "awaiting_review",
+        "record_count": 4607
+      },
+      {
+        "id": "d91279f1-5628-44ea-a037-f8de0a0ad4ff",
+        "dataset_id": "abs-geography-2021",
+        "status": "awaiting_review",
+        "record_count": 4675
+      },
+      {
+        "id": "ab41d18a-fa19-4cdd-aae7-312052da814c",
+        "dataset_id": "nsw-school-catchments",
+        "status": "awaiting_review",
+        "record_count": 2191
+      },
+      {
+        "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
+        "dataset_id": "abs-cpi",
+        "status": "awaiting_review",
+        "record_count": 680
+      },
+      {
+        "id": "3949d345-2310-4205-b2d6-f3c350cbaf9d",
+        "dataset_id": "nsw-flood-planning",
+        "status": "awaiting_review",
+        "record_count": 622
+      },
+      {
+        "id": "47e3fab4-4b4d-4588-9e70-79e4e04cb372",
+        "dataset_id": "nsw-government-schools",
+        "status": "awaiting_review",
+        "record_count": 2210
+      }
+    ]
+  },
+  "ai_probe": {
+    "passed": true,
+    "services": {
+      "ai-mode": "http://127.0.0.1:5005",
+      "mcp": "http://127.0.0.1:5011/mcp",
+      "rag": "http://127.0.0.1:5012",
+      "multi-agent": "http://127.0.0.1:5013"
+    }
+  },
+  "multi_agent": {
+    "template": "f1-release-readiness-review",
+    "decision_by": "scripted (this capture)",
+    "release": {
+      "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+      "dataset_id": "abs-seifa-2021",
+      "status": "candidate",
+      "records": 4320
+    },
+    "run_id": "56685fcf-6061-4f79-a005-856d6c768d26",
+    "provider": "openai",
+    "provider_mode": "model",
+    "models": [
+      "gpt-5.6-luna",
+      "gpt-5.6-terra"
+    ],
+    "provider_label": "real model provider openai (gpt-5.6-luna, gpt-5.6-terra)",
+    "recommendation": "approve",
+    "decisions": [
+      {
+        "decision": "reject",
+        "actor": "local-deployment-capture",
+        "decided_at": "2026-10-16T09:02:18.744113Z",
+        "resulting_state": "rejected",
+        "round": 1
+      }
+    ],
+    "rounds": 1,
+    "input": {
+      "dataset_id": "abs-seifa-2021",
+      "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+      "reviewer_note": "Local deployment capture (capture_local_deployment.py)"
+    },
+    "final_state": "rejected",
+    "export_directory": "docs/release-2/evidence/local/multi-agent-run",
+    "transitions": [
+      "planning",
+      "working",
+      "reviewing",
+      "awaiting_human",
+      "rejected"
+    ],
+    "audit_events": 17
+  },
+  "terminals": [
+    {
+      "number": 1,
+      "title": "Docker Compose stack",
+      "command": "uv run scripts/dev.py stack up; stack logs",
+      "file": "terminal-1-compose.log",
+      "source": "docker logs",
+      "bytes": 31362,
+      "dropped_bytes": 0,
+      "redactions": 0,
+      "correlated_lines": 44
+    },
+    {
+      "number": 2,
+      "title": "AI-mode host process",
+      "command": "uv run scripts/dev.py ai serve ai-mode",
+      "file": "terminal-2-ai-mode.log",
+      "source": ".propertyscope-runtime/host/ai-mode.log",
+      "bytes": 10106,
+      "dropped_bytes": 0,
+      "redactions": 0,
+      "correlated_lines": 1
+    },
+    {
+      "number": 3,
+      "title": "MCP host process",
+      "command": "uv run scripts/dev.py ai serve mcp",
+      "file": "terminal-3-mcp.log",
+      "source": ".propertyscope-runtime/host/mcp.log",
+      "bytes": 1857,
+      "dropped_bytes": 0,
+      "redactions": 0,
+      "correlated_lines": 0
+    },
+    {
+      "number": 4,
+      "title": "RAG host process",
+      "command": "uv run scripts/dev.py ai serve rag",
+      "file": "terminal-4-rag.log",
+      "source": ".propertyscope-runtime/host/rag.log",
+      "bytes": 442,
+      "dropped_bytes": 0,
+      "redactions": 0,
+      "correlated_lines": 0
+    },
+    {
+      "number": 5,
+      "title": "Multi-Agent host process",
+      "command": "uv run scripts/dev.py ai serve multi-agent",
+      "file": "terminal-5-multi-agent.log",
+      "source": ".propertyscope-runtime/host/multi-agent.log",
+      "bytes": 27740,
+      "dropped_bytes": 0,
+      "redactions": 0,
+      "correlated_lines": 5
+    },
+    {
+      "number": 6,
+      "title": "System test",
+      "command": "uv run python scripts/capture_local_deployment.py",
+      "file": "terminal-6-system-test.log",
+      "source": "this script",
+      "bytes": 26136,
+      "dropped_bytes": 0,
+      "redactions": 0,
+      "correlated_lines": 16
+    }
+  ],
+  "log_observations": [
+    {
+      "file": "terminal-1-compose.log",
+      "source": "f2-backend",
+      "tracebacks": 6,
+      "error_lines": 0,
+      "last": "propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable"
+    }
+  ],
+  "checks": [
+    {
+      "section": "containers",
+      "name": "Docker reports the Compose project",
+      "passed": true,
+      "detail": "20 container(s) in project ps-dev",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f1-backend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f1-db-api container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f1-db-loader container",
+      "passed": true,
+      "detail": "running, Up 38 minutes",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f1-frontend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f1-postgres container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f1-runner container",
+      "passed": true,
+      "detail": "running, Up 38 minutes",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f2-backend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f2-db-api container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f2-frontend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f3-backend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f3-database container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f3-frontend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f4-backend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f4-db-api container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f4-frontend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f4-postgres container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f5-backend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f5-db-api container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "f5-frontend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "shared-frontend container",
+      "passed": true,
+      "detail": "running, Up 38 minutes (healthy)",
+      "owner": "shared"
+    },
+    {
+      "section": "containers",
+      "name": "No AI service runs in a container",
+      "passed": true,
+      "detail": "Compose runs no AI-mode, MCP, RAG or Multi-Agent container",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "ai-mode runs as a host process",
+      "passed": true,
+      "detail": "listener PID 17916 on port 5005 is in the process tree of managed PID 31512; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5005",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "ai-mode is ready",
+      "passed": true,
+      "detail": "running, ready",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "mcp runs as a host process",
+      "passed": true,
+      "detail": "listener PID 24956 on port 5011 is in the process tree of managed PID 28304; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5011",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "mcp is ready",
+      "passed": true,
+      "detail": "running, ready (29 tools registered)",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "rag runs as a host process",
+      "passed": true,
+      "detail": "listener PID 30516 on port 5012 is in the process tree of managed PID 31644; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5012",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "rag is ready",
+      "passed": true,
+      "detail": "running, ready (embedding model BAAI/bge-small-en-v1.5)",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "multi-agent runs as a host process",
+      "passed": true,
+      "detail": "listener PID 6940 on port 5013 is in the process tree of managed PID 9256; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5013",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "multi-agent is ready",
+      "passed": true,
+      "detail": "running, ready",
+      "owner": "shared"
+    },
+    {
+      "section": "host-services",
+      "name": "AI-mode capability mode is combined",
+      "passed": true,
+      "detail": "AI-mode process reports AI_MODE_MCP_ENABLED=true, AI_MODE_RAG_ENABLED=true (combined mode)",
+      "owner": "shared"
+    },
+    {
+      "section": "edge",
+      "name": "Shared home page (GET /)",
+      "passed": true,
+      "detail": "HTTP 200 text/html",
+      "owner": "shared"
+    },
+    {
+      "section": "edge",
+      "name": "Shared edge liveness (GET /healthz)",
+      "passed": true,
+      "detail": "HTTP 200, status ok",
+      "owner": "shared"
+    },
+    {
+      "section": "edge",
+      "name": "data-platform frontend (GET /features/data-platform/)",
+      "passed": true,
+      "detail": "HTTP 200 text/html",
+      "owner": "student-1"
+    },
+    {
+      "section": "edge",
+      "name": "data-platform health (GET /api/shared-health/data-platform)",
+      "passed": true,
+      "detail": "HTTP 200, status healthy",
+      "owner": "student-1"
+    },
+    {
+      "section": "edge",
+      "name": "market-intelligence frontend (GET /features/market-intelligence/)",
+      "passed": true,
+      "detail": "HTTP 200 text/html",
+      "owner": "student-2"
+    },
+    {
+      "section": "edge",
+      "name": "market-intelligence health (GET /api/shared-health/market-intelligence)",
+      "passed": true,
+      "detail": "HTTP 200, status healthy",
+      "owner": "student-2"
+    },
+    {
+      "section": "edge",
+      "name": "suburb-analytics frontend (GET /features/suburb-analytics/)",
+      "passed": true,
+      "detail": "HTTP 200 text/html",
+      "owner": "student-3"
+    },
+    {
+      "section": "edge",
+      "name": "suburb-analytics health (GET /api/shared-health/suburb-analytics)",
+      "passed": true,
+      "detail": "HTTP 200, status ready",
+      "owner": "student-3"
+    },
+    {
+      "section": "edge",
+      "name": "due-diligence frontend (GET /features/due-diligence/)",
+      "passed": true,
+      "detail": "HTTP 200 text/html",
+      "owner": "student-4"
+    },
+    {
+      "section": "edge",
+      "name": "due-diligence health (GET /api/shared-health/due-diligence)",
+      "passed": true,
+      "detail": "HTTP 200, status healthy",
+      "owner": "student-4"
+    },
+    {
+      "section": "edge",
+      "name": "buyer-workspaces frontend (GET /features/buyer-workspaces/)",
+      "passed": true,
+      "detail": "HTTP 200 text/html",
+      "owner": "student-5"
+    },
+    {
+      "section": "edge",
+      "name": "buyer-workspaces health (GET /api/shared-health/buyer-workspaces)",
+      "passed": true,
+      "detail": "HTTP 200, status healthy",
+      "owner": "student-5"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD source definition: create (POST /api/data-platform/v1/sources)",
+      "passed": true,
+      "detail": "HTTP 201, id 379be7cf-99fc-4647-a592-f3b6a7897830",
+      "owner": "student-1"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD source definition: read (GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830)",
+      "passed": true,
+      "detail": "HTTP 200, name matches",
+      "owner": "student-1"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD source definition: delete (DELETE /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830)",
+      "passed": true,
+      "detail": "HTTP 204",
+      "owner": "student-1"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD source definition: confirm deleted (GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830)",
+      "passed": true,
+      "detail": "HTTP 404 after delete",
+      "owner": "student-1"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD market case: create (POST /api/market-intelligence/v1/market-cases)",
+      "passed": true,
+      "detail": "HTTP 201, id 0b23e36f-306a-4545-b4a4-ed285cc20092",
+      "owner": "student-2"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD market case: read (GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092)",
+      "passed": true,
+      "detail": "HTTP 200, name matches",
+      "owner": "student-2"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD market case: delete (DELETE /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092)",
+      "passed": true,
+      "detail": "HTTP 200",
+      "owner": "student-2"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD market case: confirm deleted (GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092)",
+      "passed": true,
+      "detail": "HTTP 404 after delete",
+      "owner": "student-2"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD saved suburb comparison: create (POST /api/suburb-analytics/v1/suburb-comparisons)",
+      "passed": true,
+      "detail": "HTTP 201, id b29420c2-106b-473e-8d54-fe7c89878815",
+      "owner": "student-3"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD saved suburb comparison: read (GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815)",
+      "passed": true,
+      "detail": "HTTP 200, name matches",
+      "owner": "student-3"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD saved suburb comparison: delete (DELETE /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815)",
+      "passed": true,
+      "detail": "HTTP 200",
+      "owner": "student-3"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD saved suburb comparison: confirm deleted (GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815)",
+      "passed": true,
+      "detail": "HTTP 404 after delete",
+      "owner": "student-3"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD site review: create (POST /api/due-diligence/v1/site-reviews)",
+      "passed": true,
+      "detail": "HTTP 201, id df2a3ee8-d342-4cb4-afed-054a92810e2d",
+      "owner": "student-4"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD site review: read (GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d)",
+      "passed": true,
+      "detail": "HTTP 200, title matches",
+      "owner": "student-4"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD site review: delete (DELETE /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d)",
+      "passed": true,
+      "detail": "HTTP 200",
+      "owner": "student-4"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD site review: confirm deleted (GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d)",
+      "passed": true,
+      "detail": "HTTP 404 after delete",
+      "owner": "student-4"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD buyer case: create (POST /api/buyer-workspaces/v1/buyer-cases)",
+      "passed": true,
+      "detail": "HTTP 201, id 9e615571-c65a-4690-bc1f-db0bf6a91ab0",
+      "owner": "student-5"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD buyer case: read (GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0)",
+      "passed": true,
+      "detail": "HTTP 200, name matches",
+      "owner": "student-5"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD buyer case: delete (DELETE /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0)",
+      "passed": true,
+      "detail": "HTTP 200",
+      "owner": "student-5"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD buyer case: confirm deleted (GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0)",
+      "passed": true,
+      "detail": "HTTP 404 after delete",
+      "owner": "student-5"
+    },
+    {
+      "section": "edge",
+      "name": "AI tier reachable (--expect-ai) (GET /api/shared-health/ai-mode)",
+      "passed": true,
+      "detail": "available: HTTP 200",
+      "owner": "shared"
+    },
+    {
+      "section": "data",
+      "name": "Feature 1 release inventory read through the edge",
+      "passed": true,
+      "detail": "16 registered dataset(s), 6 accepted, 18 awaiting a decision. Data: includes published official releases: 12,915,219 records in abs-seifa-2021 (4,320), gnaf-nsw (5,190,134), nsw-psi-sales (7,402,643), bocsar-crime (318,122); still seeded or synthetic: fixture-property, nsw-government-schools",
+      "owner": "student-1"
+    },
+    {
+      "section": "ai-probe",
+      "name": "ai-mode: liveness",
+      "passed": true,
+      "detail": "HTTP 200",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "ai-mode: rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "ai-mode: accepts the service token",
+      "passed": true,
+      "detail": "HTTP 200; service token accepted; readiness healthy",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: health",
+      "passed": true,
+      "detail": "HTTP 200; 29 tools registered",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: tools/list",
+      "passed": true,
+      "detail": "29 tools exposed",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: student-1-propertyscope-data-platform tools",
+      "passed": true,
+      "detail": "14 listed",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: student-2-market-intelligence tools",
+      "passed": true,
+      "detail": "3 listed",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: student-3-suburb-analytics tools",
+      "passed": true,
+      "detail": "4 listed",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: student-4-due-diligence tools",
+      "passed": true,
+      "detail": "3 listed",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "mcp: student-5-buyer-journey tools",
+      "passed": true,
+      "detail": "5 listed",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: embedding model ready",
+      "passed": true,
+      "detail": "HTTP 200; BAAI/bge-small-en-v1.5@0511f78a94d45299a943282bdc513475ededebbcefcf156b39758f5fe7a1945b",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-1-propertyscope-data-platform corpus",
+      "passed": true,
+      "detail": "operator-guidance da29fbf773df: 19 documents, 46 chunks",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-1-propertyscope-data-platform grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'Searching for an address' score 0.9714718595924011",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-1-propertyscope-data-platform insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-2-market-intelligence corpus",
+      "passed": true,
+      "detail": "operator-guidance fc79eb7f5818: 3 documents, 8 chunks",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-2-market-intelligence grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'What Sales and market evidence cannot establish' score 0.971083220269766",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-2-market-intelligence insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-3-suburb-analytics corpus",
+      "passed": true,
+      "detail": "suburb-analytics-guidance 8db8f59a9c9d: 8 documents, 16 chunks",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-3-suburb-analytics grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'How to interpret amenities and transport evidence' score 0.9805379543736715",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-3-suburb-analytics insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-4-due-diligence corpus",
+      "passed": true,
+      "detail": "operator-guidance b50761eebb33: 3 documents, 8 chunks",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-4-due-diligence grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'What Site and due diligence evidence cannot establish' score 0.9372916432370861",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-4-due-diligence insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-5-buyer-journey corpus",
+      "passed": true,
+      "detail": "operator-guidance f35d5f4e8082: 5 documents, 5 chunks",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-5-buyer-journey grounded retrieval",
+      "passed": true,
+      "detail": "ready; 3 citations; top 'Manage buyer cases' score 0.9674645042742",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "rag: student-5-buyer-journey insufficient context",
+      "passed": true,
+      "detail": "no_match for an off-topic question (relevance floor 0.55)",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "multi-agent: liveness",
+      "passed": true,
+      "detail": "HTTP 200",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "multi-agent: rejects an unauthenticated caller",
+      "passed": true,
+      "detail": "HTTP 401",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "multi-agent: accepts the service token",
+      "passed": true,
+      "detail": "HTTP 200; readiness healthy; templates: 1 template(s) registered; tool_gateway: mcp: 29 catalogued tools via mcp",
+      "owner": "shared"
+    },
+    {
+      "section": "ai-probe",
+      "name": "multi-agent: lists workflow templates",
+      "passed": true,
+      "detail": "HTTP 200; 1 template(s): f1-release-readiness-review",
+      "owner": "shared"
+    },
+    {
+      "section": "multi-agent",
+      "name": "Feature 1 template is registered on the running server",
+      "passed": true,
+      "detail": "exit 0; f1-release-readiness-review listed",
+      "owner": "student-1"
+    },
+    {
+      "section": "multi-agent",
+      "name": "Agents reached awaiting_human",
+      "passed": true,
+      "detail": "run 56685fcf-6061-4f79-a005-856d6c768d26 is awaiting_human",
+      "owner": "shared"
+    },
+    {
+      "section": "multi-agent",
+      "name": "History records awaiting_human",
+      "passed": true,
+      "detail": "5 transition(s): planning -> working -> reviewing -> awaiting_human -> rejected",
+      "owner": "shared"
+    },
+    {
+      "section": "multi-agent",
+      "name": "A human decision is recorded",
+      "passed": true,
+      "detail": "final state rejected; 17 coordination event(s)",
+      "owner": "shared"
+    },
+    {
+      "section": "multi-agent",
+      "name": "Run exported (run.json, history, audit, summary)",
+      "passed": true,
+      "detail": "exit 0; docs/release-2/evidence/local/multi-agent-run",
+      "owner": "shared"
+    },
+    {
+      "section": "multi-agent",
+      "name": "Agent provider recorded",
+      "passed": true,
+      "detail": "real model provider openai (gpt-5.6-luna, gpt-5.6-terra)",
+      "owner": "shared"
+    },
+    {
+      "section": "evidence",
+      "name": "terminal-1-compose.log written",
+      "passed": true,
+      "detail": "31,362 bytes, 44 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "owner": "shared"
+    },
+    {
+      "section": "evidence",
+      "name": "terminal-2-ai-mode.log written",
+      "passed": true,
+      "detail": "10,106 bytes, 1 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "owner": "shared"
+    },
+    {
+      "section": "evidence",
+      "name": "terminal-3-mcp.log written",
+      "passed": true,
+      "detail": "1,857 bytes, 0 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "owner": "shared"
+    },
+    {
+      "section": "evidence",
+      "name": "terminal-4-rag.log written",
+      "passed": true,
+      "detail": "442 bytes, 0 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "owner": "shared"
+    },
+    {
+      "section": "evidence",
+      "name": "terminal-5-multi-agent.log written",
+      "passed": true,
+      "detail": "27,740 bytes, 5 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "owner": "shared"
+    },
+    {
+      "section": "evidence",
+      "name": "No secret values in the evidence folder",
+      "passed": true,
+      "detail": "0 value(s) redacted in the export; 0 secret-shaped value(s) remain",
+      "owner": "shared"
+    }
+  ],
+  "summary": {
+    "total": 109,
+    "passed": 109,
+    "failed": 0,
+    "by_section": {
+      "containers": {
+        "passed": 22,
+        "failed": 0
+      },
+      "host-services": {
+        "passed": 9,
+        "failed": 0
+      },
+      "edge": {
+        "passed": 13,
+        "failed": 0
+      },
+      "crud": {
+        "passed": 20,
+        "failed": 0
+      },
+      "data": {
+        "passed": 1,
+        "failed": 0
+      },
+      "ai-probe": {
+        "passed": 32,
+        "failed": 0
+      },
+      "multi-agent": {
+        "passed": 6,
+        "failed": 0
+      },
+      "evidence": {
+        "passed": 6,
+        "failed": 0
+      }
+    }
+  },
+  "passed": true,
+  "verdict": "PASSED"
+}

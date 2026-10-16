@@ -1,0 +1,261 @@
+# Terminal 6: System test
+# Command: uv run python scripts/capture_local_deployment.py
+# Started 2026-10-16T09:01:51+00:00
+Commit 1a68f0ad11a7 on release-2/wrap-up-shared-f1, Compose project ps-dev, edge http://localhost:5100
+
+== Terminal 1: Compose project ps-dev ==
+[09:01:51] $ docker ps --all --filter label=com.docker.compose.project=ps-dev
+ps-dev-f1-backend-1          f1-backend       running  Up 38 minutes (healthy)
+ps-dev-f1-db-api-1           f1-db-api        running  Up 38 minutes (healthy)
+ps-dev-f1-db-loader-1        f1-db-loader     running  Up 38 minutes
+ps-dev-f1-frontend-1         f1-frontend      running  Up 38 minutes (healthy)
+ps-dev-f1-postgres-1         f1-postgres      running  Up 38 minutes (healthy)
+ps-dev-f1-runner-1           f1-runner        running  Up 38 minutes
+ps-dev-f2-backend-1          f2-backend       running  Up 38 minutes (healthy)
+ps-dev-f2-db-api-1           f2-db-api        running  Up 38 minutes (healthy)
+ps-dev-f2-frontend-1         f2-frontend      running  Up 38 minutes (healthy)
+ps-dev-f3-backend-1          f3-backend       running  Up 38 minutes (healthy)
+ps-dev-f3-database-1         f3-database      running  Up 38 minutes (healthy)
+ps-dev-f3-frontend-1         f3-frontend      running  Up 38 minutes (healthy)
+ps-dev-f4-backend-1          f4-backend       running  Up 38 minutes (healthy)
+ps-dev-f4-db-api-1           f4-db-api        running  Up 38 minutes (healthy)
+ps-dev-f4-frontend-1         f4-frontend      running  Up 38 minutes (healthy)
+ps-dev-f4-postgres-1         f4-postgres      running  Up 38 minutes (healthy)
+ps-dev-f5-backend-1          f5-backend       running  Up 38 minutes (healthy)
+ps-dev-f5-db-api-1           f5-db-api        running  Up 38 minutes (healthy)
+ps-dev-f5-frontend-1         f5-frontend      running  Up 38 minutes (healthy)
+ps-dev-shared-frontend-1     shared-frontend  running  Up 38 minutes (healthy)
+(exit 0, 328 ms)
+
+PASS [containers] Docker reports the Compose project: 20 container(s) in project ps-dev
+PASS [containers] f1-backend container: running, Up 38 minutes (healthy)
+PASS [containers] f1-db-api container: running, Up 38 minutes (healthy)
+PASS [containers] f1-db-loader container: running, Up 38 minutes
+PASS [containers] f1-frontend container: running, Up 38 minutes (healthy)
+PASS [containers] f1-postgres container: running, Up 38 minutes (healthy)
+PASS [containers] f1-runner container: running, Up 38 minutes
+PASS [containers] f2-backend container: running, Up 38 minutes (healthy)
+PASS [containers] f2-db-api container: running, Up 38 minutes (healthy)
+PASS [containers] f2-frontend container: running, Up 38 minutes (healthy)
+PASS [containers] f3-backend container: running, Up 38 minutes (healthy)
+PASS [containers] f3-database container: running, Up 38 minutes (healthy)
+PASS [containers] f3-frontend container: running, Up 38 minutes (healthy)
+PASS [containers] f4-backend container: running, Up 38 minutes (healthy)
+PASS [containers] f4-db-api container: running, Up 38 minutes (healthy)
+PASS [containers] f4-frontend container: running, Up 38 minutes (healthy)
+PASS [containers] f4-postgres container: running, Up 38 minutes (healthy)
+PASS [containers] f5-backend container: running, Up 38 minutes (healthy)
+PASS [containers] f5-db-api container: running, Up 38 minutes (healthy)
+PASS [containers] f5-frontend container: running, Up 38 minutes (healthy)
+PASS [containers] shared-frontend container: running, Up 38 minutes (healthy)
+PASS [containers] No AI service runs in a container: Compose runs no AI-mode, MCP, RAG or Multi-Agent container
+
+== Terminals 2-5: host AI services ==
+PASS [host-services] ai-mode runs as a host process: listener PID 17916 on port 5005 is in the process tree of managed PID 31512; executable ~\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe; no container publishes 5005
+PASS [host-services] ai-mode is ready: running, ready
+PASS [host-services] mcp runs as a host process: listener PID 24956 on port 5011 is in the process tree of managed PID 28304; executable ~\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe; no container publishes 5011
+PASS [host-services] mcp is ready: running, ready (29 tools registered)
+PASS [host-services] rag runs as a host process: listener PID 30516 on port 5012 is in the process tree of managed PID 31644; executable ~\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe; no container publishes 5012
+PASS [host-services] rag is ready: running, ready (embedding model BAAI/bge-small-en-v1.5)
+PASS [host-services] multi-agent runs as a host process: listener PID 6940 on port 5013 is in the process tree of managed PID 9256; executable ~\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe; no container publishes 5013
+PASS [host-services] multi-agent is ready: running, ready
+PASS [host-services] AI-mode capability mode is combined: AI-mode process reports AI_MODE_MCP_ENABLED=true, AI_MODE_RAG_ENABLED=true (combined mode)
+
+== System test: edge, features and CRUD through http://localhost:5100 ==
+PASS [shared] Shared home page (GET /): HTTP 200 text/html
+PASS [shared] Shared edge liveness (GET /healthz): HTTP 200, status ok
+PASS [student-1] data-platform frontend (GET /features/data-platform/): HTTP 200 text/html
+PASS [student-1] data-platform health (GET /api/shared-health/data-platform): HTTP 200, status healthy
+PASS [student-2] market-intelligence frontend (GET /features/market-intelligence/): HTTP 200 text/html
+PASS [student-2] market-intelligence health (GET /api/shared-health/market-intelligence): HTTP 200, status healthy
+PASS [student-3] suburb-analytics frontend (GET /features/suburb-analytics/): HTTP 200 text/html
+PASS [student-3] suburb-analytics health (GET /api/shared-health/suburb-analytics): HTTP 200, status ready
+PASS [student-4] due-diligence frontend (GET /features/due-diligence/): HTTP 200 text/html
+PASS [student-4] due-diligence health (GET /api/shared-health/due-diligence): HTTP 200, status healthy
+PASS [student-5] buyer-workspaces frontend (GET /features/buyer-workspaces/): HTTP 200 text/html
+PASS [student-5] buyer-workspaces health (GET /api/shared-health/buyer-workspaces): HTTP 200, status healthy
+PASS [student-1] CRUD source definition: create (POST /api/data-platform/v1/sources): HTTP 201, id 379be7cf-99fc-4647-a592-f3b6a7897830
+PASS [student-1] CRUD source definition: read (GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830): HTTP 200, name matches
+PASS [student-1] CRUD source definition: delete (DELETE /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830): HTTP 204
+PASS [student-1] CRUD source definition: confirm deleted (GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830): HTTP 404 after delete
+PASS [student-2] CRUD market case: create (POST /api/market-intelligence/v1/market-cases): HTTP 201, id 0b23e36f-306a-4545-b4a4-ed285cc20092
+PASS [student-2] CRUD market case: read (GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092): HTTP 200, name matches
+PASS [student-2] CRUD market case: delete (DELETE /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092): HTTP 200
+PASS [student-2] CRUD market case: confirm deleted (GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092): HTTP 404 after delete
+PASS [student-3] CRUD saved suburb comparison: create (POST /api/suburb-analytics/v1/suburb-comparisons): HTTP 201, id b29420c2-106b-473e-8d54-fe7c89878815
+PASS [student-3] CRUD saved suburb comparison: read (GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815): HTTP 200, name matches
+PASS [student-3] CRUD saved suburb comparison: delete (DELETE /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815): HTTP 200
+PASS [student-3] CRUD saved suburb comparison: confirm deleted (GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815): HTTP 404 after delete
+PASS [student-4] CRUD site review: create (POST /api/due-diligence/v1/site-reviews): HTTP 201, id df2a3ee8-d342-4cb4-afed-054a92810e2d
+PASS [student-4] CRUD site review: read (GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d): HTTP 200, title matches
+PASS [student-4] CRUD site review: delete (DELETE /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d): HTTP 200
+PASS [student-4] CRUD site review: confirm deleted (GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d): HTTP 404 after delete
+PASS [student-5] CRUD buyer case: create (POST /api/buyer-workspaces/v1/buyer-cases): HTTP 201, id 9e615571-c65a-4690-bc1f-db0bf6a91ab0
+PASS [student-5] CRUD buyer case: read (GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0): HTTP 200, name matches
+PASS [student-5] CRUD buyer case: delete (DELETE /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0): HTTP 200
+PASS [student-5] CRUD buyer case: confirm deleted (GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0): HTTP 404 after delete
+PASS [shared] AI tier reachable (--expect-ai) (GET /api/shared-health/ai-mode): available: HTTP 200
+
+== System test: Feature 1 data inventory ==
+PASS [data] Feature 1 release inventory read through the edge: 16 registered dataset(s), 6 accepted, 18 awaiting a decision. Data: includes published official releases: 12,915,219 records in abs-seifa-2021 (4,320), gnaf-nsw (5,190,134), nsw-psi-sales (7,402,643), bocsar-crime (318,122); still seeded or synthetic: fixture-property, nsw-government-schools
+
+== System test: direct AI-mode, MCP, RAG and Multi-Agent probes ==
+PASS [ai-probe] ai-mode: liveness: HTTP 200
+PASS [ai-probe] ai-mode: rejects an unauthenticated caller: HTTP 401
+PASS [ai-probe] ai-mode: accepts the service token: HTTP 200; service token accepted; readiness healthy
+PASS [ai-probe] mcp: rejects an unauthenticated caller: HTTP 401
+PASS [ai-probe] mcp: health: HTTP 200; 29 tools registered
+PASS [ai-probe] mcp: tools/list: 29 tools exposed
+PASS [ai-probe] mcp: student-1-propertyscope-data-platform tools: 14 listed
+PASS [ai-probe] mcp: student-2-market-intelligence tools: 3 listed
+PASS [ai-probe] mcp: student-3-suburb-analytics tools: 4 listed
+PASS [ai-probe] mcp: student-4-due-diligence tools: 3 listed
+PASS [ai-probe] mcp: student-5-buyer-journey tools: 5 listed
+PASS [ai-probe] rag: rejects an unauthenticated caller: HTTP 401
+PASS [ai-probe] rag: embedding model ready: HTTP 200; BAAI/bge-small-en-v1.5@0511f78a94d45299a943282bdc513475ededebbcefcf156b39758f5fe7a1945b
+PASS [ai-probe] rag: student-1-propertyscope-data-platform corpus: operator-guidance da29fbf773df: 19 documents, 46 chunks
+PASS [ai-probe] rag: student-1-propertyscope-data-platform grounded retrieval: ready; 3 citations; top 'Searching for an address' score 0.9714718595924011
+PASS [ai-probe] rag: student-1-propertyscope-data-platform insufficient context: no_match for an off-topic question (relevance floor 0.55)
+PASS [ai-probe] rag: student-2-market-intelligence corpus: operator-guidance fc79eb7f5818: 3 documents, 8 chunks
+PASS [ai-probe] rag: student-2-market-intelligence grounded retrieval: ready; 3 citations; top 'What Sales and market evidence cannot establish' score 0.971083220269766
+PASS [ai-probe] rag: student-2-market-intelligence insufficient context: no_match for an off-topic question (relevance floor 0.55)
+PASS [ai-probe] rag: student-3-suburb-analytics corpus: suburb-analytics-guidance 8db8f59a9c9d: 8 documents, 16 chunks
+PASS [ai-probe] rag: student-3-suburb-analytics grounded retrieval: ready; 3 citations; top 'How to interpret amenities and transport evidence' score 0.9805379543736715
+PASS [ai-probe] rag: student-3-suburb-analytics insufficient context: no_match for an off-topic question (relevance floor 0.55)
+PASS [ai-probe] rag: student-4-due-diligence corpus: operator-guidance b50761eebb33: 3 documents, 8 chunks
+PASS [ai-probe] rag: student-4-due-diligence grounded retrieval: ready; 3 citations; top 'What Site and due diligence evidence cannot establish' score 0.9372916432370861
+PASS [ai-probe] rag: student-4-due-diligence insufficient context: no_match for an off-topic question (relevance floor 0.55)
+PASS [ai-probe] rag: student-5-buyer-journey corpus: operator-guidance f35d5f4e8082: 5 documents, 5 chunks
+PASS [ai-probe] rag: student-5-buyer-journey grounded retrieval: ready; 3 citations; top 'Manage buyer cases' score 0.9674645042742
+PASS [ai-probe] rag: student-5-buyer-journey insufficient context: no_match for an off-topic question (relevance floor 0.55)
+PASS [ai-probe] multi-agent: liveness: HTTP 200
+PASS [ai-probe] multi-agent: rejects an unauthenticated caller: HTTP 401
+PASS [ai-probe] multi-agent: accepts the service token: HTTP 200; readiness healthy; templates: 1 template(s) registered; tool_gateway: mcp: 29 catalogued tools via mcp
+PASS [ai-probe] multi-agent: lists workflow templates: HTTP 200; 1 template(s): f1-release-readiness-review
+
+== System test: terminal Multi-Agent run (Feature 1 template) ==
+[09:01:57] $ uv run multi-agent-server templates --server
+f1-release-readiness-review v1 [student-1-propertyscope-data-platform] Release readiness review
+  inputs: ["release_id"]; tools: data.release_inspect.v1, data.releases.v1
+(exit 0, 1671 ms)
+
+PASS [multi-agent] Feature 1 template is registered on the running server: exit 0; f1-release-readiness-review listed
+[09:01:59] $ uv run multi-agent-server run --template f1-release-readiness-review --input '{"release_id":"cb188a6e-613f-4f4e-b7b0-b827dd573869","dataset_id":"abs-seifa-2021","reviewer_note":"Local deployment capture (capture_local_deployment.py)"}' --requested-by local-deployment-capture --follow --server
+Run 56685fcf-6061-4f79-a005-856d6c768d26 started; following the agents...
+09:02:00 == r1 system    - -> planning: Run accepted
+09:02:00  . r1 system    run.created        run accepted for local-deployment-capture: f1-release-readiness-review v1, model agents, tools via mcp
+09:02:00  . r1 system    agent.handoff      handoff system -> planner
+09:02:00  . r1 planner   model.started      model call 1 started: remote-standard.v1, prompt planner v1
+09:02:05  . r1 planner   model.invocation   model call 1 succeeded: openai/gpt-5.6-luna, 1229+423 tokens, 4891 ms
+09:02:05 == r1 planner   planning -> working: Planner produced 2 step(s); handed to Worker
+09:02:05  . r1 planner   plan.created       plan of 2 step(s): release [data.release_inspect.v1], queue [data.releases.v1] (openai)
+09:02:05  . r1 planner   agent.handoff      handoff planner -> worker (2 step(s))
+09:02:05  . r1 worker    tool.call          step release: data.release_inspect.v1 succeeded via mcp in 32 ms -> ev-release-r1
+09:02:06  . r1 worker    tool.call          step queue: data.releases.v1 succeeded via mcp in 16 ms -> ev-queue-r1
+09:02:06  . r1 worker    model.started      model call 1 started: remote-standard.v1, prompt worker v1
+09:02:11  . r1 worker    model.invocation   model call 1 succeeded: openai/gpt-5.6-terra, 5487+695 tokens, 5672 ms
+09:02:11 == r1 worker    working -> reviewing: Worker gathered evidence for 2/2 step(s)
+09:02:11  . r1 worker    worker.completed   evidence gathered for 2/2 step(s), 2 evidence item(s) (openai)
+09:02:11  . r1 worker    agent.handoff      handoff worker -> reviewer
+09:02:11  . r1 reviewer  model.started      model call 1 started: remote-standard.v1, prompt reviewer v1
+09:02:14  . r1 reviewer  model.invocation   model call 1 succeeded: openai/gpt-5.6-terra, 7380+131 tokens, 2546 ms
+09:02:14 == r1 reviewer  reviewing -> awaiting_human: Reviewer recommends approve; awaiting human decision
+09:02:14  . r1 reviewer  review.completed   recommends APPROVE; 9 finding(s), failed: none (openai)
+09:02:14  . r1 reviewer  agent.handoff      handoff reviewer -> human
+
+Run 56685fcf-6061-4f79-a005-856d6c768d26
+  State:     awaiting_human (round 1, model agents)
+  Template:  f1-release-readiness-review v1 for student-1-propertyscope-data-platform
+  Requested: local-deployment-capture at 2026-10-16T09:02:00.986053+00:00
+  Stages:    planner:completed -> worker:completed -> reviewer:completed -> human:running
+
+Planner (openai): Inspect the specified release first to gather its readiness evidence, including status, record count, content hash, quality results, provenance, publication information, and accepted predecessor. Then review the bounded release queue for the same dataset to provide context on competing or related releases. All planned operations are read-only and no publication or other write action is included.
+  1. Inspect the candidate release [data.release_inspect.v1 {"release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869"}]
+  2. Read the dataset release queue [data.releases.v1 {"dataset_id": "abs-seifa-2021", "limit": 10}]
+
+Worker (openai): The inspected release "cb188a6e-613f-4f4e-b7b0-b827dd573869" is a 4,320-record candidate with three passing blocking quality checks and no blocking failures. Its manifest identifies ABS SEIFA 2021 NSW Suburbs and Localities provenance, source licence "cc-by-4-0", and SHA-256 "31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0". Inspection shows no activations, consumer imports, or receipts; the queue shows it alongside one accepted 4,320-record predecessor and one superseded 4,320-record release.
+  - release: completed
+      Release "cb188a6e-613f-4f4e-b7b0-b827dd573869" has status "candidate", record_count 4320, release_version "release-39d9c3b47565d7ee-f99c4612", and content_sha256 "31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0".
+      Quality summary reports total 3, passed 3, failed 0, and blocking_failures 0; all three blocking rules have status "pass".
+      The completeness rule expected minimum 4320 and observed accepted 4320; the coverage rule observed count 4320, distinct_codes 4320, populated 4320, and scoped 4320.
+      Manifest provenance names publisher "Australian Bureau of Statistics", source "ABS SEIFA 2021 NSW Suburbs and Localities", source_licence "cc-by-4-0", source_retrieved_at "2026-09-13T04:41:08.783243Z", and temporal coverage from "2021-01-01" to "2021-12-31".
+      The inspection lists activations [], consumer_imports [], and receipts []; its accepted predecessor is "0320c071-6ee7-451e-83a6-8a7870252be4", accepted at "2026-09-05T10:56:44.850750+00:00", with record_count 4320.
+  - queue: completed
+      The dataset queue returned count 3 for "abs-seifa-2021".
+      The requested release "cb188a6e-613f-4f4e-b7b0-b827dd573869" is listed as "candidate" with record_count 4320 and ingestion_run_id "f99c4612-a508-4434-bcba-f020520dc413".
+      Release "0320c071-6ee7-451e-83a6-8a7870252be4" is "accepted" with record_count 4320 and accepted_at "2026-09-05T10:56:44.850750+00:00".
+      Release "1672de46-b88e-400d-9e12-7e9fecad1b0a" is "superseded" with record_count 4320.
+
+Reviewer (openai) recommends APPROVE: Both required plan steps were completed with successful evidence, and the Worker's factual findings are supported by the release inspection and queue results. The candidate has 4,320 records, a recorded content hash and ABS provenance, three passing blocking quality checks with no failures, and a known accepted predecessor with the same record count. The candidate is unactivated and has no receipts or consumer imports, which is consistent with this being a pre-publication recommendation rather than a publication action. All authoritative checks passed, including every readiness condition specified by the workflow.
+  [pass info] Passed: The requested release was inspected. (data.release_inspect.v1 succeeded)
+  [pass info] Passed: The inspected release is the one requested. (release.id = 'cb188a6e-613f-4f4e-b7b0-b827dd573869'; expected eq 'cb188a6e-613f-4f4e-b7b0-b827dd573869')
+  [pass info] Passed: The release is a candidate or awaiting review, so publication is still a decision to make. (release.status = 'candidate'; expected in ['candidate', 'awaiting_review'])
+  [pass info] Passed: The release contains at least one record. (release.record_count = 4320; expected gt 0)
+  [pass info] Passed: The release records a content hash for provenance. (release.content_sha256 is present)
+  [pass info] Passed: Quality checks were run against the release. (quality_summary.total = 3; expected gt 0)
+  [pass info] Passed: No blocking quality check failed. (quality_summary.blocking_failures = 0; expected eq 0)
+  [pass info] Passed: No quality check failed at all. (quality_summary.failed = 0; expected eq 0)
+  [pass info] Passed: An accepted predecessor exists to compare against. (accepted_predecessor.id is present)
+
+Next: multi-agent-server review 56685fcf-6061-4f79-a005-856d6c768d26   (interactive), or
+      multi-agent-server decide 56685fcf-6061-4f79-a005-856d6c768d26 --decision approve|correct|partial|reject --note "..."
+(exit 0, 15187 ms)
+
+[09:02:14] $ uv run multi-agent-server status 56685fcf-6061-4f79-a005-856d6c768d26 --server --json
+(JSON response, 31,396 bytes; state awaiting_human; the full document is in the export below)
+(exit 0, 2406 ms)
+
+PASS [multi-agent] Agents reached awaiting_human: run 56685fcf-6061-4f79-a005-856d6c768d26 is awaiting_human
+[09:02:17] $ uv run multi-agent-server decide 56685fcf-6061-4f79-a005-856d6c768d26 --decision reject --note 'Scripted decision by scripts/capture_local_deployment.py to exercise the human-decision path of the local deployment check. The workflow publishes nothing.' --actor local-deployment-capture --server --json
+(JSON response, 31,831 bytes; state rejected; the full document is in the export below)
+(exit 0, 1750 ms)
+
+[09:02:18] $ uv run multi-agent-server history 56685fcf-6061-4f79-a005-856d6c768d26 --server --json
+(JSON response, 14,426 bytes; state rejected; the full document is in the export below)
+(exit 0, 1984 ms)
+
+[09:02:20] $ uv run multi-agent-server history 56685fcf-6061-4f79-a005-856d6c768d26 --server
+Run 56685fcf-6061-4f79-a005-856d6c768d26 is rejected: 5 transition(s) (==), 17 coordination event(s) (.)
+09:02:00 == r1 system    - -> planning: Run accepted
+09:02:00  . r1 system    run.created        run accepted for local-deployment-capture: f1-release-readiness-review v1, model agents, tools via mcp
+09:02:00  . r1 system    agent.handoff      handoff system -> planner
+09:02:00  . r1 planner   model.started      model call 1 started: remote-standard.v1, prompt planner v1
+09:02:05  . r1 planner   model.invocation   model call 1 succeeded: openai/gpt-5.6-luna, 1229+423 tokens, 4891 ms
+09:02:05 == r1 planner   planning -> working: Planner produced 2 step(s); handed to Worker
+09:02:05  . r1 planner   plan.created       plan of 2 step(s): release [data.release_inspect.v1], queue [data.releases.v1] (openai)
+09:02:05  . r1 planner   agent.handoff      handoff planner -> worker (2 step(s))
+09:02:05  . r1 worker    tool.call          step release: data.release_inspect.v1 succeeded via mcp in 32 ms -> ev-release-r1
+09:02:06  . r1 worker    tool.call          step queue: data.releases.v1 succeeded via mcp in 16 ms -> ev-queue-r1
+09:02:06  . r1 worker    model.started      model call 1 started: remote-standard.v1, prompt worker v1
+09:02:11  . r1 worker    model.invocation   model call 1 succeeded: openai/gpt-5.6-terra, 5487+695 tokens, 5672 ms
+09:02:11 == r1 worker    working -> reviewing: Worker gathered evidence for 2/2 step(s)
+09:02:11  . r1 worker    worker.completed   evidence gathered for 2/2 step(s), 2 evidence item(s) (openai)
+09:02:11  . r1 worker    agent.handoff      handoff worker -> reviewer
+09:02:11  . r1 reviewer  model.started      model call 1 started: remote-standard.v1, prompt reviewer v1
+09:02:14  . r1 reviewer  model.invocation   model call 1 succeeded: openai/gpt-5.6-terra, 7380+131 tokens, 2546 ms
+09:02:14 == r1 reviewer  reviewing -> awaiting_human: Reviewer recommends approve; awaiting human decision
+09:02:14  . r1 reviewer  review.completed   recommends APPROVE; 9 finding(s), failed: none (openai)
+09:02:14  . r1 reviewer  agent.handoff      handoff reviewer -> human
+09:02:18 == r1 human     awaiting_human -> rejected: Human decision: reject
+09:02:18  . r1 human     decision.recorded  local-deployment-capture decided reject in round 1 -> rejected (Reviewer suggested approve); note: Scripted decision by scripts/capture_local_deployment.py to exercise the huma...
+(exit 0, 1765 ms)
+
+PASS [multi-agent] History records awaiting_human: 5 transition(s): planning -> working -> reviewing -> awaiting_human -> rejected
+PASS [multi-agent] A human decision is recorded: final state rejected; 17 coordination event(s)
+[09:02:22] $ uv run multi-agent-server export 56685fcf-6061-4f79-a005-856d6c768d26 --out docs/release-2/evidence/local/multi-agent-run --server
+C:/git/41026ASDProject/docs/release-2/evidence/local/multi-agent-run/template.json
+C:/git/41026ASDProject/docs/release-2/evidence/local/multi-agent-run/run.json
+C:/git/41026ASDProject/docs/release-2/evidence/local/multi-agent-run/workflow_history.jsonl
+C:/git/41026ASDProject/docs/release-2/evidence/local/multi-agent-run/coordination_audit.jsonl
+C:/git/41026ASDProject/docs/release-2/evidence/local/multi-agent-run/summary.md
+(exit 0, 1827 ms)
+
+PASS [multi-agent] Run exported (run.json, history, audit, summary): exit 0; docs/release-2/evidence/local/multi-agent-run
+PASS [multi-agent] Agent provider recorded: real model provider openai (gpt-5.6-luna, gpt-5.6-terra)
+PASS [evidence] terminal-1-compose.log written: 31,362 bytes, 44 line(s) carry this capture's request or run IDs, 0 redaction(s)
+PASS [evidence] terminal-2-ai-mode.log written: 10,106 bytes, 1 line(s) carry this capture's request or run IDs, 0 redaction(s)
+PASS [evidence] terminal-3-mcp.log written: 1,857 bytes, 0 line(s) carry this capture's request or run IDs, 0 redaction(s)
+PASS [evidence] terminal-4-rag.log written: 442 bytes, 0 line(s) carry this capture's request or run IDs, 0 redaction(s)
+PASS [evidence] terminal-5-multi-agent.log written: 27,740 bytes, 5 line(s) carry this capture's request or run IDs, 0 redaction(s)
+
+Finished 2026-10-16T09:02:24+00:00
