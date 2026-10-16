@@ -46,9 +46,11 @@ repos:
         require_serial: true
         pass_filenames: false
         files: ^(uv\.lock|(.+/)?pyproject\.toml|scripts/security/accepted-risks\.toml)$
+      # Skips when the pushed commit's tree already passed `scripts/check.py` in this clone;
+      # otherwise runs the full gate. Set PROPERTYSCOPE_CHECK_FORCE=1 to always run it.
       - id: pytest
         name: canonical quality gate
-        entry: uv run --locked python scripts/check.py
+        entry: uv run --locked python scripts/check.py pre-push
         language: system
         pass_filenames: false
         always_run: true
