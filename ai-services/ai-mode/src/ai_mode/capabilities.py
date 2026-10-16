@@ -45,7 +45,7 @@ def capability_snapshot(settings: Settings) -> dict[str, object]:
             {"id": name, "implemented": True, "enabled": enabled, "status": state, "detail": detail}
         )
     return {
-        "release": "release-1",
+        "release": "release-2",
         "deployment_mode": "local",
         "services": services,
         "grounding_features": [feature for feature, _ in settings.rag_corpora]

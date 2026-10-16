@@ -5,7 +5,7 @@ description = "Shared Release 1 tool runtime"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "shared-tool-runtime",
-    "mcp>=1.28,<2",
+    "mcp>=1.30,<2",
     "uvicorn>=0.35,<1",
     "shared-contracts",
     "jsonschema>=4.25,<5",

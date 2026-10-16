@@ -1,0 +1,96 @@
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3679076Z ##[group]Run uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3679904Z uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3734785Z shell: /usr/bin/bash -e {0}
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3734997Z env:
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3735176Z   AI_MODE_MCP_ENABLED: false
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3735406Z   AI_MODE_RAG_ENABLED: false
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3735608Z   AI_MODE_REQUIRE_PROVIDER_READY: false
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3735864Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3736158Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3736462Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3736793Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3737165Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3737466Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3737762Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3738063Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3738390Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3738678Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3739277Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5200
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3739587Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:26.3739836Z ##[endgroup]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6186242Z .................                                                        [100%]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6186820Z =============================== warnings summary ===============================
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6187617Z student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6188774Z   student-1/tests/endpoints/test_property_search_endpoint.py:23: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6189879Z     def test_accepted_address_returns_typed_ranked_matches(
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6190172Z 
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6190437Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6190959Z ==================================== PASSES ====================================
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6191717Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-1-feature-origin.xml -
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6192461Z =========================== short test summary info ============================
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6193181Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6194158Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[missing-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6195124Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[one-character-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6196149Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[whitespace-padded-short-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6197159Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[over-long-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6198494Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_source_definition_create_list_read_update_delete
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6199769Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[missing-required-field]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6201249Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[adapter-key-pattern]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6202430Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[source-url-not-http]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6203596Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[no-target-features]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6204755Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[duplicate-targets]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6205906Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unknown-status]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6207048Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unexpected-field]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6208122Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[published]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6209260Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[all]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6210119Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_non_json_body_is_rejected
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6210982Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_duplicate_name_conflicts_and_keeps_the_original
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6211654Z 17 passed, 5 deselected, 1 warning in 0.89s
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6967667Z ##[group]Run uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.6968447Z uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7023918Z shell: /usr/bin/bash -e {0}
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7024127Z env:
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7024308Z   AI_MODE_MCP_ENABLED: false
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7024519Z   AI_MODE_RAG_ENABLED: false
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7024725Z   AI_MODE_REQUIRE_PROVIDER_READY: false
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7024980Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7025265Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7025558Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7025888Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7026288Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7026591Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7026888Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7027192Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7027508Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7027799Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7028110Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5100
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7028403Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /healthz
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:28.7028636Z ##[endgroup]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6537538Z .................                                                        [100%]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6537927Z =============================== warnings summary ===============================
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6539077Z student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6539808Z   student-1/tests/endpoints/test_property_search_endpoint.py:23: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6540388Z     def test_accepted_address_returns_typed_ranked_matches(
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6540575Z 
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6540768Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6541117Z ==================================== PASSES ====================================
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6541599Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-1-shared-edge.xml -
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6542066Z =========================== short test summary info ============================
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6542537Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6543163Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[missing-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6543783Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[one-character-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6544443Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[whitespace-padded-short-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6545102Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[over-long-q]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6545729Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_source_definition_create_list_read_update_delete
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6546424Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[missing-required-field]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6547531Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[adapter-key-pattern]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6548327Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[source-url-not-http]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6549182Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[no-target-features]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6549954Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[duplicate-targets]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6550712Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unknown-status]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6551461Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unexpected-field]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6552178Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[published]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6552896Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[all]
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6553530Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_non_json_body_is_rejected
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6554101Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_duplicate_name_conflicts_and_keeps_the_original
+Feature 1 integrated stack	UNKNOWN STEP	2026-10-15T10:18:29.6554546Z 17 passed, 5 deselected, 1 warning in 0.37s

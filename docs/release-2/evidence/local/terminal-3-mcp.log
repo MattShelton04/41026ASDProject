@@ -1,0 +1,32 @@
+# Terminal 3: MCP host process
+# Equivalent foreground command: uv run scripts/dev.py ai serve mcp
+# Source: .propertyscope-runtime/host/mcp.log from byte 67327
+--- last 15 line(s) before the capture window ---
+INFO:     127.0.0.1:55875 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55875 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55880 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64513 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64520 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:64520 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64520 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52499 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52499 - "POST /mcp HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52500 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52500 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52504 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52504 - "POST /mcp HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52505 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52505 - "POST /mcp HTTP/1.1" 200 OK
+--- capture window 2026-10-16T09:01:51+00:00 to 2026-10-16T09:02:24+00:00 ---
+INFO:     127.0.0.1:62908 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62915 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62915 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62915 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61318 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61318 - "POST /mcp HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:61319 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61319 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61323 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61323 - "POST /mcp HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:61324 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61324 - "POST /mcp HTTP/1.1" 200 OK

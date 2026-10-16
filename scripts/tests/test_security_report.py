@@ -356,6 +356,28 @@ def test_json_payloads_carry_status_and_slice() -> None:
     json.dumps(secrets)
 
 
+def test_written_evidence_is_read_by_the_testing_review(tmp_path: Path) -> None:
+    """Round trip: what `security report` writes is what `ai review testing` classifies."""
+    from scripts.devtools.review.workflow import collect_bundle
+
+    cli.write_evidence(_report(), PIP_AUDIT_JSON, tmp_path / "security")
+    checks = {check.id: check for check in collect_bundle("testing", tmp_path).checks}
+
+    assert checks["security.secrets"].status.value == "passed"
+    assert "all audited as false positives" in checks["security.secrets"].detail
+    # The fixture keeps one open Ruff finding and one pending on its owner.
+    assert checks["security.ruff"].status.value == "failed"
+    assert "S307 shared/run.py:4 (open)" in checks["security.ruff"].detail
+    assert checks["security.ruff-owners"].status.value == "failed"
+    assert "student-2" in checks["security.ruff-owners"].detail
+
+    explained = tuple(item for item in _report().ruff if item.status in {FIXED, "noqa-justified"})
+    cli.write_evidence(_report(ruff=explained), PIP_AUDIT_JSON, tmp_path / "security")
+    checks = {check.id: check for check in collect_bundle("testing", tmp_path).checks}
+    assert checks["security.ruff"].status.value == "passed"
+    assert checks["security.ruff-owners"].status.value == "passed"
+
+
 def test_evidence_files_are_written_together(tmp_path: Path) -> None:
     written = cli.write_evidence(_report(), PIP_AUDIT_JSON, tmp_path)
     assert sorted(path.name for path in written) == [

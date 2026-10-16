@@ -1,0 +1,39 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","secondaryColor":"#f4f6f8","tertiaryColor":"#ffffff"},"flowchart":{"curve":"linear","wrappingWidth":400,"nodeSpacing":28,"rankSpacing":42}}}%%
+flowchart TB
+    subgraph deployer["Deployment pipeline"]
+        direction LR
+        gha["GitHub Actions<br/>cloud-deployment.yml<br/>environment: production"] -->|"OIDC token,<br/>no stored secret"| entra[("Microsoft Entra ID<br/>federated credential")]
+    end
+    user([Browser])
+
+    deployer -->|"deploy.sh provision (Bicep), push images,<br/>deploy (az vm run-command), smoke"| rg
+    user -->|"HTTPS 443"| rg
+
+    subgraph rg["Resource group, australiaeast (main.bicep)"]
+        direction TB
+        ingress{{"Standard public IP with DNS label<br/>VNet / NSG: 80 and 443 only, no SSH or database ports"}}
+        ingress --> vm
+        subgraph vm["Ubuntu 24.04 VM, system-assigned managed identity"]
+            direction LR
+            edge["Caddy :443<br/>TLS, HSTS, auth on<br/>ops and AI routes<br/>→ nginx edge,<br/>rate limits"] --> fe["Feature<br/>frontends 1-5"]
+            edge --> be["Feature<br/>backends/APIs 1-5"]
+            be --> dbs[("PostGIS x2, SQLite x3<br/>internal networks only")]
+            be -.->|"only if<br/>PROPERTYSCOPE_CLOUD_AI=true"| aitier["systemd host units,<br/>off by default:<br/>AI-mode :5005, MCP :5011<br/>RAG :5012, Multi-Agent :5013"]
+        end
+        vm -.->|"managed identity"| services
+        subgraph services["Platform services"]
+            direction LR
+            acr[("Container Registry<br/>images :git-sha<br/>AcrPull, admin off")]
+            kv[("Key Vault<br/>RBAC, purge protection,<br/>Secrets User")]
+            budget[["Budget alert,<br/>auto-shutdown"]]
+        end
+    end
+
+    classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
+    classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
+    classDef off fill:#f4f6f8,stroke:#9aa5b1,color:#4b5563,stroke-dasharray: 4 3;
+    classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
+    class edge,acr,kv,ingress shared;
+    class fe,be,dbs feature;
+    class aitier off;
+    class gha,entra,budget note;

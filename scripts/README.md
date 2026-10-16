@@ -117,3 +117,15 @@ or, with `--deterministic`, the same loop in-process, and writes a report and JS
 step results, and the endpoint-test JUnit table) in `docs/release-2/evidence/ci/student-N.md`.
 It reads through an authenticated `gh` and never triggers or re-runs a workflow; see
 [`docs/release-2/evidence/ci/README.md`](../docs/release-2/evidence/ci/README.md).
+
+`capture_local_deployment.py` writes the Release 2 local deployment report (R2-41) to
+`docs/release-2/evidence/local/`. It runs against a stack that is already running and never starts
+or stops anything. The report covers the containers, the four host AI processes (PID, readiness,
+proof they are not containerised), the edge and every feature through it, one self-cleaning CRUD
+case per feature (reused from `cloud_smoke.py`), the Feature 1 record counts behind the data label,
+the `release1_probe.py` checks, and a terminal Multi-Agent run of the Feature 1 template through
+`multi-agent-server --server` with its decision and export. It also writes one redacted,
+size-capped log per terminal. For the multi-terminal version, run each
+host service in its own terminal with `dev.py ai serve SERVICE`, which gives it the environment
+`ai start` would. See
+[`docs/release-2/evidence/local/README.md`](../docs/release-2/evidence/local/README.md).

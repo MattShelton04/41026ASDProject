@@ -528,7 +528,7 @@ def fixture_response(
         return FixtureResponse(
             200,
             {
-                "release": "release-1",
+                "release": "release-2",
                 "deployment_mode": "local",
                 "services": [
                     {

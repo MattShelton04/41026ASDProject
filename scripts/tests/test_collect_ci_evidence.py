@@ -284,6 +284,26 @@ def test_main_retains_junit_xml_and_a_redacted_endpoint_run_log(tmp_path: Path) 
     assert "1 secret-shaped line(s) redacted" in markdown
 
 
+def test_unknown_step_names_locate_endpoint_steps_by_their_run_command() -> None:
+    prefix = "Feature 1 integrated stack\tUNKNOWN STEP\t2026-10-15T10:17:0"
+    unknown = "\n".join(
+        [
+            f"{prefix}1Z ##[group]Run docker buildx bake shared feature-1",
+            f"{prefix}2Z #67 DONE 0.1s",
+            f"{prefix}3Z ##[group]Run uv run pytest student-1/tests/endpoints -m endpoint",
+            f"{prefix}4Z PASSED test_accepted_address_returns_typed_ranked_matches",
+            f"{prefix}5Z ##[group]Run docker compose logs",
+            f"{prefix}6Z f1-backend | ready",
+        ]
+    )
+    evidence = collect(FakeGh(artifact={"a.xml": PASSING_JUNIT}, log=unknown), 1, branch="main")
+    assert evidence.run_log is not None
+    assert evidence.run_log.scope == "Endpoint-test steps, matched by run command,"
+    assert "PASSED test_accepted_address" in evidence.run_log.text
+    assert "#67 DONE" not in evidence.run_log.text
+    assert "f1-backend | ready" not in evidence.run_log.text
+
+
 def test_unknown_step_names_keep_the_whole_job_log_and_missing_logs_are_noted(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -364,11 +384,17 @@ def test_workflow_without_a_name_is_refused(tmp_path: Path) -> None:
 
 
 def test_run_gh_maps_cli_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
     def completed(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(kwargs)
         return subprocess.CompletedProcess(["gh"], 0, stdout="[]", stderr="")
 
     monkeypatch.setattr(subprocess, "run", completed)
     assert run_gh(["run", "list"]) == "[]"
+    # Run logs are UTF-8; the Windows locale codec must never decode them.
+    assert calls[0]["encoding"] == "utf-8"
+    assert calls[0]["errors"] == "replace"
 
     failures: list[BaseException] = [
         FileNotFoundError("gh"),

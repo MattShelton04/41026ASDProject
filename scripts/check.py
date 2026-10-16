@@ -82,6 +82,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "scripts/visual",
         "scripts/devtools",
         "scripts/security",
+        "scripts/capture_local_deployment.py",
         "scripts/check.py",
         "scripts/collect_ci_evidence.py",
         "scripts/cloud_deployment_report.py",

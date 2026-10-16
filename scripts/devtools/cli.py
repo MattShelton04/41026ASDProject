@@ -302,8 +302,15 @@ def _ai_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     ):
         command = commands.add_parser(action, help=help_text)
         command.add_argument("services", nargs="*", choices=tuple(AI_SERVICE_PORTS))
-    foreground = commands.add_parser("serve", help="Run one host service in the foreground")
+    foreground = commands.add_parser(
+        "serve",
+        help="Run one host service in this terminal with the environment `ai start` gives it",
+    )
     foreground.add_argument("service", choices=tuple(AI_SERVICE_PORTS))
+    foreground.add_argument("--mode", choices=AI_CAPABILITY_MODES, default="combined")
+    foreground.add_argument(
+        "--offline", action="store_true", help="Run without a model key (direct mode)"
+    )
 
 
 def _security_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

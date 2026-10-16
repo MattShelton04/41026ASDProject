@@ -144,7 +144,7 @@ test("research-area fragment stays in exact parity with the feature registry", (
 
 test("capability manifest separates implemented, enabled and planned states", () => {
   const manifest = capabilityManifest({ featureHrefs: { "property-records": "/properties" }, agentRuns: "/runs" });
-  assert.equal(manifest.release, "release-1");
+  assert.equal(manifest.release, "release-2");
   assert.equal(manifest.features.filter((item) => item.enabled).length, 5);
   assert.equal(manifest.features.find((item) => item.id === "property-records").href, "/properties");
   assert.equal(

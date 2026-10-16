@@ -985,7 +985,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif command == ("ai", "logs"):
             print(host_runtime.logs(tuple(arguments.services) or host_runtime.SERVICES))
         elif command == ("ai", "serve"):
-            host_runtime.serve(arguments.service)
+            # Same tokens, state paths and catalogues as `ai start`, so the containers and the
+            # other host services reach this foreground process unchanged.
+            environment = host_runtime.prepare_environment(
+                _compose_environment(offline=arguments.offline),
+                mode="direct" if arguments.offline else arguments.mode,
+            )
+            return host_runtime.serve_in_terminal(arguments.service, environment=environment)
         elif command == ("ai", "validate"):
             from scripts.release1_validation import FEATURE, QUERY, validate
 

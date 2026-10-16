@@ -1,0 +1,241 @@
+# Terminal 1: Docker Compose stack (project ps-dev)
+# Command: uv run scripts/dev.py stack up; stack logs
+# Source: docker logs --since 2026-10-16T09:01:51+00:00 --timestamps for 20 container(s), merged by timestamp
+--- containers at capture start ---
+f1-backend       running  Up 38 minutes (healthy)
+f1-db-api        running  Up 38 minutes (healthy)
+f1-db-loader     running  Up 38 minutes
+f1-frontend      running  Up 38 minutes (healthy)
+f1-postgres      running  Up 38 minutes (healthy)
+f1-runner        running  Up 38 minutes
+f2-backend       running  Up 38 minutes (healthy)
+f2-db-api        running  Up 38 minutes (healthy)
+f2-frontend      running  Up 38 minutes (healthy)
+f3-backend       running  Up 38 minutes (healthy)
+f3-database      running  Up 38 minutes (healthy)
+f3-frontend      running  Up 38 minutes (healthy)
+f4-backend       running  Up 38 minutes (healthy)
+f4-db-api        running  Up 38 minutes (healthy)
+f4-frontend      running  Up 38 minutes (healthy)
+f4-postgres      running  Up 38 minutes (healthy)
+f5-backend       running  Up 38 minutes (healthy)
+f5-db-api        running  Up 38 minutes (healthy)
+f5-frontend      running  Up 38 minutes (healthy)
+shared-frontend  running  Up 38 minutes (healthy)
+--- capture window 2026-10-16T09:01:51+00:00 to 2026-10-16T09:02:24+00:00 ---
+f3-frontend      | 2026-10-16T09:01:53.013746387Z 127.0.0.1 - - [16/Oct/2026:09:01:53 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
+f1-frontend      | 2026-10-16T09:01:53.701520747Z 127.0.0.1 - - [16/Oct/2026:09:01:53 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-16T09:01:54.410986492Z 127.0.0.1 - - [16/Oct/2026:09:01:54 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:01:54.851329650Z 127.0.0.1 - - [16/Oct/2026:09:01:54 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+shared-frontend  | 2026-10-16T09:01:55.471500013Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 28930 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-16T09:01:55.478589997Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 9275 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-16T09:01:55.478637268Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/data-platform/ HTTP/1.1" 200 9275 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.485247064Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/data-platform HTTP/1.1" 200 254 "-" "propertyscope-local-deployment-capture/1" "-"
+f2-frontend      | 2026-10-16T09:01:55.488765144Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 8811 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-16T09:01:55.488880400Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/market-intelligence/ HTTP/1.1" 200 8811 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.494009857Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/market-intelligence HTTP/1.1" 200 259 "-" "propertyscope-local-deployment-capture/1" "-"
+f3-frontend      | 2026-10-16T09:01:55.499559256Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 13364 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-16T09:01:55.499634330Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/suburb-analytics/ HTTP/1.1" 200 13364 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.504595107Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/suburb-analytics HTTP/1.1" 200 98 "-" "propertyscope-local-deployment-capture/1" "-"
+f4-frontend      | 2026-10-16T09:01:55.509916634Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 7178 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-16T09:01:55.509952596Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/due-diligence/ HTTP/1.1" 200 7178 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.515666106Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/due-diligence HTTP/1.1" 200 245 "-" "propertyscope-local-deployment-capture/1" "-"
+f5-frontend      | 2026-10-16T09:01:55.519876611Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 12885 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-16T09:01:55.520135340Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/buyer-workspaces/ HTTP/1.1" 200 12885 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.525474884Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/buyer-workspaces HTTP/1.1" 200 264 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.534396265Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "POST /api/data-platform/v1/sources HTTP/1.1" 201 606 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.540439370Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830 HTTP/1.1" 200 606 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.551983548Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "DELETE /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830 HTTP/1.1" 204 0 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.556973602Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830 HTTP/1.1" 404 188 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.589946259Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/properties/search?q=11+Example+Street&state=NSW&limit=1 HTTP/1.1" 200 147 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.607121075Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/properties/search?q=1+Fixture+Street&state=NSW&limit=1 HTTP/1.1" 200 146 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.775379955Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/market-intelligence/v1/properties/a0000000-0000-0000-0000-000000000001/validate HTTP/1.1" 200 75 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.936584736Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "POST /api/market-intelligence/v1/market-cases HTTP/1.1" 201 487 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.941221486Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092 HTTP/1.1" 200 487 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.950428962Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "DELETE /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092 HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.955021910Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092 HTTP/1.1" 404 138 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.974465418Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "POST /api/suburb-analytics/v1/suburb-comparisons HTTP/1.1" 201 389 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.979737563Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815 HTTP/1.1" 200 389 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:55.999578682Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "DELETE /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815 HTTP/1.1" 200 16 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.004474966Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815 HTTP/1.1" 404 217 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.166402495Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "POST /api/due-diligence/v1/site-reviews HTTP/1.1" 201 421 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.171839518Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d HTTP/1.1" 200 421 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.179268189Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "DELETE /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.184012265Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d HTTP/1.1" 404 138 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.203186168Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "POST /api/buyer-workspaces/v1/buyer-cases HTTP/1.1" 201 271 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.208692120Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0 HTTP/1.1" 200 271 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.226161342Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "DELETE /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0 HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.231651473Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0 HTTP/1.1" 404 318 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.240316570Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/shared-health/ai-mode HTTP/1.1" 200 321 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.258576035Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/data-products HTTP/1.1" 200 17756 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.282458354Z 2026/10/16 09:01:56 [warn] 84#84: *717 an upstream response is buffered to a temporary file /tmp/proxy_temp/0000000002 while reading upstream, client: 172.21.0.1, server: _, request: "GET /api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0 HTTP/1.1", upstream: "http://172.21.0.14:5201/api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0", host: "localhost:5100"
+shared-frontend  | 2026-10-16T09:01:56.282708216Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0 HTTP/1.1" 200 284938 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.302373131Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/dataset-releases?status=candidate&limit=100&offset=0 HTTP/1.1" 200 204912 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-16T09:01:56.313037692Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/dataset-releases?status=awaiting_review&limit=100&offset=0 HTTP/1.1" 200 56219 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-16T09:01:58.746929646Z 127.0.0.1 - - [16/Oct/2026:09:01:58 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-16T09:01:59.455495775Z 127.0.0.1 - - [16/Oct/2026:09:01:59 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:01:59.894890118Z 127.0.0.1 - - [16/Oct/2026:09:01:59 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+f3-frontend      | 2026-10-16T09:02:03.052447221Z 127.0.0.1 - - [16/Oct/2026:09:02:03 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
+f1-frontend      | 2026-10-16T09:02:03.788688308Z 127.0.0.1 - - [16/Oct/2026:09:02:03 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-backend       | 2026-10-16T09:02:04.224249435Z Sales import reconciliation will retry after its durable lease
+f2-backend       | 2026-10-16T09:02:04.224303838Z Traceback (most recent call last):
+f2-backend       | 2026-10-16T09:02:04.224309408Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+f2-backend       | 2026-10-16T09:02:04.224312709Z     yield
+f2-backend       | 2026-10-16T09:02:04.224315159Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 250, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224317869Z     resp = self._pool.handle_request(req)
+f2-backend       | 2026-10-16T09:02:04.224322389Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224325689Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224328589Z     raise exc from None
+f2-backend       | 2026-10-16T09:02:04.224331280Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224334020Z     response = connection.handle_request(
+f2-backend       | 2026-10-16T09:02:04.224336450Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224339060Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224356211Z     return self._connection.handle_request(request)
+f2-backend       | 2026-10-16T09:02:04.224358931Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224361481Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224364271Z     raise exc
+f2-backend       | 2026-10-16T09:02:04.224366901Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224369702Z     ) = self._receive_response_headers(**kwargs)
+f2-backend       | 2026-10-16T09:02:04.224372312Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224374932Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
+f2-backend       | 2026-10-16T09:02:04.224377632Z     event = self._receive_event(timeout=timeout)
+f2-backend       | 2026-10-16T09:02:04.224380132Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224382712Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 231, in _receive_event
+f2-backend       | 2026-10-16T09:02:04.224385602Z     raise RemoteProtocolError(msg)
+f2-backend       | 2026-10-16T09:02:04.224388293Z httpcore.RemoteProtocolError: Server disconnected without sending a response.
+f2-backend       | 2026-10-16T09:02:04.224390923Z 
+f2-backend       | 2026-10-16T09:02:04.224393593Z The above exception was the direct cause of the following exception:
+f2-backend       | 2026-10-16T09:02:04.224396553Z 
+f2-backend       | 2026-10-16T09:02:04.224399123Z Traceback (most recent call last):
+f2-backend       | 2026-10-16T09:02:04.224401833Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 30, in request
+f2-backend       | 2026-10-16T09:02:04.224431915Z     return self._client.request(
+f2-backend       | 2026-10-16T09:02:04.224434665Z            ^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224438345Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 825, in request
+f2-backend       | 2026-10-16T09:02:04.224441135Z     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+f2-backend       | 2026-10-16T09:02:04.224443436Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224445916Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 914, in send
+f2-backend       | 2026-10-16T09:02:04.224487491Z     response = self._send_handling_auth(
+f2-backend       | 2026-10-16T09:02:04.224497492Z                ^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224501752Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+f2-backend       | 2026-10-16T09:02:04.224504842Z     response = self._send_handling_redirects(
+f2-backend       | 2026-10-16T09:02:04.224544809Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224579393Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+f2-backend       | 2026-10-16T09:02:04.224642905Z     response = self._send_single_request(request)
+f2-backend       | 2026-10-16T09:02:04.224729779Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224738700Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1014, in _send_single_request
+f2-backend       | 2026-10-16T09:02:04.224742310Z     response = transport.handle_request(request)
+f2-backend       | 2026-10-16T09:02:04.224744860Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224747360Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 249, in handle_request
+f2-backend       | 2026-10-16T09:02:04.224749941Z     with map_httpcore_exceptions():
+f2-backend       | 2026-10-16T09:02:04.224752491Z          ^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224754961Z   File "/usr/local/lib/python3.12/contextlib.py", line 158, in __exit__
+f2-backend       | 2026-10-16T09:02:04.224757571Z     self.gen.throw(value)
+f2-backend       | 2026-10-16T09:02:04.224760661Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+f2-backend       | 2026-10-16T09:02:04.224766711Z     raise mapped_exc(message) from exc
+f2-backend       | 2026-10-16T09:02:04.224769462Z httpx.RemoteProtocolError: Server disconnected without sending a response.
+f2-backend       | 2026-10-16T09:02:04.224772232Z 
+f2-backend       | 2026-10-16T09:02:04.224774792Z The above exception was the direct cause of the following exception:
+f2-backend       | 2026-10-16T09:02:04.224777572Z 
+f2-backend       | 2026-10-16T09:02:04.224783522Z Traceback (most recent call last):
+f2-backend       | 2026-10-16T09:02:04.224786382Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 172, in run
+f2-backend       | 2026-10-16T09:02:04.224788853Z     if self.run_once():
+f2-backend       | 2026-10-16T09:02:04.224791123Z        ^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224793483Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 62, in run_once
+f2-backend       | 2026-10-16T09:02:04.224795883Z     operation = self._request("POST", f"{INTERNAL}/claim").get("operation")
+f2-backend       | 2026-10-16T09:02:04.224798593Z                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224802193Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 57, in _request
+f2-backend       | 2026-10-16T09:02:04.224804823Z     response = self.store.request(method, path, **kwargs)
+f2-backend       | 2026-10-16T09:02:04.224807584Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:04.224810364Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 38, in request
+f2-backend       | 2026-10-16T09:02:04.224813144Z     raise DependencyUnavailableError("Market database API is unavailable") from exc
+f2-backend       | 2026-10-16T09:02:04.224815874Z propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable
+f2-frontend      | 2026-10-16T09:02:04.494287577Z 127.0.0.1 - - [16/Oct/2026:09:02:04 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:02:04.946941107Z 127.0.0.1 - - [16/Oct/2026:09:02:04 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+f1-frontend      | 2026-10-16T09:02:05.938630488Z 172.21.0.1 - - [16/Oct/2026:09:02:05 +0000] "POST /api/data-platform/v1/tools/releases.inspect.v1 HTTP/1.1" 200 216761 "-" "python-httpx/0.28.1" "-"
+f1-frontend      | 2026-10-16T09:02:06.017015157Z 172.21.0.1 - - [16/Oct/2026:09:02:06 +0000] "POST /api/data-platform/v1/tools/releases.list.v1 HTTP/1.1" 200 1649 "-" "python-httpx/0.28.1" "-"
+f1-frontend      | 2026-10-16T09:02:08.829686732Z 127.0.0.1 - - [16/Oct/2026:09:02:08 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-16T09:02:09.545677033Z 127.0.0.1 - - [16/Oct/2026:09:02:09 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:02:09.988186285Z 127.0.0.1 - - [16/Oct/2026:09:02:09 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+f3-frontend      | 2026-10-16T09:02:13.096308707Z 127.0.0.1 - - [16/Oct/2026:09:02:13 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
+f1-frontend      | 2026-10-16T09:02:13.881446124Z 127.0.0.1 - - [16/Oct/2026:09:02:13 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-16T09:02:14.613075347Z 127.0.0.1 - - [16/Oct/2026:09:02:14 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:02:15.041040202Z 127.0.0.1 - - [16/Oct/2026:09:02:15 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+f1-frontend      | 2026-10-16T09:02:18.927717747Z 127.0.0.1 - - [16/Oct/2026:09:02:18 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-16T09:02:19.653409242Z 127.0.0.1 - - [16/Oct/2026:09:02:19 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:02:20.125601944Z 127.0.0.1 - - [16/Oct/2026:09:02:20 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+f2-backend       | 2026-10-16T09:02:20.253054806Z Sales import reconciliation will retry after its durable lease
+f2-backend       | 2026-10-16T09:02:20.253097749Z Traceback (most recent call last):
+f2-backend       | 2026-10-16T09:02:20.253107149Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+f2-backend       | 2026-10-16T09:02:20.253133811Z     yield
+f2-backend       | 2026-10-16T09:02:20.253137731Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 250, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253141281Z     resp = self._pool.handle_request(req)
+f2-backend       | 2026-10-16T09:02:20.253145221Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253148491Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253151982Z     raise exc from None
+f2-backend       | 2026-10-16T09:02:20.253154912Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253158302Z     response = connection.handle_request(
+f2-backend       | 2026-10-16T09:02:20.253161582Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253164642Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253167883Z     return self._connection.handle_request(request)
+f2-backend       | 2026-10-16T09:02:20.253171113Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253174213Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253177663Z     raise exc
+f2-backend       | 2026-10-16T09:02:20.253180763Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253183873Z     ) = self._receive_response_headers(**kwargs)
+f2-backend       | 2026-10-16T09:02:20.253186884Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253189934Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
+f2-backend       | 2026-10-16T09:02:20.253193334Z     event = self._receive_event(timeout=timeout)
+f2-backend       | 2026-10-16T09:02:20.253196374Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253199474Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 231, in _receive_event
+f2-backend       | 2026-10-16T09:02:20.253202694Z     raise RemoteProtocolError(msg)
+f2-backend       | 2026-10-16T09:02:20.253206045Z httpcore.RemoteProtocolError: Server disconnected without sending a response.
+f2-backend       | 2026-10-16T09:02:20.253209105Z 
+f2-backend       | 2026-10-16T09:02:20.253213315Z The above exception was the direct cause of the following exception:
+f2-backend       | 2026-10-16T09:02:20.253216495Z 
+f2-backend       | 2026-10-16T09:02:20.253219445Z Traceback (most recent call last):
+f2-backend       | 2026-10-16T09:02:20.253222596Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 30, in request
+f2-backend       | 2026-10-16T09:02:20.253225906Z     return self._client.request(
+f2-backend       | 2026-10-16T09:02:20.253228986Z            ^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253233356Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 825, in request
+f2-backend       | 2026-10-16T09:02:20.253243487Z     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+f2-backend       | 2026-10-16T09:02:20.253247047Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253250377Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 914, in send
+f2-backend       | 2026-10-16T09:02:20.253253677Z     response = self._send_handling_auth(
+f2-backend       | 2026-10-16T09:02:20.253256747Z                ^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253259918Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+f2-backend       | 2026-10-16T09:02:20.253263008Z     response = self._send_handling_redirects(
+f2-backend       | 2026-10-16T09:02:20.253265798Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253268658Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+f2-backend       | 2026-10-16T09:02:20.253271848Z     response = self._send_single_request(request)
+f2-backend       | 2026-10-16T09:02:20.253274788Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253277819Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1014, in _send_single_request
+f2-backend       | 2026-10-16T09:02:20.253280989Z     response = transport.handle_request(request)
+f2-backend       | 2026-10-16T09:02:20.253284169Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253287259Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 249, in handle_request
+f2-backend       | 2026-10-16T09:02:20.253290509Z     with map_httpcore_exceptions():
+f2-backend       | 2026-10-16T09:02:20.253293629Z          ^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253296750Z   File "/usr/local/lib/python3.12/contextlib.py", line 158, in __exit__
+f2-backend       | 2026-10-16T09:02:20.253299980Z     self.gen.throw(value)
+f2-backend       | 2026-10-16T09:02:20.253303090Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+f2-backend       | 2026-10-16T09:02:20.253306490Z     raise mapped_exc(message) from exc
+f2-backend       | 2026-10-16T09:02:20.253309620Z httpx.RemoteProtocolError: Server disconnected without sending a response.
+f2-backend       | 2026-10-16T09:02:20.253312650Z 
+f2-backend       | 2026-10-16T09:02:20.253315381Z The above exception was the direct cause of the following exception:
+f2-backend       | 2026-10-16T09:02:20.253364263Z 
+f2-backend       | 2026-10-16T09:02:20.253373544Z Traceback (most recent call last):
+f2-backend       | 2026-10-16T09:02:20.253376914Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 172, in run
+f2-backend       | 2026-10-16T09:02:20.253380534Z     if self.run_once():
+f2-backend       | 2026-10-16T09:02:20.253383624Z        ^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253386645Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 62, in run_once
+f2-backend       | 2026-10-16T09:02:20.253390095Z     operation = self._request("POST", f"{INTERNAL}/claim").get("operation")
+f2-backend       | 2026-10-16T09:02:20.253402225Z                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253406856Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 57, in _request
+f2-backend       | 2026-10-16T09:02:20.253410546Z     response = self.store.request(method, path, **kwargs)
+f2-backend       | 2026-10-16T09:02:20.253413606Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-16T09:02:20.253416646Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 38, in request
+f2-backend       | 2026-10-16T09:02:20.253419946Z     raise DependencyUnavailableError("Market database API is unavailable") from exc
+f2-backend       | 2026-10-16T09:02:20.253423137Z propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable
+f3-frontend      | 2026-10-16T09:02:23.141052465Z 127.0.0.1 - - [16/Oct/2026:09:02:23 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
+f1-frontend      | 2026-10-16T09:02:23.983039906Z 127.0.0.1 - - [16/Oct/2026:09:02:23 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-16T09:02:24.692518859Z 127.0.0.1 - - [16/Oct/2026:09:02:24 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
+f4-frontend      | 2026-10-16T09:02:25.169713101Z 127.0.0.1 - - [16/Oct/2026:09:02:25 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"

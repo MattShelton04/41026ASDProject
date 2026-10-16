@@ -6,7 +6,7 @@ depend on. Feature-specific behaviour stays in the student slices. The decisions
 
 ## A. Multi-Agent Server (R2-10 to R2-17)
 
-Package `ai-services/multi-agent-server` (`propertyscope-multi-agent-server`): a Flask application
+Package `ai-services/multi-agent-server` (`multi-agent-server`): a Flask application
 factory, a host process on `:5013`, no Dockerfile.
 
 1. **Contract** in `shared/contracts`: `WorkflowTemplate`, `WorkflowRun`, `PlanStep`,

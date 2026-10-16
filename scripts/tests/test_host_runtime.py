@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import socket
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 import psutil
@@ -691,3 +694,62 @@ def test_probed_status_reads_persisted_tokens_and_flags_foreign_port_holders(
     lines = runtime.render_status(list(entries.values()))
     assert any(line.split()[:3] == ["rag", "running", "ready"] for line in lines)
     assert not (runtime.HOST_DIRECTORY / "ai-mode.token").exists()
+
+
+SERVE_TOKEN = "Tk_" + "a" * 40
+
+
+class FakePopen:
+    def __init__(self, command: list[str], **kwargs: Any) -> None:
+        self.command = command
+        self.kwargs = kwargs
+        self.pid = 4242
+        self.stdout = io.BytesIO(b"INFO: Uvicorn running on http://127.0.0.1:5011\n")
+
+    def wait(self, timeout: float | None = None) -> int:
+        return 0
+
+    def terminate(self) -> None:
+        raise AssertionError("not interrupted")
+
+
+def test_serve_in_terminal_tees_output_to_the_host_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runtime, "port_is_free", lambda port: True)
+    launched: list[FakePopen] = []
+
+    def popen(command: list[str], **kwargs: Any) -> FakePopen:
+        launched.append(FakePopen(command, **kwargs))
+        return launched[-1]
+
+    out = io.StringIO()
+    log = tmp_path / "mcp.log"
+    code = runtime.serve_in_terminal(
+        "mcp",
+        environment={"MCP_PORT": "5011", "MCP_SERVICE_SERVE_TOKEN": SERVE_TOKEN},
+        log_path=log,
+        popen=popen,  # type: ignore[arg-type]
+        out=out,
+        clock=lambda: datetime(2026, 10, 16, tzinfo=UTC),
+    )
+    assert code == 0
+    assert launched[0].command[-2:] == ["serve", "mcp"]
+    assert launched[0].kwargs["env"]["MCP_SERVICE_SERVE_TOKEN"] == SERVE_TOKEN
+    written = log.read_text(encoding="utf-8")
+    assert "Uvicorn running" in written and "PID 4242" in written
+    assert SERVE_TOKEN not in out.getvalue() and "Uvicorn running" in out.getvalue()
+
+
+def test_serve_in_terminal_refuses_a_busy_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runtime, "port_is_free", lambda port: False)
+    monkeypatch.setattr(runtime, "port_owner", lambda port: "python (PID 1)")
+    code = runtime.serve_in_terminal(
+        "rag",
+        environment={},
+        log_path=tmp_path / "rag.log",
+        popen=lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not start")),
+    )
+    assert code == 1 and not (tmp_path / "rag.log").exists()

@@ -1,0 +1,37 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial","fontSize":"18px","primaryColor":"#eff6f6","primaryBorderColor":"#6b969b","primaryTextColor":"#153e46","lineColor":"#527a80","actorBkg":"#dfeded","actorBorder":"#176b75","noteBkgColor":"#faf2e4","noteBorderColor":"#a67c00"},"sequence":{"mirrorActors":false,"actorFontSize":18,"messageFontSize":17,"noteFontSize":16,"actorMargin":24,"width":130,"messageMargin":22,"boxMargin":6}}}%%
+sequenceDiagram
+    autonumber
+    actor H as Human
+    participant UI as F1 page and<br/>shared panel
+    participant BE as f1-backend
+    participant MA as Multi-Agent<br/>Server
+    participant P as Planner
+    participant W as Worker
+    participant R as Reviewer
+
+    H->>UI: Readiness review
+    UI->>BE: POST /release-reviews
+    BE->>MA: POST /runs
+    MA-->>UI: 202, run ID
+    MA->>P: objective, inputs
+    P-->>MA: 2 read-only steps
+    MA->>W: plan
+    Note over W: MCP: data.release_inspect.v1,<br/>data.releases.v1
+    W-->>MA: findings, evidence
+    MA->>R: plan, output, checks
+    R-->>MA: recommendation
+    Note over MA: awaiting_human<br/>history and audit appended
+    UI->>BE: poll run and history
+    BE->>MA: GET /runs/{id}
+    MA-->>UI: plan, evidence, review
+    H->>UI: correct, with a note
+    UI->>BE: POST decision
+    BE->>MA: POST decision
+    MA->>W: re-run with the note
+    W-->>MA: round 2 evidence
+    MA->>R: review round 2
+    R-->>MA: recommendation
+    H->>UI: partial: accept release step
+    UI->>BE: POST decision
+    BE->>MA: POST decision
+    MA-->>UI: partially_accepted

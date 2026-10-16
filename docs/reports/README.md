@@ -9,6 +9,7 @@ byte-identical output for the same inputs and locked environment.
 |---|---|---|---|
 | 0 | [`release-0-technical-report.md`](release-0-technical-report.md) | `scripts/build_release0_report.py` | [`submissions/release-0/41026Group20Release0Report.pdf`](submissions/release-0/41026Group20Release0Report.pdf) (frozen) |
 | 1 | [`release-1-technical-report.md`](release-1-technical-report.md) | `scripts/build_release1_report.py` | [`submissions/release-1/group-20.pdf`](submissions/release-1/group-20.pdf) (draft until submission) |
+| 2 | [`release-2-technical-report.md`](release-2-technical-report.md) | `scripts/build_release2_report.py` | [`submissions/release-2/group-20.pdf`](submissions/release-2/group-20.pdf) (draft until submission) |
 
 `submissions/` holds what goes to Canvas. The Release 0 PDF is exactly what was uploaded and is
 never regenerated: a test pins its SHA-256, and Release 0 rebuilds write to `tmp/reports/` instead.
@@ -144,11 +145,51 @@ The guard checks the evidence index's structure and traceability. Authors still 
 screenshots, confirm CI results, review provider answers and verify video access, duration and
 coverage. A final build does not establish the quality of those observations or guarantee marks.
 
+## Release 2 workflow
+
+The Release 2 brief allows **3,000 words** with no stated exemption, so the builder uses Release
+1's counting policy: cover, captions, tables, generated tables and code blocks count; diagram
+pixels, TODO callouts and hidden comments do not. Its chapters follow the brief's Technical Report
+table, and each student-owned chapter reserves about 40–70 words per student.
+
+```text
+uv run python scripts/build_release2_report.py --status   # budget, TODOs by owner, evidence gaps
+uv run python scripts/build_release2_report.py            # rebuild submissions/release-2/group-20.pdf
+```
+
+Generated tables read `docs/release-2/evidence/` and never need hand-copying. A missing or
+incomplete evidence file becomes a TODO for its owner, which shows in drafts and blocks `--final`:
+
+| Syntax | Effect |
+|---|---|
+| `[[FEATURE_FLOWS]]` | Each feature's frontend → API → database path, MCP tools, RAG documents and multi-agent template, from the manifests |
+| `[[SECURITY_SUMMARY]]` | Scan results and per-slice findings from `security/pre-commit-report.md` |
+| `[[CI_EVIDENCE]]` | One row per student from `ci/student-N.md` (`collect_ci_evidence.py`): run, conclusion, commit, endpoint totals |
+| `[[REVIEW_SUMMARY mode]]` | Verdict, checklist, engine, loop run, validation-log entries and summary of `reviews/<mode>-review.md` (`multi-agent`, `testing`, `cloud`) |
+| `[[MULTI_AGENT_RUNS]]` | Every export under `multi-agent/student-N/`: history and audit events, handoffs, tool calls, decisions, final state |
+| `[[WORKFLOW_HISTORY dir]]` | One exported run's state transitions as a terminal block |
+| `[[LOCAL_EVIDENCE]]` | Verdict, check groups and terminal logs from `local/local-deployment-report.md` |
+| `[[CLOUD_SUMMARY]]` | Cloud deployment result and the human release decision from `cloud/` |
+
+To fill in your part, run `--status`, find the TODOs with your name, replace each with content, keep inside your share of
+the chapter budget, rebuild, and look at the pages you changed. Students 2–5 add their exported
+run under `docs/release-2/evidence/multi-agent/student-N/` and their CI record with
+`collect_ci_evidence.py --student N`; the tables pick them up.
+
+`--final --baseline <40-character SHA>` applies the same guard as Release 1 to a hidden
+`RELEASE2_METADATA` block: every chapter of the brief populated; cover, metadata and Section 14
+sharing one HTTPS video URL; the commit-history URL linked; evidence of kinds `security-report`,
+`testing-review`, `multi-agent-review`, `cloud-review`, `release-decision`, `local-deployment`,
+`cloud-deployment` and `cloud-workflow` (an Actions run URL), plus `ci` and `multi-agent` for each
+student, each linked in its section and unchanged since the baseline; resolvable contribution
+commits for each student; and each student's showcase participation recorded in Section 14.
+
 ## Diagrams
 
 After changing a `.mmd` file, install Node.js with `npx` and refresh the figures and manifest:
 
 ```text
+uv run python scripts/build_release2_report.py --render-diagrams
 uv run python scripts/build_release1_report.py --render-diagrams
 uv run python scripts/build_release0_report.py --render-diagrams
 ```
@@ -164,7 +205,7 @@ final-build guard. They do not replace looking at the PDF. Render the pages and 
 tables, tiny diagram labels, orphaned headings and caption placement:
 
 ```text
-pdftoppm -scale-to 1400 -png docs/reports/submissions/release-1/group-20.pdf tmp/pdfs/report
+pdftoppm -scale-to 1400 -png docs/reports/submissions/release-2/group-20.pdf tmp/pdfs/report
 ```
 
 ## Release 0 notes
