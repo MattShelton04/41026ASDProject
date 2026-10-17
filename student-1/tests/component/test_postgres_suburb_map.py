@@ -305,8 +305,18 @@ def _reads(conn: Connection) -> SuburbMapReads:
     return SuburbMapReads(_SnapshotRows(conn))
 
 
+def _validated(payload: dict[str, Any], schema_file: str) -> dict[str, Any]:
+    """Every real PostGIS projection must satisfy its published, closed contract."""
+    schema = json.loads((CONTRACTS / schema_file).read_text("utf-8"))
+    jsonschema.Draft202012Validator(
+        schema, format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER
+    ).validate(json.loads(json.dumps(payload, default=str)))
+    return payload
+
+
 def _context(conn: Connection, suburb_id: str = "1001", **args: str) -> dict[str, Any]:
-    return _reads(conn).map_context(build_map_context_request(suburb_id, args))
+    context = _reads(conn).map_context(build_map_context_request(suburb_id, args))
+    return _validated(context, "suburb-map-context.v1.schema.json")
 
 
 def test_migration_registers_projection_function_and_generation_scoped_indexes(
@@ -355,7 +365,9 @@ def test_search_reports_ambiguous_unique_and_empty_matches(
     database: Connection, world: dict[str, str]
 ) -> None:
     reads = _reads(database)
-    ambiguous = reads.search("Mayfield", postcode=None, limit=20)
+    ambiguous = _validated(
+        reads.search("Mayfield", postcode=None, limit=20), "suburb-search.v1.schema.json"
+    )
     assert ambiguous["match"] == "ambiguous"
     assert [item["postcode"] for item in ambiguous["items"]] == ["2304", "2540"]
     unique = reads.search("  mayfield ", postcode="2540", limit=20)
@@ -371,7 +383,9 @@ def test_search_reports_ambiguous_unique_and_empty_matches(
 def test_search_without_accepted_boundaries_is_unavailable_not_empty(
     database: Connection,
 ) -> None:
-    result = _reads(database).search("Alpha", postcode=None, limit=20)
+    result = _validated(
+        _reads(database).search("Alpha", postcode=None, limit=20), "suburb-search.v1.schema.json"
+    )
     assert result["availability"]["status"] == "dataset_unavailable"
     assert result["release"] is None
 
@@ -379,7 +393,7 @@ def test_search_without_accepted_boundaries_is_unavailable_not_empty(
 def test_detail_reports_identity_dates_and_unknown_suburbs(
     database: Connection, world: dict[str, str]
 ) -> None:
-    detail = _reads(database).detail("1001")
+    detail = _validated(_reads(database).detail("1001"), "suburb-detail.v1.schema.json")
     assert detail["name"] == "ALPHA"
     assert detail["bbox"] == [151.0, -33.8, 151.01, -33.79]
     assert detail["coverage"] == "accepted"
@@ -542,3 +556,25 @@ def test_amenity_probe_can_use_the_generation_scoped_gist_index(
     ).fetchone()
     assert plan is not None
     assert "reference_feature_map_amenity_geom_idx" in json.dumps(plan)
+
+
+def test_contract_fixtures_can_be_regenerated_from_the_synthetic_world(
+    database: Connection, world: dict[str, str]
+) -> None:
+    """Set PROPERTYSCOPE_WRITE_SUBURB_MAP_FIXTURES=1 to refresh the checked-in valid fixtures."""
+    payloads = {
+        "suburb-search.v1.valid.json": _reads(database).search("Mayfield", postcode=None, limit=20),
+        "suburb-detail.v1.valid.json": _reads(database).detail("1001"),
+        "suburb-map-context.v1.valid.json": _context(
+            database, categories="schools,train-station,library,protected-reserve,hospital"
+        ),
+    }
+    if os.getenv("PROPERTYSCOPE_WRITE_SUBURB_MAP_FIXTURES") == "1":
+        for name, payload in payloads.items():
+            (CONTRACTS / "fixtures" / name).write_text(
+                json.dumps(payload, indent=2, default=str) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+    for name in payloads:
+        assert (CONTRACTS / "fixtures" / name).is_file(), name

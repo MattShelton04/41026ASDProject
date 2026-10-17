@@ -1,0 +1,481 @@
+{
+  "schema_version": "propertyscope.suburb-map-context.v1",
+  "geography": "nsw-gazetted-suburb",
+  "suburb": {
+    "suburb_id": "1001",
+    "name": "ALPHA",
+    "postcode": "2000",
+    "state": "NSW",
+    "geometry_status": "valid",
+    "centroid": [
+      151.005,
+      -33.795
+    ],
+    "label_point": [
+      151.005,
+      -33.795
+    ],
+    "bbox": [
+      151.0,
+      -33.8,
+      151.01,
+      -33.79
+    ],
+    "boundary": {
+      "type": "Feature",
+      "id": "1001",
+      "properties": {
+        "suburb_id": "1001",
+        "name": "ALPHA",
+        "postcode": "2000",
+        "detail": "medium",
+        "tolerance_degrees": 0.0001,
+        "source_vertex_count": 5,
+        "display_vertex_count": 5
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              151,
+              -33.8
+            ],
+            [
+              151.01,
+              -33.8
+            ],
+            [
+              151.01,
+              -33.79
+            ],
+            [
+              151,
+              -33.79
+            ],
+            [
+              151,
+              -33.8
+            ]
+          ]
+        ]
+      }
+    }
+  },
+  "request": {
+    "categories": [
+      "schools",
+      "train-station",
+      "library",
+      "protected-reserve",
+      "hospital"
+    ],
+    "detail": "medium",
+    "tolerance_degrees": 0.0001,
+    "limit": 500,
+    "operational": "current"
+  },
+  "layers": {
+    "schools": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "id": "school:S1",
+          "properties": {
+            "school_code": "S1",
+            "school_name": "Alpha Public School",
+            "school_type": "Primary School",
+            "operational_status": "Open",
+            "locality_original": "Alpha",
+            "locality_normalised": "ALPHA",
+            "state": "NSW",
+            "lga": "Example",
+            "latitude": -33.798,
+            "longitude": 151.002,
+            "provenance": {
+              "release_id": "58436937-56dc-4787-9de0-54bdc16d3ada",
+              "release_version": "test-58436937-56dc-4787-9de0-54bdc16d3ada",
+              "candidate_generation_id": "58436937-56dc-4787-9de0-54bdc16d3ada",
+              "source_record_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "normalisation_version": "1.0.0"
+            }
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              151.002,
+              -33.798
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "school:S2",
+          "properties": {
+            "school_code": "S2",
+            "school_name": "Edge Public School",
+            "school_type": "Primary School",
+            "operational_status": "Open",
+            "locality_original": "Alpha",
+            "locality_normalised": "ALPHA",
+            "state": "NSW",
+            "lga": "Example",
+            "latitude": -33.79,
+            "longitude": 151.01,
+            "provenance": {
+              "release_id": "58436937-56dc-4787-9de0-54bdc16d3ada",
+              "release_version": "test-58436937-56dc-4787-9de0-54bdc16d3ada",
+              "candidate_generation_id": "58436937-56dc-4787-9de0-54bdc16d3ada",
+              "source_record_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "normalisation_version": "1.0.0"
+            }
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              151.01,
+              -33.79
+            ]
+          }
+        }
+      ]
+    },
+    "train-station": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "id": "train-station:2",
+          "properties": {
+            "amenity_id": "train-station:2",
+            "category": "train-station",
+            "name": "EDGE STN",
+            "source_feature_id": "1",
+            "source_updated_at": "2026-09-01T00:00:00Z",
+            "match": "covers",
+            "operational_status": "operational",
+            "operational_status_code": 1
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              151.01,
+              -33.795
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "train-station:1",
+          "properties": {
+            "amenity_id": "train-station:1",
+            "category": "train-station",
+            "name": "INSIDE STN",
+            "source_feature_id": "1",
+            "source_updated_at": "2026-09-01T00:00:00Z",
+            "match": "covers",
+            "operational_status": "operational",
+            "operational_status_code": 1
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              151.005,
+              -33.795
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "train-station:3",
+          "properties": {
+            "amenity_id": "train-station:3",
+            "category": "train-station",
+            "name": "VERTEX STN",
+            "source_feature_id": "1",
+            "source_updated_at": "2026-09-01T00:00:00Z",
+            "match": "covers",
+            "operational_status": "operational",
+            "operational_status_code": 1
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              151,
+              -33.8
+            ]
+          }
+        }
+      ]
+    },
+    "library": {
+      "type": "FeatureCollection",
+      "features": []
+    },
+    "protected-reserve": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "id": "protected-reserve:1",
+          "properties": {
+            "amenity_id": "protected-reserve:1",
+            "category": "protected-reserve",
+            "name": "PARTLY INSIDE NP",
+            "source_feature_id": "1",
+            "source_updated_at": "2026-09-01T00:00:00Z",
+            "match": "intersects",
+            "reserve_type": "NP",
+            "coverage_note": "NPWS reserves only",
+            "display_clipped": true
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  151.008,
+                  -33.789
+                ],
+                [
+                  151.011,
+                  -33.789
+                ],
+                [
+                  151.011,
+                  -33.801
+                ],
+                [
+                  151.008,
+                  -33.801
+                ],
+                [
+                  151.008,
+                  -33.789
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "hospital": {
+      "type": "FeatureCollection",
+      "features": []
+    }
+  },
+  "coverage": {
+    "boundary": "accepted",
+    "schools": "complete",
+    "train-station": "accepted",
+    "library": "accepted",
+    "protected-reserve": "partial",
+    "hospital": "unavailable"
+  },
+  "layer_details": {
+    "schools": {
+      "category": "schools",
+      "description": "NSW Department of Education government schools (school-points.v2)",
+      "dataset_id": "nsw-government-schools",
+      "source_layer": null,
+      "geometry": "point",
+      "predicate": "ST_Covers",
+      "limit": 500,
+      "operational_filter": "current",
+      "matched_count": 2,
+      "eligible_count": 2,
+      "excluded_non_operational": 0,
+      "excluded_invalid_geometry": 0,
+      "excluded_missing_geometry": 0,
+      "feature_count": 2,
+      "truncated": false,
+      "reason": null,
+      "stale": false
+    },
+    "train-station": {
+      "category": "train-station",
+      "description": "NSW Spatial Services railway station points",
+      "dataset_id": "nsw-amenities",
+      "source_layer": "train-station",
+      "geometry": "point",
+      "predicate": "ST_Covers",
+      "limit": 500,
+      "operational_filter": "current",
+      "matched_count": 4,
+      "eligible_count": 3,
+      "excluded_non_operational": 1,
+      "excluded_invalid_geometry": 0,
+      "excluded_missing_geometry": 0,
+      "feature_count": 3,
+      "truncated": false,
+      "reason": null,
+      "stale": false
+    },
+    "library": {
+      "category": "library",
+      "description": "NSW Spatial Services public library points",
+      "dataset_id": "nsw-amenities",
+      "source_layer": "library",
+      "geometry": "point",
+      "predicate": "ST_Covers",
+      "limit": 500,
+      "operational_filter": "current",
+      "matched_count": 0,
+      "eligible_count": 0,
+      "excluded_non_operational": 0,
+      "excluded_invalid_geometry": 0,
+      "excluded_missing_geometry": 0,
+      "feature_count": 0,
+      "truncated": false,
+      "reason": null,
+      "stale": false
+    },
+    "protected-reserve": {
+      "category": "protected-reserve",
+      "description": "NPWS protected estate polygons only; not complete council or general park coverage",
+      "dataset_id": "nsw-amenities",
+      "source_layer": "protected-reserve",
+      "geometry": "polygon",
+      "predicate": "ST_Intersects",
+      "limit": 500,
+      "operational_filter": "current",
+      "matched_count": 1,
+      "eligible_count": 1,
+      "excluded_non_operational": 0,
+      "excluded_invalid_geometry": 1,
+      "excluded_missing_geometry": 0,
+      "feature_count": 1,
+      "truncated": false,
+      "reason": null,
+      "stale": false
+    },
+    "hospital": {
+      "category": "hospital",
+      "description": "NSW Spatial Services hospital points",
+      "dataset_id": "nsw-amenities",
+      "source_layer": "hospital",
+      "geometry": "point",
+      "predicate": "ST_Covers",
+      "limit": 500,
+      "operational_filter": "current",
+      "matched_count": 0,
+      "eligible_count": 0,
+      "excluded_non_operational": 0,
+      "excluded_invalid_geometry": 0,
+      "excluded_missing_geometry": 0,
+      "feature_count": 0,
+      "truncated": false,
+      "reason": "layer_not_in_release",
+      "stale": false
+    }
+  },
+  "releases": {
+    "boundary": {
+      "dataset_id": "nsw-suburb-boundaries",
+      "target_feature": "feature-1",
+      "dataset_release_id": "aaa55635-b2ee-4cbb-b3be-57ab1da751cb",
+      "release_version": "test-aaa55635-b2ee-4cbb-b3be-57ab1da751cb",
+      "schema_version": "propertyscope.reference-feature.v1",
+      "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+      "acquired_at": "2026-10-01T00:00:00+00:00",
+      "source_updated_at": "2026-09-01T00:00:00Z",
+      "publisher": "NSW Spatial Services",
+      "source_name": "NSW gazetted suburb boundaries",
+      "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Administrative_Boundaries_Theme_multiCRS/FeatureServer/2",
+      "licence_id": "cc-by",
+      "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+      "freshness_days": 400
+    },
+    "schools": {
+      "dataset_id": "nsw-government-schools",
+      "target_feature": "feature-3",
+      "dataset_release_id": "58436937-56dc-4787-9de0-54bdc16d3ada",
+      "release_version": "test-58436937-56dc-4787-9de0-54bdc16d3ada",
+      "schema_version": "propertyscope.school-points.v2",
+      "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+      "acquired_at": "2026-10-01T00:00:00+00:00",
+      "source_updated_at": null,
+      "publisher": "NSW Department of Education",
+      "source_name": "NSW government school locations and attributes",
+      "source_url": "https://data.nsw.gov.au/data/dataset/nsw-education-data-hub",
+      "licence_id": "nsw-open-data",
+      "licence_url": "https://data.nsw.gov.au/data/policy",
+      "freshness_days": 400
+    },
+    "train-station": {
+      "dataset_id": "nsw-amenities",
+      "target_feature": "feature-1",
+      "dataset_release_id": "2bda71ef-70c1-46d4-be97-758bc896835d",
+      "release_version": "test-2bda71ef-70c1-46d4-be97-758bc896835d",
+      "schema_version": "propertyscope.reference-feature.v1",
+      "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+      "acquired_at": "2026-10-01T00:00:00+00:00",
+      "source_updated_at": "2026-09-01T00:00:00Z",
+      "publisher": "NSW Spatial Services",
+      "source_name": "NSW official amenity and facility locations",
+      "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services",
+      "licence_id": "cc-by",
+      "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+      "freshness_days": 400
+    },
+    "library": {
+      "dataset_id": "nsw-amenities",
+      "target_feature": "feature-1",
+      "dataset_release_id": "2bda71ef-70c1-46d4-be97-758bc896835d",
+      "release_version": "test-2bda71ef-70c1-46d4-be97-758bc896835d",
+      "schema_version": "propertyscope.reference-feature.v1",
+      "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+      "acquired_at": "2026-10-01T00:00:00+00:00",
+      "source_updated_at": "2026-09-01T00:00:00Z",
+      "publisher": "NSW Spatial Services",
+      "source_name": "NSW official amenity and facility locations",
+      "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services",
+      "licence_id": "cc-by",
+      "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+      "freshness_days": 400
+    },
+    "protected-reserve": {
+      "dataset_id": "nsw-amenities",
+      "target_feature": "feature-1",
+      "dataset_release_id": "2bda71ef-70c1-46d4-be97-758bc896835d",
+      "release_version": "test-2bda71ef-70c1-46d4-be97-758bc896835d",
+      "schema_version": "propertyscope.reference-feature.v1",
+      "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+      "acquired_at": "2026-10-01T00:00:00+00:00",
+      "source_updated_at": "2026-09-01T00:00:00Z",
+      "publisher": "NSW Spatial Services",
+      "source_name": "NSW official amenity and facility locations",
+      "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services",
+      "licence_id": "cc-by",
+      "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+      "freshness_days": 400
+    },
+    "hospital": {
+      "dataset_id": "nsw-amenities",
+      "target_feature": "feature-1",
+      "dataset_release_id": "2bda71ef-70c1-46d4-be97-758bc896835d",
+      "release_version": "test-2bda71ef-70c1-46d4-be97-758bc896835d",
+      "schema_version": "propertyscope.reference-feature.v1",
+      "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+      "acquired_at": "2026-10-01T00:00:00+00:00",
+      "source_updated_at": null,
+      "publisher": "NSW Spatial Services",
+      "source_name": "NSW official amenity and facility locations",
+      "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services",
+      "licence_id": "cc-by",
+      "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+      "freshness_days": 400
+    }
+  },
+  "truncated": false,
+  "limits": {
+    "max_categories": 12,
+    "default_layer_limit": 500,
+    "max_layer_limit": 1000,
+    "max_response_vertices": 60000,
+    "max_response_bytes": 4194304,
+    "coordinate_decimals": 6
+  },
+  "response_vertices": 15
+}

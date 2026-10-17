@@ -43,6 +43,7 @@ from propertyscope_data_store.suburb_map_catalog import (
     MAP_CATEGORIES_BY_KEY,
     MAX_CATEGORIES,
     MAX_LAYER_LIMIT,
+    MAX_RESPONSE_BYTES,
     MAX_RESPONSE_VERTICES,
     MAX_SEARCH_RESULTS,
     OPERATIONAL_STATUS_CODE,
@@ -673,8 +674,8 @@ class SuburbMapReads:
             ), page AS (
                 SELECT eligible.*,
                        CASE WHEN eligible.layer = ANY(%(polygon_layers)s)
-                            THEN ST_SimplifyPreserveTopology(
-                                ST_Intersection(eligible.geom,clip.box),%(tolerance)s)
+                            THEN ST_SimplifyPreserveTopology(ST_CollectionExtract(
+                                ST_Intersection(eligible.geom,clip.box),3),%(tolerance)s)
                             ELSE eligible.geom END AS display_geom,
                        eligible.layer = ANY(%(polygon_layers)s)
                            AND NOT ST_CoveredBy(eligible.geom,clip.box) AS display_clipped
@@ -793,6 +794,7 @@ def map_context_limits() -> JsonObject:
         "default_layer_limit": DEFAULT_LAYER_LIMIT,
         "max_layer_limit": MAX_LAYER_LIMIT,
         "max_response_vertices": MAX_RESPONSE_VERTICES,
+        "max_response_bytes": MAX_RESPONSE_BYTES,
         "coordinate_decimals": COORDINATE_DECIMALS,
     }
 

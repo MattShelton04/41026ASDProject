@@ -25,6 +25,7 @@ from propertyscope_data_platform.release_builders import (
     product_schema_documents,
 )
 from propertyscope_data_platform.release_publication import _catalog_publication_output
+from propertyscope_data_platform.suburb_map_contracts import SUBURB_MAP_SCHEMA_MODELS
 from shared_consumer_protocol import ImportReceipt
 from shared_contracts.feature import load_feature_manifest
 from shared_contracts.multi_agent import HumanDecisionKind, WorkflowState
@@ -98,6 +99,9 @@ def test_openapi_document_is_versioned_and_parseable() -> None:
         "/properties/{property_ref}/sale-history",
         "/properties/{property_ref}/seifa",
         "/properties/{property_ref}/report-section",
+        "/suburbs/search",
+        "/suburbs/{suburb_id}",
+        "/suburbs/{suburb_id}/map-context",
         "/agent-runs",
         "/agent-runs/{run_id}",
         "/agent-runs/{run_id}/events",
@@ -763,3 +767,50 @@ def test_feature_manifest_uses_the_canonical_shared_edge_route() -> None:
 
     assert manifest.frontend_base_path == "/features/data-platform/"
     assert manifest.backend_base_path == "/api/data-platform/v1"
+
+
+@pytest.mark.parametrize(
+    ("schema_file", "fixture_name", "valid"),
+    [
+        ("suburb-search.v1.schema.json", "suburb-search.v1.valid.json", True),
+        ("suburb-search.v1.schema.json", "suburb-search.v1.invalid-suburb-id.json", False),
+        ("suburb-detail.v1.schema.json", "suburb-detail.v1.valid.json", True),
+        ("suburb-detail.v1.schema.json", "suburb-detail.v1.invalid-extra-field.json", False),
+        ("suburb-map-context.v1.schema.json", "suburb-map-context.v1.valid.json", True),
+        (
+            "suburb-map-context.v1.schema.json",
+            "suburb-map-context.v1.invalid-coverage-state.json",
+            False,
+        ),
+    ],
+)
+def test_suburb_map_fixtures_match_schema_and_model(
+    schema_file: str, fixture_name: str, valid: bool
+) -> None:
+    """Fixtures are real PostGIS projections from test_postgres_suburb_map.py."""
+    payload = _json(f"fixtures/{fixture_name}")
+    validator = jsonschema.Draft202012Validator(
+        _json(schema_file), format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER
+    )
+    model = SUBURB_MAP_SCHEMA_MODELS[schema_file]
+    if valid:
+        validator.validate(payload)
+        model.model_validate(payload)
+    else:
+        assert list(validator.iter_errors(payload))
+        with pytest.raises(PydanticValidationError):
+            model.model_validate(payload)
+
+
+def test_suburb_map_context_fixture_keeps_documented_semantics() -> None:
+    context = _json("fixtures/suburb-map-context.v1.valid.json")
+    assert context["schema_version"] == "propertyscope.suburb-map-context.v1"
+    assert set(context["coverage"]) == {"boundary", *context["request"]["categories"]}
+    assert set(context["layers"]) == set(context["request"]["categories"])
+    assert context["coverage"]["hospital"] == "unavailable"
+    assert context["layer_details"]["hospital"]["reason"] == "layer_not_in_release"
+    assert context["coverage"]["library"] == "accepted"
+    assert context["layers"]["library"]["features"] == []
+    assert context["releases"]["library"] is not None
+    for feature in context["layers"]["schools"]["features"]:
+        jsonschema.validate(feature["properties"], _json("school-points.v2.schema.json"))

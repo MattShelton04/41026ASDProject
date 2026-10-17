@@ -1,0 +1,67 @@
+{
+  "schema_version": "propertyscope.suburb-detail.v1",
+  "geography": "nsw-gazetted-suburb",
+  "suburb_id": "1001",
+  "name": "ALPHA",
+  "postcode": "2000",
+  "state": "NSW",
+  "geometry_status": "valid",
+  "centroid": [
+    151.005,
+    -33.795
+  ],
+  "label_point": [
+    151.005,
+    -33.795
+  ],
+  "bbox": [
+    151.0,
+    -33.8,
+    151.01,
+    -33.79
+  ],
+  "source": {
+    "record_id": "nsw-gazetted-suburb:1001",
+    "source_updated_at": "2026-09-01T00:00:00Z",
+    "valid_from": "2026-09-01",
+    "start_date": null,
+    "last_update": "2024-08-14T08:37:06+00:00",
+    "urbanity": null,
+    "publisher_edition": null
+  },
+  "display": {
+    "source_vertex_count": 5,
+    "levels": {
+      "low": {
+        "tolerance_degrees": 0.0005,
+        "vertex_count": 5
+      },
+      "medium": {
+        "tolerance_degrees": 0.0001,
+        "vertex_count": 5
+      },
+      "high": {
+        "tolerance_degrees": 2e-05,
+        "vertex_count": 5
+      }
+    }
+  },
+  "coverage": "accepted",
+  "release": {
+    "dataset_id": "nsw-suburb-boundaries",
+    "target_feature": "feature-1",
+    "dataset_release_id": "aaa55635-b2ee-4cbb-b3be-57ab1da751cb",
+    "release_version": "test-aaa55635-b2ee-4cbb-b3be-57ab1da751cb",
+    "schema_version": "propertyscope.reference-feature.v1",
+    "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+    "acquired_at": "2026-10-01T00:00:00+00:00",
+    "source_updated_at": "2026-09-01T00:00:00Z",
+    "publisher": "NSW Spatial Services",
+    "source_name": "NSW gazetted suburb boundaries",
+    "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Administrative_Boundaries_Theme_multiCRS/FeatureServer/2",
+    "licence_id": "cc-by",
+    "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+    "freshness_days": 400
+  },
+  "boundary_html": "<b>trusted</b>"
+}
