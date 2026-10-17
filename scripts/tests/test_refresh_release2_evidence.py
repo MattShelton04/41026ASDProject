@@ -334,3 +334,19 @@ def test_main_rejects_outputs_that_would_mix_the_modes(
     resolved = [str(repo / value) if value.startswith("docs/") else value for value in arguments]
 
     assert refresh.main(["--repo", str(repo), *resolved]) == 2
+
+
+def test_stream_survives_output_the_console_cannot_encode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+    import sys
+
+    console = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="replace")
+    monkeypatch.setattr(sys, "stdout", console)
+    log = tmp_path / "step.log"
+    code = refresh.stream((sys.executable, "-c", "print('quote \u2019 and \ufffd')"), tmp_path, log)
+
+    assert code == 0
+    # The child wrote UTF-8, so the quote survives the pipe instead of decoding to U+FFFD.
+    assert "quote \u2019 and \ufffd" in log.read_text(encoding="utf-8")

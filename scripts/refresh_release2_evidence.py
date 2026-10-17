@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import socket
 import subprocess
@@ -70,6 +71,10 @@ EDGE_HEALTH = "http://127.0.0.1:5100/healthz"
 CI_WORKFLOWS = ("Integration CI", *(f"Student {number} CI" for number in STUDENTS))
 UV = ("uv", "run", "--locked")
 MULTI_AGENT = (*UV, "multi-agent-server")
+
+# Child Python processes write UTF-8 even when piped on Windows, whose default is the ANSI
+# code page.
+CHILD_ENVIRONMENT = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 # argv, working directory, log file -> exit code. Output is streamed and also written to the log.
 StepRunner = Callable[[Sequence[str], Path, Path], int]
@@ -110,7 +115,7 @@ class Context:
     port_open: Callable[[int], bool] = lambda port: _port_open(port)
     edge_healthy: Callable[[], bool] = lambda: _edge_healthy()
     poll_seconds: float = 5.0
-    say: Callable[[str], None] = print
+    say: Callable[[str], None] = lambda text: print(text, flush=True)
 
     def log(self, step: str) -> Path:
         return self.run_directory / "logs" / f"{step}.log"
@@ -133,6 +138,7 @@ def stream(argv: Sequence[str], cwd: Path, log: Path) -> int:
             process = subprocess.Popen(  # noqa: S603 - fixed argv built by this script
                 list(argv),
                 cwd=cwd,
+                env={**os.environ, **CHILD_ENVIRONMENT},
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -145,6 +151,7 @@ def stream(argv: Sequence[str], cwd: Path, log: Path) -> int:
         assert process.stdout is not None  # noqa: S101 - set by stdout=PIPE
         for line in process.stdout:
             sys.stdout.write(line)
+            sys.stdout.flush()
             handle.write(line)
         code = process.wait()
         handle.write(f"[exit {code}]\n\n")
@@ -157,6 +164,7 @@ def read(argv: Sequence[str], cwd: Path) -> tuple[int, str]:
         completed = subprocess.run(  # noqa: S603 - fixed argv built by this script
             list(argv),
             cwd=cwd,
+            env={**os.environ, **CHILD_ENVIRONMENT},
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -617,6 +625,10 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    for console in (sys.stdout, sys.stderr):
+        # A step's output must never crash the refresh on a console that cannot show it.
+        if hasattr(console, "reconfigure"):
+            console.reconfigure(errors="replace")
     arguments = _parser().parse_args(argv)
     repo = arguments.repo.resolve()
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -643,7 +655,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         deterministic_reviews=arguments.deterministic_reviews,
         ui_run_id=arguments.ui_run_id,
         ui_timeout=arguments.ui_timeout,
-        interactive=sys.stdin.isatty(),
+        # Windows reports a redirected NUL stdin as a TTY, so both ends must be a console.
+        interactive=sys.stdin.isatty() and sys.stdout.isatty(),
         run=stream,
         read=read,
     )
