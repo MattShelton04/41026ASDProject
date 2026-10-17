@@ -150,6 +150,10 @@ az account set --subscription "$SUBSCRIPTION_ID"
    echo "AZURE_CLIENT_ID=$APP_ID  AZURE_DEPLOYER_PRINCIPAL_ID=$SP_ID  AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)"
    ```
 
+   In Git Bash on Windows, run these with `export MSYS_NO_PATHCONV=1` first: Git Bash otherwise
+   rewrites the `/subscriptions/...` scope into a Windows path and az fails with
+   `MissingSubscription`. `deploy.sh` and its validators already do this for every az call.
+
    The job uses `environment: production`, so the token subject is always
    `repo:MattShelton04/41026ASDProject:environment:production`. A credential for
    `ref:refs/heads/main` is **not** needed and would not match.
@@ -282,7 +286,8 @@ network allowlist, which needs your addresses.
 ## Using `deploy.sh`
 
 Run the script from Git Bash, WSL, Linux or macOS. On Windows, `uv run scripts/dev.py cloud ...`
-finds Git Bash for you. Every subcommand accepts `--dry-run`, which prints each mutating Azure or
+finds Git Bash for you; the script turns off Git Bash path conversion for its az calls, so
+Azure resource IDs (`/subscriptions/...`) reach az unchanged. Every subcommand accepts `--dry-run`, which prints each mutating Azure or
 Docker command instead of running it. The run-command payloads are written to
 `.propertyscope-runtime/cloud/` for inspection.
 

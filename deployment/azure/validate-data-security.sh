@@ -41,6 +41,10 @@ expect() {
     fi
 }
 
+# Git Bash (MSYS) would rewrite the /subscriptions/... resource IDs passed to az (disk show --ids)
+# into Windows paths; this is the same guard as deploy.sh's az().
+az() { MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' command az "$@"; }
+
 query() {
     az "$@" --only-show-errors --output tsv 2>/dev/null | tr -d '\r'
 }
