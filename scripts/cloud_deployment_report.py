@@ -5,7 +5,10 @@
 
     outputs.txt                Bicep outputs (deploy.sh provision / outputs)
     image-tag.txt              the pushed image tag (the commit SHA)
-    vm-deploy.log              the VM's run-command output, ending in PROPERTYSCOPE_RESULT=...
+    vm-deploy.log              the VM's run-command output: PROPERTYSCOPE_IMAGES=... (the images
+                               the running containers use) and PROPERTYSCOPE_RESULT=...
+    gate/release-gate.json     scripts/verify_release_gate.py, the deploy-time CI gate re-check
+                               (or release-gate.json; optional)
     smoke/cloud-smoke.json     scripts/cloud_smoke.py results
     endpoint-security.txt      deployment/azure/validate-endpoint-security.sh (optional)
     data-security.txt          deployment/azure/validate-data-security.sh (optional)
@@ -44,6 +47,8 @@ REQUIRED_STAGES = ("push", "deploy", "smoke")
 # Provisioning may be skipped on a manual redeploy of existing infrastructure.
 OPTIONAL_REQUIRED_STAGES = ("provision",)
 RESULT_LINE = re.compile(r"^PROPERTYSCOPE_RESULT=(\{.*\})\s*$", re.MULTILINE)
+IMAGES_LINE = re.compile(r"^PROPERTYSCOPE_IMAGES=(\{.*\})\s*$", re.MULTILINE)
+GATE_FILES = ("gate/release-gate.json", "release-gate.json")
 VALIDATION_LINE = re.compile(r"^(PASS|FAIL|SKIP|INFO) (.+)$", re.MULTILINE)
 
 
@@ -57,10 +62,14 @@ class DeploymentEvidence:
     outputs: dict[str, str] = field(default_factory=dict)
     image_tag: str | None = None
     vm_result: dict[str, Any] | None = None
+    vm_images: dict[str, str] = field(default_factory=dict)
+    release_gate: dict[str, Any] | None = None
+    release_gate_file: str | None = None
     smoke: dict[str, Any] | None = None
     endpoint_security: list[tuple[str, str]] = field(default_factory=list)
     data_security: list[tuple[str, str]] = field(default_factory=list)
     evidence_files: list[str] = field(default_factory=list)
+    notice: str = ""
 
     @property
     def smoke_passed(self) -> bool:
@@ -84,12 +93,15 @@ class DeploymentEvidence:
             "outputs": self.outputs,
             "image_tag": self.image_tag,
             "vm_result": self.vm_result,
+            "vm_images": self.vm_images,
+            "release_gate": release_gate_summary(self),
             "smoke_summary": (self.smoke or {}).get("summary"),
             "smoke_passed": self.smoke_passed,
             "ai_tier": ai_tier_state(self),
             "endpoint_security": [list(item) for item in self.endpoint_security],
             "data_security": [list(item) for item in self.data_security],
             "evidence_files": self.evidence_files,
+            "notice": self.notice or None,
         }
 
 
@@ -114,6 +126,40 @@ def parse_vm_result(text: str) -> dict[str, Any] | None:
         if isinstance(value, dict):
             return value
     return None
+
+
+def parse_vm_images(text: str) -> dict[str, str]:
+    """Return the last PROPERTYSCOPE_IMAGES object (service -> image) the VM printed, if any."""
+    for candidate in reversed(IMAGES_LINE.findall(text)):
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return {str(key): str(image) for key, image in sorted(value.items())}
+    return {}
+
+
+def release_gate_summary(evidence: DeploymentEvidence) -> dict[str, Any] | None:
+    """The fields of release-gate.json the report states, or None when it was not recorded."""
+    gate = evidence.release_gate
+    if gate is None:
+        return None
+    workflows = [item for item in gate.get("workflows") or [] if isinstance(item, dict)]
+    return {
+        "file": evidence.release_gate_file,
+        "passed": gate.get("passed") is True,
+        "deploy_sha": gate.get("deploy_sha"),
+        "branch": gate.get("branch"),
+        "checked_at": gate.get("checked_at"),
+        "workflows": [
+            {
+                key: item.get(key)
+                for key in ("workflow", "state", "run_number", "run_url", "head_sha", "relation")
+            }
+            for item in workflows
+        ],
+    }
 
 
 def parse_validation(text: str) -> list[tuple[str, str]]:
@@ -165,6 +211,17 @@ def collect(
         evidence.image_tag = text.strip() or None
     if (text := read("vm-deploy.log")) is not None:
         evidence.vm_result = parse_vm_result(text)
+        evidence.vm_images = parse_vm_images(text)
+    for name in GATE_FILES:
+        if (text := read(name)) is None:
+            continue
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            value = None
+        evidence.release_gate = value if isinstance(value, dict) else {}
+        evidence.release_gate_file = name
+        break
     if (text := read("smoke/cloud-smoke.json")) is not None:
         try:
             value = json.loads(text)
@@ -202,6 +259,46 @@ def _cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
+def _gate_verdict(evidence: DeploymentEvidence) -> str:
+    summary = release_gate_summary(evidence)
+    if summary is None:
+        return "not recorded"
+    sha = str(summary.get("deploy_sha") or "unknown commit")
+    return f"{'PASSED' if summary['passed'] else 'FAILED'} for `{sha[:12]}`"
+
+
+def _release_gate_section(evidence: DeploymentEvidence) -> list[str]:
+    """The CI gate the deploy job re-checked before touching Azure (verify_release_gate.py)."""
+    lines = ["", "## Release gate", ""]
+    summary = release_gate_summary(evidence)
+    if summary is None:
+        return [
+            *lines,
+            "No release-gate record was found (`gate/release-gate.json`). The deploy job re-checks "
+            "Integration CI and Student 1-5 CI before it touches Azure; without the record this "
+            "report cannot show that the gate passed.",
+        ]
+    verdict = "PASSED" if summary["passed"] else "FAILED"
+    lines += [
+        f"**{verdict}** for `{summary.get('deploy_sha') or 'unknown'}` on "
+        f"`{summary.get('branch') or 'unknown'}` (checked {summary.get('checked_at') or 'unknown'};"
+        f" `{summary.get('file')}`).",
+        "",
+    ]
+    workflows = summary["workflows"]
+    if not workflows:
+        return [*lines, "The record lists no workflows."]
+    lines += ["| Workflow | Result | Run | Commit | Relation |", "|---|---|---|---|---|"]
+    for item in workflows:
+        run = f"[#{item.get('run_number')}]({item['run_url']})" if item.get("run_url") else "none"
+        commit = f"`{str(item['head_sha'])[:12]}`" if item.get("head_sha") else ""
+        lines.append(
+            f"| {_cell(item.get('workflow'))} | {_cell(item.get('state'))} | {run} | {commit} "
+            f"| {_cell(item.get('relation') or '')} |"
+        )
+    return lines
+
+
 def render(evidence: DeploymentEvidence) -> str:
     run, outputs = evidence.run, evidence.outputs
     url = outputs.get("public_url") or (
@@ -210,6 +307,7 @@ def render(evidence: DeploymentEvidence) -> str:
     lines = [
         "# Cloud deployment report",
         "",
+        *((f"**{evidence.notice}**", "") if evidence.notice else ()),
         f"Generated {evidence.generated_at} by `scripts/cloud_deployment_report.py` from the "
         "deployment's own logs.",
         "",
@@ -224,6 +322,7 @@ def render(evidence: DeploymentEvidence) -> str:
         f"| Trigger | {run.get('event', 'local')} by {run.get('actor', 'operator')} |",
         f"| Workflow run | {run.get('run_url') or 'local run (no GitHub Actions run)'} |",
         f"| Gating CI run | {run.get('ci_run_url') or 'n/a (manual dispatch or local run)'} |",
+        f"| Release gate | {_gate_verdict(evidence)} |",
         f"| AI tier | {ai_tier_state(evidence)} |",
         "",
         "## Pipeline stages",
@@ -234,6 +333,7 @@ def render(evidence: DeploymentEvidence) -> str:
     for stage in STAGE_ORDER:
         outcome = evidence.stages.get(stage, "not run")
         lines.append(f"| {STAGE_LABELS[stage]} | {outcome} |")
+    lines += _release_gate_section(evidence)
     lines += ["", "## Azure resources", ""]
     if outputs:
         lines += ["| Output | Value |", "|---|---|"]
@@ -249,10 +349,23 @@ def render(evidence: DeploymentEvidence) -> str:
             f"- Image tag on the VM: `{vm.get('image_tag', 'unknown')}`",
             f"- Cloud AI flag: {vm.get('cloud_ai', 'unknown')}",
             "- Host AI units: "
-            + ", ".join(f"{name} {state}" for name, state in (vm.get("ai_units") or {}).items()),
+            + ", ".join(
+                f"{name} {state or 'not installed'}"
+                for name, state in (vm.get("ai_units") or {}).items()
+            ),
         ]
     else:
         lines.append("The VM did not report a deployment result (see vm-deploy.log).")
+    if evidence.vm_images:
+        lines += [
+            "",
+            "Images the running containers use, as the VM reported them (registry digest "
+            "where the image was pulled):",
+            "",
+            "| Service | Image |",
+            "|---|---|",
+            *(f"| {service} | `{_cell(image)}` |" for service, image in evidence.vm_images.items()),
+        ]
     lines += ["", "## Public smoke test", ""]
     if evidence.smoke:
         summary = evidence.smoke.get("summary", {})
@@ -318,6 +431,11 @@ def _parser() -> argparse.ArgumentParser:
         metavar="NAME=OUTCOME",
         help=f"Stage outcome; NAME is one of {', '.join(STAGE_ORDER)}",
     )
+    parser.add_argument(
+        "--notice",
+        default="",
+        help="A sentence shown in bold under the title, e.g. to mark a local rehearsal",
+    )
     return parser
 
 
@@ -329,6 +447,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(str(exc))
         return 2
     evidence = collect(arguments.log_dir, stages=stages, environment=os.environ)
+    evidence.notice = " ".join(arguments.notice.split())
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
     markdown = arguments.output_dir / "cloud-deployment-report.md"
     markdown.write_text(render(evidence), encoding="utf-8")

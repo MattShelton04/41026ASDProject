@@ -7,9 +7,9 @@
 #
 #   deploy.sh [--dry-run] provision            resource group + Bicep (ACR, network, VM, Key Vault, RBAC, budget)
 #   deploy.sh [--dry-run] secrets              create any missing Key Vault secrets (never overwrites)
-#   deploy.sh [--dry-run] push                 build every enabled image and push it to ACR as :<git sha>
+#   deploy.sh [--dry-run] push [--reuse-images]   build every enabled image and push it to ACR as :<git sha>
 #   deploy.sh [--dry-run] deploy               converge the VM through `az vm run-command` (no SSH)
-#   deploy.sh smoke [--output-dir DIR]         public smoke test (home, routes, health, CRUD, AI off)
+#   deploy.sh smoke [--output-dir DIR] [--expect-ai] [--insecure]   public smoke test (home, routes, health, CRUD, AI off)
 #   deploy.sh [--dry-run] ai on|off            toggle the systemd host AI tier (bonus R2-B1..B4)
 #   deploy.sh status | logs [SERVICE] [LINES]  container/AI state, recent logs (through run-command)
 #   deploy.sh outputs                          print the Bicep outputs (fqdn, ACR, VM, Key Vault)
@@ -19,6 +19,10 @@
 # Configuration: environment variables, optionally from deployment/azure/.env.azure (the shell
 # wins). See deployment/azure/.env.azure.example and deployment/azure/README.md. Nothing in this
 # script reads or prints a secret value; the VM's managed identity reads Key Vault itself.
+#
+# Local rehearsal: with PROPERTYSCOPE_REHEARSAL=true (set by `uv run scripts/dev.py cloud
+# rehearse`), push, deploy, smoke, status, logs, validate-endpoint and vm-validate-data target a
+# local registry and a Docker-in-Docker rehearsal VM instead of Azure; every az call is refused.
 set -euo pipefail
 umask 077
 
@@ -45,6 +49,7 @@ readonly BUNDLE_PATHS=(
 )
 
 DRY_RUN=${PROPERTYSCOPE_DRY_RUN:-false}
+REHEARSAL=${PROPERTYSCOPE_REHEARSAL:-false}
 
 log() { printf '[deploy.sh %s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 die() {
@@ -53,7 +58,7 @@ die() {
 }
 
 usage() {
-    sed -n '4,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '4,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # --- Configuration -----------------------------------------------------------------------------
@@ -79,19 +84,82 @@ load_env_file() {
 }
 
 configure() {
-    load_env_file
+    case $REHEARSAL in
+        true | false) ;;
+        *) die "PROPERTYSCOPE_REHEARSAL must be true or false" ;;
+    esac
+    if [[ $REHEARSAL == true ]]; then
+        # The rehearsal never reads .env.azure: it must not pick up a real subscription's settings.
+        configure_rehearsal
+    else
+        load_env_file
+    fi
     export AZURE_LOCATION=${AZURE_LOCATION:-australiaeast}
     export AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP:-rg-propertyscope-prod}
     export AZURE_PARAMETERS_FILE=${AZURE_PARAMETERS_FILE:-deployment/azure/main.bicepparam}
     export PROPERTYSCOPE_EDGE_USER=${PROPERTYSCOPE_EDGE_USER:-propertyscope-operator}
     export PROPERTYSCOPE_REPO_URL=${PROPERTYSCOPE_REPO_URL:-https://github.com/MattShelton04/41026ASDProject.git}
-    LOG_DIR=${PROPERTYSCOPE_CLOUD_LOG_DIR:-$REPO_ROOT/.propertyscope-runtime/cloud}
+    if [[ $REHEARSAL == true ]]; then
+        LOG_DIR=${PROPERTYSCOPE_CLOUD_LOG_DIR:-$REPO_ROOT/.propertyscope-runtime/cloud-rehearsal/cloud}
+    else
+        LOG_DIR=${PROPERTYSCOPE_CLOUD_LOG_DIR:-$REPO_ROOT/.propertyscope-runtime/cloud}
+    fi
     mkdir -p "$LOG_DIR"
     [[ $AZURE_RESOURCE_GROUP =~ ^[A-Za-z0-9._()-]{1,90}$ ]] || die "invalid AZURE_RESOURCE_GROUP"
     case ${PROPERTYSCOPE_CLOUD_AI:-} in
         '' | true | false) ;;
         *) die "PROPERTYSCOPE_CLOUD_AI must be true or false" ;;
     esac
+    if [[ $REHEARSAL == true ]]; then
+        refuse_azure_in_child_processes
+    fi
+}
+
+# --- Local rehearsal (`dev.py cloud rehearse`) ---------------------------------------------------
+
+# A registry container stands in for ACR and a Docker-in-Docker container for the VM. The operator
+# pushes to the registry's loopback port; the rehearsal VM pulls from it by its container name
+# (ACR_LOGIN_SERVER), so both names address the same registry.
+configure_rehearsal() {
+    [[ ${PROPERTYSCOPE_REHEARSAL_VM:-} =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] ||
+        die "PROPERTYSCOPE_REHEARSAL_VM must name the rehearsal VM container (dev.py cloud rehearse sets it)"
+    [[ ${PROPERTYSCOPE_PUSH_REGISTRY:-} =~ ^(127\.0\.0\.1|localhost):[0-9]{1,5}$ ]] ||
+        die "the rehearsal pushes only to a loopback registry (PROPERTYSCOPE_PUSH_REGISTRY=127.0.0.1:<port>)"
+}
+
+# Every az call fails in a rehearsal: this shell gets an az function, and child processes (the
+# validation scripts) find a refusing az first on PATH.
+refuse_azure_in_child_processes() {
+    local bin="$LOG_DIR/.rehearsal-bin"
+    mkdir -p "$bin"
+    printf '%s\n' '#!/usr/bin/env bash' 'echo "rehearsal: az is disabled (no Azure in a local rehearsal)" >&2' 'exit 97' >"$bin/az"
+    chmod 0755 "$bin/az"
+    if command -v cygpath >/dev/null 2>&1; then
+        bin=$(cygpath -u "$bin") # C:/... would split PATH at the drive colon under Git Bash
+    fi
+    export PATH="$bin:$PATH"
+}
+
+az() {
+    if [[ $REHEARSAL == true ]]; then
+        die "the local rehearsal never calls Azure (refused: az ${1:-})"
+    fi
+    command az "$@"
+}
+
+push_registry() {
+    if [[ $REHEARSAL == true ]]; then
+        printf '%s' "$PROPERTYSCOPE_PUSH_REGISTRY"
+    else
+        printf '%s' "$ACR_LOGIN_SERVER"
+    fi
+}
+
+# True when the rehearsal registry holds the manifest (registry v2 API, anonymous).
+registry_has_image() {
+    curl -fsS -o /dev/null --max-time 15 \
+        -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
+        "http://$(push_registry)/v2/$1/manifests/$2"
 }
 
 # Images and the VM bundle are identified by the commit they were built from. A dirty working
@@ -132,7 +200,7 @@ run() {
 require_tool() {
     local tool
     for tool in "$@"; do
-        command -v "$tool" >/dev/null 2>&1 || die "$tool is required on PATH"
+        type -P "$tool" >/dev/null 2>&1 || die "$tool is required on PATH"
     done
 }
 
@@ -151,7 +219,7 @@ az_query() {
 }
 
 ensure_azure_context() {
-    if [[ $DRY_RUN == true ]]; then
+    if [[ $DRY_RUN == true || $REHEARSAL == true ]]; then
         return 0
     fi
     require_tool az
@@ -164,9 +232,16 @@ ensure_azure_context() {
 
 # --- Outputs of the Bicep deployment -----------------------------------------------------------
 
+outputs_known() {
+    [[ -n ${ACR_LOGIN_SERVER:-} && -n ${ACR_NAME:-} && -n ${VM_NAME:-} && -n ${KEY_VAULT_NAME:-} && -n ${PUBLIC_FQDN:-} ]]
+}
+
 load_outputs() {
-    if [[ -n ${ACR_LOGIN_SERVER:-} && -n ${ACR_NAME:-} && -n ${VM_NAME:-} && -n ${KEY_VAULT_NAME:-} && -n ${PUBLIC_FQDN:-} ]]; then
+    if outputs_known; then
         return 0
+    fi
+    if [[ $REHEARSAL == true ]]; then
+        die "a rehearsal names its stand-ins itself: set ACR_LOGIN_SERVER, ACR_NAME, VM_NAME, KEY_VAULT_NAME and PUBLIC_FQDN"
     fi
     if [[ $DRY_RUN == true ]]; then
         ACR_NAME=${ACR_NAME:-propertyscopeprodexample}
@@ -382,20 +457,101 @@ build_services() {
     compose_base config --images | tr -d '\r' | sed -n 's#^propertyscope/\([a-z0-9-]*\):dev$#\1#p' | sort -u
 }
 
+# The local tag images are built under. `dev` is what the developer stack runs; the rehearsal
+# builds under its own tag so the shared propertyscope/<service>:dev images stay untouched.
+build_image_tag() {
+    local tag=${PROPERTYSCOPE_BUILD_TAG:-dev}
+    [[ $tag =~ ^[A-Za-z0-9_.-]{1,128}$ ]] || die "invalid PROPERTYSCOPE_BUILD_TAG"
+    printf '%s' "$tag"
+}
+
+build_images() {
+    local build_tag=$1 override service
+    shift
+    if [[ $build_tag == dev ]]; then
+        run compose_base build --pull "$@"
+        return
+    fi
+    override="$LOG_DIR/build-tag.compose.yml"
+    {
+        printf '# Written by deploy.sh push: build under propertyscope/<service>:%s.\nservices:\n' "$build_tag"
+        for service in "$@"; do
+            printf '  %s:\n    image: propertyscope/%s:%s\n' "$service" "$service" "$build_tag"
+        done
+    } >"$override"
+    run compose_base -f "$override" build --pull "$@"
+}
+
+# --reuse-images skips the build only for images this script built for the same tag on this
+# machine (their IDs are recorded in a build manifest), and never for a "-dirty" tag, whose
+# content can change while the tag stays the same. Anything else could push stale images under a
+# reviewed commit's tag.
+build_manifest() {
+    printf '%s/%s.%s.images' "${PROPERTYSCOPE_BUILD_MANIFEST_DIR:-$REPO_ROOT/.propertyscope-runtime/cloud-builds}" "$1" "$2"
+}
+
+record_build_manifest() {
+    local tag=$1 build_tag=$2 manifest service id
+    shift 2
+    [[ $DRY_RUN != true ]] || return 0
+    manifest=$(build_manifest "$tag" "$build_tag")
+    mkdir -p "${manifest%/*}"
+    for service in "$@"; do
+        id=$(docker image inspect --format '{{.Id}}' "propertyscope/$service:$build_tag" | tr -d '\r')
+        printf '%s %s\n' "$service" "$id"
+    done >"$manifest.tmp"
+    mv -f "$manifest.tmp" "$manifest"
+}
+
+verify_reusable_images() {
+    local tag=$1 build_tag=$2 manifest service expected id
+    shift 2
+    [[ $tag != *-dirty ]] || die "--reuse-images needs a committed tree: the tag $tag does not identify the image content"
+    manifest=$(build_manifest "$tag" "$build_tag")
+    [[ -f $manifest ]] || die "--reuse-images: nothing was built for $tag on this machine; run push without it"
+    for service in "$@"; do
+        expected=$(awk -v service="$service" '$1 == service { print $2 }' "$manifest")
+        id=$(docker image inspect --format '{{.Id}}' "propertyscope/$service:$build_tag" 2>/dev/null | tr -d '\r' || true)
+        [[ -n $expected && $id == "$expected" ]] ||
+            die "--reuse-images: propertyscope/$service:$build_tag is not the image built for $tag; run push without --reuse-images"
+    done
+    log "Reusing the $# images built for $tag (manifest ${manifest#"$REPO_ROOT"/})"
+}
+
 cmd_push() {
+    local reuse=${PROPERTYSCOPE_PUSH_REUSE_IMAGES:-false}
+    while (($#)); do
+        case $1 in
+            --reuse-images)
+                reuse=true
+                shift
+                ;;
+            *) die "unknown push option: $1" ;;
+        esac
+    done
+    [[ $reuse == true || $reuse == false ]] || die "PROPERTYSCOPE_PUSH_REUSE_IMAGES must be true or false"
     ensure_azure_context
     load_outputs
     require_tool docker git
-    local tag service services mirror source target
+    local tag build_tag registry service services mirror source target
     tag=$(image_tag)
+    build_tag=$(build_image_tag)
+    registry=$(push_registry)
     mapfile -t services < <(build_services)
     ((${#services[@]})) || die "no buildable services found in the Compose model"
-    log "Building ${#services[@]} images for $tag: ${services[*]}"
-    run az acr login --name "$ACR_NAME" --only-show-errors
-    run compose_base build --pull "${services[@]}"
+    if [[ $REHEARSAL != true ]]; then
+        run az acr login --name "$ACR_NAME" --only-show-errors
+    fi
+    if [[ $reuse == true ]]; then
+        verify_reusable_images "$tag" "$build_tag" "${services[@]}"
+    else
+        log "Building ${#services[@]} images for $tag: ${services[*]}"
+        build_images "$build_tag" "${services[@]}"
+        record_build_manifest "$tag" "$build_tag" "${services[@]}"
+    fi
     for service in "${services[@]}"; do
-        target="$ACR_LOGIN_SERVER/propertyscope/$service:$tag"
-        run docker tag "propertyscope/$service:dev" "$target"
+        target="$registry/propertyscope/$service:$tag"
+        run docker tag "propertyscope/$service:$build_tag" "$target"
         run docker push --quiet "$target"
         log "Pushed $target"
     done
@@ -403,6 +559,14 @@ cmd_push() {
     for mirror in "${MIRROR_IMAGES[@]}"; do
         source=${mirror%%=*}
         target=${mirror#*=}
+        if [[ $REHEARSAL == true ]]; then
+            # The rehearsal registry cannot import: pull, tag and push the same pinned image.
+            run docker pull --quiet "$source"
+            run docker tag "$source" "$registry/$target"
+            run docker push --quiet "$registry/$target"
+            log "Mirrored $source as $registry/$target"
+            continue
+        fi
         if [[ $DRY_RUN != true ]] && az acr repository show --name "$ACR_NAME" --image "$target" --only-show-errors >/dev/null 2>&1; then
             log "Mirror $target already in ACR"
             continue
@@ -437,11 +601,15 @@ vm_payload() {
     done
     case $action in
         deploy | ai-on | ai-off)
-            # Changing actions ship this commit's Compose files and edge/VM configuration.
+            # Changing actions ship this commit's Compose files and edge/VM configuration. Root's
+            # tar keeps the archive's modes, which are the operator checkout's (0600 under a
+            # umask-077 or Git Bash checkout), but the edge and app containers read the bind
+            # mounts as non-root users: normalise them. The bundle holds no secret.
             cat <<EOF
 install -d -m 0755 /opt/propertyscope/app
 rm -rf /opt/propertyscope/app/deployment /opt/propertyscope/app/docker-compose*.yml
 printf '%s' '$(bundle_base64)' | base64 -d | tar -xzf - -C /opt/propertyscope/app --no-same-owner
+chmod -R u=rwX,go=rX /opt/propertyscope/app/deployment /opt/propertyscope/app/docker-compose*.yml
 chmod 0755 /opt/propertyscope/app/deployment/azure/vm/*.sh /opt/propertyscope/app/deployment/azure/compose/*
 EOF
             ;;
@@ -463,6 +631,11 @@ ensure_vm_running() {
         return 0
     fi
     local power
+    if [[ $REHEARSAL == true ]]; then
+        power=$(docker inspect --format '{{.State.Running}}' "$PROPERTYSCOPE_REHEARSAL_VM" 2>/dev/null | tr -d '\r' || true)
+        [[ $power == true ]] || die "the rehearsal VM container $PROPERTYSCOPE_REHEARSAL_VM is not running (dev.py cloud rehearse starts it)"
+        return 0
+    fi
     power=$(az_query vm get-instance-view --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" \
         --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" --output tsv)
     if [[ $power != PowerState/running ]]; then
@@ -483,9 +656,23 @@ vm_run() {
         rm -f "$payload"
         return 0
     fi
-    log "Running '$action' on $VM_NAME through az vm run-command invoke"
-    message=$(az_query vm run-command invoke --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" \
-        --command-id RunShellScript --scripts "@$(native_path "$payload")" --query 'value[0].message' --output tsv)
+    if [[ $REHEARSAL == true ]]; then
+        # The same payload, run as root in the rehearsal VM; like run-command, the message is the
+        # combined output and the exit status comes from the PROPERTYSCOPE_EXIT line. Like
+        # run-command it runs as a file without stdin: `compose exec` inside the VM script would
+        # otherwise read the rest of a payload fed on stdin. MSYS_NO_PATHCONV keeps Git Bash from
+        # rewriting the VM-side path.
+        log "Running '$action' on the rehearsal VM $PROPERTYSCOPE_REHEARSAL_VM (docker exec in place of az vm run-command)"
+        MSYS_NO_PATHCONV=1 docker exec -i "$PROPERTYSCOPE_REHEARSAL_VM" \
+            sh -c 'umask 077 && mkdir -p /var/lib/propertyscope-rehearsal/run-command && cat >/var/lib/propertyscope-rehearsal/run-command/script.sh' \
+            <"$payload"
+        message=$(MSYS_NO_PATHCONV=1 docker exec "$PROPERTYSCOPE_REHEARSAL_VM" \
+            bash /var/lib/propertyscope-rehearsal/run-command/script.sh 2>&1 </dev/null | tr -d '\r') || true
+    else
+        log "Running '$action' on $VM_NAME through az vm run-command invoke"
+        message=$(az_query vm run-command invoke --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" \
+            --command-id RunShellScript --scripts "@$(native_path "$payload")" --query 'value[0].message' --output tsv)
+    fi
     rm -f "$payload"
     printf '%s\n' "$message" | tee "$LOG_DIR/vm-$action.log"
     # run-command reports success even when the script fails; the payload prints its exit status.
@@ -506,7 +693,10 @@ vm_environment() {
 cmd_deploy() {
     ensure_azure_context
     vm_environment
-    if [[ $DRY_RUN != true ]]; then
+    if [[ $DRY_RUN != true && $REHEARSAL == true ]]; then
+        registry_has_image propertyscope/shared-frontend "$IMAGE_TAG" ||
+            die "the rehearsal registry has no images for $IMAGE_TAG; run 'deploy.sh push' first"
+    elif [[ $DRY_RUN != true ]]; then
         az acr repository show --name "$ACR_NAME" --image "propertyscope/shared-frontend:$IMAGE_TAG" --only-show-errors >/dev/null 2>&1 ||
             die "ACR has no images for $IMAGE_TAG; run 'deploy.sh push' first"
     fi
@@ -558,13 +748,20 @@ public_base_url() {
         printf '%s' "${PROPERTYSCOPE_PUBLIC_URL%/}"
         return
     fi
-    ensure_azure_context
-    load_outputs
     printf 'https://%s' "$PUBLIC_FQDN"
 }
 
+# What was deployed, for the smoke document: IMAGE_TAG, else the tag `push` recorded, else this
+# checkout's tag; the commit from PROPERTYSCOPE_DEPLOY_SHA (the workflow), else the tag.
+deployed_image_tag() {
+    if [[ -z ${IMAGE_TAG:-} && -s $LOG_DIR/image-tag.txt ]]; then
+        IMAGE_TAG=$(head -n 1 "$LOG_DIR/image-tag.txt" | tr -d '\r')
+    fi
+    image_tag
+}
+
 cmd_smoke() {
-    local output_dir="$LOG_DIR/smoke" base_url runner
+    local output_dir="$LOG_DIR/smoke" base_url runner tag commit
     local extra=()
     while (($#)); do
         case $1 in
@@ -572,14 +769,36 @@ cmd_smoke() {
                 output_dir=$2
                 shift 2
                 ;;
-            --expect-ai)
-                extra+=(--expect-ai)
+            --expect-ai | --insecure)
+                # --insecure: only before the first certificate is issued, or for the local
+                # rehearsal's internal CA.
+                extra+=("$1")
                 shift
                 ;;
             *) die "unknown smoke option: $1" ;;
         esac
     done
+    if [[ -z ${PROPERTYSCOPE_PUBLIC_URL:-} && $REHEARSAL != true ]]; then
+        # In this shell, not in a $(...) subshell, so ACR_LOGIN_SERVER reaches the smoke document.
+        if ! outputs_known; then
+            ensure_azure_context
+        fi
+        load_outputs
+    fi
     base_url=$(public_base_url)
+    tag=$(deployed_image_tag)
+    commit=${PROPERTYSCOPE_DEPLOY_SHA:-${PROPERTYSCOPE_GIT_SHA:-${tag%-dirty}}}
+    extra+=(--image-tag "$tag")
+    if [[ $commit =~ ^[0-9a-f]{40}$ ]]; then
+        extra+=(--commit-sha "$commit")
+    fi
+    if [[ -n ${ACR_LOGIN_SERVER:-} ]]; then
+        extra+=(--registry "$ACR_LOGIN_SERVER")
+    fi
+    # The images the VM reported running (PROPERTYSCOPE_IMAGES from the last deploy).
+    if [[ -s $LOG_DIR/vm-deploy.log ]]; then
+        extra+=(--vm-log "$LOG_DIR/vm-deploy.log")
+    fi
     runner=$(python_runner)
     cd "$REPO_ROOT"
     # shellcheck disable=SC2086 # the runner is a fixed, trusted command prefix
@@ -591,6 +810,13 @@ cmd_validate() {
     ensure_azure_context
     load_outputs
     export AZURE_RESOURCE_GROUP ACR_NAME VM_NAME KEY_VAULT_NAME PUBLIC_FQDN LOG_DIR
+    if [[ $REHEARSAL == true ]]; then
+        [[ $which == endpoint ]] ||
+            die "validate-data reads Azure; the rehearsal runs its on-host half with vm-validate-data"
+        # No NSG to read: the endpoint script reports it as SKIP.
+        run env -u AZURE_RESOURCE_GROUP bash "$SCRIPT_DIR/validate-$which-security.sh"
+        return
+    fi
     run bash "$SCRIPT_DIR/validate-$which-security.sh"
 }
 
@@ -620,7 +846,7 @@ main() {
     case $argument in
         provision) cmd_provision ;;
         secrets) cmd_secrets ;;
-        push) cmd_push ;;
+        push) cmd_push "$@" ;;
         deploy) cmd_deploy ;;
         smoke) cmd_smoke "$@" ;;
         ai) cmd_ai "$@" ;;
@@ -648,4 +874,7 @@ main() {
     esac
 }
 
-main "$@"
+# Sourcing the script (scripts/tests/test_azure_deployment.py) defines the functions only.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
+fi

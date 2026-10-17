@@ -24,6 +24,8 @@ def _command(*argv: str) -> tuple[str, ...]:
     [
         (("provision",), ["provision"]),
         (("push", "--dry-run"), ["--dry-run", "push"]),
+        (("push", "--reuse-images"), ["push", "--reuse-images"]),
+        (("smoke", "--insecure"), ["smoke", "--insecure"]),
         (("deploy",), ["deploy"]),
         (("secrets",), ["secrets"]),
         (("status",), ["status"]),

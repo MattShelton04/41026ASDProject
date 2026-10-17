@@ -110,7 +110,9 @@ If you would rather keep the managed processes, follow their logs instead:
 
 - The CRUD cases are the `scripts/cloud_smoke.py` cases. Each creates a uniquely named record
   through the owning feature's public API, reads it back, deletes it and confirms it is gone, even
-  when a later step fails.
+  when a later step fails. Feature 1's case also updates its source definition
+  (`PUT /api/data-platform/v1/sources/{id}` with the version it read) and reads it again to
+  confirm the change, before the delete.
 - Logs are stripped of ANSI codes and capped in size (256 KB per host terminal, 512 KB for
   Compose). Redaction removes the host service tokens, any provider key in the environment,
   `Authorization`/token-shaped values, and any line that matches the repository's secret patterns.

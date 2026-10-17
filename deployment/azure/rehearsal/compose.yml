@@ -1,0 +1,66 @@
+# Local rehearsal of the Azure deployment (`uv run scripts/dev.py cloud rehearse`). Never deployed.
+#
+# Two containers stand in for the two Azure resources the deployment talks to:
+#   registry  registry:2 in place of Azure Container Registry. deploy.sh push reaches it on the
+#             loopback port; the rehearsal VM pulls from it as ps-rehearsal-registry:5000.
+#   vm        a Docker-in-Docker host in place of the Ubuntu VM. deploy.sh deploy runs the exact
+#             run-command payload in it (docker exec instead of az vm run-command), so
+#             propertyscope-vm.sh starts docker-compose.azure.yml inside it as project ps-azure,
+#             as on Azure. Only 80/443 are published, and only on the host loopback.
+#
+# The Compose project is ps-azure-rehearsal. `dev.py cloud rehearse` removes it, its volumes and
+# its generated files at the end unless --keep is given.
+name: ps-azure-rehearsal
+
+services:
+  registry:
+    image: registry:2.8.3
+    container_name: ps-rehearsal-registry
+    ports:
+      - "127.0.0.1:${PROPERTYSCOPE_REHEARSAL_REGISTRY_PORT:-5000}:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:5000/v2/]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [rehearsal]
+
+  vm:
+    build: ./vm
+    image: propertyscope-rehearsal/vm:28.5.1
+    container_name: ps-azure-rehearsal-vm
+    hostname: propertyscope-rehearsal-vm
+    # Docker-in-Docker needs a privileged container; the application containers inside it keep
+    # every restriction docker-compose.azure.yml sets.
+    privileged: true
+    # Unix socket only: the rehearsal VM, like the Azure VM, exposes no Docker API port.
+    command: [dockerd, --host=unix:///var/run/docker.sock]
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    ports:
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+    volumes:
+      - vm-docker:/var/lib/docker
+      - vm-opt:/opt/propertyscope
+      - ${PROPERTYSCOPE_REHEARSAL_DIR:?run through dev.py cloud rehearse}/daemon.json:/etc/docker/daemon.json:ro
+      - ${PROPERTYSCOPE_REHEARSAL_DIR:?run through dev.py cloud rehearse}/key-vault:/var/lib/propertyscope-rehearsal/key-vault:ro
+    healthcheck:
+      test: [CMD, docker, info]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    depends_on:
+      registry:
+        condition: service_healthy
+    networks: [rehearsal]
+
+networks:
+  rehearsal: {}
+
+volumes:
+  registry-data: {}
+  vm-docker: {}
+  vm-opt: {}

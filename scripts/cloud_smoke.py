@@ -28,9 +28,11 @@ only for an explicit ``ai_disabled`` answer), ``ai_state``, ``started_at``/``fin
 ``passed``, ``detail``, ``method``, ``path``, ``status_code``, ``duration_ms``). The deployment
 identity comes from ``--commit-sha``/``--image-tag``/``--registry``/``--image`` or, as
 ``deploy.sh smoke`` runs it, from ``PROPERTYSCOPE_DEPLOY_SHA`` (or ``PROPERTYSCOPE_GIT_SHA``),
-``IMAGE_TAG`` and ``ACR_LOGIN_SERVER``. Without ``--image`` the image list is every
-``${IMAGE_TAG}`` image in ``docker-compose.azure.yml`` (what the VM runs). The smoke test does not
-inspect the VM, so ``images_source`` says where the references came from.
+``IMAGE_TAG`` and ``ACR_LOGIN_SERVER`` (``deploy.sh smoke`` passes all three as options). The
+image list is, in order of preference: ``--image`` arguments; the images the VM reported running
+(``--vm-log vm-deploy.log``, its ``PROPERTYSCOPE_IMAGES`` line, with registry digests; ``deploy.sh
+smoke`` passes it after a deploy); or every ``${IMAGE_TAG}`` image in ``docker-compose.azure.yml``.
+``images_source`` says which one was used.
 """
 
 from __future__ import annotations
@@ -70,6 +72,9 @@ IMAGE_TAG = re.compile(r"[A-Za-z0-9_.-]{1,128}")
 REGISTRY = re.compile(r"[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?")
 SERVICE_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 IMAGE_REFERENCE = re.compile(r"[A-Za-z0-9./:@_-]{1,512}")
+# propertyscope-vm.sh prints the images its running containers use (with registry digests).
+VM_IMAGES_LINE = re.compile(r"^PROPERTYSCOPE_IMAGES=(\{.*\})\s*$", re.MULTILINE)
+VM_IMAGES_SOURCE = "the VM (docker compose ps, PROPERTYSCOPE_IMAGES in vm-deploy.log)"
 # What the Feature 1 update writes and then reads back.
 UPDATED_NOTES = "Updated by scripts/cloud_smoke.py; deleted at the end of the case."
 
@@ -170,6 +175,26 @@ def azure_image_services(path: Path = AZURE_COMPOSE_FILE) -> tuple[str, ...]:
     return tuple(sorted(set(AZURE_IMAGE.findall(path.read_text(encoding="utf-8")))))
 
 
+def vm_images(text: str) -> dict[str, str]:
+    """The last service -> image object the VM printed (``PROPERTYSCOPE_IMAGES=``), or ``{}``.
+
+    run-command returns only the tail of the output, so a cut-off line is ignored rather than
+    trusted in part.
+    """
+    for candidate in reversed(VM_IMAGES_LINE.findall(text)):
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(value, dict)
+            and value
+            and all(isinstance(key, str) and isinstance(item, str) for key, item in value.items())
+        ):
+            return dict(value)
+    return {}
+
+
 def deployment_identity(
     *,
     commit_sha: str | None,
@@ -177,8 +202,13 @@ def deployment_identity(
     registry: str | None,
     images: Mapping[str, str] | None = None,
     services: Sequence[str] = (),
+    observed: Mapping[str, str] | None = None,
 ) -> DeploymentIdentity:
-    """Validate the deployment identity and derive the image references from the tag."""
+    """Validate the deployment identity and derive the image references from the tag.
+
+    Explicit ``images`` win, then the images the VM reported running (``observed``), then
+    references derived from the tag for every ``services`` entry.
+    """
     commit = (commit_sha or "").strip().lower() or None
     if commit is not None and not COMMIT_SHA.fullmatch(commit):
         raise ValueError("the commit SHA must be 40 hexadecimal characters")
@@ -189,11 +219,14 @@ def deployment_identity(
     if host is not None and not REGISTRY.fullmatch(host):
         raise ValueError("the registry must be a host name, e.g. example.azurecr.io")
     explicit = dict(images or {})
-    for service, reference in explicit.items():
+    reported = dict(observed or {})
+    for service, reference in (*explicit.items(), *reported.items()):
         if not SERVICE_NAME.fullmatch(service) or not IMAGE_REFERENCE.fullmatch(reference):
             raise ValueError(f"invalid image reference {service}={reference}")
     if explicit:
         return DeploymentIdentity(commit, tag, host, explicit, "--image arguments")
+    if reported:
+        return DeploymentIdentity(commit, tag, host, reported, VM_IMAGES_SOURCE)
     if tag is not None and services:
         prefix = f"{host}/" if host else ""
         derived = {service: f"{prefix}propertyscope/{service}:{tag}" for service in services}
@@ -981,6 +1014,12 @@ def _parser() -> argparse.ArgumentParser:
         metavar="SERVICE=REFERENCE",
         help="An explicit image reference, e.g. a digest; replaces the derived list",
     )
+    identity.add_argument(
+        "--vm-log",
+        type=Path,
+        help="vm-deploy.log from deploy.sh deploy: record the images the VM reported running "
+        "(its PROPERTYSCOPE_IMAGES line) instead of deriving them from the tag",
+    )
     return parser
 
 
@@ -994,6 +1033,12 @@ def identity_from(
         if not separator:
             raise ValueError(f"--image must be SERVICE=REFERENCE, got {value!r}")
         images[service.strip()] = reference.strip()
+    observed: dict[str, str] = {}
+    if arguments.vm_log is not None:
+        try:
+            observed = vm_images(arguments.vm_log.read_text(encoding="utf-8", errors="replace"))
+        except OSError as exc:
+            raise ValueError(f"cannot read --vm-log {arguments.vm_log}: {exc}") from exc
     return deployment_identity(
         commit_sha=arguments.commit_sha
         or environment.get("PROPERTYSCOPE_DEPLOY_SHA")
@@ -1002,6 +1047,7 @@ def identity_from(
         registry=arguments.registry or environment.get("ACR_LOGIN_SERVER"),
         images=images,
         services=azure_image_services(),
+        observed=observed,
     )
 
 

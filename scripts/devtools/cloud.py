@@ -61,10 +61,22 @@ def add_cloud_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
         "all": "provision, push, deploy and smoke in order",
     }
     for action in SIMPLE_ACTIONS:
-        _add_dry_run(commands.add_parser(action, help=help_texts[action]))
+        command = commands.add_parser(action, help=help_texts[action])
+        if action == "push":
+            command.add_argument(
+                "--reuse-images",
+                action="store_true",
+                help="Skip the build when this machine already built this clean commit's images",
+            )
+        _add_dry_run(command)
     smoke = commands.add_parser("smoke", help="Run scripts/cloud_smoke.py against the public URL")
     smoke.add_argument("--output-dir", type=Path, default=None)
     smoke.add_argument("--expect-ai", action="store_true", help="Require the AI tier to be on")
+    smoke.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Skip TLS verification (before the first certificate is issued)",
+    )
     _add_dry_run(smoke)
     ai = commands.add_parser("ai", help="Turn the systemd host AI tier on or off (bonus tiers)")
     ai.add_argument("state", choices=("on", "off"))
@@ -76,6 +88,14 @@ def add_cloud_commands(root: argparse._SubParsersAction[argparse.ArgumentParser]
     validate = commands.add_parser("validate", help="Run a bonus security validation script")
     validate.add_argument("control", choices=("endpoint", "data"))
     _add_dry_run(validate)
+    from scripts.devtools import cloud_rehearsal
+
+    rehearse = commands.add_parser(
+        "rehearse",
+        help="Local rehearsal of the Azure path, no Azure needed: build, local registry, "
+        "Docker-in-Docker VM, smoke, endpoint security, report, review, teardown",
+    )
+    cloud_rehearsal.add_arguments(rehearse)
 
 
 def _add_dry_run(command: argparse.ArgumentParser) -> None:
@@ -92,12 +112,16 @@ def deploy_arguments(arguments: argparse.Namespace) -> list[str]:
     action = arguments.action
     if action in SIMPLE_ACTIONS:
         result.append(action)
+        if getattr(arguments, "reuse_images", False):
+            result.append("--reuse-images")
     elif action == "smoke":
         result.append("smoke")
         if arguments.output_dir is not None:
             result += ["--output-dir", str(arguments.output_dir)]
         if arguments.expect_ai:
             result.append("--expect-ai")
+        if arguments.insecure:
+            result.append("--insecure")
     elif action == "ai":
         result += ["ai", arguments.state]
     elif action == "logs":
@@ -158,6 +182,10 @@ def build_command(arguments: argparse.Namespace, *, bash: str | None = None) -> 
 
 def run(arguments: argparse.Namespace) -> int:
     """Execute one ``dev.py cloud`` action and return deploy.sh's exit status."""
+    if arguments.action == "rehearse":
+        from scripts.devtools import cloud_rehearsal
+
+        return cloud_rehearsal.run(arguments, bash=bash_executable())
     command = build_command(arguments)
     print(f"> {shlex.join(command)}", flush=True)
     completed = subprocess.run(command, cwd=REPOSITORY_ROOT, check=False)  # noqa: S603 - argv from argparse choices and the fixed deploy.sh path, no shell

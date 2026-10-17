@@ -278,6 +278,57 @@ def test_cli_identity_wins_over_the_environment_and_explicit_images_replace_deri
     assert document["ai_enabled"] is None and document["ai_state"] == "not_checked"
 
 
+def test_vm_log_images_replace_the_derived_list_with_what_the_vm_runs(tmp_path: Path) -> None:
+    caddy = "registry:5000/propertyscope/mirror/caddy:2.10.2-alpine@sha256:" + "c" * 64
+    backend = f"registry:5000/propertyscope/f1-backend:{COMMIT}@sha256:" + "b" * 64
+    log = tmp_path / "vm-deploy.log"
+    log.write_text(
+        "[stdout]\n"
+        'PROPERTYSCOPE_IMAGES={"f1-backend":"stale"}\n'
+        f'PROPERTYSCOPE_IMAGES={{"f1-backend":"{backend}","shared-edge-proxy":"{caddy}"}}\r\n'
+        'PROPERTYSCOPE_RESULT={"action":"deploy"}\nPROPERTYSCOPE_EXIT=0\n',
+        encoding="utf-8",
+    )
+    status = main(
+        [
+            *("--base-url", "https://edge.example", "--output-dir", str(tmp_path / "out")),
+            *("--vm-log", str(log), "--skip-ai-check", "--no-crud"),
+        ],
+        transport=httpx.MockTransport(FakeEdge()),
+        environment={"IMAGE_TAG": COMMIT, "PROPERTYSCOPE_DEPLOY_SHA": COMMIT},
+    )
+    assert status == 0
+    document = json.loads((tmp_path / "out" / "cloud-smoke.json").read_text(encoding="utf-8"))
+    assert document["images"] == {"f1-backend": backend, "shared-edge-proxy": caddy}
+    assert document["images_source"] == cloud_smoke.VM_IMAGES_SOURCE
+
+
+def test_a_cut_off_or_missing_vm_image_line_falls_back_to_the_derived_list() -> None:
+    # run-command keeps only the tail of the output: a truncated line must not be trusted.
+    assert cloud_smoke.vm_images('PROPERTYSCOPE_IMAGES={"f1-backend":"reg/x:1",\n') == {}
+    assert cloud_smoke.vm_images("PROPERTYSCOPE_IMAGES={}\n") == {}
+    assert cloud_smoke.vm_images('PROPERTYSCOPE_IMAGES={"a":1}\n') == {}
+    identity = cloud_smoke.deployment_identity(
+        commit_sha=COMMIT, image_tag=COMMIT, registry="r.io", services=("f1-backend",), observed={}
+    )
+    assert identity.images_source == "docker-compose.azure.yml with IMAGE_TAG"
+    with pytest.raises(ValueError, match="invalid image reference"):
+        cloud_smoke.deployment_identity(
+            commit_sha=None, image_tag=None, registry=None, observed={"f1-backend": "bad ref"}
+        )
+
+
+def test_an_unreadable_vm_log_is_an_argument_error(tmp_path: Path) -> None:
+    status = main(
+        [
+            *("--base-url", "https://edge.example", "--output-dir", str(tmp_path)),
+            *("--vm-log", str(tmp_path / "missing.log")),
+        ],
+        environment={},
+    )
+    assert status == 2
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
