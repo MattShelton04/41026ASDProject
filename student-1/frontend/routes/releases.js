@@ -34,7 +34,15 @@ import {
   readinessReviewRunId,
   rememberedReadinessReview,
   resumableReadinessReview,
-} from "../integration/release-review.js?v=4";
+} from "../integration/release-review.js?v=5";
+import {
+  createReviewCapabilities,
+  markReviewActionUnavailable,
+  REVIEW_UNAVAILABLE_IDS,
+  reviewActionAvailable,
+  reviewCapability,
+  unavailableReviewExplanations,
+} from "../integration/review-capabilities.js";
 
 const RELEASE_FIELDS = [
   { name: "dataset_id", label: "Dataset ID", required: true, createOnly: true },
@@ -87,6 +95,7 @@ function releaseStateTabs(selected, filters) {
 
 export function createReleaseRoutes({
   view, request, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender, announce,
+  reviewCapabilities = createReviewCapabilities(request),
 }) {
   const publicationKeys = createPublicationAttemptKeys(newRequestId);
   const detailRequests = createLatestRequestGuard();
@@ -310,6 +319,8 @@ export function createReleaseRoutes({
     const isCurrent = () => routeEpoch.isCurrent() && refresh.isCurrent();
     if (!polling) publicationPolling.attempts = 0;
     stopPublicationPolling();
+    // Asked once per page load and never rejected; an unreadable answer keeps both actions offered.
+    const capabilitiesRequest = reviewCapabilities.load();
     const { body, requestId } = await detailRequest(`dataset-releases/${id}`);
     if (!isCurrent()) return;
     const release = entity(body, "release");
@@ -349,7 +360,10 @@ export function createReleaseRoutes({
           ? Promise.resolve({ body: { items: body.accepted_predecessor ? [body.accepted_predecessor] : [] } })
           : detailRequest("dataset-releases?status=accepted&limit=100"),
       ]);
+    const capabilities = await capabilitiesRequest;
     if (!isCurrent()) return;
+    const readinessCapability = reviewCapability(capabilities, "readiness_review");
+    const aiReviewCapability = reviewCapability(capabilities, "ai_review");
     const qualityResults = qualityResult.status === "fulfilled" ? collection(qualityResult.value.body) : [];
     const acceptedReleases = acceptedResult.status === "fulfilled" ? collection(acceptedResult.value.body) : [];
     const predecessor = acceptedReleases.find((candidate) => candidate.id === release.supersedes_release_id)
@@ -426,9 +440,11 @@ export function createReleaseRoutes({
     }
     const reviewSlot = el("div", "stack");
     const requestedReviewRun = readinessReviewRunId(location.hash);
-    if (requestedReviewRun) openReadinessReview(release, requestedReviewRun);
+    // Without a Multi-Agent Server a recorded review cannot be read, so it is not reopened either.
+    if (requestedReviewRun && readinessCapability.enabled) openReadinessReview(release, requestedReviewRun);
     const showReadinessReview = READINESS_REVIEW_STATUSES.has(release.status) || readinessReview || rememberedReadinessReview(release.id);
     const readinessTrigger = showReadinessReview ? button("Readiness review", "button secondary", async () => {
+      if (!reviewActionAvailable(readinessTrigger)) return;
       let review = readinessReview?.releaseId === release.id ? readinessReview : null;
       if (!review) {
         // Reopen the review last started for this release instead of offering a duplicate run.
@@ -457,9 +473,16 @@ export function createReleaseRoutes({
       // The action reveals the panel below the heading; say so to assistive technology.
       readinessTrigger.setAttribute("aria-controls", "release-readiness-review");
       readinessTrigger.setAttribute("aria-expanded", String(Boolean(readinessReview)));
+      if (!readinessCapability.enabled) markReviewActionUnavailable(readinessTrigger, REVIEW_UNAVAILABLE_IDS.readiness_review);
       actions.push(readinessTrigger);
     }
-    actions.push(button("Review with AI", "button secondary", () => { location.hash = `#ai/release:${id}`; }));
+    const aiReviewTrigger = button("Review with AI", "button secondary", () => {
+      if (!reviewActionAvailable(aiReviewTrigger)) return;
+      location.hash = `#ai/release:${id}`;
+    });
+    if (!aiReviewCapability.enabled) markReviewActionUnavailable(aiReviewTrigger, REVIEW_UNAVAILABLE_IDS.ai_review);
+    actions.push(aiReviewTrigger);
+    const unavailableReviews = unavailableReviewExplanations(capabilities, readinessTrigger ? ["readiness_review", "ai_review"] : ["ai_review"]);
     reviewSlot.classList.add("release-review-slot");
 
     // Publication polls rebuild this page; keep the reader's place, open details and review focus.
@@ -473,6 +496,16 @@ export function createReleaseRoutes({
     const lifecycleNotice = el("div", `notice ${lifecycle.tone}`.trim());
     append(lifecycleNotice, badge(displayState), document.createTextNode(` ${lifecycle.message}`));
     append(view, lifecycleNotice);
+    if (unavailableReviews.length) {
+      // Each disabled review action is described by its own sentence here.
+      const availability = el("p", "notice info review-availability");
+      for (const explanation of unavailableReviews) {
+        const sentence = el("span", "", explanation.detail);
+        sentence.id = explanation.id;
+        append(availability, sentence, document.createTextNode(" "));
+      }
+      append(view, availability);
+    }
     if (publicationOutcome === "failed") {
       const failure = activations.at(-1)?.error_json;
       if (failure?.message) append(view, el("div", "notice negative", failure.message));

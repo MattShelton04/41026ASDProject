@@ -99,7 +99,7 @@ main { min-width: 0; }
 .button.danger { background: var(--negative); color: var(--ps-color-surface); }
 .button.warning { background: var(--warning); color: var(--ps-color-surface); }
 .button.small { min-height: var(--ps-control-height-compact); padding: .34rem .62rem; font-size: var(--ps-text-caption); }
-.button:disabled { cursor: not-allowed; opacity: .5; }
+.button:disabled, .button[aria-disabled="true"] { cursor: not-allowed; opacity: .5; }
 .button.overview-action { min-height: calc(var(--ps-control-height-comfortable) + var(--ps-border-width-strong)); }
 .button .ui-icon { width: 1rem; height: 1rem; stroke-width: 2; }
 .text-button { display: inline-flex; min-height: 44px; align-items: center; border: 0; padding: 8px 0; background: transparent; color: var(--ocean-dark); cursor: pointer; font-weight: 750; text-decoration: underline; text-underline-offset: .18em; }

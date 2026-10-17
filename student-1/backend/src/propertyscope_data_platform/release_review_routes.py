@@ -9,6 +9,7 @@ publication elsewhere in Feature 1 keep working.
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Callable
 from functools import wraps
@@ -28,8 +29,17 @@ DEFAULT_RELEASE_REVIEW_PAGE_LIMIT = 20
 HISTORY_CURSORS = ("after_history", "after_audit")
 _START_FIELDS = frozenset({"input", "requested_by", "template_id"})
 _INVALID_REQUEST = "invalid_release_review_request"
+# Names and notes end up in the run's audit trail, so the proxy checks them before relaying.
+# Feature 1 has no authenticated operator identity: names stay caller-supplied but bounded to
+# letters, digits, spaces and a few name punctuation marks, starting with a letter or digit.
+MAX_ACTOR_LENGTH = 100
+MAX_NOTE_LENGTH = 2_000
+_ACTOR = re.compile(r"[^\W_][\w .,'\N{RIGHT SINGLE QUOTATION MARK}@()-]*")
+# Notes are free prose; line breaks and tabs are the only control characters they may contain.
+_NOTE_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 RouteHandler = Callable[..., Response]
+JsonObject = dict[str, Any]
 
 
 def _review_route(handler: RouteHandler) -> RouteHandler:
@@ -53,6 +63,91 @@ def _object_body() -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("request body must be a JSON object")
     return value
+
+
+class _FieldError(ValueError):
+    """One rejected request field, reported as a structured ``invalid_release_review_request``."""
+
+    def __init__(self, field: str, code: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.code = code
+
+    def response(self) -> Response:
+        return problem(
+            422,
+            _INVALID_REQUEST,
+            str(self),
+            errors=[{"field": self.field, "message": str(self), "code": self.code}],
+        )
+
+
+def checked_actor(value: Any, field: str) -> str:
+    """Return a bounded, printable person or surface name for the audit trail."""
+    if value is None:
+        raise _FieldError(field, "invalid_actor", f"{field} is required")
+    if not isinstance(value, str):
+        raise _FieldError(field, "invalid_actor", f"{field} must be a string")
+    actor = value.strip()
+    if not actor:
+        raise _FieldError(field, "invalid_actor", f"{field} must not be empty")
+    if len(actor) > MAX_ACTOR_LENGTH:
+        raise _FieldError(
+            field, "invalid_actor", f"{field} must be at most {MAX_ACTOR_LENGTH} characters"
+        )
+    if _ACTOR.fullmatch(actor) is None:
+        raise _FieldError(
+            field,
+            "invalid_actor",
+            f"{field} must start with a letter or digit and contain only letters, digits, "
+            "spaces and . , ' @ ( ) - _",
+        )
+    return actor
+
+
+def checked_note(value: Any) -> str:
+    """Return a bounded decision note without control characters other than line breaks."""
+    if not isinstance(value, str):
+        raise _FieldError("note", "invalid_note", "note must be a string")
+    note = value.strip()
+    if len(note) > MAX_NOTE_LENGTH:
+        raise _FieldError(
+            "note", "invalid_note", f"note must be at most {MAX_NOTE_LENGTH} characters"
+        )
+    if _NOTE_CONTROL.search(note):
+        raise _FieldError("note", "invalid_note", "note must not contain control characters")
+    return note
+
+
+def _decision_body(body: dict[str, Any]) -> dict[str, Any]:
+    """Check the decision's audit-trail text; the server still validates the decision itself."""
+    checked = {**body, "actor": checked_actor(body.get("actor"), "actor")}
+    if "note" in body:
+        checked["note"] = checked_note(body["note"])
+    return checked
+
+
+READINESS_REVIEW_DISABLED_DETAIL = "Multi-agent review is not enabled in this deployment."
+AI_REVIEW_DISABLED_DETAIL = "AI review is not enabled in this deployment."
+
+
+def review_capabilities(*, multi_agent_configured: bool, ai_mode_configured: bool) -> JsonObject:
+    """Which review actions this deployment enables, from configuration alone (no network).
+
+    ``enabled`` is false only when the deployment gave the backend no credential for the service,
+    as in the cloud baseline with the AI tier off. An enabled service can still be temporarily
+    unreachable; its own routes then answer 503 as before.
+    """
+    return {
+        "readiness_review": {
+            "enabled": multi_agent_configured,
+            "detail": None if multi_agent_configured else READINESS_REVIEW_DISABLED_DETAIL,
+        },
+        "ai_review": {
+            "enabled": ai_mode_configured,
+            "detail": None if ai_mode_configured else AI_REVIEW_DISABLED_DETAIL,
+        },
+    }
 
 
 def register_release_review_routes(
@@ -98,7 +193,10 @@ def register_release_review_routes(
             "input": workflow_input,
         }
         if body.get("requested_by") is not None:
-            payload["requested_by"] = body["requested_by"]
+            try:
+                payload["requested_by"] = checked_actor(body["requested_by"], "requested_by")
+            except _FieldError as exc:
+                return exc.response()
         upstream = multi_agent.create_run(payload, request.headers)
         response = forward(upstream)
         response.headers.pop("Location", None)
@@ -158,7 +256,9 @@ def register_release_review_routes(
     @_review_route
     def decide_release_review(run_id: uuid.UUID) -> Response:
         try:
-            body = _object_body()
+            body = _decision_body(_object_body())
+        except _FieldError as exc:
+            return exc.response()
         except ValueError as exc:
             return problem(422, _INVALID_REQUEST, str(exc))
         _, refused = owned_run(run_id)
@@ -173,6 +273,10 @@ def register_release_review_routes(
         if request.data:
             try:
                 body = _object_body()
+                if body.get("actor") is not None:
+                    body = {**body, "actor": checked_actor(body["actor"], "actor")}
+            except _FieldError as exc:
+                return exc.response()
             except ValueError as exc:
                 return problem(422, _INVALID_REQUEST, str(exc))
         _, refused = owned_run(run_id)

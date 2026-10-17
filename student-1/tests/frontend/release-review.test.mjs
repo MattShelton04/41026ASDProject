@@ -15,6 +15,15 @@ import {
   rememberReadinessReview,
   resumableReadinessReview,
 } from "../../frontend/integration/release-review.js";
+import {
+  createReviewCapabilities,
+  markReviewActionUnavailable,
+  REVIEW_CAPABILITIES_PATH,
+  REVIEW_UNAVAILABLE_IDS,
+  reviewActionAvailable,
+  reviewCapability,
+  unavailableReviewExplanations,
+} from "../../frontend/integration/review-capabilities.js";
 
 const RELEASE_ID = "36460dde-c3fe-4ca4-8e5e-f3c12c645bcd";
 const RUN_ID = "c17c66cc-6b40-4685-909a-440401ae8ec7";
@@ -53,8 +62,15 @@ test("the page supplies the exact release and a bounded dataset identifier", () 
   assert.deepEqual(readinessReviewInput({ id: RELEASE_ID, dataset_id: "nsw-amenities" }), { release_id: RELEASE_ID, dataset_id: "nsw-amenities" });
   assert.deepEqual(readinessReviewInput({ id: RELEASE_ID }), { release_id: RELEASE_ID });
   assert.equal(readinessReviewInput({ id: RELEASE_ID, dataset_id: "x".repeat(400) }).dataset_id.length, 150);
-  assert.ok(READINESS_REVIEW_STATUSES.has("awaiting_review"));
-  assert.ok(!READINESS_REVIEW_STATUSES.has("accepted"));
+});
+
+test("only the reviewable statuses the database allows offer a readiness review", async () => {
+  assert.deepEqual([...READINESS_REVIEW_STATUSES].sort(), ["awaiting_review", "candidate"]);
+  const schema = await readFile(new URL("../../database/src/propertyscope_data_store/sql/001_initial.sql", import.meta.url), "utf8");
+  const allowed = schema.match(/CREATE TABLE ops\.dataset_release[\s\S]*?status TEXT NOT NULL CHECK \(status IN \(([^)]*)\)\)/)[1];
+  for (const status of READINESS_REVIEW_STATUSES) assert.match(allowed, new RegExp(`'${status}'`));
+  const workflow = await readFile(new URL("../../config/multi-agent/workflow.yaml", import.meta.url), "utf8");
+  assert.match(workflow, /path: release\.status, operator: in, value: \[candidate, awaiting_review\]/);
 });
 
 test("the readiness review mounts the shared panel against the feature proxy only", () => {
@@ -176,4 +192,80 @@ test("the release page reopens the remembered review instead of offering a dupli
   assert.match(source, /readinessTrigger\.setAttribute\("aria-busy", "true"\)/);
   assert.match(source, /readinessTrigger\.setAttribute\("aria-controls", "release-readiness-review"\)/);
   assert.match(source, /readinessTrigger\.setAttribute\("aria-expanded", String\(Boolean\(readinessReview\)\)\)/);
+});
+
+function buttonDouble() {
+  const attributes = new Map();
+  const classes = new Set();
+  return {
+    attributes,
+    classes,
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+    getAttribute: (name) => attributes.get(name) ?? null,
+    removeAttribute: (name) => attributes.delete(name),
+    classList: { add: (name) => classes.add(name) },
+  };
+}
+
+const CLOUD_BASELINE = Object.freeze({
+  readiness_review: { enabled: false, detail: "Multi-agent review is not enabled in this deployment." },
+  ai_review: { enabled: false, detail: "AI review is not enabled in this deployment." },
+});
+
+test("only an explicit disabled answer turns a review action off", () => {
+  assert.deepEqual(reviewCapability(CLOUD_BASELINE, "readiness_review"), { enabled: false, detail: "Multi-agent review is not enabled in this deployment." });
+  assert.deepEqual(reviewCapability({ ai_review: { enabled: false } }, "ai_review"), { enabled: false, detail: "AI review is not enabled in this deployment." });
+  for (const answer of [null, undefined, {}, { readiness_review: { enabled: true, detail: null } }, { readiness_review: "off" }]) {
+    assert.deepEqual(reviewCapability(answer, "readiness_review"), { enabled: true, detail: "" });
+  }
+  assert.deepEqual(unavailableReviewExplanations(CLOUD_BASELINE).map((item) => [item.key, item.id]), [
+    ["readiness_review", "readiness-review-unavailable"], ["ai_review", "ai-review-unavailable"],
+  ]);
+  assert.deepEqual(unavailableReviewExplanations(CLOUD_BASELINE, ["ai_review"]).map((item) => item.key), ["ai_review"]);
+  assert.deepEqual(unavailableReviewExplanations({ readiness_review: { enabled: true }, ai_review: { enabled: true } }), []);
+});
+
+test("capabilities are asked once, and a failed read is asked again later", async () => {
+  const paths = [];
+  let fail = true;
+  const capabilities = createReviewCapabilities(async (path, options) => {
+    paths.push([path, options.timeoutMs]);
+    if (fail) throw Object.assign(new Error("HTTP 503"), { status: 503 });
+    return { body: { connected_live_profiles: [], review_actions: CLOUD_BASELINE } };
+  });
+  assert.equal(await capabilities.load(), null, "an unreadable answer keeps both actions offered");
+  fail = false;
+  assert.deepEqual(await capabilities.load(), CLOUD_BASELINE);
+  assert.deepEqual(await capabilities.load(), CLOUD_BASELINE);
+  assert.equal(REVIEW_CAPABILITIES_PATH, "runtime-capabilities");
+  assert.deepEqual(paths, [[REVIEW_CAPABILITIES_PATH, 4000], [REVIEW_CAPABILITIES_PATH, 4000]]);
+  const olderBackend = createReviewCapabilities(async () => ({ body: { connected_live_profiles: [] } }));
+  assert.equal(await olderBackend.load(), null, "a backend without review_actions keeps both actions offered");
+});
+
+test("a disabled review action stays focusable and is described by its explanation", () => {
+  const trigger = buttonDouble();
+  trigger.setAttribute("aria-controls", "release-readiness-review");
+  trigger.setAttribute("aria-expanded", "false");
+  assert.equal(reviewActionAvailable(trigger), true);
+  markReviewActionUnavailable(trigger, REVIEW_UNAVAILABLE_IDS.readiness_review);
+  assert.equal(reviewActionAvailable(trigger), false);
+  assert.equal(trigger.getAttribute("aria-disabled"), "true");
+  assert.equal(trigger.getAttribute("aria-describedby"), "readiness-review-unavailable");
+  assert.equal(trigger.getAttribute("aria-controls"), null, "a disabled action reveals no panel");
+  assert.equal(trigger.getAttribute("aria-expanded"), null);
+  assert.ok(trigger.classes.has("is-unavailable"));
+});
+
+test("the release page gates both review actions on the deployment's capabilities", async () => {
+  const source = await readFile(new URL("../../frontend/routes/releases.js", import.meta.url), "utf8");
+  assert.match(source, /reviewCapabilities = createReviewCapabilities\(request\)/);
+  assert.match(source, /if \(requestedReviewRun && readinessCapability\.enabled\) openReadinessReview/);
+  assert.match(source, /if \(!reviewActionAvailable\(readinessTrigger\)\) return;/);
+  assert.match(source, /if \(!readinessCapability\.enabled\) markReviewActionUnavailable\(readinessTrigger, REVIEW_UNAVAILABLE_IDS\.readiness_review\)/);
+  assert.match(source, /if \(!reviewActionAvailable\(aiReviewTrigger\)\) return;/);
+  assert.match(source, /if \(!aiReviewCapability\.enabled\) markReviewActionUnavailable\(aiReviewTrigger, REVIEW_UNAVAILABLE_IDS\.ai_review\)/);
+  assert.match(source, /sentence\.id = explanation\.id/);
+  const styles = await readFile(new URL("../../frontend/styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.button\[aria-disabled="true"\] \{ cursor: not-allowed; opacity: \.5; \}/);
 });

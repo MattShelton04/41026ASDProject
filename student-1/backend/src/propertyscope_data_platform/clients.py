@@ -84,8 +84,18 @@ class AiModeClient:
     ) -> None:
         self._origin = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=10, follow_redirects=False)
+        self._configured = bool(service_token.strip())
         if service_token:
             self._client.headers["X-PropertyScope-AI-Token"] = service_token
+
+    @property
+    def configured(self) -> bool:
+        """Whether this deployment gave the backend an AI-mode service token.
+
+        The managed local stack always provides one; the cloud baseline (AI tier off) leaves it
+        empty. It says nothing about whether AI-mode is currently reachable.
+        """
+        return self._configured
 
     def create_run(
         self, payload: Mapping[str, Any], headers: Mapping[str, str] | Headers
