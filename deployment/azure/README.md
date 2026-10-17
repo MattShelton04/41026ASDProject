@@ -5,8 +5,13 @@ production Compose wiring, the TLS edge, systemd units for the optional cloud AI
 operations script and the bonus security validations. The design and its trade-offs are recorded
 in [ADR-048](../../docs/architecture/decisions/ADR-048-azure-vm-hosting.md).
 
-**Status:** prepared and validated locally. Nothing has been provisioned yet. Once a subscription
-is chosen, deployment is a configuration step: work through the
+**Status:** provisioned and deployed since 17 October 2026. The deployment runs on an *Azure for
+Students* subscription in `newzealandnorth` (the Students region policy blocks `australiaeast`) on a
+`Standard_D4as_v4` VM (no DSv5 quota), with `AZURE_AUTO_SHUTDOWN_TIME=off` and a user-assigned
+managed identity as the GitHub deployer (the tenant blocks app registrations). The URL is
+<https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com>, behind the site-wide login. The first successful CI deployment is
+[run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), attempt 2. Automatic deployments are paused (`AZURE_AUTO_DEPLOY=false`).
+The VM is deallocated every night. For a new subscription, work through the
 [switch-on checklist](#switch-on-checklist) in order.
 
 ## Architecture
@@ -18,14 +23,14 @@ flowchart LR
     ci -- "completed (workflow_run)<br/>or manual dispatch" --> gate[verify-ci job<br/>Integration CI green on the SHA,<br/>latest Student 1-5 CI green at SHA or ancestor]
     sci -. "run history (gh api)" .-> gate
     gate -- pass --> build[build-validate job<br/>build every image,<br/>validate Azure Compose models]
-    build -- "pass; skipped until<br/>AZURE_SUBSCRIPTION_ID is set" --> cd[deploy job<br/>environment: production<br/>re-checks the gate]
+    build -- "pass; skipped until AZURE_SUBSCRIPTION_ID is set,<br/>and on pushes while AZURE_AUTO_DEPLOY=false" --> cd[deploy job<br/>environment: production<br/>re-checks the gate]
     cd -- OIDC federated credential --> entra[(Microsoft Entra ID)]
     cd -- "deploy.sh push<br/>images :git-sha" --> acr[(Azure Container Registry<br/>admin user off)]
     cd -- "deploy.sh provision<br/>Bicep" --> rg
     cd -- "deploy.sh deploy<br/>az vm run-command" --> vm
     cd -- "deploy.sh smoke" --> pip
 
-    subgraph rg[Resource group, australiaeast]
+    subgraph rg[Resource group, newzealandnorth]
         pip[Standard public IP<br/>DNS label] --> nsg{{NSG: 80/443 only, 443 optionally allowlisted<br/>no SSH, no DB ports}}
         nsg --> vm
         kv[(Key Vault<br/>RBAC, purge protection,<br/>firewall)]
@@ -59,7 +64,7 @@ flowchart LR
 | `Caddyfile`, `caddy/` | TLS edge, redirect, HSTS and security headers, operator auth, AI on/off switch |
 | `nginx/00-propertyscope-production.conf` | Production-only nginx include: rate limits, timeouts, body limit, no version banner |
 | `compose/` | Entrypoint shims that turn Compose secret files into process-only environment variables |
-| `systemd/` | `propertyscope-ai.target` plus AI-mode, MCP, RAG and Multi-Agent units |
+| `systemd/` | `propertyscope-ai.target` plus AI-mode, MCP, RAG and Multi-Agent units, and the IMDS guard (`propertyscope-imds-guard.service`) |
 | `vm/propertyscope-vm.sh` | Runs on the VM through run-command: deploy, AI on/off, status, logs, on-host validation |
 | `deploy.sh` | The operator and CI entry point (below) |
 | `validate-endpoint-security.sh`, `validate-data-security.sh` | Bonus B5 and B6 validation |
@@ -75,7 +80,7 @@ values below is a secret.
 ```bash
 SUBSCRIPTION_ID=<subscription-guid>
 RG=rg-propertyscope-prod
-LOCATION=australiaeast
+LOCATION=newzealandnorth   # this deployment; the template default is australiaeast
 REPO=MattShelton04/41026ASDProject
 az login
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -161,10 +166,16 @@ az account set --subscription "$SUBSCRIPTION_ID"
    RG_ID=$(az group show --name "$RG" --query id -o tsv)
    az role assignment create --assignee-object-id "$SP_ID" --assignee-principal-type ServicePrincipal \
      --role Contributor --scope "$RG_ID"
-   # Lets the Bicep template create its own least-privilege role assignments (AcrPull, Key Vault
-   # Secrets User/Officer, AcrPush) inside this resource group only.
+   # Lets the Bicep template create its own least-privilege role assignments inside this resource
+   # group, and nothing else: the condition allows writing and deleting assignments of AcrPull,
+   # AcrPush, Key Vault Secrets User and Key Vault Secrets Officer only, never Owner.
+   ROLES='7f951dda-4ed3-4680-a7ca-43fe172d538d, 8311e382-0749-4cb8-b61a-304f252e45ec, 4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+   # Single quotes: an interactive bash would expand the "!" inside double quotes.
+   CONDITION='((!(ActionMatches{'"'"'Microsoft.Authorization/roleAssignments/write'"'"'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {__ROLES__})) AND ((!(ActionMatches{'"'"'Microsoft.Authorization/roleAssignments/delete'"'"'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {__ROLES__}))'
+   CONDITION=${CONDITION//__ROLES__/$ROLES}
    az role assignment create --assignee-object-id "$SP_ID" --assignee-principal-type ServicePrincipal \
-     --role "Role Based Access Control Administrator" --scope "$RG_ID"
+     --role "Role Based Access Control Administrator" --scope "$RG_ID" \
+     --condition "$CONDITION" --condition-version 2.0
    echo "AZURE_CLIENT_ID=$APP_ID  AZURE_DEPLOYER_PRINCIPAL_ID=$SP_ID  AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)"
    ```
 
@@ -195,9 +206,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
    |---|---|---|
    | `AZURE_TENANT_ID` | tenant GUID | yes |
    | `AZURE_CLIENT_ID` | `$APP_ID` from step 3 | yes |
+   | `AZURE_OPERATIONS_CLIENT_ID` | `clientId` of the operations identity (below) | yes |
    | `AZURE_RESOURCE_GROUP` | `rg-propertyscope-prod` | yes |
    | `AZURE_DNS_LABEL` | `propertyscope-nsw-g20` (unique in the region; empty also means this default) | yes |
-   | `PROPERTYSCOPE_ACME_EMAIL` | team address for certificate notices | yes |
    | `AZURE_DEPLOYER_PRINCIPAL_ID` | `$SP_ID` (granted AcrPush) | recommended |
    | `AZURE_BUDGET_EMAILS` | `a@uni.edu,b@uni.edu` (the budget is skipped while empty) | recommended |
    | `AZURE_SECRET_OFFICER_IDS` | object IDs of the operators who run `deploy.sh secrets` | recommended |
@@ -209,8 +220,14 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `AZURE_AUTO_DEPLOY` | `false` starts a quiet period: pushes to `main` no longer deploy, and only a manual *Run workflow* does (after the same CI gate). Unset or `true` deploys every green push | optional |
    | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
 
-   **One GitHub secret, and no cloud credential.** While the site-wide login is on, add the
-   *environment* secret `PROPERTYSCOPE_SITE_PASSWORD` to `production` after step 6: the smoke
+   This deployment sets `AZURE_LOCATION=newzealandnorth`, `AZURE_VM_SIZE=Standard_D4as_v4` and
+   `AZURE_AUTO_SHUTDOWN_TIME=off`. The defaults above are the template's.
+
+   **Two environment secrets, and no cloud credential.** Add the team address for certificate
+   notices as the `production` *environment* secret `PROPERTYSCOPE_ACME_EMAIL`, not as a
+   variable: this repository is public, and the runner prints variables in the logs while it
+   masks secrets. While the site-wide login is on, also add the environment secret
+   `PROPERTYSCOPE_SITE_PASSWORD` to `production` after step 6: the smoke
    test and the B5 validation sign in with it, and only those two steps receive it. Azure access
    is OIDC, and the provider key for the optional AI tier goes into Key Vault, never into GitHub.
    An unset variable reaches the parameter files as an empty value,
@@ -225,6 +242,28 @@ az account set --subscription "$SUBSCRIPTION_ID"
    step 3, `<sub_claim_prefix>:environment:operations`, here
    `repo:MattShelton04@103937891/41026ASDProject@1312401450:environment:operations`).
 
+   **Give `operations` its own identity, not the deployer's.** An environment without reviewers
+   that signs in as the deployer hands Contributor plus role-assignment rights on the resource
+   group to any workflow merged into `main` (security audit, 17 October 2026). So put the
+   `operations` credential on a second user-assigned identity that may only read, start and
+   stop the VM, and set its `clientId` as `AZURE_OPERATIONS_CLIENT_ID`. Create it after step 5,
+   once the VM exists:
+
+   ```bash
+   az identity create --resource-group "$RG" --name propertyscope-github-operations --location "$LOCATION"
+   OPS_PRINCIPAL=$(az identity show -g "$RG" -n propertyscope-github-operations --query principalId -o tsv)
+   VM_ID=$(az vm show -g "$RG" -n propertyscope-prod-vm --query id -o tsv)
+   az role assignment create --assignee-object-id "$OPS_PRINCIPAL" --assignee-principal-type ServicePrincipal \
+     --role "Desktop Virtualization Power On Off Contributor" --scope "$VM_ID"
+   az identity federated-credential create -g "$RG" --identity-name propertyscope-github-operations \
+     --name github-operations-environment --issuer https://token.actions.githubusercontent.com \
+     --subject "<operations subject, as above>" --audiences api://AzureADTokenExchange
+   gh variable set AZURE_OPERATIONS_CLIENT_ID \
+     --body "$(az identity show -g "$RG" -n propertyscope-github-operations --query clientId -o tsv)"
+   ```
+
+   Then the deployer identity needs no `operations` credential.
+
 5. **Provision once from a laptop.** Copy `.env.azure.example` to `.env.azure` (Git-ignored) and
    fill in the same values. Put your own object ID in `AZURE_SECRET_OFFICER_IDS`. Use
    `az ad signed-in-user show --query id -o tsv` to find it.
@@ -235,7 +274,15 @@ az account set --subscription "$SUBSCRIPTION_ID"
    ```
 
    The first run creates every resource, including the VM, and takes about 10 minutes. Later
-   runs converge the same resources.
+   runs converge the same resources. Then switch off export of the OS disk, which holds the
+   rendered secrets and the databases. Otherwise anyone with Contributor could download the disk
+   through a SAS. Azure creates the disk with the VM, so Bicep cannot set this, and the B6
+   validation checks it:
+
+   ```bash
+   az disk update --resource-group "$RG" --name propertyscope-prod-vm-osdisk \
+     --network-access-policy DenyAll --public-network-access Disabled
+   ```
 
 6. **Create the runtime secrets in Key Vault.**
 
@@ -371,9 +418,14 @@ the `feature-1-data` skill). Protected data-pipeline routes require the operator
   NSG admits 80/443 only, keeps 80 open for certificates and optionally limits 443
   ([Access control](#access-control)). Evidence: `deploy.sh validate-endpoint`.
 - **B6 data security:** secrets are kept only in Key Vault and read by the managed identity, the
-  repository holds no cloud secret (OIDC), disks are encrypted at host and at rest, databases sit
-  on internal networks, and no secret appears in `docker inspect` or image history. Evidence:
-  `deploy.sh validate-data`.
+  repository holds no cloud secret (OIDC), disks are encrypted at host and at rest and the OS disk
+  cannot be exported, databases sit on internal networks, and no secret appears in
+  `docker inspect` or image history. Containers cannot reach the instance metadata service, so a
+  compromised container cannot get the VM identity's Key Vault token: `deploy` installs
+  `propertyscope-imds-guard.service`, a oneshot unit that drops container traffic to
+  `169.254.169.254` in Docker's `DOCKER-USER` chain. Host scripts and the host AI tier still
+  reach it. Evidence: `deploy.sh validate-data`. Its control-plane half reads the deployer's
+  federated credentials from an app registration or from a user-assigned managed identity.
 - **B1–B4 AI:** `deploy.sh ai on`, then exercise each tier from a feature UI. Use
   `deploy.sh smoke --expect-ai` and the feature evidence in `docs/release-2/evidence/bonus/`.
   Turn it off again with `deploy.sh ai off`. The workflow always deploys with AI off.
@@ -385,7 +437,8 @@ subscription.
 
 | Resource | Approximate cost |
 |---|---|
-| `Standard_D4s_v5` VM | about US$0.25 per running hour (about US$180 per month if never stopped) |
+| `Standard_D4s_v5` VM (template default) | about US$0.25 per running hour (about US$180 per month if never stopped) |
+| `Standard_D4as_v4` VM (this deployment, `newzealandnorth`) | about US$0.23 per running hour |
 | 128 GiB Premium SSD OS disk | about US$20 per month (charged while deallocated) |
 | ACR Basic | about US$5 per month |
 | Standard static public IP | about US$4 per month |
@@ -414,7 +467,7 @@ spend.
 ## Teardown
 
 ```bash
-az group delete --name rg-propertyscope-prod --yes          # every resource, including the budget
+az group delete --name rg-propertyscope-prod --yes          # every resource, the budget and both managed identities
 az ad app delete --id <AZURE_CLIENT_ID>                      # the GitHub deployer app (not needed for a managed identity)
 ```
 

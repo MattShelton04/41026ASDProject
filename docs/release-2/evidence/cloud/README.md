@@ -4,11 +4,17 @@ This folder holds the reviewed evidence of the Azure deployment, for criteria 5â
 the Cloud Deployment Report Review (R2-22). Nothing here is produced by hand. Each file comes
 from a deployment run and is copied in after a person has checked it.
 
-**Current state:** no deployment has run yet. The infrastructure and workflow are prepared (see
+**Current state (17 October 2026):** Azure is provisioned (*Azure for Students*,
+`newzealandnorth`, `Standard_D4as_v4`; see
 [deployment/azure/README.md](../../../../deployment/azure/README.md) and
-[ADR-048](../../../architecture/decisions/ADR-048-azure-vm-hosting.md)). The gate and build jobs
-already run on every push to `main`. The deploy job is skipped until the repository variable
-`AZURE_SUBSCRIPTION_ID` is set.
+[ADR-048](../../../architecture/decisions/ADR-048-azure-vm-hosting.md)). The first successful
+deployment is [Cloud Deployment run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), attempt 2, on commit `ad2b443f`: the
+gate passed, 21 of 21 containers ran, the smoke test passed 37 of 37 checks with the AI tier off,
+and the B5 validation passed 52 checks. Automatic deployments are paused
+(`AZURE_AUTO_DEPLOY=false`), and manual runs still deploy. **Nothing is copied here yet.** The
+reviewed files are captured at the 20 October evidence freeze, from that run's artifacts or a
+later run's. The B6 validation (`deploy.sh validate-data`) runs from a laptop, not the workflow,
+and is re-run then.
 
 ## The pipeline
 

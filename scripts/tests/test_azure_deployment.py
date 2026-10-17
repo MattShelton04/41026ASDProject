@@ -371,6 +371,7 @@ def test_systemd_units_match_the_host_runtime_and_run_unprivileged() -> None:
     units = {
         path.stem: path.read_text(encoding="utf-8")
         for path in (AZURE / "systemd").glob("*.service")
+        if path.stem != "propertyscope-imds-guard"
     }
     assert set(units) == {
         "propertyscope-ai-mode",
@@ -393,6 +394,24 @@ def test_systemd_units_match_the_host_runtime_and_run_unprivileged() -> None:
         assert "NoNewPrivileges=yes" in unit and "ProtectSystem=strict" in unit, name
         assert "PartOf=propertyscope-ai.target" in unit, name
         assert "OPENAI_API_KEY=" not in unit, name
+
+
+def test_imds_guard_unit_drops_container_traffic_to_the_metadata_service() -> None:
+    unit = (AZURE / "systemd" / "propertyscope-imds-guard.service").read_text(encoding="utf-8")
+    rule = "DOCKER-USER -d 169.254.169.254/32 -j DROP"
+    # Idempotent: inserts the rule only when the check finds it missing.
+    assert f"iptables -w -C {rule} || iptables -w -I {rule}" in unit
+    assert "Type=oneshot" in unit and "RemainAfterExit=yes" in unit
+    # Ordered after Docker, and re-applied whenever Docker (re)starts.
+    for line in ("After=docker.service", "PartOf=docker.service"):
+        assert line in unit
+    assert "WantedBy=multi-user.target docker.service" in unit
+    script = (AZURE / "vm" / "propertyscope-vm.sh").read_text(encoding="utf-8")
+    deploy = script[script.index("deploy() {") :]
+    # Installed before any container starts.
+    assert deploy.index("install_imds_guard") < deploy.index('compose "${up_arguments[@]}"')
+    validate = script[script.index("validate_data() {") :]
+    assert "validate_imds_guard" in validate
 
 
 def test_edge_protects_operations_and_ai_routes_consistently() -> None:
@@ -618,6 +637,8 @@ def test_b5_rate_limit_probe_reaches_limit_req() -> None:
 
 def test_ai_units_tolerate_a_missing_runtime_store_and_the_vm_creates_it() -> None:
     for path in (AZURE / "systemd").glob("*.service"):
+        if path.stem == "propertyscope-imds-guard":
+            continue  # a root oneshot that only sets an iptables rule
         unit = path.read_text(encoding="utf-8")
         paths = re.findall(r"^ReadWritePaths=(.+)$", unit, re.M)
         assert paths, path.name

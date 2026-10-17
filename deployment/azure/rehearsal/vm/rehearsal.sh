@@ -3,13 +3,16 @@
 #
 # The rehearsal VM container (deployment/azure/rehearsal/vm/Dockerfile) installs this file as
 # /etc/propertyscope/rehearsal.sh. deployment/azure/vm/propertyscope-vm.sh sources it after
-# defining its functions, so every step of the real VM script runs unchanged except the three
+# defining its functions, so every step of the real VM script runs unchanged except the
 # Azure-only ones, which have no local equivalent:
 #
 #   imds_token        no Instance Metadata Service: there is no managed identity to ask
 #   kv_get            the "Key Vault" is a read-only directory of throwaway values that
 #                     dev.py cloud rehearse generated (mounted at $REHEARSAL_KEY_VAULT)
 #   acr_login/logout  the rehearsal registry (registry:2) is anonymous: no token exchange
+#   install_imds_guard, validate_imds_guard
+#                     the Docker-in-Docker VM runs no systemd and has no IMDS to guard, so the
+#                     guard is skipped with a log line and its B6 check reports SKIP
 #
 # verify_deployment additionally trusts Caddy's internal CA, because PROPERTYSCOPE_PUBLIC_HOST is
 # localhost and Caddy issues it a certificate from its own CA instead of Let's Encrypt.
@@ -41,6 +44,14 @@ acr_login() {
 
 acr_logout() {
     :
+}
+
+install_imds_guard() {
+    log "Rehearsal: no systemd and no instance metadata service here; skipping ${IMDS_GUARD_UNIT}"
+}
+
+validate_imds_guard() {
+    echo "SKIP a container cannot reach the instance metadata service (rehearsal: no IMDS, no systemd)"
 }
 
 # Keep the Azure implementation and wrap it.

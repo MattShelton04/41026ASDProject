@@ -128,5 +128,6 @@ factory, a host process on `:5013`, no Dockerfile.
   the new packages.
 - A terminal workflow and a UI workflow (Feature 1) both reach a human decision locally.
 - A push to `main` deploys to Azure automatically, and the public smoke test passes with the AI
-  tier off.
+  tier off. `AZURE_AUTO_DEPLOY=false` pauses the automatic deployments for a quiet period, and a
+  manual run still deploys after the same gate.
 - All three review modes produce a report and a validation log from real evidence.

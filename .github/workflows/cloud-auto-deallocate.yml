@@ -32,9 +32,11 @@ jobs:
     if: vars.AZURE_SUBSCRIPTION_ID != ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # No required reviewers: an unattended backstop must not wait for an approval. The OIDC
+    # No required reviewers: an unattended backstop must not wait for an approval. So the OIDC
     # federated credential for this environment (subject ...:environment:operations) belongs to
-    # the same deployer identity as production.
+    # its own identity, AZURE_OPERATIONS_CLIENT_ID, which may only read, start and stop this VM
+    # (deployment/azure/README.md, step 4). The deployer identity, with Contributor on the
+    # resource group, stays behind the reviewed production environment.
     environment: operations
     permissions:
       id-token: write
@@ -50,15 +52,24 @@ jobs:
       - name: Sign in to Azure with OIDC (no stored credentials)
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_OPERATIONS_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deallocate the VM unless it is already deallocated
         run: |
-          state=$(az vm get-instance-view --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" \
+          # Only a VM or group that does not exist means nothing to do. Any other error (the
+          # operations identity lost its role, say) fails the run instead of leaving the VM up.
+          if ! state=$(az vm get-instance-view --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" \
             --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" \
-            --output tsv 2>/dev/null || echo missing)
+            --output tsv 2>"$RUNNER_TEMP/az-error"); then
+            if grep -qE 'ResourceNotFound|ResourceGroupNotFound' "$RUNNER_TEMP/az-error"; then
+              state=missing
+            else
+              cat "$RUNNER_TEMP/az-error" >&2
+              exit 1
+            fi
+          fi
           case $state in
             PowerState/deallocated | PowerState/deallocating)
               message="$VM_NAME is already deallocated" ;;

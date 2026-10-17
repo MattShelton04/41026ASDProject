@@ -2,14 +2,15 @@
 flowchart TB
     subgraph deployer["Deployment pipeline"]
         direction LR
-        gha["GitHub Actions<br/>cloud-deployment.yml<br/>environment: production"] -->|"OIDC token,<br/>no stored secret"| entra[("Microsoft Entra ID<br/>federated credential")]
+        gha["GitHub Actions<br/>cloud-deployment.yml<br/>environment: production"] -->|"OIDC token,<br/>no stored secret"| entra[("Microsoft Entra ID<br/>federated credentials")]
+        ops["GitHub Actions<br/>cloud-auto-deallocate.yml<br/>nightly, environment: operations"] -->|"OIDC, own identity:<br/>VM start/stop only"| entra
     end
     user([Browser])
 
     deployer -->|"deploy.sh provision (Bicep), push images,<br/>deploy (az vm run-command), smoke"| rg
     user -->|"HTTPS 443"| rg
 
-    subgraph rg["Resource group, australiaeast (main.bicep)"]
+    subgraph rg["Resource group, newzealandnorth (main.bicep)"]
         direction TB
         ingress{{"Standard public IP with DNS label<br/>VNet / NSG: 80 and 443 only, no SSH or database ports"}}
         ingress --> vm
@@ -25,7 +26,7 @@ flowchart TB
             direction LR
             acr[("Container Registry<br/>images :git-sha<br/>AcrPull, admin off")]
             kv[("Key Vault<br/>RBAC, purge protection,<br/>Secrets User")]
-            budget[["Budget alert,<br/>auto-shutdown"]]
+            budget[["Budget alert<br/>(optional)"]]
         end
     end
 
@@ -36,4 +37,4 @@ flowchart TB
     class edge,acr,kv,ingress shared;
     class fe,be,dbs feature;
     class aitier off;
-    class gha,entra,budget note;
+    class gha,ops,entra,budget note;

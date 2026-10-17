@@ -126,7 +126,10 @@ student workflows have passed for that commit, and `build-validate` builds every
 validates the Azure Compose model. Only then does `deploy` run the reusable
 [`deploy.sh`](../../deployment/azure/README.md) steps in the protected `production` environment.
 
-[[TODO: Matthew Shelton | Azure is prepared but not provisioned. After the first deployment, state the subscription, region and VM size used]]
+The deployment runs on an *Azure for Students* subscription in `newzealandnorth`, because the
+subscription's region policy blocks `australiaeast`, on a `Standard_D4as_v4` VM (4 vCPU, 16 GiB;
+the subscription has no DSv5 quota). The first deployment, [run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), passed the
+gate, started 21 of 21 containers and passed the smoke test with the AI tier off.
 
 ## 5 Pre-commit security testing
 
@@ -291,8 +294,11 @@ Section 12 lists each student's commits.
 | 15 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43) | CI evidence collection, stack reliability and F1 improvements |
 | 16 Oct | [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81) | Local deployment evidence and report builder |
 | 16 Oct | [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272) | Parallel quality gate |
+| 17 Oct | [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111) | CI release gate, Azure hardening and rehearsal, owner-attributed reviews, showcase runbook |
+| 17 Oct | [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443) | First Azure switch-on in `newzealandnorth` |
+| 17 Oct | [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5) | Git Bash-safe Azure scripts, automatic-deployment toggle |
 
-[[TODO: Matthew Shelton | Add the merged commit of the pending Wave 1/2 PR (CI release gate, Azure hardening, owner-attributed reviews, RAG/MCP request logging, showcase runbook) and the Azure deployment commit]]
+[[TODO: Matthew Shelton | Add the merged commit of the security audit fixes (PR #150)]]
 
 ### Student 2 Burhan Naeem
 
@@ -312,8 +318,8 @@ Section 12 lists each student's commits.
 
 ## 13 Bonus evidence
 
-No bonus is claimed yet. Endpoint (B5) and data (B6) security controls, their validation scripts
-and the B1–B4 AI units are prepared in `deployment/azure/`, but none has run on Azure.
+No bonus is claimed yet. The endpoint security validation (B5) passed on Azure in the first CI
+deployment. The data security validation (B6) and the B1–B4 AI tiers have not yet run there.
 
 [[TODO: Matthew Shelton | For each bonus claimed, link its validation output under evidence/bonus/; otherwise keep "No bonus is claimed"]]
 

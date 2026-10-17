@@ -203,7 +203,8 @@ jobs:
       AZURE_BUDGET_EMAILS: ${{ vars.AZURE_BUDGET_EMAILS }}
       AZURE_MONTHLY_BUDGET: ${{ vars.AZURE_MONTHLY_BUDGET || '100' }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      PROPERTYSCOPE_ACME_EMAIL: ${{ vars.PROPERTYSCOPE_ACME_EMAIL }}
+      # A production environment secret, so the address is masked in the public logs.
+      PROPERTYSCOPE_ACME_EMAIL: ${{ secrets.PROPERTYSCOPE_ACME_EMAIL }}
     steps:
       - name: Check out the gated commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

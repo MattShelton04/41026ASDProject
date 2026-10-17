@@ -120,13 +120,14 @@ time from another student's segment. Segments 9–12 can be recorded separately 
    gh run list --workflow cloud-deployment.yml --limit 3
    ```
 
-10. **Azure.** If it is provisioned, open
-    `https://propertyscope-nsw-g20.australiaeast.cloudapp.azure.com/` (the default DNS label in
-    `deployment/azure/main.bicepparam`; `uv run scripts/dev.py cloud outputs` prints the real FQDN)
-    and confirm that the home page and all five features load. Start the VM first if it was
-    deallocated (see [deployment/azure/README.md](../../deployment/azure/README.md)). **Azure is
-    pending provisioning at the time of writing (17 October).** If it is still not provisioned at
-    recording time, segment 8 uses its fallback, and the video must say so plainly.
+10. **Azure.** Open `https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com/`
+    (`uv run scripts/dev.py cloud outputs` prints the FQDN) and confirm that the home page and all
+    five features load. The VM is deallocated every night at 12:30 UTC, so start it first (see
+    [deployment/azure/README.md](../../deployment/azure/README.md)). Azure has been provisioned
+    since 17 October: *Azure for Students*, `newzealandnorth`, `Standard_D4as_v4`. The first CI
+    deployment is [run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663)
+    (attempt 2, commit `ad2b443f`). Automatic deployments are paused (`AZURE_AUTO_DEPLOY=false`),
+    so the VM keeps the commit it was last deployed with until a manual *Cloud Deployment* run.
 11. **Record fallback clips** of segments 3, 4 and 8 during the rehearsal. Keep them ready to
     splice in.
 
@@ -153,8 +154,8 @@ time from another student's segment. Segments 9–12 can be recorded separately 
    3. AI-mode Activity history: <http://localhost:5100/operations/ai-mode/>
    4. GitHub Actions, `student-1.yml`: <https://github.com/MattShelton04/41026ASDProject/actions/workflows/student-1.yml>
    5. GitHub Actions, `cloud-deployment.yml`: <https://github.com/MattShelton04/41026ASDProject/actions/workflows/cloud-deployment.yml>
-   6. Azure home: `https://propertyscope-nsw-g20.australiaeast.cloudapp.azure.com/`
-   7. Azure Feature 1: `https://propertyscope-nsw-g20.australiaeast.cloudapp.azure.com/features/data-platform/`
+   6. Azure home: `https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com/`
+   7. Azure Feature 1: `https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com/features/data-platform/`
    8. Each student's local and Azure feature pages, for segments 9–12
 4. Close every window that could show a secret: `.env`, `.propertyscope-runtime/`, the Azure
    portal's Key Vault blade and shell history containing tokens.
@@ -170,7 +171,7 @@ time from another student's segment. Segments 9–12 can be recorded separately 
 | The Multi-Agent Server is unavailable for segment 4 | Offline in-process run with fixture tools and its own scratch state (never the running server's state directory): `uv run multi-agent-server run --deterministic --state-dir tmp/showcase/ma-state --template-path ai-services/multi-agent-server/tests/fixtures/workflow.yaml --tool-fixtures ai-services/multi-agent-server/tests/fixtures/tools.json --template example-readiness-review --input '{"record_id": "8c0d7e0e-4a3b-4c55-9a62-0d7c5f0f9a11"}' --review` ([Multi-Agent README](../../ai-services/multi-agent-server/README.md#cli)) | "This uses the example template and fixture tool results, not Feature 1" |
 | GitHub Actions is slow | Show the completed green run (`#353` or the freeze run) instead of a live one | — |
 | The pre-commit hooks are slow (mypy) | Cut the wait in the edit. Supplementary shot: `uv run pre-commit run --all-files` | — |
-| Azure is not provisioned, or the VM is down | Splice in the rehearsal clip if one exists. Otherwise show the `verify-ci` and `build-validate` jobs and the `deploy` job skipped, and say that the cloud deployment is pending | Never present a local page as Azure |
+| The Azure VM is down or unreachable (contingency only: Azure is provisioned) | Start the VM (`az vm start`) and wait a few minutes. Otherwise splice in a clip recorded earlier against the real Azure URL, or show the green Cloud Deployment run 39018442663 and its smoke step | Never present a local page as Azure |
 
 ## Script
 
@@ -302,8 +303,9 @@ Supplementary shot, if time allows: `uv run pre-commit run --all-files`. Mention
    least two passing endpoint tests for property search and for source-definition CRUD. Point at
    the `student-1-endpoint-tests` artifact.
 3. Browser tab 5: a **Cloud Deployment** run. Show the job graph: **Verify CI gate (Integration CI
-   + Student 1-5 CI)** → **Docker build and validation** → **Deploy to Azure** (skipped until Azure
-   is configured).
+   + Student 1-5 CI)** → **Docker build and validation** → **Deploy to Azure**. On run 39018442663
+   all three are green. While `AZURE_AUTO_DEPLOY=false`, a push stops after the build, and only a
+   manual run deploys.
 
 > "Every push to `main` runs each student's workflow. Ours starts Feature 1's Compose stack in
 > GitHub Actions with the AI tier off and tests two endpoint functions. The cloud deployment only
@@ -343,8 +345,8 @@ Say which owners are missing; do not hide it.
 
 ### 8 Azure (Matthew, 0:35)
 
-**Pending provisioning.** Record this segment only against the real Azure URL. Until then use
-the fallback in the table above.
+Record this segment only against the real Azure URL. Start the VM first if the nightly
+deallocation stopped it.
 
 1. Browser tab 6: the Azure home page over HTTPS. Sign in with the site-wide viewer login before
    recording, off camera, so the prompt never shows the password. Point at the padlock and the
@@ -361,7 +363,7 @@ the fallback in the table above.
 **Viewer sees:** the same frontend, APIs and databases working on Azure, with the AI tier off by
 default (R2-44). The cloud data is the seeded demonstration baseline. Say so.
 
-> "This is one Ubuntu VM in Australia East. It runs the same Compose model, with images from Azure
+> "This is one Ubuntu VM in New Zealand North, the nearest region our student subscription allows. It runs the same Compose model, with images from Azure
 > Container Registry pinned to the commit SHA, Caddy for TLS and secrets in Key Vault. AI-mode,
 > MCP, RAG and the Multi-Agent Server are off in the cloud baseline."
 
@@ -426,6 +428,10 @@ Include this only for a bonus the report claims. The rubric scores the AI tiers 
   a cited answer (B3) and a Feature 1 Readiness review reaching a human decision on Azure (B4).
   The protected routes ask for the operator credentials. Type them off camera. Turn the tier off
   again afterwards with `uv run scripts/dev.py cloud ai off`.
+  **Turn the tier on before recording, not on camera** (it prepares the RAG model and corpora).
+  Keep `AZURE_AUTO_DEPLOY=false` until the segment is recorded, and do not run *Cloud
+  Deployment*: the workflow always redeploys with the AI tier off. B1–B4 have not run on Azure
+  yet, so dry-run them first.
 
 If the video runs long with this segment, shorten segment 7 or 8, never a student segment.
 

@@ -381,7 +381,15 @@ def test_the_rehearsal_hook_is_never_installed_on_an_azure_vm() -> None:
     shim = (REHEARSAL_DIRECTORY / "vm" / "rehearsal.sh").read_text(encoding="utf-8")
     overridden = set(re.findall(r"^([a-z_]+)\(\) \{", shim, re.M))
     # Only the Azure-only steps are replaced; everything else is the real VM script.
-    assert overridden == {"imds_token", "kv_get", "acr_login", "acr_logout", "verify_deployment"}
+    assert overridden == {
+        "imds_token",
+        "kv_get",
+        "acr_login",
+        "acr_logout",
+        "verify_deployment",
+        "install_imds_guard",
+        "validate_imds_guard",
+    }
 
 
 SHIM_SCRIPT = r"""

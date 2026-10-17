@@ -227,7 +227,7 @@ The smoke contract (`schema_version` 2):
 ```json
 {
   "schema_version": 2, "tool": "scripts/cloud_smoke.py",
-  "base_url": "https://propertyscope-nsw-g20.australiaeast.cloudapp.azure.com",
+  "base_url": "https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com",
   "commit_sha": "<40 hex>", "image_tag": "<40 hex>", "registry": "<acr>.azurecr.io",
   "images": {"f1-backend": "<acr>.azurecr.io/propertyscope/f1-backend:<tag>"},
   "images_source": "docker-compose.azure.yml with IMAGE_TAG",

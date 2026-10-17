@@ -214,10 +214,16 @@ def test_auto_deallocate_only_signs_in_and_deallocates_the_vm() -> None:
     assert not any(step.get("uses", "").startswith("actions/checkout@") for step in steps)
     login = next(step for step in steps if step.get("uses", "").startswith("azure/login@"))
     assert set(login["with"]) == {"client-id", "tenant-id", "subscription-id"}
+    # Its own identity, which may only read, start and stop the VM, never the deployer's.
+    assert login["with"]["client-id"] == "${{ vars.AZURE_OPERATIONS_CLIENT_ID }}"
+    assert "AZURE_CLIENT_ID" not in str(job)
     assert "secrets." not in str(job)  # OIDC: no stored credential
     assert job["env"]["VM_NAME"] == "${{ vars.AZURE_NAME_PREFIX || 'propertyscope' }}-prod-vm"
     runs = _runs(job)
     assert 'az vm deallocate --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME"' in runs
     # A VM that is already deallocated, or does not exist yet, is left alone.
     assert "PowerState/deallocated | PowerState/deallocating)" in runs
+    # Only a missing VM or group counts as nothing to do; any other error fails the run.
+    assert "grep -qE 'ResourceNotFound|ResourceGroupNotFound'" in runs
+    assert "2>/dev/null || echo missing" not in runs
     assert "GITHUB_STEP_SUMMARY" in runs

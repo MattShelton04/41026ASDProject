@@ -1,0 +1,11 @@
+# Code owners for the sensitive cloud setup only (security audit, 17 October 2026).
+#
+# These paths decide what runs in Azure and with which identity. With "Require review from Code
+# Owners" on in the main ruleset, a change to them needs the owner's review. Every other path has
+# no code owner, so the rest of the repository keeps its usual review rules.
+/deployment/azure/                       @MattShelton04
+/.github/workflows/cloud-deployment.yml  @MattShelton04
+/.github/workflows/cloud-auto-deallocate.yml @MattShelton04
+/docker-compose.azure.yml                @MattShelton04
+/docker-compose.azure-ai.yml             @MattShelton04
+/.github/CODEOWNERS                      @MattShelton04

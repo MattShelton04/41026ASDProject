@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Living architecture; Release 2 shared runtime: AI-mode, MCP, RAG and the Multi-Agent Server as host processes (ADR-046, ADR-047), and the prepared, not yet provisioned, Azure VM deployment (ADR-048) |
+| Status | Living architecture; Release 2 shared runtime: AI-mode, MCP, RAG and the Multi-Agent Server as host processes (ADR-046, ADR-047), and the Azure VM deployment (ADR-048), provisioned on 17 October 2026 in `newzealandnorth` |
 | Last verified | Source/configuration reviewed 17 October 2026; live release evidence tracked separately in `docs/release-2/evidence/` |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
@@ -1312,8 +1312,10 @@ one-time setup and the operations are in [deployment/azure/README.md](../../depl
 - Bicep in `deployment/azure/` (resource-group scope) defines ACR, a VNet/NSG admitting only
   80/443 (443 optionally limited to listed sources; 80 stays open for certificates), a Standard
   public IP with a DNS label, the VM with a system-assigned identity
-  (`AcrPull`, `Key Vault Secrets User`), an RBAC-mode Key Vault with purge protection, an
-  auto-shutdown schedule and a budget.
+  (`AcrPull`, `Key Vault Secrets User`), an RBAC-mode Key Vault with purge protection, an optional
+  auto-shutdown schedule and an optional budget. Where DevTestLab schedules are not offered
+  (`newzealandnorth`, the deployed region), the nightly *Cloud Auto-Deallocate* workflow stops the
+  VM instead.
 - Only the Caddy TLS edge publishes ports. By default it asks for a shared viewer login on every
   route except `/healthz`, and always for the operator login on operations and AI routes. It
   proxies to the unchanged nginx edge, which gains a production-only rate-limit include. Database tiers sit on internal per-feature networks.
