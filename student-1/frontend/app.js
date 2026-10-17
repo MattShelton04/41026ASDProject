@@ -16,7 +16,9 @@ import { createDataProductRoutes } from "./routes/data-products.js?v=51";
 import { createEvidenceRoutes } from "./routes/evidence.js?v=50";
 import { renderOverview } from "./routes/overview.js?v=50";
 import { createPropertyRoutes } from "./routes/properties.js?v=50";
-import { createReleaseRoutes } from "./routes/releases.js?v=52";
+import { createReleaseRoutes } from "./routes/releases.js?v=53";
+import { createReviewCapabilities } from "./integration/review-capabilities.js";
+import { createDemonstrationNotice } from "./integration/demonstration-data.js";
 import { createRunPlanner } from "./routes/run-plan.js";
 import { createRunRoutes } from "./routes/runs.js";
 import { mountNotifications } from "./components/notifications.js";
@@ -210,7 +212,11 @@ const { renderSources, requestSourceDialogClose } = createSourceHtmxRoute({ view
 const { renderRuns, renderRunDetail } = createRunRoutes({ view, request: routeRequest, mutate, confirmAction, announce, state, generationGuard, rerender: retryRoute });
 const { renderProperties } = createPropertyRoutes({ view, request: routeRequest, announce, generationGuard, rerender: retryRoute });
 const { renderDataProducts } = createDataProductRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute });
-const { renderReleases, disposeReadinessReview } = createReleaseRoutes({ view, request: routeRequest, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender: retryRoute, announce });
+// Deployment-level signals are read outside route generations so navigation never aborts them.
+const reviewCapabilities = createReviewCapabilities(request);
+const demonstrationNotice = createDemonstrationNotice({ request });
+view.before(demonstrationNotice.element);
+const { renderReleases, disposeReadinessReview } = createReleaseRoutes({ view, request: routeRequest, loading, entityDialog, entityForm, confirmAction, confirmDiscard, mutate, showToast, generationGuard, rerender: retryRoute, announce, reviewCapabilities });
 const { renderEvidenceExplorer, renderCoverage } = createEvidenceRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute });
 const aiReview = createAiDiagnosisRoutes({ view, request: routeRequest, loading, generationGuard, rerender: retryRoute, announce });
 const featureAssistant = createFeatureAssistantRoute({ view, announce });
@@ -231,6 +237,7 @@ async function renderRoute({ focus = false } = {}) {
   const requestedHash = location.hash;
   const { route, id } = parseRoute(requestedHash); setActiveNavigation(route);
   if (route !== "releases") disposeReadinessReview(); view.setAttribute("aria-busy", "true");
+  demonstrationNotice.update(route);
   view.dataset.route = route;
   view.dataset.detail = String(Boolean(id));
   const researchMode = ["properties", "assistant"].includes(route);

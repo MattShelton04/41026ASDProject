@@ -3,6 +3,14 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { requestActiveDialogClose, runDialogForm } from "../../frontend/components/dialogs.js";
 import {
+  createDemonstrationNotice,
+  DEMONSTRATION_BASELINE_MESSAGE,
+  DEMONSTRATION_BASELINE_PATH,
+  DEMONSTRATION_CHECK_INTERVAL_MS,
+  DEMONSTRATION_NOTICE_ROUTES,
+  demonstrationBaseline,
+} from "../../frontend/integration/demonstration-data.js";
+import {
   createDrawerController,
   createTableRegion,
   createToastController,
@@ -1312,4 +1320,77 @@ test("optional history denial cannot stop property search or return-context rend
   assert.deepEqual(readHistoryState(browser), { query: "2000" });
   assert.equal(replaceHistoryState({ query: "2010" }, "#properties?q=2010", browser), true);
   assert.deepEqual(calls, [[{ query: "2010" }, "", "#properties?q=2010"]]);
+});
+
+const SEEDED = (id, extra = {}) => ({ id, status: "accepted", coverage_json: { state: "NSW", synthetic: true, ...extra } });
+
+test("the demonstration notice applies only while all published data is the seeded baseline", () => {
+  assert.deepEqual(demonstrationBaseline([SEEDED("a"), SEEDED("b")]), { active: true, accepted: 2, seeded: 2 });
+  assert.equal(demonstrationBaseline([SEEDED("a"), { id: "real", status: "accepted", coverage_json: { state: "NSW" } }]).active, false);
+  assert.equal(demonstrationBaseline([{ id: "c", status: "candidate", coverage_json: { synthetic: true } }]).active, false);
+  assert.equal(demonstrationBaseline([SEEDED("a", { synthetic: "true" })]).active, false, "only the boolean marker counts");
+  assert.equal(demonstrationBaseline([]).active, false);
+});
+
+test("the demonstration notice is shown on reader pages and re-read at most once a minute", async () => {
+  const paths = [];
+  let releases = [SEEDED("a")];
+  let clock = 0;
+  const notice = createDemonstrationNotice({
+    request: async (path) => { paths.push(path); return { body: { items: releases, count: releases.length } }; },
+    document: { createElement: () => ({ attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } }) },
+    now: () => clock,
+  });
+  assert.equal(notice.element.hidden, true);
+  assert.equal(notice.element.textContent, DEMONSTRATION_BASELINE_MESSAGE);
+  assert.equal(notice.element.attributes.role, "note");
+  await notice.update("properties");
+  assert.equal(notice.element.hidden, false);
+  await notice.update("runs");
+  assert.equal(notice.element.hidden, true, "operations pages do not repeat it");
+  await notice.update("overview");
+  assert.equal(notice.element.hidden, false);
+  assert.deepEqual(paths, [DEMONSTRATION_BASELINE_PATH]);
+  releases = [{ id: "real", status: "accepted", coverage_json: {} }];
+  clock = DEMONSTRATION_CHECK_INTERVAL_MS;
+  await notice.update("coverage");
+  assert.equal(notice.element.hidden, true, "a real published release ends the notice");
+  assert.equal(paths.length, 2);
+  assert.match(DEMONSTRATION_BASELINE_PATH, /lifecycle=published&view=summary/);
+  for (const route of ["overview", "properties", "data-products", "coverage"]) assert.ok(DEMONSTRATION_NOTICE_ROUTES.has(route));
+});
+
+test("an unreadable release summary hides the notice and a later route change retries", async () => {
+  let fail = true;
+  const notice = createDemonstrationNotice({
+    request: async () => { if (fail) throw new Error("HTTP 503"); return { body: { items: [SEEDED("a")] } }; },
+    document: { createElement: () => ({ setAttribute() {} }) },
+    now: () => 0,
+  });
+  await notice.update("overview");
+  assert.equal(notice.element.hidden, true);
+  fail = false;
+  await notice.update("overview");
+  assert.equal(notice.element.hidden, false);
+});
+
+test("a stale demonstration answer never overrides a newer route", async () => {
+  let resolve;
+  const notice = createDemonstrationNotice({
+    request: () => new Promise((done) => { resolve = done; }),
+    document: { createElement: () => ({ setAttribute() {} }) },
+    now: () => 0,
+  });
+  const pending = notice.update("overview");
+  await notice.update("runs");
+  resolve({ body: { items: [SEEDED("a")] } });
+  await pending;
+  assert.equal(notice.element.hidden, true);
+});
+
+test("the shell mounts the demonstration notice outside the replaced route view", async () => {
+  const source = await readFile(new URL("../../frontend/app.js", import.meta.url), "utf8");
+  assert.match(source, /view\.before\(demonstrationNotice\.element\)/);
+  assert.match(source, /demonstrationNotice\.update\(route\)/);
+  assert.match(source, /reviewCapabilities = createReviewCapabilities\(request\)/);
 });

@@ -71,8 +71,24 @@ paths:
   /runtime-capabilities:
     get:
       operationId: getRuntimeCapabilities
-      description: Reports implemented official acquisition profiles and locally configured source caches. Capability is distinct from publisher availability, successful host verification and accepted local releases.
-      responses: {'200': {description: Runtime acquisition capabilities}}
+      description: >-
+        Reports implemented official acquisition profiles and locally configured source caches.
+        Capability is distinct from publisher availability, successful host verification and
+        accepted local releases. review_actions says, from deployment configuration alone, whether
+        the release page's review actions are enabled: enabled is false only when the backend has
+        no service credential for the Multi-Agent Server (readiness_review) or AI-mode (ai_review),
+        as in the cloud baseline with the AI tier off. An enabled service can still be temporarily
+        unreachable.
+      responses:
+        '200':
+          description: Runtime acquisition capabilities and review action availability
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [review_actions]
+                properties:
+                  review_actions: {$ref: '#/components/schemas/ReviewCapabilities'}
   /catalogue-presentation:
     get:
       operationId: getCataloguePresentation
@@ -421,7 +437,7 @@ paths:
         - {$ref: '#/components/parameters/SearchQuery'}
         - {name: status, in: query, schema: {type: string}}
         - {name: lifecycle, in: query, schema: {type: string, enum: [all, review, published, rejected]}}
-        - {name: view, in: query, description: Summary omits manifests and projects only list metadata and basic coverage. Full retains the existing complete metadata response., schema: {type: string, enum: [full, summary], default: full}}
+        - {name: view, in: query, description: Summary omits manifests and projects only list metadata and basic coverage (state, locality, complete, source_record_count, and synthetic=true for the seeded demonstration baseline). Full retains the existing complete metadata response., schema: {type: string, enum: [full, summary], default: full}}
         - {name: dataset_id, in: query, schema: {type: string}}
         - {name: target_feature, in: query, schema: {type: string}}
         - {name: schema_version, in: query, schema: {type: string}}
@@ -1012,6 +1028,20 @@ components:
       properties:
         run_mode: {enum: [full_refresh, reprocess_cached]}
         scope: {type: object, maxProperties: 20}
+    ReviewCapability:
+      type: object
+      additionalProperties: false
+      required: [enabled, detail]
+      properties:
+        enabled: {type: boolean}
+        detail: {type: [string, 'null'], description: Why the action is disabled; null when enabled.}
+    ReviewCapabilities:
+      type: object
+      additionalProperties: false
+      required: [readiness_review, ai_review]
+      properties:
+        readiness_review: {$ref: '#/components/schemas/ReviewCapability'}
+        ai_review: {$ref: '#/components/schemas/ReviewCapability'}
     ReleaseReviewState:
       enum: [planning, working, reviewing, awaiting_human, approved, corrected, partially_accepted, rejected, failed, cancelled]
     ReleaseReviewStartRequest:
@@ -1028,7 +1058,7 @@ components:
             release_id: {type: string, format: uuid}
             dataset_id: {type: string, maxLength: 150}
             reviewer_note: {type: string, maxLength: 500}
-        requested_by: {type: [string, 'null'], minLength: 1, maxLength: 100}
+        requested_by: {type: [string, 'null'], minLength: 1, maxLength: 100, description: 'Trimmed; starts with a letter or digit and contains only letters, digits, spaces and . , '' @ ( ) - _. Anything else is 422 invalid_release_review_request with a field error.'}
         template_id: {type: string, description: Ignored.}
     ReleaseReviewDecisionRequest:
       type: object
@@ -1036,8 +1066,8 @@ components:
       required: [decision, actor]
       properties:
         decision: {enum: [approve, correct, partial, reject]}
-        note: {type: string, maxLength: 2000, default: ''}
-        actor: {type: string, minLength: 1, maxLength: 100}
+        note: {type: string, maxLength: 2000, default: '', description: 'Trimmed; line breaks and tabs are the only control characters allowed (422 invalid_release_review_request otherwise).'}
+        actor: {type: string, minLength: 1, maxLength: 100, description: 'Trimmed; starts with a letter or digit and contains only letters, digits, spaces and . , '' @ ( ) - _ (422 invalid_release_review_request otherwise).'}
         accepted_step_ids:
           type: array
           maxItems: 10

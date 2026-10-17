@@ -70,6 +70,8 @@ def test_summary_projection_does_not_fetch_large_manifests_and_full_remains_defa
     assert "release.*" not in owner.queries[-1]
     assert "manifest_json" not in owner.queries[-1]
     assert "release.status=%s" in owner.queries[-1]
+    # The seeded demonstration marker stays visible to the demonstration-data banner.
+    assert "'synthetic',release.coverage_json->'synthetic'" in owner.queries[-1]
     releases.list_releases(status="accepted", limit=25, offset=0)
     assert "release.*" in owner.queries[-1]
 

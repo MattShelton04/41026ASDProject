@@ -4,9 +4,14 @@
 # candidate release, the Reviewer compares it with the publication criteria below, and a human
 # approves or rejects the *recommendation*. The workflow never publishes: publishing stays a
 # separate, explicit operator action (`data.release_publish.v1` is deliberately not allowlisted).
+#
+# v2 adds the queue-step check, the manifest provenance checks and the self-attestation note in
+# the human guidance. There is no compare step: the template engine cannot make a step depend on
+# an optional input, and data.release_compare.v1 needs an accepted predecessor that a first
+# release does not have.
 schema_version: 1
 id: f1-release-readiness-review
-version: v1
+version: v2
 feature_id: student-1-propertyscope-data-platform
 title: Release readiness review
 objective: >-
@@ -72,6 +77,23 @@ reviewer_checks:
     severity: medium
     recommendation: Rebuild the release so its artifact has a content hash.
     rule: {kind: field_present, step: release, path: release.content_sha256}
+  # Provenance the release builder copies from the source definition into the dataset manifest
+  # (propertyscope.release-manifest.v2). source_retrieved_at is nullable in that contract.
+  - id: publisher-recorded
+    description: The release manifest names the source publisher.
+    severity: medium
+    recommendation: Record the publisher on the source definition, then rebuild the release.
+    rule: {kind: field_present, step: release, path: release.manifest_json.publisher}
+  - id: licence-recorded
+    description: The release manifest records the source licence.
+    severity: medium
+    recommendation: Record the licence on the source definition, then rebuild the release.
+    rule: {kind: field_present, step: release, path: release.manifest_json.source_licence}
+  - id: retrieval-time-recorded
+    description: The release manifest records when the source was retrieved.
+    severity: low
+    recommendation: Say in the review comment when the source was retrieved, or re-run the acquisition.
+    rule: {kind: field_present, step: release, path: release.manifest_json.source_retrieved_at}
   - id: quality-recorded
     description: Quality checks were run against the release.
     severity: high
@@ -92,8 +114,16 @@ reviewer_checks:
     severity: low
     recommendation: For a first release, check the record count against the source's published totals.
     rule: {kind: field_present, step: release, path: accepted_predecessor.id}
+  - id: queue-read
+    description: The release queue for the dataset was read for context.
+    severity: low
+    recommendation: Check the other candidates for this dataset on the release list before deciding.
+    rule: {kind: step_succeeded, step: queue}
 human_review_guidance: >-
   You are deciding on the recommendation, not publishing. Approve only when every critical and high
-  check passed. Use "correct" to send the Worker and Reviewer back once with a note, "partial" to
-  accept some steps, and "reject" when the release should not be published. Publish separately
-  from the Data Platform release review page if you approve.
+  check passed. Completeness against the publisher's own totals is self-attested: the read-only
+  tools cannot fetch upstream source totals, so confirm the record count and coverage against the
+  publisher yourself, especially for a first release with no accepted predecessor. Use "correct"
+  to send the Worker and Reviewer back once with a note, "partial" to accept some steps, and
+  "reject" when the release should not be published. Publish separately from the Data Platform
+  release review page if you approve.
