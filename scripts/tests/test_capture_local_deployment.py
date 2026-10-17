@@ -91,7 +91,7 @@ class FakeEdge:
         if request.method == "POST":
             identifier = str(uuid.uuid4())
             body = json.loads(request.content)
-            self.store[f"{path}/{identifier}"] = {"id": identifier, **body}
+            self.store[f"{path}/{identifier}"] = {"id": identifier, **body, "version": 1}
             wrapper = {"sources": "source", "suburb-comparisons": "comparison"}.get(
                 path.rsplit("/", 1)[-1]
             )
@@ -101,6 +101,10 @@ class FakeEdge:
             if request.method == "DELETE":
                 del self.store[path]
                 return httpx.Response(204)
+            if request.method == "PUT":
+                body = json.loads(request.content)
+                previous = self.store[path]
+                self.store[path] = {**body, "id": previous["id"], "version": body["version"] + 1}
             item = self.store[path]
             collection = path.rsplit("/", 2)[-2]
             wrapper = {"sources": "source", "suburb-comparisons": "comparison"}.get(collection)

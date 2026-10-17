@@ -132,8 +132,10 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "scripts/validate_architecture.py",
         "scripts/validate_frontend_styles.py",
         "scripts/validate_model_registry.py",
+        "scripts/validate_release_images.py",
         "scripts/validate_tool_catalogs.py",
         "scripts/validate_workspace_packaging.py",
+        "scripts/verify_release_gate.py",
     ),
 )
 SHARED_TEST_COMMAND: Command = (
