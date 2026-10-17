@@ -84,6 +84,10 @@ class FakeEdge:
                 return httpx.Response(503, json={"code": "ai_disabled", "status": 503})
             if self.ai == "available":
                 return httpx.Response(200, json={"status": "healthy"})
+            if self.ai == "bad-gateway":
+                return httpx.Response(502, text="Bad Gateway")
+            if self.ai == "dns-failure":
+                raise httpx.ConnectError("[Errno 11001] getaddrinfo failed", request=request)
             raise httpx.ConnectTimeout("timed out", request=request)
         if path.startswith("/api/shared-health/"):
             return httpx.Response(200, json={"status": "healthy"})

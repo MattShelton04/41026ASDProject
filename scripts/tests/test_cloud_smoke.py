@@ -179,10 +179,14 @@ def test_cleanup_runs_even_when_the_read_back_fails() -> None:
     ("ai", "expect_ai", "passed", "observed"),
     [
         ("disabled", False, True, False),
-        ("unreachable", False, True, None),
+        # Nothing that answers proves the tier is off: only an explicit 503 ai_disabled does.
+        ("unreachable", False, False, None),
+        ("dns-failure", False, False, None),
+        ("bad-gateway", False, False, None),
         ("available", False, False, True),
         ("available", True, True, True),
         ("disabled", True, False, False),
+        ("dns-failure", True, False, None),
     ],
 )
 def test_ai_expectation(ai: str, expect_ai: bool, passed: bool, observed: bool | None) -> None:
@@ -191,6 +195,17 @@ def test_ai_expectation(ai: str, expect_ai: bool, passed: bool, observed: bool |
     assert smoke.results[-1].category == "ai"
     assert smoke.results[-1].passed is passed
     assert cloud_smoke.ai_enabled(smoke.ai_state) is observed
+
+
+def test_an_unreachable_edge_never_passes_the_ai_off_check() -> None:
+    smoke = run_smoke(FakeEdge(ai="dns-failure"), expect_ai=False)
+
+    ai = smoke.results[-1]
+    assert ai.name == "AI tier disabled by default"
+    assert not ai.passed
+    assert ai.status_code is None
+    assert ai.detail.startswith("unreachable: ConnectError")
+    assert smoke.ai_state == "unreachable"
 
 
 def test_main_writes_the_documented_contract_and_sets_the_exit_code(tmp_path: Path) -> None:
