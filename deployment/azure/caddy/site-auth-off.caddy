@@ -1,0 +1,4 @@
+# Site-wide login OFF (PROPERTYSCOPE_SITE_AUTH=off): a public demonstration. Mounted by
+# docker-compose.azure.yml as /etc/caddy/propertyscope-site-auth.caddy. Ordinary pages and the
+# per-feature CRUD are public; operations and AI routes still need the operator login.
+respond /__propertyscope/site-auth 204

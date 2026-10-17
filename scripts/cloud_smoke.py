@@ -15,15 +15,22 @@ It checks, only through the public edge:
 - that the shared AI tier reports itself disabled (the cloud baseline), or with ``--expect-ai``
   that it is reachable (bonus tiers).
 
+With ``--site-login`` (``deploy.sh smoke`` passes it while ``PROPERTYSCOPE_SITE_AUTH=on``, the
+Azure default) it first proves that the site-wide login is enforced: an anonymous request to ``/``
+is answered 401 with a Basic challenge while ``/healthz`` stays public. Every other request then
+signs in as the shared viewer (``PROPERTYSCOPE_SITE_USER``, default ``propertyscope``, and
+``PROPERTYSCOPE_SITE_PASSWORD`` from the environment, never the command line).
+
 Results are written as ``cloud-smoke.json`` and ``cloud-smoke.md``. Every CRUD case deletes what
-it created, even when a later step fails. The script sends no credentials and never calls an AI
-route that would create a run.
+it created, even when a later step fails. The script never sends operator credentials and never
+calls an AI route that would create a run.
 
 The JSON document is the contract the Cloud Deployment Report Review reads
 (``scripts/devtools/review/cloud.py``; documented in docs/release-2/review-modes.md):
 ``schema_version`` 2, ``base_url``, ``commit_sha``, ``image_tag``, ``registry``, ``images``
 (service -> reference), ``images_source``, ``ai_enabled`` (observed by the AI check: ``false``
-only for an explicit ``ai_disabled`` answer), ``ai_state``, ``started_at``/``finished_at``,
+only for an explicit ``ai_disabled`` answer), ``ai_state``, ``site_login`` (``enforced``,
+``not_enforced`` or ``not_checked``), ``started_at``/``finished_at``,
 ``passed``, ``summary`` and ``checks`` (``name``, ``owner``, ``category``, ``operation``,
 ``passed``, ``detail``, ``method``, ``path``, ``status_code``, ``duration_ms``). The deployment
 identity comes from ``--commit-sha``/``--image-tag``/``--registry``/``--image`` or, as
@@ -62,6 +69,11 @@ SHOWCASE_PROPERTY_REF = "a0000000-0000-0000-0000-000000000001"
 SHOWCASE_ADDRESS = "11 Example Street, Sydney NSW 2000"
 PROPERTY_QUERIES = ("11 Example Street", "1 Fixture Street")
 AI_HEALTH_PATH = "/api/shared-health/ai-mode"
+# The edge liveness route, the one route the site-wide login leaves public.
+LIVENESS_PATH = "/healthz"
+DEFAULT_SITE_USER = "propertyscope"
+SITE_USER_ENV = "PROPERTYSCOPE_SITE_USER"
+SITE_PASSWORD_ENV = "PROPERTYSCOPE_SITE_PASSWORD"  # pragma: allowlist secret  # noqa: S105 - name
 SCHEMA_VERSION = 2
 SMOKE_JSON = "cloud-smoke.json"
 SMOKE_MARKDOWN = "cloud-smoke.md"
@@ -374,6 +386,8 @@ class Smoke:
         self.results: list[CheckResult] = []
         # What the AI check observed: disabled, available, unreachable; None when not checked.
         self.ai_state: str | None = None
+        # What the site-login check observed: enforced, not_enforced; None when not checked.
+        self.site_login: str | None = None
         self._unique = unique or (lambda: uuid.uuid4().hex[:10])
         self._monotonic = monotonic
         self._property: tuple[str, str] | None = None
@@ -395,7 +409,13 @@ class Smoke:
         return f"{SMOKE_PREFIX}-{kind}-{self._unique()}"
 
     def request(
-        self, method: str, path: str, *, timeout: float | None = None, **kwargs: Any
+        self,
+        method: str,
+        path: str,
+        *,
+        timeout: float | None = None,
+        anonymous: bool = False,
+        **kwargs: Any,
     ) -> httpx.Response:
         headers = {"X-Request-ID": f"{SMOKE_PREFIX}-{uuid.uuid4().hex[:16]}"}
         headers.update(kwargs.pop("headers", {}))
@@ -404,7 +424,53 @@ class Smoke:
             self.base_url + path,
             headers=headers,
             timeout=timeout if timeout is not None else httpx.USE_CLIENT_DEFAULT,
+            # None sends no credentials even when the client signs in as the site viewer.
+            auth=None if anonymous else httpx.USE_CLIENT_DEFAULT,
             **kwargs,
+        )
+
+    # --- site-wide login -------------------------------------------------------------------
+
+    def check_site_login(self) -> None:
+        """Anonymous callers get a Basic challenge everywhere except the liveness route."""
+        with self.timed() as elapsed:
+            try:
+                home = self.request("GET", "/", anonymous=True)
+                liveness = self.request("GET", LIVENESS_PATH, anonymous=True)
+            except httpx.HTTPError as exc:
+                self.site_login = "not_enforced"
+                self.record(
+                    CheckResult(
+                        "Site login required", SHARED_OWNER, "access", False, _error(exc), path="/"
+                    )
+                )
+                return
+        challenge = home.headers.get("www-authenticate", "")
+        enforced = home.status_code == 401 and challenge.lower().startswith("basic")
+        self.site_login = "enforced" if enforced else "not_enforced"
+        self.record(
+            CheckResult(
+                "Site login required",
+                SHARED_OWNER,
+                "access",
+                enforced,
+                f"anonymous HTTP {home.status_code}"
+                + (f", challenge {challenge.split(' ')[0]}" if challenge else ", no challenge"),
+                path="/",
+                status_code=home.status_code,
+                duration_ms=elapsed(),
+            )
+        )
+        self.record(
+            CheckResult(
+                "Edge liveness stays public",
+                SHARED_OWNER,
+                "access",
+                liveness.status_code == 200,
+                f"anonymous HTTP {liveness.status_code}",
+                path=LIVENESS_PATH,
+                status_code=liveness.status_code,
+            )
         )
 
     # --- page and health checks ------------------------------------------------------------
@@ -792,7 +858,10 @@ class Smoke:
         expect_ai: bool,
         check_ai: bool = True,
         crud: bool = True,
+        site_login: bool = False,
     ) -> list[CheckResult]:
+        if site_login:
+            self.check_site_login()
         self.check_page("Shared home page", SHARED_OWNER, "/", marker="PropertyScope")
         self.check_health("Shared edge liveness", SHARED_OWNER, "/healthz")
         for feature in features:
@@ -877,6 +946,7 @@ def build_document(
     finished_at: datetime | None = None,
     identity: DeploymentIdentity | None = None,
     ai_state: str | None = None,
+    site_login: str | None = None,
 ) -> dict[str, Any]:
     """The cloud-smoke.json document (schema version 2, see the module docstring)."""
     deployed = identity or DeploymentIdentity()
@@ -894,6 +964,7 @@ def build_document(
         "ai_enabled": ai_enabled(ai_state),
         "ai_state": ai_state or "not_checked",
         "expect_ai": expect_ai,
+        "site_login": site_login or "not_checked",
         "started_at": started_at.isoformat(timespec="seconds"),
         "finished_at": finished.isoformat(timespec="seconds"),
         "passed": summary["failed"] == 0,
@@ -911,6 +982,7 @@ def write_reports(
     started_at: datetime,
     identity: DeploymentIdentity | None = None,
     ai_state: str | None = None,
+    site_login: str | None = None,
 ) -> dict[str, Any]:
     """Write cloud-smoke.json and cloud-smoke.md; return the JSON document."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -921,6 +993,7 @@ def write_reports(
         started_at=started_at,
         identity=identity,
         ai_state=ai_state,
+        site_login=site_login,
     )
     (output_dir / SMOKE_JSON).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     (output_dir / SMOKE_MARKDOWN).write_text(render_markdown(document), encoding="utf-8")
@@ -941,6 +1014,7 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         f"- Started: {document['started_at']} (finished {document['finished_at']})",
         f"- AI expectation: {'reachable (--expect-ai)' if document['expect_ai'] else 'disabled'}; "
         f"observed: {document.get('ai_state', 'not_checked')}",
+        f"- Site-wide login: {document.get('site_login', 'not_checked')}",
         f"- Result: **{verdict}**, {summary['passed']} of {summary['total']} checks passed",
         "",
         "| Owner | Passed | Failed |",
@@ -964,7 +1038,8 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         "",
         "Every CRUD case creates a uniquely named record through the owning feature's public API, "
         "reads it back, updates it where the feature registers an update, deletes it and "
-        "confirms the delete. No credentials are sent.",
+        "confirms the delete. Operator credentials are never sent; only the shared viewer "
+        "login is, when the site-wide login is checked.",
         "",
     ]
     if images:
@@ -990,6 +1065,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--skip-ai-check", action="store_true", help="Do not check the AI tier at all"
+    )
+    parser.add_argument(
+        "--site-login",
+        action="store_true",
+        help=f"Require the site-wide login and sign in as ${SITE_USER_ENV} "
+        f"(default {DEFAULT_SITE_USER}) with ${SITE_PASSWORD_ENV}",
     )
     parser.add_argument("--no-crud", action="store_true", help="Only pages and health")
     parser.add_argument("--timeout", type=float, default=20.0, help="Per-request timeout (s)")
@@ -1062,17 +1143,26 @@ def main(
     if not base_url.startswith(("http://", "https://")):
         print("--base-url must start with http:// or https://", file=sys.stderr)
         return 2
+    settings = os.environ if environment is None else environment
     try:
-        identity = identity_from(arguments, os.environ if environment is None else environment)
+        identity = identity_from(arguments, settings)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    auth: httpx.BasicAuth | None = None
+    if arguments.site_login:
+        password = settings.get(SITE_PASSWORD_ENV, "")
+        if not password:
+            print(f"--site-login needs ${SITE_PASSWORD_ENV} in the environment", file=sys.stderr)
+            return 2
+        auth = httpx.BasicAuth(settings.get(SITE_USER_ENV) or DEFAULT_SITE_USER, password)
     started_at = datetime.now(UTC)
     with httpx.Client(
         timeout=arguments.timeout,
         verify=not arguments.insecure,
         follow_redirects=False,
         transport=transport,
+        auth=auth,
         headers={"User-Agent": "propertyscope-cloud-smoke/1"},
     ) as client:
         smoke = Smoke(client, base_url=base_url, ai_timeout=min(arguments.timeout, 15.0))
@@ -1081,6 +1171,7 @@ def main(
             expect_ai=arguments.expect_ai,
             check_ai=not arguments.skip_ai_check,
             crud=not arguments.no_crud,
+            site_login=arguments.site_login,
         )
     document = write_reports(
         arguments.output_dir,
@@ -1090,6 +1181,7 @@ def main(
         started_at=started_at,
         identity=identity,
         ai_state=smoke.ai_state,
+        site_login=smoke.site_login,
     )
     summary = document["summary"]
     print(

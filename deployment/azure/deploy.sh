@@ -30,7 +30,11 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 readonly SCRIPT_DIR REPO_ROOT
 readonly DEPLOYMENT_NAME=propertyscope-main
-readonly REQUIRED_SECRETS=(internal-token runner-token f1-postgres-password f4-postgres-password edge-basic-auth-password)
+readonly REQUIRED_SECRETS=(internal-token runner-token f1-postgres-password f4-postgres-password edge-basic-auth-password edge-site-password)
+# The site-wide viewer login (PROPERTYSCOPE_SITE_AUTH=on) and the temporary NSG rule that lets this
+# machine reach HTTPS for the smoke test and endpoint validation when 443 is limited to a list.
+readonly SITE_PASSWORD_SECRET=edge-site-password
+readonly TEMPORARY_HTTPS_RULE=AllowDeployerHttpsTemporary
 readonly AI_SECRETS=(ai-mode-service-token mcp-service-token rag-service-token multi-agent-service-token)
 readonly MIRROR_IMAGES=("docker.io/library/caddy:2.10.2-alpine=propertyscope/mirror/caddy:2.10.2-alpine" "docker.io/postgis/postgis:16-3.4=propertyscope/mirror/postgis:16-3.4")
 # Files the VM needs from this commit; images carry everything else.
@@ -98,6 +102,11 @@ configure() {
     export AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP:-rg-propertyscope-prod}
     export AZURE_PARAMETERS_FILE=${AZURE_PARAMETERS_FILE:-deployment/azure/main.bicepparam}
     export PROPERTYSCOPE_EDGE_USER=${PROPERTYSCOPE_EDGE_USER:-propertyscope-operator}
+    export PROPERTYSCOPE_SITE_AUTH=${PROPERTYSCOPE_SITE_AUTH:-on}
+    export PROPERTYSCOPE_SITE_USER=${PROPERTYSCOPE_SITE_USER:-propertyscope}
+    [[ $PROPERTYSCOPE_SITE_AUTH == on || $PROPERTYSCOPE_SITE_AUTH == off ]] || die "PROPERTYSCOPE_SITE_AUTH must be on or off"
+    [[ $PROPERTYSCOPE_SITE_USER =~ ^[a-z][a-z0-9._-]{2,31}$ ]] || die "PROPERTYSCOPE_SITE_USER must be 3-32 lower-case characters"
+    [[ $PROPERTYSCOPE_SITE_USER != "$PROPERTYSCOPE_EDGE_USER" ]] || die "PROPERTYSCOPE_SITE_USER must differ from PROPERTYSCOPE_EDGE_USER"
     export PROPERTYSCOPE_REPO_URL=${PROPERTYSCOPE_REPO_URL:-https://github.com/MattShelton04/41026ASDProject.git}
     if [[ $REHEARSAL == true ]]; then
         LOG_DIR=${PROPERTYSCOPE_CLOUD_LOG_DIR:-$REPO_ROOT/.propertyscope-runtime/cloud-rehearsal/cloud}
@@ -430,10 +439,16 @@ cmd_secrets() {
             log "Key Vault secret $name exists (kept)"
             continue
         fi
-        random_token >"$temporary"
+        if [[ $name == "$SITE_PASSWORD_SECRET" && -n ${PROPERTYSCOPE_SITE_PASSWORD:-} ]]; then
+            # A password chosen to hand to markers; it must still resist guessing.
+            ((${#PROPERTYSCOPE_SITE_PASSWORD} >= 12)) || die "PROPERTYSCOPE_SITE_PASSWORD must be at least 12 characters"
+            printf '%s' "$PROPERTYSCOPE_SITE_PASSWORD" >"$temporary"
+        else
+            random_token >"$temporary"
+        fi
         run az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "$name" --file "$(native_path "$temporary")" \
             --encoding utf-8 --content-type text/plain --only-show-errors --output none
-        log "Key Vault secret $name created with a random value"
+        log "Key Vault secret $name created"
     done
     if [[ -n ${OPENAI_API_KEY:-} ]]; then
         printf '%s' "$OPENAI_API_KEY" >"$temporary"
@@ -443,6 +458,8 @@ cmd_secrets() {
     fi
     : >"$temporary"
     log "Operator password for AI and operations routes: az keyvault secret show --vault-name $KEY_VAULT_NAME --name edge-basic-auth-password --query value -o tsv (user: $PROPERTYSCOPE_EDGE_USER)"
+    log "Site-wide viewer login (PROPERTYSCOPE_SITE_AUTH=$PROPERTYSCOPE_SITE_AUTH): user $PROPERTYSCOPE_SITE_USER, password in the Key Vault secret $SITE_PASSWORD_SECRET (read it like the operator password). The operator login also opens the site."
+    log "Give GitHub Actions the same value for the smoke test: gh secret set PROPERTYSCOPE_SITE_PASSWORD --env production"
 }
 
 # --- push --------------------------------------------------------------------------------------
@@ -593,6 +610,7 @@ vm_payload() {
     printf '%s\n' '#!/bin/bash' 'set -euo pipefail' 'umask 022'
     for variable in ACR_LOGIN_SERVER IMAGE_TAG KEY_VAULT_NAME PROPERTYSCOPE_PUBLIC_HOST PROPERTYSCOPE_ACME_EMAIL \
         PROPERTYSCOPE_CLOUD_AI PROPERTYSCOPE_GIT_SHA PROPERTYSCOPE_REPO_URL PROPERTYSCOPE_EDGE_USER \
+        PROPERTYSCOPE_SITE_AUTH PROPERTYSCOPE_SITE_USER \
         PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES PROPERTYSCOPE_SEED_FIXTURE \
         PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS PROPERTYSCOPE_STARTUP_WAIT_SECONDS; do
         if [[ -n ${!variable:-} ]]; then
@@ -760,6 +778,50 @@ deployed_image_tag() {
     image_tag
 }
 
+# The smoke test and the endpoint validation sign in with the site-wide viewer login while
+# PROPERTYSCOPE_SITE_AUTH=on. The password comes from the caller's environment and reaches only
+# those child processes (never a command line or a log): in GitHub Actions the production
+# environment secret PROPERTYSCOPE_SITE_PASSWORD; on a laptop the operator exports it. This script
+# never reads a secret value out of Key Vault itself.
+require_site_password() {
+    [[ $PROPERTYSCOPE_SITE_AUTH == on && -z ${PROPERTYSCOPE_SITE_PASSWORD:-} && $DRY_RUN != true ]] || return 0
+    [[ $REHEARSAL != true ]] || die "the rehearsal passes PROPERTYSCOPE_SITE_PASSWORD (dev.py cloud rehearse sets it)"
+    die "the site login is on (PROPERTYSCOPE_SITE_AUTH=on): set PROPERTYSCOPE_SITE_PASSWORD to the Key Vault secret $SITE_PASSWORD_SECRET (GitHub Actions: the production environment secret of the same name)"
+}
+
+# When HTTPS is limited to listed sources (AZURE_ALLOWED_HTTPS_SOURCES), admits this machine's
+# public IPv4 address on 443 until the command exits, so a GitHub-hosted runner can smoke-test and
+# validate the edge. Port 80 is always open. PROPERTYSCOPE_CLIENT_IP skips the address lookup.
+open_https_for_this_client() {
+    [[ $REHEARSAL != true && $DRY_RUN != true ]] || return 0
+    local nsg sources client
+    nsg=$(az_query deployment group show --resource-group "$AZURE_RESOURCE_GROUP" --name "$DEPLOYMENT_NAME" \
+        --query properties.outputs.nsgName.value --output tsv 2>/dev/null || true)
+    [[ -n $nsg ]] || return 0
+    sources=$(az_query network nsg rule show --resource-group "$AZURE_RESOURCE_GROUP" --nsg-name "$nsg" \
+        --name AllowHttpsInbound --query "[sourceAddressPrefix, join(' ', sourceAddressPrefixes)]" \
+        --output tsv 2>/dev/null | tr '\t' ' ' || true)
+    sources=" ${sources//None/} "
+    if [[ $sources =~ [[:space:]](Internet|\*|0\.0\.0\.0/0)[[:space:]] ]]; then
+        return 0
+    fi
+    client=${PROPERTYSCOPE_CLIENT_IP:-$(curl -fsS --max-time 10 "${PROPERTYSCOPE_IP_ECHO_URL:-https://api.ipify.org}" 2>/dev/null | tr -d '\r\n' || true)}
+    [[ $client =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] ||
+        die "HTTPS is limited to${sources% }; set PROPERTYSCOPE_CLIENT_IP to this machine's public IPv4 address"
+    if [[ $sources == *" $client "* || $sources == *" $client/32 "* ]]; then
+        return 0
+    fi
+    log "HTTPS is limited to${sources% }; admitting $client/32 on 443 until this command exits (NSG rule $TEMPORARY_HTTPS_RULE)"
+    az network nsg rule create --resource-group "$AZURE_RESOURCE_GROUP" --nsg-name "$nsg" --name "$TEMPORARY_HTTPS_RULE" \
+        --priority 120 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes "$client/32" \
+        --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 443 \
+        --description "Temporary: deploy.sh smoke or validate-endpoint; removed when the command exits" \
+        --only-show-errors --output none
+    # shellcheck disable=SC2064 # expand now: the locals are gone when the EXIT trap runs
+    trap "az network nsg rule delete --resource-group '$AZURE_RESOURCE_GROUP' --nsg-name '$nsg' --name '$TEMPORARY_HTTPS_RULE' --only-show-errors --output none || true" EXIT
+    sleep 15 # NSG rule changes take a few seconds to apply
+}
+
 cmd_smoke() {
     local output_dir="$LOG_DIR/smoke" base_url runner tag commit
     local extra=()
@@ -784,6 +846,12 @@ cmd_smoke() {
             ensure_azure_context
         fi
         load_outputs
+        open_https_for_this_client
+    fi
+    require_site_password
+    if [[ $PROPERTYSCOPE_SITE_AUTH == on ]]; then
+        # Signs in with PROPERTYSCOPE_SITE_USER / PROPERTYSCOPE_SITE_PASSWORD from the environment.
+        extra+=(--site-login)
     fi
     base_url=$(public_base_url)
     tag=$(deployed_image_tag)
@@ -810,6 +878,11 @@ cmd_validate() {
     ensure_azure_context
     load_outputs
     export AZURE_RESOURCE_GROUP ACR_NAME VM_NAME KEY_VAULT_NAME PUBLIC_FQDN LOG_DIR
+    if [[ $which == endpoint ]]; then
+        # The validator signs in with the site login to reach the pages behind it.
+        require_site_password
+        open_https_for_this_client
+    fi
     if [[ $REHEARSAL == true ]]; then
         [[ $which == endpoint ]] ||
             die "validate-data reads Azure; the rehearsal runs its on-host half with vm-validate-data"

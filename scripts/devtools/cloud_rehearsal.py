@@ -72,6 +72,7 @@ KEY_VAULT_SECRETS = (
     "f1-postgres-password",
     "f4-postgres-password",
     "edge-basic-auth-password",
+    "edge-site-password",
     "ai-mode-service-token",
     "mcp-service-token",
     "rag-service-token",
@@ -79,6 +80,7 @@ KEY_VAULT_SECRETS = (
 )
 # A Key Vault secret name and a Compose secret mapping, never values.
 EDGE_PASSWORD_SECRET = "edge-basic-auth-password"  # pragma: allowlist secret  # noqa: S105 - name
+SITE_PASSWORD_SECRET = "edge-site-password"  # pragma: allowlist secret  # noqa: S105 - name
 MULTI_AGENT_SECRET_ENV = "=".join(("MULTI_AGENT_SERVICE_TOKEN", "multi_agent_service_token"))
 # Backends the AI overlay hands the Multi-Agent token (docker-compose.azure-ai.yml).
 MULTI_AGENT_BACKENDS = ("f1-backend", "f2-backend", "f4-backend", "f5-backend")
@@ -202,6 +204,9 @@ def deploy_environment(
             "PROPERTYSCOPE_BUILD_TAG": BUILD_TAG,
             "PROPERTYSCOPE_CLOUD_LOG_DIR": rehearsal.cloud_dir.as_posix(),
             "PROPERTYSCOPE_CLOUD_AI": "false",
+            # The Azure default: the site-wide viewer login is on.
+            "PROPERTYSCOPE_SITE_AUTH": "on",
+            "PROPERTYSCOPE_SITE_USER": "propertyscope",
             "PROPERTYSCOPE_PUBLIC_HOST": PUBLIC_HOST,
             "PROPERTYSCOPE_ACME_EMAIL": "rehearsal@example.invalid",
             "ACR_LOGIN_SERVER": VM_REGISTRY,
@@ -621,13 +626,14 @@ class Runbook:
 
     def smoke(self) -> bool:
         started = time.monotonic()
-        status = self._deploy("smoke", "smoke", "--insecure")
+        status = self._deploy("smoke", "smoke", "--insecure", **self._site_login())
         document = self._json(self.rehearsal.cloud_dir / "smoke" / "cloud-smoke.json")
         summary = document.get("summary") or {}
         self.rehearsal.results["smoke"] = {
             "passed": document.get("passed"),
             "summary": summary,
             "ai_state": document.get("ai_state"),
+            "site_login": document.get("site_login"),
             "images_source": document.get("images_source"),
             "failed": [c.get("name") for c in document.get("checks", []) if not c.get("passed")],
             "crud_operations": sorted(
@@ -640,7 +646,8 @@ class Runbook:
         }
         detail = (
             f"{summary.get('passed', 0)}/{summary.get('total', 0)} checks passed, AI "
-            f"{document.get('ai_state', 'not checked')}"
+            f"{document.get('ai_state', 'not checked')}, site login "
+            f"{document.get('site_login', 'not checked')}"
         )
         return self._record(
             "smoke",
@@ -652,7 +659,7 @@ class Runbook:
     def endpoint_security(self) -> bool:
         started = time.monotonic()
         password = (self.rehearsal.key_vault / EDGE_PASSWORD_SECRET).read_text(encoding="ascii")
-        extra = {"EDGE_PASSWORD": password}
+        extra = {"EDGE_PASSWORD": password, **self._site_login()}
         ca = self._edge_ca()
         if ca is not None:
             # The HTTP-level checks trust Caddy's internal CA; the public-trust check never does.
@@ -684,6 +691,11 @@ class Runbook:
         detail = f"{passed} PASS, {len(unexpected)} unexpected FAIL, {len(expected)} expected FAIL"
         ok = bool(results) and not unexpected
         return self._record("endpoint_security", "success" if ok else "failure", detail, started)
+
+    def _site_login(self) -> dict[str, str]:
+        """The viewer password, as GitHub Actions passes it to the smoke test and validator."""
+        path = self.rehearsal.key_vault / SITE_PASSWORD_SECRET
+        return {"PROPERTYSCOPE_SITE_PASSWORD": path.read_text(encoding="ascii")}
 
     def _edge_ca(self) -> Path | None:
         """Caddy's internal root and intermediate certificates (not secret), or None."""

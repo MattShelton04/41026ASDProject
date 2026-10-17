@@ -11,6 +11,7 @@ writes, and a change to a producer shows up in the review tests. No network, gh 
 
 from __future__ import annotations
 
+import base64
 import itertools
 import json
 import re
@@ -37,18 +38,39 @@ FINISHED_AT = datetime(2026, 10, 20, 3, 15, 0, tzinfo=UTC)
 class FakeEdge:
     """A small stateful stand-in for the PropertyScope edge with versioned records."""
 
-    def __init__(self, *, ai: str = "disabled", fail_create: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        ai: str = "disabled",
+        fail_create: str | None = None,
+        site_login: tuple[str, str] | None = None,
+        enforce_site_login: bool = True,
+    ) -> None:
         self.ai = ai
         self.fail_create = fail_create
+        # (user, password) of the Caddy site-wide login; None: the edge sees no credentials.
+        self.site_login = site_login
+        self.enforce_site_login = enforce_site_login
         self.store: dict[str, dict[str, dict[str, Any]]] = {path: {} for path in COLLECTIONS}
         self.requests: list[tuple[str, str]] = []
+        self.anonymous: list[str] = []
         self._ids: Iterator[int] = itertools.count(1)
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         self.requests.append((request.method, path))
         assert request.headers["X-Request-ID"].startswith("cloud-smoke-")
-        assert "authorization" not in request.headers
+        authorization = request.headers.get("authorization")
+        if self.site_login is None:
+            assert authorization is None
+        elif authorization is None:
+            self.anonymous.append(path)
+        if self.site_login is not None and self.enforce_site_login and path != "/healthz":
+            expected = base64.b64encode(":".join(self.site_login).encode()).decode()
+            if authorization != f"Basic {expected}":
+                return httpx.Response(
+                    401, headers={"www-authenticate": 'Basic realm="PropertyScope"'}
+                )
         if request.method == "GET" and (path == "/" or path.startswith("/features/")):
             return httpx.Response(
                 200,

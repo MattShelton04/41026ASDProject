@@ -19,6 +19,7 @@ var deployBudgetSetting = readEnvironmentVariable('AZURE_DEPLOY_BUDGET', 'true')
 var monthlyBudgetSetting = readEnvironmentVariable('AZURE_MONTHLY_BUDGET', '100')
 var budgetStartDateSetting = readEnvironmentVariable('AZURE_BUDGET_START_DATE', '2026-10-01')
 var operatorIpRangesSetting = readEnvironmentVariable('AZURE_OPERATOR_IP_RANGES', '')
+var httpsSourcesSetting = readEnvironmentVariable('AZURE_ALLOWED_HTTPS_SOURCES', '')
 var secretOfficerIdsSetting = readEnvironmentVariable('AZURE_SECRET_OFFICER_IDS', '')
 var budgetEmailsSetting = readEnvironmentVariable('AZURE_BUDGET_EMAILS', '')
 
@@ -33,6 +34,8 @@ param deployVirtualMachine = toLower(deployVmSetting) != 'false'
 param enableEncryptionAtHost = toLower(encryptionAtHostSetting) != 'false'
 param autoShutdownTime = readEnvironmentVariable('AZURE_AUTO_SHUTDOWN_TIME', '2330')
 param operatorIpRanges = empty(operatorIpRangesSetting) ? [] : split(operatorIpRangesSetting, ',')
+// Empty: HTTPS open to the internet. A comma list (e.g. 203.0.113.7/32,198.51.100.0/24) limits 443 only.
+param allowedHttpsSourcePrefixes = empty(httpsSourcesSetting) ? ['Internet'] : split(httpsSourcesSetting, ',')
 param keyVaultNetworkDefaultAction = empty(keyVaultDefaultActionSetting) ? 'Deny' : keyVaultDefaultActionSetting
 param keyVaultNameSeed = readEnvironmentVariable('AZURE_KEY_VAULT_NAME_SEED', '')
 param deployerPrincipalId = readEnvironmentVariable('AZURE_DEPLOYER_PRINCIPAL_ID', '')

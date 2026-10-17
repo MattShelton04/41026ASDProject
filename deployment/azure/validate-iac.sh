@@ -11,7 +11,8 @@
 #               parameter files with unset and empty environment values (GitHub passes an unset
 #               repository variable as ''): the DNS label, region and VM size must never be empty
 #   shell       shellcheck on deploy.sh, the VM script, the validators and the entrypoint shims
-#   caddy       `caddy validate` with the AI tier off and on, and `caddy fmt` (pinned image)
+#   caddy       `caddy validate` with the AI tier and the site-wide login each off and on, and
+#               `caddy fmt` (pinned image)
 #   nginx       `nginx -t` of the shared edge with the production include, then a burst proving
 #               the limit_req zone answers 429 on the B5 probe path
 #   cloud-init  `cloud-init schema` on cloud-init.yaml (when cloud-init is installed)
@@ -193,24 +194,29 @@ check_caddy() {
         skip "Caddy (needs Docker)"
         return
     }
-    local hash mode formatted
+    local hash mode site formatted
     hash=$(docker run --rm --network none "$CADDY_IMAGE" caddy hash-password --plaintext offline-validation | tail -n 1)
     printf 'propertyscope-operator %s\n' "$hash" >"$WORK/edge_basic_auth"
+    printf 'propertyscope %s\npropertyscope-operator %s\n' "$hash" "$hash" >"$WORK/edge_site_auth"
     for mode in disabled enabled; do
-        if MSYS_NO_PATHCONV=1 docker run --rm --network none \
-            -e PROPERTYSCOPE_PUBLIC_HOST=propertyscope-example.australiaeast.cloudapp.azure.com \
-            -e PROPERTYSCOPE_ACME_EMAIL=operator@example.com \
-            -v "$(host_path "$SCRIPT_DIR/Caddyfile"):/etc/caddy/Caddyfile:ro" \
-            -v "$(host_path "$SCRIPT_DIR/caddy/ai-$mode.caddy"):/etc/caddy/propertyscope-ai.caddy:ro" \
-            -v "$(host_path "$WORK/edge_basic_auth"):/run/secrets/edge_basic_auth:ro" \
-            "$CADDY_IMAGE" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >"$WORK/caddy.log" 2>&1; then
-            pass "caddy validate (AI tier $mode)"
-        else
-            fail "caddy validate (AI tier $mode):"
-            cat "$WORK/caddy.log"
-        fi
+        for site in on off; do
+            if MSYS_NO_PATHCONV=1 docker run --rm --network none \
+                -e PROPERTYSCOPE_PUBLIC_HOST=propertyscope-example.australiaeast.cloudapp.azure.com \
+                -e PROPERTYSCOPE_ACME_EMAIL=operator@example.com \
+                -v "$(host_path "$SCRIPT_DIR/Caddyfile"):/etc/caddy/Caddyfile:ro" \
+                -v "$(host_path "$SCRIPT_DIR/caddy/ai-$mode.caddy"):/etc/caddy/propertyscope-ai.caddy:ro" \
+                -v "$(host_path "$SCRIPT_DIR/caddy/site-auth-$site.caddy"):/etc/caddy/propertyscope-site-auth.caddy:ro" \
+                -v "$(host_path "$WORK/edge_basic_auth"):/run/secrets/edge_basic_auth:ro" \
+                -v "$(host_path "$WORK/edge_site_auth"):/run/secrets/edge_site_auth:ro" \
+                "$CADDY_IMAGE" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >"$WORK/caddy.log" 2>&1; then
+                pass "caddy validate (AI tier $mode, site login $site)"
+            else
+                fail "caddy validate (AI tier $mode, site login $site):"
+                cat "$WORK/caddy.log"
+            fi
+        done
     done
-    for formatted in Caddyfile caddy/ai-disabled.caddy caddy/ai-enabled.caddy; do
+    for formatted in Caddyfile caddy/ai-disabled.caddy caddy/ai-enabled.caddy caddy/site-auth-on.caddy caddy/site-auth-off.caddy; do
         docker run --rm -i --network none "$CADDY_IMAGE" caddy fmt - <"$SCRIPT_DIR/$formatted" >"$WORK/formatted"
         if diff -u "$SCRIPT_DIR/$formatted" "$WORK/formatted" >"$WORK/fmt.diff"; then
             pass "caddy fmt $formatted"
@@ -257,9 +263,12 @@ check_nginx() {
         skip "nginx rate-limit burst (needs curl)"
         return
     }
-    # Same burst as validate-endpoint-security.sh: the probe must be answered after limit_req.
-    codes=$(seq 1 150 | xargs -P 30 -I{} curl --silent --output /dev/null --max-time 10 \
-        --write-out '%{http_code}\n' "http://127.0.0.1:${port}${RATE_LIMIT_PROBE}" | sort | uniq -c | tr '\n' ' ')
+    # Same burst as validate-endpoint-security.sh (one curl process, 150 parallel transfers): the
+    # probe must be answered after limit_req.
+    mkdir -p "$WORK/burst"
+    codes=$(curl --silent --parallel --parallel-immediate --parallel-max 50 --max-time 10 \
+        --output "$WORK/burst/#1" --write-out '%{http_code}\n' \
+        "http://127.0.0.1:${port}${RATE_LIMIT_PROBE}?burst=[1-150]" | sort | uniq -c | tr '\n' ' ')
     if [[ $codes =~ [0-9]+\ 429 ]]; then
         pass "burst on $RATE_LIMIT_PROBE is rate limited ($codes)"
     else

@@ -2,7 +2,9 @@
 //
 // Only HTTP (ACME challenge + redirect) and HTTPS reach the VM from the internet. There is no SSH
 // or database rule: operators use `az vm run-command`, and every database stays on internal
-// Compose networks inside the VM.
+// Compose networks inside the VM. HTTPS can be limited to listed source ranges; HTTP stays open to
+// the internet because Let's Encrypt validates (and renews) the certificate over port 80 from
+// addresses it does not publish, and Caddy answers everything else there with a redirect only.
 
 @description('Azure region for every network resource.')
 param location string
@@ -19,8 +21,8 @@ param addressPrefix string = '10.42.0.0/16'
 @description('Application subnet address range.')
 param subnetPrefix string = '10.42.1.0/24'
 
-@description('Source address prefixes allowed to reach 80/443. Keep Internet for a public demo.')
-param allowedHttpSourcePrefixes array = [
+@description('Source address prefixes (IPv4/CIDR or service tags) allowed to reach HTTPS (443). Internet for a public demo.')
+param allowedHttpsSourcePrefixes array = [
   'Internet'
 ]
 
@@ -40,7 +42,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Inbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefixes: allowedHttpSourcePrefixes
+          sourceAddressPrefixes: allowedHttpsSourcePrefixes
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
           destinationPortRange: '443'
@@ -49,12 +51,12 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
       {
         name: 'AllowHttpInbound'
         properties: {
-          description: 'ACME HTTP-01 challenges and the permanent HTTP to HTTPS redirect only.'
+          description: 'ACME HTTP-01 challenges and the permanent HTTP to HTTPS redirect only; always open for certificate renewal.'
           priority: 110
           direction: 'Inbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefixes: allowedHttpSourcePrefixes
+          sourceAddressPrefix: 'Internet'
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
           destinationPortRange: '80'

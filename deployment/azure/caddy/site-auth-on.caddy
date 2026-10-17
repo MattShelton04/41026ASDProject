@@ -1,0 +1,8 @@
+# Site-wide login ON (the Azure default, ADR-048). Mounted by docker-compose.azure.yml as
+# /etc/caddy/propertyscope-site-auth.caddy when PROPERTYSCOPE_SITE_AUTH=on, and imported inside
+# the site's route block after the operator check. Every page and API except the /healthz liveness
+# route needs the shared viewer login (PROPERTYSCOPE_SITE_USER, Key Vault edge-site-password) or
+# the operator login; operations and AI routes still need the operator login on top.
+basic_auth @site_login bcrypt "PropertyScope NSW" {
+	import /run/secrets/edge_site_auth
+}

@@ -346,7 +346,8 @@ Say which owners are missing; do not hide it.
 **Pending provisioning.** Record this segment only against the real Azure URL. Until then use
 the fallback in the table above.
 
-1. Browser tab 6: the Azure home page over HTTPS. Point at the padlock and the
+1. Browser tab 6: the Azure home page over HTTPS. Sign in with the site-wide viewer login before
+   recording, off camera, so the prompt never shows the password. Point at the padlock and the
    `cloudapp.azure.com` address.
 2. Open each of the five features from the home page.
 3. Browser tab 7: Feature 1 on Azure. Run a property search, then create, read and delete a

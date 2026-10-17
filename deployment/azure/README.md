@@ -26,12 +26,12 @@ flowchart LR
     cd -- "deploy.sh smoke" --> pip
 
     subgraph rg[Resource group, australiaeast]
-        pip[Standard public IP<br/>DNS label] --> nsg{{NSG: 80/443 only<br/>no SSH, no DB ports}}
+        pip[Standard public IP<br/>DNS label] --> nsg{{NSG: 80/443 only, 443 optionally allowlisted<br/>no SSH, no DB ports}}
         nsg --> vm
         kv[(Key Vault<br/>RBAC, purge protection,<br/>firewall)]
         budget[[Budget alert]]
         subgraph vm[Ubuntu 24.04 VM, managed identity, encryption at host]
-            caddy[Caddy :443/:80<br/>TLS, HSTS, basic auth on ops/AI] --> nginx[nginx edge<br/>rate limits]
+            caddy[Caddy :443/:80<br/>TLS, HSTS, site login,<br/>operator auth on ops/AI] --> nginx[nginx edge<br/>rate limits]
             nginx --> fe[Feature frontends 1-5]
             nginx --> be[Feature backends 1-5]
             be --> dbs[(PostGIS x2, SQLite x3<br/>internal networks only)]
@@ -171,11 +171,16 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `AZURE_BUDGET_EMAILS` | `a@uni.edu,b@uni.edu` (the budget is skipped while empty) | recommended |
    | `AZURE_SECRET_OFFICER_IDS` | object IDs of the operators who run `deploy.sh secrets` | recommended |
    | `AZURE_OPERATOR_IP_RANGES` | operator public IPv4/CIDR list for the Key Vault firewall | optional |
+   | `AZURE_ALLOWED_HTTPS_SOURCES` | `203.0.113.7/32,198.51.100.0/24` limits HTTPS (443) to these sources; empty means the internet. Port 80 always stays open ([Access control](#access-control)) | optional |
+   | `PROPERTYSCOPE_SITE_AUTH`, `PROPERTYSCOPE_SITE_USER` | site-wide viewer login, defaults `on` and `propertyscope`; `off` makes pages public | optional |
    | `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ENCRYPTION_AT_HOST`, `AZURE_MONTHLY_BUDGET` | defaults `australiaeast`, `Standard_D4s_v5`, `true`, `100` | optional |
    | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
 
-   **No GitHub secrets are required.** The provider key for the optional AI tier goes into Key
-   Vault, never into GitHub. An unset variable reaches the parameter files as an empty value,
+   **One GitHub secret, and no cloud credential.** While the site-wide login is on, add the
+   *environment* secret `PROPERTYSCOPE_SITE_PASSWORD` to `production` after step 6: the smoke
+   test and the B5 validation sign in with it, and only those two steps receive it. Azure access
+   is OIDC, and the provider key for the optional AI tier goes into Key Vault, never into GitHub.
+   An unset variable reaches the parameter files as an empty value,
    and `main.bicepparam` treats empty as "use the default", so a missing optional variable never
    produces an empty region, VM size or DNS label.
 
@@ -196,19 +201,27 @@ az account set --subscription "$SUBSCRIPTION_ID"
    ```bash
    # The vault firewall denies the internet; admit this machine for the call only:
    KEY_VAULT_CLIENT_IP=<your public IPv4> bash deployment/azure/deploy.sh secrets
-   # Optional, for the bonus AI tiers only:
-   OPENAI_API_KEY=... KEY_VAULT_CLIENT_IP=<ip> bash deployment/azure/deploy.sh secrets
+   # Optional: choose the viewer password you will hand to markers (12+ characters) instead of
+   # a random one, and the provider key for the bonus AI tiers:
+   PROPERTYSCOPE_SITE_PASSWORD=... OPENAI_API_KEY=... KEY_VAULT_CLIENT_IP=<ip> bash deployment/azure/deploy.sh secrets
    ```
 
-   `secrets` creates each missing secret with a random 64-character value and never overwrites
-   an existing one. Rotate a secret by deleting it, rerunning `secrets` and redeploying.
+   `secrets` creates each missing secret, with a random 64-character value unless one is given
+   above, and never overwrites an existing one. Rotate a secret by deleting it, rerunning
+   `secrets` and redeploying. Then give GitHub the viewer password (read it from the portal, or
+   with `az keyvault secret show --vault-name <vault> --name edge-site-password --query value -o tsv`):
+
+   ```bash
+   gh secret set PROPERTYSCOPE_SITE_PASSWORD --env production
+   ```
 
    | Key Vault secret | Used by |
    |---|---|
    | `internal-token` | backend-to-database-API service token (all features) |
    | `runner-token` | Feature 1 runner-to-backend token |
    | `f1-postgres-password`, `f4-postgres-password` | PostGIS superuser passwords. The VM also renders the database URLs |
-   | `edge-basic-auth-password` | operator password for `/operations/*`, AI, release-review and data-pipeline routes (user `propertyscope-operator`) |
+   | `edge-basic-auth-password` | operator password for `/operations/*`, AI, release-review and data-pipeline routes (user `propertyscope-operator`). It also opens the site-wide login |
+   | `edge-site-password` | the shared viewer password for the site-wide login (user `propertyscope`, `PROPERTYSCOPE_SITE_USER`). Read only while `PROPERTYSCOPE_SITE_AUTH=on` |
    | `ai-mode-service-token`, `multi-agent-service-token` | host AI-mode and Multi-Agent entry tokens. Read only when the AI tier is on, and handed to the edge and backends as Compose secrets |
    | `mcp-service-token`, `rag-service-token` | host MCP and RAG tokens (AI tier only; root-only on the VM) |
    | `openai-api-key` (optional) | AI-mode provider key, handed to systemd as a credential file |
@@ -223,8 +236,10 @@ az account set --subscription "$SUBSCRIPTION_ID"
    (`PROPERTYSCOPE_STARTUP_WAIT_SECONDS`). The first certificate can take a few more minutes.
 
 8. **Smoke-test the public URL.** The workflow runs `deploy.sh smoke` after the deployment. To
-   repeat it, run `bash deployment/azure/deploy.sh smoke`. It checks the home page, every feature
-   route and health endpoint, one self-cleaning CRUD case per feature, and that AI is off.
+   repeat it, run `PROPERTYSCOPE_SITE_PASSWORD=... bash deployment/azure/deploy.sh smoke`. It
+   proves the site login turns anonymous callers away, then signs in as the viewer and checks the
+   home page, every feature route and health endpoint, one self-cleaning CRUD case per feature,
+   and that AI is off.
 
 9. **Review the evidence.** Run `deploy.sh validate-endpoint` (B5) and `deploy.sh validate-data`
    (B6), and read `cloud-deployment-report.md` in the workflow artifact (or
@@ -235,6 +250,34 @@ az account set --subscription "$SUBSCRIPTION_ID"
     at 23:30 AEST), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
     tier with `deploy.sh ai on`, or [tear it down](#teardown). Unset `AZURE_SUBSCRIPTION_ID` to
     stop further deployments.
+
+## Access control
+
+Three layers decide who reaches what. All of them are on or tight by default except the
+network allowlist, which needs your addresses.
+
+| Layer | Default | Who gets in | Change it with |
+|---|---|---|---|
+| NSG: HTTPS (443) | the internet | the sources in `AZURE_ALLOWED_HTTPS_SOURCES` (comma-separated IPv4/CIDR, or a service tag) | the variable, then `deploy.sh provision` |
+| NSG: HTTP (80) | the internet, always | everyone, but Caddy only answers ACME challenges and a redirect to HTTPS | not configurable: Let's Encrypt validates and renews over port 80 from addresses it does not publish |
+| Site-wide login (Caddy) | **on** | the viewer `propertyscope` (Key Vault `edge-site-password`) or the operator, on every page and API except `/healthz` | `PROPERTYSCOPE_SITE_AUTH=off`, then `deploy.sh deploy` |
+| Operator login (Caddy) | on, always | the operator `propertyscope-operator` (`edge-basic-auth-password`) on operations, AI, data-pipeline and release-review routes | not configurable |
+
+- **For marking, prefer the site login over an IP allowlist.** Markers and teammates join from
+  campus, home and mobile networks whose addresses change, and a missing address looks like a
+  site that is down. Share the viewer user and password privately (not in the repository, the
+  report or a public channel), and rotate `edge-site-password` afterwards.
+- **An allowlist suits a fixed audience,** such as a demonstration from one lab. While 443 is
+  restricted, `deploy.sh smoke` and `deploy.sh validate-endpoint` add a temporary NSG rule
+  (`AllowDeployerHttpsTemporary`, priority 120) for this machine's public IPv4 address and remove
+  it when they exit, so a GitHub-hosted runner can still check the edge. They look the address
+  up with `https://api.ipify.org` unless `PROPERTYSCOPE_CLIENT_IP` is set. The next `provision`
+  also removes any rule left behind.
+- **Browsers ask twice for operator pages.** The viewer and operator logins use separate
+  realms, so a browser that holds the viewer login asks again on `/operations/*`. Signing in with
+  the operator login from the start opens both.
+- `/healthz` stays anonymous for uptime checks and the B5 certificate check. It returns only
+  `ok`.
 
 ## Using `deploy.sh`
 
@@ -249,7 +292,7 @@ Docker command instead of running it. The run-command payloads are written to
 | `secrets` | Creates missing Key Vault secrets (see the table above) |
 | `push [--reuse-images]` | Builds every enabled image, then pushes `propertyscope/<service>:<git-sha>` to ACR and mirrors Caddy and PostGIS into ACR. An uncommitted tree gets the tag `<sha>-dirty`. `--reuse-images` skips the build only when this machine already built this clean commit's images (their IDs are recorded under `.propertyscope-runtime/cloud-builds/`); it never reuses a `-dirty` tag. `PROPERTYSCOPE_BUILD_TAG` builds under a local tag other than `dev` |
 | `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, checks the seeded baseline, and runs the `fixture-property` collection once. Key Vault reads, the ACR login and the pull retry with backoff while new role assignments propagate |
-| `smoke [--expect-ai] [--insecure]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: home page, each feature route and health, one self-cleaning CRUD case per feature (Feature 1 also updates its record), and the AI-off check. It passes the deployment identity (`--commit-sha`, `--image-tag`, `--registry`) and, after a deploy, `--vm-log vm-deploy.log`, so `cloud-smoke.json` records the images the VM reported running, with registry digests |
+| `smoke [--expect-ai] [--insecure]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: with the site login on (needs `PROPERTYSCOPE_SITE_PASSWORD`), anonymous 401 and a public `/healthz`, then as the viewer: home page, each feature route and health, one self-cleaning CRUD case per feature (Feature 1 also updates its record), and the AI-off check. It passes the deployment identity (`--commit-sha`, `--image-tag`, `--registry`) and, after a deploy, `--vm-log vm-deploy.log`, so `cloud-smoke.json` records the images the VM reported running, with registry digests |
 | `ai on` / `ai off` | Bonus tiers: checks out the deployed SHA on the VM, `uv sync`s it, prepares the RAG model and corpora, starts the systemd units and applies the AI overlay. `off` reverses all of this |
 | `status`, `logs [service] [lines]` | Container health, AI units and listening sockets. Recent Compose logs, or journal logs for `ai-mode`, `mcp`, `rag` and `multi-agent` |
 | `outputs` | FQDN, ACR login server, VM name and Key Vault name from the Bicep deployment |
@@ -271,14 +314,18 @@ the `feature-1-data` skill). Protected data-pipeline routes require the operator
 ### Bonus tiers (B1–B6)
 
 - **B5 endpoint security:** Caddy provides TLS, the HTTP→HTTPS redirect, HSTS and security
-  headers, and basic auth on operations, AI, pipeline and release-review routes. Any feature's
+  headers, the site-wide viewer login (anonymous callers get 401 everywhere but `/healthz`; the
+  viewer login never opens an operator route), and basic auth on operations, AI, pipeline and
+  release-review routes. Any feature's
   `assistant/turns`, `agent-runs`, `case-summary-runs`, `multi-agent` or `release-reviews`
   collection is protected generically, so Feature 1's Multi-Agent proxy
   (`/api/data-platform/v1/release-reviews`) needs operator credentials. nginx adds `limit_req`
   with 20 r/s on `/api/` and `/fragments/` and 30 r/min on the same sensitive routes. The
   validator bursts `/fragments/rate-limit-probe`, a static miss that nginx answers after
   `limit_req`. An nginx `return` (such as the catch-all `/api/` 404) runs before `limit_req`
-  and can never answer 429. The NSG admits 80/443 only. Evidence: `deploy.sh validate-endpoint`.
+  and can never answer 429; while the site login is on the burst signs in as the viewer. The
+  NSG admits 80/443 only, keeps 80 open for certificates and optionally limits 443
+  ([Access control](#access-control)). Evidence: `deploy.sh validate-endpoint`.
 - **B6 data security:** secrets are kept only in Key Vault and read by the managed identity, the
   repository holds no cloud secret (OIDC), disks are encrypted at host and at rest, databases sit
   on internal networks, and no secret appears in `docker inspect` or image history. Evidence:
@@ -357,8 +404,8 @@ rehearsal mode, and child scripts find a refusing `az` first on `PATH`.
 | infrastructure | Compose project `ps-azure-rehearsal` ([`rehearsal/compose.yml`](rehearsal/compose.yml)): `registry:2` as `ps-rehearsal-registry` in place of ACR, and a Docker-in-Docker container in place of the VM. Only 80/443 (and the registry's 5000) are published, on the host loopback |
 | push | `deploy.sh push`: builds under `propertyscope/<service>:rehearsal` (the shared `:dev` images are untouched), pushes `:<git sha>` and the Caddy/PostGIS mirrors to the registry |
 | deploy | `deploy.sh deploy`: the exact run-command payload (bundle extraction, `propertyscope-vm.sh deploy`) runs as root in the rehearsal VM through `docker exec`. The VM script renders the secrets, pulls every image from the registry into an empty engine, starts `docker-compose.azure.yml` with AI off as project `ps-azure`, checks the seeded baseline and runs the `fixture-property` collection |
-| smoke | `deploy.sh smoke --insecure` against `https://localhost` (Caddy's internal CA): every page, health route, CRUD case (Feature 1 with its update) and the AI-disabled check |
-| endpoint_security | `deploy.sh validate-endpoint` (B5) with the stand-in operator password and `EDGE_CA_FILE` set to Caddy's internal root and intermediate, so the HTTP-level checks run. The publicly-trusted-certificate check fails by design; the NSG check is skipped. A port that answers on this machine's loopback but not on the VM (a developer's own Postgres, say) is probed again from inside the rehearsal network and only counts if the VM has it open |
+| smoke | `deploy.sh smoke --insecure` against `https://localhost` (Caddy's internal CA) with the stand-in viewer password: the site-login check, then every page, health route, CRUD case (Feature 1 with its update) and the AI-disabled check |
+| endpoint_security | `deploy.sh validate-endpoint` (B5) with the stand-in operator and viewer passwords and `EDGE_CA_FILE` set to Caddy's internal root and intermediate, so the HTTP-level checks run. The publicly-trusted-certificate check fails by design; the NSG check is skipped. A port that answers on this machine's loopback but not on the VM (a developer's own Postgres, say) is probed again from inside the rehearsal network and only counts if the VM has it open |
 | data_security | `deploy.sh vm-validate-data`: the on-host half of B6 inside the rehearsal VM |
 | ai_overlay_config | `docker compose config` with `docker-compose.azure-ai.yml` inside the VM: the AI-mode and Multi-Agent tokens are Compose secrets for the right backends. No AI service is started |
 | report, review | `scripts/cloud_deployment_report.py` (labelled as a rehearsal) and the deterministic Cloud Deployment Report Review over a scratch evidence tree laid out like the workflow artifacts (`evidence/cloud/`). The review fails only on `cloud.release-gate`, because no CI gate record exists locally |
