@@ -28,6 +28,9 @@ PromptSet = Literal[
     "review-multi-agent.v1",
     "review-testing.v1",
     "review-cloud.v1",
+    "review-multi-agent.v2",
+    "review-testing.v2",
+    "review-cloud.v2",
 ]
 SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "default.v1",
@@ -42,6 +45,9 @@ SUPPORTED_PROMPT_SETS: tuple[PromptSet, ...] = (
     "review-multi-agent.v1",
     "review-testing.v1",
     "review-cloud.v1",
+    "review-multi-agent.v2",
+    "review-testing.v2",
+    "review-cloud.v2",
 )
 DEFAULT_PROMPT_SET: PromptSet = "default.v7"
 DEFAULT_EVENT_PAGE_SIZE = 100

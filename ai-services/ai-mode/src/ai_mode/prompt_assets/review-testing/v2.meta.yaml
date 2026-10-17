@@ -1,0 +1,5 @@
+prompt_id: review-testing
+version: v2
+role: adapter
+template: v2.system.j2
+description: Release 2 Testing Report Review reviewer (v2) with one finding per root cause and blocked checks summarised per evidence owner.

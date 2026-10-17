@@ -199,9 +199,11 @@ answer when document context is insufficient; this does not turn missing guidanc
 RAG answer. The named MCP/RAG validation commands deliberately retain `default.v8` and deterministic
 extractive decisions, separately from actual-provider feature turns.
 
-Release 2 evidence reviews use three further prompt sets, `review-multi-agent.v1`,
-`review-testing.v1` and `review-cloud.v1` (planner `review-planner/v1`, adapter
-`review-<mode>/v1`). They are accepted only for the `agentic-loop` feature key with exactly the
+Release 2 evidence reviews use three further prompt sets, `review-multi-agent.v2`,
+`review-testing.v2` and `review-cloud.v2` (planner `review-planner/v2`, adapter
+`review-<mode>/v2`), which write one finding per root cause and summarise checks blocked by a
+missing owner submission per owner. The original `review-<mode>.v1` sets stay registered so
+recorded runs remain reproducible. They are accepted only for the `agentic-loop` feature key with exactly the
 `review.evidence.v1` tool allowlisted, and the objective must be a valid
 `evidence-review-bundle.v1`. That read-only tool is registered only for `agentic-loop`, so feature
 runs never see it; it returns the run's own bundle from the store and reads no files or network.
