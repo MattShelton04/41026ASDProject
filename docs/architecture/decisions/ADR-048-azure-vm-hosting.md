@@ -1,7 +1,7 @@
 # ADR-048: Host the Release 2 cloud deployment on one Azure VM, with the AI tier behind a flag
 
 - Status: Accepted (infrastructure prepared; not yet provisioned)
-- Date: 9 October 2026
+- Date: 9 October 2026 (amended 17 October 2026, see [Amendments](#amendments))
 - Owner: Shared platform (Matthew Shelton)
 - Reaffirms: [ADR-046](ADR-046-non-containerised-ai-tier.md) (AI services are host processes)
 - Plan: [Release 2 implementation plan](../../release-2/implementation-plan.md), decisions D1, D2
@@ -37,14 +37,19 @@ SQLite's single-writer guidance on network file systems.
    host), an RBAC-mode Key Vault with soft delete, purge protection and a firewall, the
    least-privilege role assignments, a daily auto-shutdown and a consumption budget. Region
    `australiaeast` by default. `deploy.sh provision` creates the resource group when it is
-   missing, then applies the template; re-running converges.
+   missing, recovers a soft-deleted vault of the same name, then applies the template;
+   re-running converges. Resource names are deterministic per resource group
+   (`uniqueString(resourceGroup().id)`), and the parameter files treat an empty environment
+   value as "use the default", so an unset GitHub variable never yields an empty DNS label.
 3. **No SSH.** The NSG has no SSH rule and cloud-init disables `sshd`. Every operation is an
    `az vm run-command invoke` script (`deployment/azure/vm/propertyscope-vm.sh`) that ships the
    commit's Compose and edge configuration as a small bundle. The serial console (boot
    diagnostics) is the break-glass path.
 4. **Caddy terminates TLS** on the DNS label (Let's Encrypt), redirects HTTP to HTTPS, adds HSTS
-   and security headers, and requires operator credentials on operations and AI routes. It is
-   the only container that publishes ports. It proxies to the unchanged nginx edge, which gains a
+   and security headers, and requires operator credentials on operations, AI, data-pipeline and
+   Multi-Agent proxy routes (any feature's `assistant/turns`, `agent-runs`,
+   `case-summary-runs`, `multi-agent` or `release-reviews` collection). It is the only
+   container that publishes ports. It proxies to the unchanged nginx edge, which gains a
    production-only `conf.d` include with rate limits (`limit_req`) but no change to local
    behaviour.
 5. **Secrets live only in Key Vault.** The VM reads them with its managed identity (IMDS token,
@@ -62,16 +67,32 @@ SQLite's single-writer guidance on network file systems.
    `deploy.sh ai on` checks out the deployed commit on the VM, renders a host environment with
    the same `host_runtime.prepare_environment` the local launcher uses, starts systemd units for
    AI-mode, MCP, RAG and the Multi-Agent Server as the unprivileged `propertyscope-ai` user, and
-   applies `docker-compose.azure-ai.yml`, which restores the host-gateway wiring. The AI tier
+   applies `docker-compose.azure-ai.yml`, which restores the host-gateway wiring and hands the
+   AI-mode and Multi-Agent entry tokens to the edge and to the backends that call them as
+   Compose secrets (never environment values). The AI tier
    still runs on the host, never in a container. From AI-mode's point of view this is its
    `local` environment: MCP and RAG stay on the VM loopback, and AI-mode's port 5005 is reachable
    only from the containers (the NSG never admits it).
-8. **The workflow is gated.** `cloud-deployment.yml` runs on `workflow_run` after **Integration
-   CI** succeeds for a push to `main`, or on manual dispatch. It skips cleanly until the
-   repository variable `AZURE_SUBSCRIPTION_ID` is set, uses the protected `production`
-   environment (a human approval point), and calls the same `deploy.sh` subcommands an operator
-   runs: `provision`, `push`, `deploy`, `smoke`. It then builds the deployment report and uploads
-   the logs.
+8. **The workflow is gated.** `cloud-deployment.yml` is triggered when **Integration CI
+   completes** for a push to `main` (`workflow_run`, `types: [completed]`, whatever its
+   conclusion; a cancelled or skipped run starts nothing), or by manual dispatch. The trigger is
+   not the gate. Three jobs run in order:
+   - `verify-ci` (`scripts/verify_release_gate.py`, read-only `gh api`) requires Integration CI
+     to have succeeded on the deploy SHA itself, and the latest push or manual run on `main` of
+     each path-filtered Student 1–5 CI workflow whose head is the deploy SHA or an ancestor of it
+     to have succeeded. Runs still in progress are waited for (up to 60 minutes); any other
+     conclusion fails the gate and records which run blocked it in `release-gate.json`.
+   - `build-validate` builds every release image and validates the Azure Compose models
+     (`scripts/validate_release_images.py`), with no Azure access.
+   - `deploy` (timeout 120 minutes) is skipped until the repository variable
+     `AZURE_SUBSCRIPTION_ID` is set. It uses the protected `production` environment (a human
+     approval point), re-checks the gate before touching Azure, and calls the same `deploy.sh`
+     subcommands an operator runs: `provision`, `push`, `deploy`, `smoke`. It then builds the
+     deployment report (which includes the gate record) and uploads the logs.
+
+   One deployment runs at a time and is never cancelled. `dev.py cloud rehearse` exercises the
+   same `deploy.sh` path locally, against a registry container and a Docker-in-Docker VM, without
+   Azure (deployment/azure/README.md, "Local rehearsal").
 9. **The demonstration data is labelled.** The cloud starts from the seeded demonstration
    baseline that Feature 1's migrations create, and runs the `fixture-property` collection once
    to prove the runner/loader pipeline. Real releases are collected and published in the cloud
@@ -90,9 +111,73 @@ SQLite's single-writer guidance on network file systems.
   subscription. The parameter can be turned off (managed disks are still encrypted at rest with
   platform keys), and `deploy.sh provision` refuses to continue until the feature is registered,
   rather than failing half-way.
-- Purge protection means a deleted vault keeps its name for the retention period. Redeploying into
-  a new resource group or with a new prefix avoids the collision.
+- Purge protection means a deleted vault keeps its name for the retention period, and the name is
+  derived from the resource group ID. `deploy.sh provision` recovers the soft-deleted vault
+  (keeping its secrets), which needs subscription-level read, so the first `provision` after a
+  teardown runs from an Owner's laptop. `AZURE_KEY_VAULT_NAME_SEED` selects a fresh, empty vault
+  instead. Purge protection stays on: it is part of the B6 data-security evidence, and the
+  recovery path removes the redeploy collision it used to cause.
 - `scripts/validate_architecture.py` now parses Compose merge tags and enforces the Azure rules:
   only the edge publishes ports, there are no source bind mounts, the baseline has no host-gateway
   AI wiring, and the AI overlay uses only the host gateway and loopback ports.
 - The `shared-platform-design.md` sketch based on Container Apps and Azure Files is superseded.
+
+## Amendments
+
+**17 October 2026, deployment-readiness review (still not provisioned).**
+
+- **Bicep compiles and lints cleanly**, with Bicep CLI v0.48.1 (`deployment/azure/validate-iac.sh`,
+  Integration CI job `iac-lint`). The conditional VM module output uses a non-null assertion, and
+  ACR moved to API `2025-04-01`, the first GA version that accepts `anonymousPullEnabled`.
+- **Empty settings fall back to defaults.** `readEnvironmentVariable()` uses its default only for an
+  unset variable, and GitHub passes an unset repository variable as `''`. Both parameter files and
+  `main.bicep` (`publicDnsLabel`) now treat empty as the default. Without this, the public IP would
+  have received an empty DNS label.
+- **Key Vault after a teardown.** The vault name stays deterministic per resource group, and purge
+  protection stays on. `provision` recovers a soft-deleted vault from the same group, and
+  `AZURE_KEY_VAULT_NAME_SEED` gives an operator a fresh vault when that is wanted instead.
+- **First deployment tolerates propagation delays.** On the VM, the IMDS token, Key Vault reads,
+  the ACR token exchange and `compose pull` retry with bounded backoff (5 s doubling to 60 s,
+  `PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS`, default 12, about 8 minutes). This covers the minutes that a
+  new managed identity, role assignment or vault firewall rule takes to apply. `compose up --wait`
+  allows `PROPERTYSCOPE_STARTUP_WAIT_SECONDS` (default 900 instead of 300).
+- **Health checks.** Caddy answers `/healthz` on a loopback-only site (`127.0.0.1:8079`, never
+  published). The Feature 1 runner and loader have no HTTP surface, so their checks prove that each
+  reaches the dependency it polls (`f1-backend /health/live`, `f1-postgres:5432`).
+- **AI units** use `ReadWritePaths=-…/.propertyscope-runtime`, and the VM creates that Git-ignored
+  directory after each checkout. A missing directory can no longer fail a unit with `226/NAMESPACE`.
+- **Multi-Agent token.** The cloud AI overlay gives `multi_agent_service_token` to the Feature 1, 2,
+  4 and 5 backends, the ones that call the Multi-Agent Server in `docker-compose.yml`. It uses the
+  same secret-file shim as the AI-mode token. The baseline points their Multi-Agent URL at the
+  closed loopback port.
+- **Edge protection and B5 evidence.** `release-reviews` (Feature 1's Multi-Agent proxy, which
+  starts paid runs and records human decisions) joined the generic protected collections in
+  Caddy and in the nginx sensitive rate limit. The B5 burst moved from `/api/rate-limit-probe` to
+  `/fragments/rate-limit-probe`. The catch-all `location /api/` answers with `return`, which runs
+  in nginx's rewrite phase, before `limit_req`, so it could never produce a 429. A throwaway
+  nginx container with the production include now proves the 429.
+
+**17 October 2026, local rehearsal (still not provisioned).** `uv run scripts/dev.py cloud
+rehearse` runs the real `deploy.sh` push, deploy, smoke and validate commands against a
+Docker-in-Docker "VM" and a `registry:2` stand-in for ACR, with the Key Vault secrets in throwaway
+files and every `az` call refused (`deployment/azure/README.md`, "Local rehearsal"). The
+production VM script only gains a hook that sources `/etc/propertyscope/rehearsal.sh` when the
+file exists, and only the rehearsal image installs that file. Evidence:
+`docs/release-2/evidence/rehearsal/` (not the Azure deployment). The run found these bugs, now
+fixed:
+
+- **Bundle file modes.** The VM extracted the bundle as root with the modes from the operator's
+  checkout. From a 0600 checkout (Windows, or umask 077), nginx could not read its production
+  include and the edge never became healthy. The payload now makes the deployment files
+  world-readable after extraction.
+- **False passes on a dead edge.** `validate-endpoint-security.sh` accepted `000` (no answer) for
+  "valid operator credentials pass the edge", and "TLS 1.1 refused" passed while nothing answered
+  at all. The credentials check now needs a real answer from behind the edge, and the legacy TLS
+  check needs TLS 1.2 to answer `200` on the same URL. `EDGE_CA_FILE` lets the HTTP-level checks
+  trust a private CA; the publicly-trusted-certificate check never does.
+- **Deployed image identity.** The VM now prints `PROPERTYSCOPE_IMAGES` (each running container's
+  image and registry digest) before `PROPERTYSCOPE_RESULT`. `cloud_smoke.py --vm-log` records them
+  as the observed identity. `deploy.sh smoke` passes the registry, image tag, deploy SHA and VM log
+  through, and needs no Azure sign-in when the outputs are known. `push --reuse-images` pushes
+  images built earlier only when a build manifest for the same clean tag matches the local image
+  IDs.

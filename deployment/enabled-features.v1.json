@@ -35,7 +35,7 @@
       "health_path": "/health/ready",
       "owner": "student-1",
       "quality": {
-        "coverage_fail_under": 60,
+        "coverage_fail_under": 72,
         "coverage_packages": [
           "propertyscope_data_platform",
           "propertyscope_data_store"

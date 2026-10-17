@@ -49,7 +49,7 @@ onboarding:
     coverage_packages:
       - propertyscope_data_platform
       - propertyscope_data_store
-    coverage_fail_under: 60
+    coverage_fail_under: 72
   databases:
     - database_service: f1-postgres
       volumes:

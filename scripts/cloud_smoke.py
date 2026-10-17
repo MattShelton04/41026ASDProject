@@ -10,19 +10,37 @@ It checks, only through the public edge:
 - the Shared home page ``/`` and the edge liveness route ``/healthz``;
 - every enabled feature's frontend route and its health projection;
 - one self-cleaning CRUD case per feature, owned by that feature: create a uniquely named
-  resource, read it back, delete it and confirm it is gone;
+  resource, read it back, update it where the feature registers an update (Feature 1), delete it
+  and confirm it is gone;
 - that the shared AI tier reports itself disabled (the cloud baseline), or with ``--expect-ai``
   that it is reachable (bonus tiers).
 
 Results are written as ``cloud-smoke.json`` and ``cloud-smoke.md``. Every CRUD case deletes what
 it created, even when a later step fails. The script sends no credentials and never calls an AI
 route that would create a run.
+
+The JSON document is the contract the Cloud Deployment Report Review reads
+(``scripts/devtools/review/cloud.py``; documented in docs/release-2/review-modes.md):
+``schema_version`` 2, ``base_url``, ``commit_sha``, ``image_tag``, ``registry``, ``images``
+(service -> reference), ``images_source``, ``ai_enabled`` (observed by the AI check: ``false``
+only for an explicit ``ai_disabled`` answer), ``ai_state``, ``started_at``/``finished_at``,
+``passed``, ``summary`` and ``checks`` (``name``, ``owner``, ``category``, ``operation``,
+``passed``, ``detail``, ``method``, ``path``, ``status_code``, ``duration_ms``). The deployment
+identity comes from ``--commit-sha``/``--image-tag``/``--registry``/``--image`` or, as
+``deploy.sh smoke`` runs it, from ``PROPERTYSCOPE_DEPLOY_SHA`` (or ``PROPERTYSCOPE_GIT_SHA``),
+``IMAGE_TAG`` and ``ACR_LOGIN_SERVER`` (``deploy.sh smoke`` passes all three as options). The
+image list is, in order of preference: ``--image`` arguments; the images the VM reported running
+(``--vm-log vm-deploy.log``, its ``PROPERTYSCOPE_IMAGES`` line, with registry digests; ``deploy.sh
+smoke`` passes it after a deploy); or every ``${IMAGE_TAG}`` image in ``docker-compose.azure.yml``.
+``images_source`` says which one was used.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import sys
 import time
 import uuid
@@ -44,6 +62,21 @@ SHOWCASE_PROPERTY_REF = "a0000000-0000-0000-0000-000000000001"
 SHOWCASE_ADDRESS = "11 Example Street, Sydney NSW 2000"
 PROPERTY_QUERIES = ("11 Example Street", "1 Fixture Street")
 AI_HEALTH_PATH = "/api/shared-health/ai-mode"
+SCHEMA_VERSION = 2
+SMOKE_JSON = "cloud-smoke.json"
+SMOKE_MARKDOWN = "cloud-smoke.md"
+AZURE_COMPOSE_FILE = REPOSITORY_ROOT / "docker-compose.azure.yml"
+AZURE_IMAGE = re.compile(r"/propertyscope/([a-z0-9][a-z0-9-]*):\$\{IMAGE_TAG\b")
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
+IMAGE_TAG = re.compile(r"[A-Za-z0-9_.-]{1,128}")
+REGISTRY = re.compile(r"[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?")
+SERVICE_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
+IMAGE_REFERENCE = re.compile(r"[A-Za-z0-9./:@_-]{1,512}")
+# propertyscope-vm.sh prints the images its running containers use (with registry digests).
+VM_IMAGES_LINE = re.compile(r"^PROPERTYSCOPE_IMAGES=(\{.*\})\s*$", re.MULTILINE)
+VM_IMAGES_SOURCE = "the VM (docker compose ps, PROPERTYSCOPE_IMAGES in vm-deploy.log)"
+# What the Feature 1 update writes and then reads back.
+UPDATED_NOTES = "Updated by scripts/cloud_smoke.py; deleted at the end of the case."
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +92,9 @@ class CheckResult:
     path: str = ""
     status_code: int | None = None
     duration_ms: int = 0
+    # CRUD step: create, read, update, confirm-update, delete, confirm-deleted, cleanup-retry,
+    # request (a transport failure) or missing-case; empty for page, health and AI checks.
+    operation: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +114,11 @@ class FeatureRoutes:
 
 @dataclass(slots=True)
 class CrudCase:
-    """A create -> read -> delete -> confirm-gone cycle on one feature-owned resource."""
+    """A create -> read -> [update] -> delete -> confirm-gone cycle on one feature resource.
+
+    ``update`` builds the PUT body from the create body and the record as read back; the case
+    then checks that ``update_field`` changed in the PUT response and in a fresh read.
+    """
 
     owner: str
     resource: str
@@ -87,7 +127,21 @@ class CrudCase:
     extract: Callable[[dict[str, Any]], dict[str, Any]]
     name_field: str
     delete_statuses: tuple[int, ...] = (200, 204)
+    update: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None = None
+    update_field: str = ""
+    update_statuses: tuple[int, ...] = (200,)
     created_id: str | None = field(default=None)
+
+
+@dataclass(frozen=True, slots=True)
+class DeploymentIdentity:
+    """What was deployed, as the deployment told the smoke test (it cannot see the VM)."""
+
+    commit_sha: str | None = None
+    image_tag: str | None = None
+    registry: str | None = None
+    images: Mapping[str, str] = field(default_factory=dict)
+    images_source: str = "not recorded"
 
 
 def load_features(path: Path = ENABLED_FEATURES) -> tuple[FeatureRoutes, ...]:
@@ -114,8 +168,72 @@ def load_features(path: Path = ENABLED_FEATURES) -> tuple[FeatureRoutes, ...]:
     return tuple(features)
 
 
-def _unique_name(kind: str) -> str:
-    return f"{SMOKE_PREFIX}-{kind}-{uuid.uuid4().hex[:10]}"
+def azure_image_services(path: Path = AZURE_COMPOSE_FILE) -> tuple[str, ...]:
+    """Services whose Azure image is tagged ``${IMAGE_TAG}`` (third-party mirrors excluded)."""
+    if not path.is_file():
+        return ()
+    return tuple(sorted(set(AZURE_IMAGE.findall(path.read_text(encoding="utf-8")))))
+
+
+def vm_images(text: str) -> dict[str, str]:
+    """The last service -> image object the VM printed (``PROPERTYSCOPE_IMAGES=``), or ``{}``.
+
+    run-command returns only the tail of the output, so a cut-off line is ignored rather than
+    trusted in part.
+    """
+    for candidate in reversed(VM_IMAGES_LINE.findall(text)):
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(value, dict)
+            and value
+            and all(isinstance(key, str) and isinstance(item, str) for key, item in value.items())
+        ):
+            return dict(value)
+    return {}
+
+
+def deployment_identity(
+    *,
+    commit_sha: str | None,
+    image_tag: str | None,
+    registry: str | None,
+    images: Mapping[str, str] | None = None,
+    services: Sequence[str] = (),
+    observed: Mapping[str, str] | None = None,
+) -> DeploymentIdentity:
+    """Validate the deployment identity and derive the image references from the tag.
+
+    Explicit ``images`` win, then the images the VM reported running (``observed``), then
+    references derived from the tag for every ``services`` entry.
+    """
+    commit = (commit_sha or "").strip().lower() or None
+    if commit is not None and not COMMIT_SHA.fullmatch(commit):
+        raise ValueError("the commit SHA must be 40 hexadecimal characters")
+    tag = (image_tag or "").strip() or None
+    if tag is not None and not IMAGE_TAG.fullmatch(tag):
+        raise ValueError("the image tag must match [A-Za-z0-9_.-]{1,128}")
+    host = (registry or "").strip().rstrip("/") or None
+    if host is not None and not REGISTRY.fullmatch(host):
+        raise ValueError("the registry must be a host name, e.g. example.azurecr.io")
+    explicit = dict(images or {})
+    reported = dict(observed or {})
+    for service, reference in (*explicit.items(), *reported.items()):
+        if not SERVICE_NAME.fullmatch(service) or not IMAGE_REFERENCE.fullmatch(reference):
+            raise ValueError(f"invalid image reference {service}={reference}")
+    if explicit:
+        return DeploymentIdentity(commit, tag, host, explicit, "--image arguments")
+    if reported:
+        return DeploymentIdentity(commit, tag, host, reported, VM_IMAGES_SOURCE)
+    if tag is not None and services:
+        prefix = f"{host}/" if host else ""
+        derived = {service: f"{prefix}propertyscope/{service}:{tag}" for service in services}
+        return DeploymentIdentity(
+            commit, tag, host, derived, "docker-compose.azure.yml with IMAGE_TAG"
+        )
+    return DeploymentIdentity(commit, tag, host)
 
 
 def _bare(payload: dict[str, Any]) -> dict[str, Any]:
@@ -146,6 +264,14 @@ def _feature_1_source(_smoke: Smoke, name: str) -> dict[str, Any]:
         "status": "draft",
         "notes": "Created and deleted by scripts/cloud_smoke.py.",
     }
+
+
+def _feature_1_source_update(body: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """Feature 1 ``SourceDefinitionUpdate``: the full definition plus the version read back."""
+    version = current.get("version")
+    if not isinstance(version, int) or isinstance(version, bool):
+        raise ValueError("the read-back source definition has no integer version")
+    return {**body, "notes": UPDATED_NOTES, "version": version}
 
 
 def _feature_2_case(smoke: Smoke, name: str) -> dict[str, Any]:
@@ -190,6 +316,8 @@ CRUD_CASES: Mapping[str, Callable[[], CrudCase]] = {
         extract=_wrapped("source"),
         name_field="name",
         delete_statuses=(204,),
+        update=_feature_1_source_update,
+        update_field="notes",
     ),
     "student-2-market-intelligence": lambda: CrudCase(
         owner="student-2",
@@ -229,13 +357,25 @@ CRUD_CASES: Mapping[str, Callable[[], CrudCase]] = {
 class Smoke:
     """Runs every check against one base URL and records the results in order."""
 
-    def __init__(self, client: httpx.Client, *, base_url: str, ai_timeout: float = 15.0) -> None:
+    def __init__(
+        self,
+        client: httpx.Client,
+        *,
+        base_url: str,
+        ai_timeout: float = 15.0,
+        unique: Callable[[], str] | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.client = client
         self.base_url = base_url.rstrip("/")
         self.ai_timeout = ai_timeout
         self.cleanup_attempts = 3
         self.cleanup_delay = 2.0
         self.results: list[CheckResult] = []
+        # What the AI check observed: disabled, available, unreachable; None when not checked.
+        self.ai_state: str | None = None
+        self._unique = unique or (lambda: uuid.uuid4().hex[:10])
+        self._monotonic = monotonic
         self._property: tuple[str, str] | None = None
 
     # --- recording -------------------------------------------------------------------------
@@ -248,8 +388,11 @@ class Smoke:
 
     @contextmanager
     def timed(self) -> Iterator[Callable[[], int]]:
-        started = time.monotonic()
-        yield lambda: int((time.monotonic() - started) * 1000)
+        started = self._monotonic()
+        yield lambda: int((self._monotonic() - started) * 1000)
+
+    def unique_name(self, kind: str) -> str:
+        return f"{SMOKE_PREFIX}-{kind}-{self._unique()}"
 
     def request(
         self, method: str, path: str, *, timeout: float | None = None, **kwargs: Any
@@ -356,7 +499,7 @@ class Smoke:
         raise ValueError("no Feature 1 property is available to reference")
 
     def run_crud(self, case: CrudCase) -> None:
-        name = _unique_name(case.owner)
+        name = self.unique_name(case.owner)
         label = f"CRUD {case.resource}"
         try:
             self._crud_steps(case, name, label)
@@ -369,6 +512,7 @@ class Smoke:
                     False,
                     _error(exc),
                     path=case.collection,
+                    operation="request",
                 )
             )
         finally:
@@ -388,6 +532,7 @@ class Smoke:
                     f"prerequisite failed: {exc}",
                     "POST",
                     case.collection,
+                    operation="create",
                 )
             )
             return
@@ -414,6 +559,7 @@ class Smoke:
                 case.collection,
                 response.status_code,
                 elapsed(),
+                operation="create",
             )
         )
         if case.created_id is None:
@@ -421,23 +567,97 @@ class Smoke:
         item = f"{case.collection}/{case.created_id}"
         with self.timed() as elapsed:
             response = self.request("GET", item)
-        read_name: object = None
-        try:
-            read_name = case.extract(response.json()).get(case.name_field)
-        except (ValueError, AttributeError):
-            read_name = None
+        current = _extracted(case, response, (200,))
+        read_name = current.get(case.name_field)
+        read_ok = response.status_code == 200 and read_name == name
         self.record(
             CheckResult(
                 f"{label}: read",
                 case.owner,
                 "crud",
-                response.status_code == 200 and read_name == name,
+                read_ok,
                 f"HTTP {response.status_code}, {case.name_field} "
                 + ("matches" if read_name == name else f"is {read_name!r}"),
                 "GET",
                 item,
                 response.status_code,
                 elapsed(),
+                operation="read",
+            )
+        )
+        if case.update is not None and read_ok:
+            self._update_steps(case, case.update, body, current, label)
+
+    def _update_steps(
+        self,
+        case: CrudCase,
+        build: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]],
+        body: dict[str, Any],
+        current: dict[str, Any],
+        label: str,
+    ) -> None:
+        """PUT a changed field, then read the record again to prove the change persisted."""
+        item = f"{case.collection}/{case.created_id}"
+        try:
+            update = build(dict(body), current)
+        except ValueError as exc:
+            self.record(
+                CheckResult(
+                    f"{label}: update",
+                    case.owner,
+                    "crud",
+                    False,
+                    f"prerequisite failed: {exc}",
+                    "PUT",
+                    item,
+                    operation="update",
+                )
+            )
+            return
+        wanted = update.get(case.update_field)
+        with self.timed() as elapsed:
+            response = self.request("PUT", item, json=update)
+        accepted = response.status_code in case.update_statuses
+        updated = _extracted(case, response, case.update_statuses).get(case.update_field)
+        changed = accepted and updated == wanted
+        if changed:
+            outcome = "changed"
+        elif accepted:
+            outcome = f"is {updated!r}"
+        else:
+            outcome = f"not changed: {_problem(response)}"
+        self.record(
+            CheckResult(
+                f"{label}: update",
+                case.owner,
+                "crud",
+                changed,
+                f"HTTP {response.status_code}, {case.update_field} {outcome}",
+                "PUT",
+                item,
+                response.status_code,
+                elapsed(),
+                operation="update",
+            )
+        )
+        if not changed:
+            return
+        with self.timed() as elapsed:
+            response = self.request("GET", item)
+        persisted = _extracted(case, response, (200,)).get(case.update_field)
+        self.record(
+            CheckResult(
+                f"{label}: confirm update",
+                case.owner,
+                "crud",
+                response.status_code == 200 and persisted == wanted,
+                f"HTTP {response.status_code}, {case.update_field} "
+                + ("persisted" if persisted == wanted else f"is {persisted!r}"),
+                "GET",
+                item,
+                response.status_code,
+                elapsed(),
+                operation="confirm-update",
             )
         )
 
@@ -458,6 +678,7 @@ class Smoke:
                     item,
                     response.status_code,
                     elapsed(),
+                    operation="delete",
                 )
             )
             with self.timed() as elapsed:
@@ -473,6 +694,7 @@ class Smoke:
                     item,
                     response.status_code,
                     elapsed(),
+                    operation="confirm-deleted",
                 )
             )
             if response.status_code != 404:
@@ -487,6 +709,7 @@ class Smoke:
                     f"{_error(exc)}; remove {item} manually",
                     "DELETE",
                     item,
+                    operation="delete",
                 )
             )
 
@@ -510,6 +733,7 @@ class Smoke:
                 "DELETE",
                 item,
                 status,
+                operation="cleanup-retry",
             )
         )
 
@@ -537,6 +761,7 @@ class Smoke:
             else:
                 state = "unreachable"
             detail = f"HTTP {response.status_code}" + (f", code {code}" if code else "")
+        self.ai_state = state
         if expect_ai:
             passed = state == "available"
             name = "AI tier reachable (--expect-ai)"
@@ -584,6 +809,7 @@ class Smoke:
                             "crud",
                             False,
                             "no cloud CRUD smoke case is registered for this feature",
+                            operation="missing-case",
                         )
                     )
                     continue
@@ -595,6 +821,17 @@ class Smoke:
 
 def _error(exc: httpx.HTTPError) -> str:
     return f"{type(exc).__name__}: {exc}"[:300]
+
+
+def _extracted(case: CrudCase, response: httpx.Response, statuses: Sequence[int]) -> dict[str, Any]:
+    """The feature's record from a response with an accepted status, or ``{}``."""
+    if response.status_code not in statuses:
+        return {}
+    try:
+        payload = response.json()
+        return case.extract(payload) if isinstance(payload, dict) else {}
+    except ValueError:
+        return {}
 
 
 def _problem_code(response: httpx.Response) -> str | None:
@@ -626,6 +863,45 @@ def summarise(results: Sequence[CheckResult]) -> dict[str, Any]:
     }
 
 
+def ai_enabled(state: str | None) -> bool | None:
+    """The observed AI flag: only an explicit answer counts; unreachable proves nothing."""
+    return {"disabled": False, "available": True}.get(state or "")
+
+
+def build_document(
+    *,
+    base_url: str,
+    results: Sequence[CheckResult],
+    expect_ai: bool,
+    started_at: datetime,
+    finished_at: datetime | None = None,
+    identity: DeploymentIdentity | None = None,
+    ai_state: str | None = None,
+) -> dict[str, Any]:
+    """The cloud-smoke.json document (schema version 2, see the module docstring)."""
+    deployed = identity or DeploymentIdentity()
+    summary = summarise(results)
+    finished = finished_at or datetime.now(UTC)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "tool": "scripts/cloud_smoke.py",
+        "base_url": base_url,
+        "commit_sha": deployed.commit_sha,
+        "image_tag": deployed.image_tag,
+        "registry": deployed.registry,
+        "images": dict(sorted(deployed.images.items())),
+        "images_source": deployed.images_source,
+        "ai_enabled": ai_enabled(ai_state),
+        "ai_state": ai_state or "not_checked",
+        "expect_ai": expect_ai,
+        "started_at": started_at.isoformat(timespec="seconds"),
+        "finished_at": finished.isoformat(timespec="seconds"),
+        "passed": summary["failed"] == 0,
+        "summary": summary,
+        "checks": [asdict(result) for result in results],
+    }
+
+
 def write_reports(
     output_dir: Path,
     *,
@@ -633,37 +909,38 @@ def write_reports(
     results: Sequence[CheckResult],
     expect_ai: bool,
     started_at: datetime,
+    identity: DeploymentIdentity | None = None,
+    ai_state: str | None = None,
 ) -> dict[str, Any]:
     """Write cloud-smoke.json and cloud-smoke.md; return the JSON document."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    summary = summarise(results)
-    document: dict[str, Any] = {
-        "schema_version": 1,
-        "tool": "scripts/cloud_smoke.py",
-        "base_url": base_url,
-        "started_at": started_at.isoformat(timespec="seconds"),
-        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "expect_ai": expect_ai,
-        "passed": summary["failed"] == 0,
-        "summary": summary,
-        "checks": [asdict(result) for result in results],
-    }
-    (output_dir / "cloud-smoke.json").write_text(
-        json.dumps(document, indent=2) + "\n", encoding="utf-8"
+    document = build_document(
+        base_url=base_url,
+        results=results,
+        expect_ai=expect_ai,
+        started_at=started_at,
+        identity=identity,
+        ai_state=ai_state,
     )
-    (output_dir / "cloud-smoke.md").write_text(render_markdown(document), encoding="utf-8")
+    (output_dir / SMOKE_JSON).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    (output_dir / SMOKE_MARKDOWN).write_text(render_markdown(document), encoding="utf-8")
     return document
 
 
 def render_markdown(document: Mapping[str, Any]) -> str:
     summary = document["summary"]
     verdict = "PASSED" if document["passed"] else "FAILED"
+    images = document.get("images") or {}
     lines = [
         "# Cloud smoke test",
         "",
         f"- Target: `{document['base_url']}`",
+        f"- Commit: `{document.get('commit_sha') or 'not recorded'}`; image tag "
+        f"`{document.get('image_tag') or 'not recorded'}`; {len(images)} image reference(s) "
+        f"from {document.get('images_source', 'not recorded')}",
         f"- Started: {document['started_at']} (finished {document['finished_at']})",
-        f"- AI expectation: {'reachable (--expect-ai)' if document['expect_ai'] else 'disabled'}",
+        f"- AI expectation: {'reachable (--expect-ai)' if document['expect_ai'] else 'disabled'}; "
+        f"observed: {document.get('ai_state', 'not_checked')}",
         f"- Result: **{verdict}**, {summary['passed']} of {summary['total']} checks passed",
         "",
         "| Owner | Passed | Failed |",
@@ -686,9 +963,14 @@ def render_markdown(document: Mapping[str, Any]) -> str:
     lines += [
         "",
         "Every CRUD case creates a uniquely named record through the owning feature's public API, "
-        "reads it back, deletes it and confirms the delete. No credentials are sent.",
+        "reads it back, updates it where the feature registers an update, deletes it and "
+        "confirms the delete. No credentials are sent.",
         "",
     ]
+    if images:
+        lines += ["| Service | Image |", "|---|---|"]
+        lines += [f"| {service} | `{reference}` |" for service, reference in images.items()]
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -716,14 +998,74 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip TLS verification (only before the first certificate is issued)",
     )
+    identity = parser.add_argument_group(
+        "deployment identity", "Recorded in cloud-smoke.json for the Cloud Deployment Review"
+    )
+    identity.add_argument(
+        "--commit-sha",
+        help="Deployed commit (default: $PROPERTYSCOPE_DEPLOY_SHA, then $PROPERTYSCOPE_GIT_SHA)",
+    )
+    identity.add_argument("--image-tag", help="Deployed image tag (default: $IMAGE_TAG)")
+    identity.add_argument("--registry", help="Image registry (default: $ACR_LOGIN_SERVER)")
+    identity.add_argument(
+        "--image",
+        action="append",
+        default=[],
+        metavar="SERVICE=REFERENCE",
+        help="An explicit image reference, e.g. a digest; replaces the derived list",
+    )
+    identity.add_argument(
+        "--vm-log",
+        type=Path,
+        help="vm-deploy.log from deploy.sh deploy: record the images the VM reported running "
+        "(its PROPERTYSCOPE_IMAGES line) instead of deriving them from the tag",
+    )
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, transport: httpx.BaseTransport | None = None) -> int:
+def identity_from(
+    arguments: argparse.Namespace, environment: Mapping[str, str]
+) -> DeploymentIdentity:
+    """Resolve the deployment identity from the CLI, then the deploy.sh environment."""
+    images: dict[str, str] = {}
+    for value in arguments.image:
+        service, separator, reference = value.partition("=")
+        if not separator:
+            raise ValueError(f"--image must be SERVICE=REFERENCE, got {value!r}")
+        images[service.strip()] = reference.strip()
+    observed: dict[str, str] = {}
+    if arguments.vm_log is not None:
+        try:
+            observed = vm_images(arguments.vm_log.read_text(encoding="utf-8", errors="replace"))
+        except OSError as exc:
+            raise ValueError(f"cannot read --vm-log {arguments.vm_log}: {exc}") from exc
+    return deployment_identity(
+        commit_sha=arguments.commit_sha
+        or environment.get("PROPERTYSCOPE_DEPLOY_SHA")
+        or environment.get("PROPERTYSCOPE_GIT_SHA"),
+        image_tag=arguments.image_tag or environment.get("IMAGE_TAG"),
+        registry=arguments.registry or environment.get("ACR_LOGIN_SERVER"),
+        images=images,
+        services=azure_image_services(),
+        observed=observed,
+    )
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    transport: httpx.BaseTransport | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> int:
     arguments = _parser().parse_args(argv)
     base_url = arguments.base_url.rstrip("/")
     if not base_url.startswith(("http://", "https://")):
         print("--base-url must start with http:// or https://", file=sys.stderr)
+        return 2
+    try:
+        identity = identity_from(arguments, os.environ if environment is None else environment)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
         return 2
     started_at = datetime.now(UTC)
     with httpx.Client(
@@ -746,6 +1088,8 @@ def main(argv: Sequence[str] | None = None, *, transport: httpx.BaseTransport | 
         results=results,
         expect_ai=arguments.expect_ai,
         started_at=started_at,
+        identity=identity,
+        ai_state=smoke.ai_state,
     )
     summary = document["summary"]
     print(

@@ -36,6 +36,18 @@ Successful `structuredContent` matches the original registered output schema. Pr
 evidence references. AI-mode reconstructs and validates the complete `ToolResult`; mismatched
 correlation or malformed output fails safely. Tool calls never access student databases.
 
+Every tool call writes one JSON line to stdout (the host log `.propertyscope-runtime/host/mcp.log`)
+in AI-mode's log schema, with `event: mcp.tool_call.completed`, `tool_name`, `tool_version`,
+`outcome` (`success`, `failure` or `rejected`), `tool_outcome`, `duration_ms` and `error_code`.
+`request_id`, `run_id`, `step_id`, `tool_call_id` and the caller's `feature_key` come only from
+the verified signed context, so a rejection before verification logs them as `null`. A rejection
+logs only a reason category (`unknown_tool`, `missing_invocation`, `invalid_invocation`,
+`scope_mismatch`, `invalid_arguments`, `policy_denied`, `replay_rejected` or
+`deadline_exceeded`); an unregistered tool name is not echoed. Arguments, structured results,
+signed metadata, tokens and exception messages are never written. The shared tool runtime's
+`agent.tool.completed` dispatch records use the same format. `MCP_LOG_LEVEL` (default `INFO`)
+sets the level; uvicorn keeps its own access lines.
+
 `uv run pytest ai-services/mcp-server/tests shared/tool-runtime/tests` exercises real SDK
 negotiation, discovery, resources and calls through in-process memory/ASGI transports, without
 network, credentials, Docker or a live MCP service. Explicit local release validation exercises

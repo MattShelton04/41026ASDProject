@@ -25,8 +25,9 @@ param namePrefix string = 'propertyscope'
 ])
 param environmentName string = 'prod'
 
-@description('Public DNS label (<label>.<region>.cloudapp.azure.com). Defaults to a stable unique label.')
-param dnsLabel string = '${namePrefix}-${environmentName}-${take(uniqueString(resourceGroup().id), 6)}'
+@maxLength(63)
+@description('Public DNS label (<label>.<region>.cloudapp.azure.com). Empty, or omitted, selects a stable unique label.')
+param dnsLabel string = ''
 
 @description('VM size; 16 GiB RAM or more (Standard_D4s_v5 = 4 vCPU / 16 GiB).')
 param vmSize string = 'Standard_D4s_v5'
@@ -78,6 +79,7 @@ param secretOfficerPrincipalIds array = []
   'Group'
   'ServicePrincipal'
 ])
+#disable-next-line secure-secrets-in-params // A principal type (User/Group/ServicePrincipal), not a secret.
 param secretOfficerPrincipalType string = 'User'
 
 @description('Create a monthly consumption budget on the resource group.')
@@ -91,6 +93,10 @@ param budgetStartDate string = '2026-10-01'
 
 @description('Budget alert recipients.')
 param budgetContactEmails array = []
+
+@maxLength(24)
+@description('Optional salt for the Key Vault name. Leave empty: deploy.sh recovers a soft-deleted vault of the same name instead. Set it only to start with a fresh, empty vault after a teardown (see README, Teardown).')
+param keyVaultNameSeed string = ''
 
 param tags object = {}
 
@@ -106,15 +112,21 @@ var allTags = union(
   tags
 )
 var vmName = '${baseName}-vm'
+// An empty label (for example an unset GitHub variable passed through as '') never reaches ARM.
+var publicDnsLabel = empty(dnsLabel) ? '${baseName}-${take(suffix, 6)}' : toLower(dnsLabel)
+// namePrefix (3+), environmentName (3+) and the 13-character suffix: always 5-50 characters.
 var registryName = take(toLower(replace('${namePrefix}${environmentName}${suffix}', '-', '')), 50)
-var keyVaultName = take('${take(namePrefix, 8)}-kv-${suffix}', 24)
+// Deterministic per resource group, so redeploys converge on the same vault. Purge protection keeps
+// a deleted vault (and its name) for the retention period; deploy.sh recovers it (ADR-048).
+var keyVaultSuffix = empty(keyVaultNameSeed) ? suffix : uniqueString(resourceGroup().id, keyVaultNameSeed)
+var keyVaultName = take('${take(namePrefix, 8)}-kv-${keyVaultSuffix}', 24)
 
 module network 'modules/network.bicep' = {
   name: 'propertyscope-network'
   params: {
     location: location
     namePrefix: baseName
-    dnsLabel: dnsLabel
+    dnsLabel: publicDnsLabel
     tags: allTags
   }
 }
@@ -123,6 +135,7 @@ module registry 'modules/registry.bicep' = {
   name: 'propertyscope-registry'
   params: {
     location: location
+    #disable-next-line BCP334 // Always 5-50 characters: see the registryName variable.
     registryName: registryName
     sku: acrSku
     tags: allTags
@@ -162,8 +175,9 @@ resource existingVm 'Microsoft.Compute/virtualMachines@2024-07-01' existing = {
 }
 
 // ARM evaluates only the selected branch of a conditional, so the existing-VM reference is never
-// read while the VM is being created in the same deployment.
-var vmPrincipalId = deployVirtualMachine ? virtualMachine.outputs.principalId : existingVm.identity.principalId
+// read while the VM is being created in the same deployment, and the module output is read only
+// when the module is deployed (hence the non-null assertion).
+var vmPrincipalId = deployVirtualMachine ? virtualMachine!.outputs.principalId : existingVm.identity.principalId
 
 module access 'modules/access.bicep' = {
   name: 'propertyscope-access'
@@ -209,6 +223,7 @@ output publicUrl string = 'https://${network.outputs.fqdn}'
 output acrName string = registry.outputs.registryName
 output acrLoginServer string = registry.outputs.loginServer
 output vmName string = vmName
+output dnsLabel string = publicDnsLabel
 output vmPrincipalId string = vmPrincipalId
 output keyVaultName string = keyVault.outputs.keyVaultName
 output keyVaultUri string = keyVault.outputs.keyVaultUri

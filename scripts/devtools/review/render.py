@@ -1,25 +1,44 @@
-"""Markdown review reports and append-only JSONL validation-log entries."""
+"""Markdown review reports and append-only JSONL validation-log entries.
+
+The report is written to be pasted into a technical report: the verdict and its basis first,
+then coverage by evidence owner, findings grouped by root cause, risks and recommendations.
+The checklist collapses the checks a failed root blocked into one row per root, and the
+collected facts are a compact table; the full facts and every check stay in the validation log.
+"""
 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import JsonValue
 
-from scripts.devtools.review.deterministic import MODE_TITLES
+from scripts.devtools.review.deterministic import MODE_TITLES, join_names
 from shared_contracts.evidence_review import (
+    UNASSIGNED_OWNER,
     CheckStatus,
+    EvidenceCheck,
     EvidenceReviewBundle,
+    EvidenceReviewFinding,
     EvidenceReviewOutput,
+    OwnerCoverage,
+    OwnerStatus,
     ReviewVerdict,
+    blocked_by_root,
+    owner_coverage,
 )
 
 DECISION_START = "<!-- release-decision:start -->"
 DECISION_END = "<!-- release-decision:end -->"
-LOG_SCHEMA_VERSION = "1.0"
+LOG_SCHEMA_VERSION = "1.1"
+"""1.1 added per-check ``owner``/``blocked_by``, ``checks_blocked``, ``owners`` and ``facts``."""
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+_MAX_FACT_ROWS = 40
+_MAX_FACT_CELL = 60
+_SHA = re.compile(r"^[0-9a-f]{40,64}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,9 +73,20 @@ class ReviewRecord:
     tool_evidence: tuple[str, ...]
 
 
+def check_counts(bundle: EvidenceReviewBundle) -> dict[CheckStatus, int]:
+    """Count checks by status."""
+    counts = dict.fromkeys(CheckStatus, 0)
+    for check in bundle.checks:
+        counts[check.status] += 1
+    return counts
+
+
 def render_report(record: ReviewRecord, *, log_name: str, decision_hint: str | None) -> str:
-    """Render the human-readable review, newest evidence and verdict first."""
+    """Render the human-readable review, verdict and root causes first."""
     title = MODE_TITLES[record.mode]
+    bundle = record.bundle
+    coverage = owner_coverage(bundle)
+    counts = check_counts(bundle)
     run = (
         f"`{record.run_id}` (AI-mode Activity history)"
         if record.engine == "ai-mode"
@@ -75,6 +105,8 @@ def render_report(record: ReviewRecord, *, log_name: str, decision_hint: str | N
         f"| Verdict | **{record.verdict.value}** |",
         f"| Checklist verdict | {record.checklist_verdict.value} |",
         f"| Model verdict | {record.model_verdict.value if record.model_verdict else 'n/a'} |",
+        f"| Checks | {counts[CheckStatus.PASSED]} passed, {counts[CheckStatus.FAILED]} failed, "
+        f"{counts[CheckStatus.BLOCKED]} blocked (not evaluated) of {len(bundle.checks)} |",
         f"| Engine | {_cell(record.engine_label)} |",
         f"| Review ID | `{record.review_id}` |",
         f"| Loop run ID | {run} |",
@@ -96,45 +128,18 @@ def render_report(record: ReviewRecord, *, log_name: str, decision_hint: str | N
             "This report is the deterministic checklist review.",
             "",
         ]
-    lines += ["## Summary", "", record.output.summary, ""]
     lines += [
-        "## Inputs",
+        "## Summary",
         "",
-        "| Path | Status | Bytes | SHA-256 |",
-        "|---|---|---:|---|",
+        _inline(record.output.summary),
+        "",
+        f"**Verdict basis:** {verdict_basis(record, coverage)}",
+        "",
     ]
-    for item in record.bundle.inputs:
-        status = item.status.value + (f" ({item.detail})" if item.detail else "")
-        lines.append(
-            f"| `{_cell(item.path)}` | {_cell(status)} | "
-            f"{'' if item.bytes is None else item.bytes} | {_code(item.sha256)} |"
-        )
-    if not record.bundle.inputs:
-        lines.append("| none | | | |")
-    passed = sum(1 for check in record.bundle.checks if check.status is CheckStatus.PASSED)
-    lines += [
-        "",
-        f"## Checklist ({passed}/{len(record.bundle.checks)} passed)",
-        "",
-        "| Check | Required | Result | Detail |",
-        "|---|---|---|---|",
-    ]
-    for check in record.bundle.checks:
-        mark = "pass" if check.status is CheckStatus.PASSED else "**FAIL**"
-        lines.append(
-            f"| `{check.id}` {_cell(check.title)} | {'yes' if check.required else 'advisory'} "
-            f"| {mark} | {_cell(check.detail)} |"
-        )
-    lines += ["", "## Findings", ""]
-    if record.output.findings:
-        lines += ["| Severity | Area | Finding | Evidence |", "|---|---|---|---|"]
-        for finding in record.output.findings:
-            lines.append(
-                f"| {finding.severity.value} | {_cell(finding.area)} | {_cell(finding.message)} "
-                f"| {_cell(', '.join(finding.evidence_refs))} |"
-            )
-    else:
-        lines.append("No findings.")
+    if coverage:
+        lines += _coverage_section(coverage)
+    lines += ["## Findings", ""]
+    lines += _findings_section(record.output.findings, bundle, coverage=bool(coverage))
     lines += ["", "## Risks", ""]
     lines += _bullets(
         f"**{risk.severity.value}**: {risk.description} Mitigation: {risk.mitigation}"
@@ -144,28 +149,300 @@ def render_report(record: ReviewRecord, *, log_name: str, decision_hint: str | N
     lines += _bullets(record.output.recommendations)
     lines += [
         "",
+        f"## Checklist ({counts[CheckStatus.PASSED]} passed, {counts[CheckStatus.FAILED]} "
+        f"failed, {counts[CheckStatus.BLOCKED]} blocked of {len(bundle.checks)})",
+        "",
+    ]
+    lines += _checklist_section(bundle, owners=bool(coverage))
+    lines += [
+        "",
+        "## Inputs",
+        "",
+        "| Path | Status | Bytes | SHA-256 |",
+        "|---|---|---:|---|",
+    ]
+    for item in bundle.inputs:
+        status = item.status.value + (f" ({item.detail})" if item.detail else "")
+        lines.append(
+            f"| `{_cell(item.path)}` | {_cell(status)} | "
+            f"{'' if item.bytes is None else item.bytes} | {_code(item.sha256)} |"
+        )
+    if not bundle.inputs:
+        lines.append("| none | | | |")
+    lines += [
+        "",
         "## Validation",
         "",
         f"- Output schema: `evidence-review-output.v1` — {_cell(record.validation_detail)}",
         "- The verdict is the stricter of the model verdict and the deterministic checklist "
         "verdict; a model cannot relax a failed required check.",
+        "- A blocked check was not evaluated because the root check it names failed. It counts "
+        "against the verdict like a failure, but records evidence its owner has not supplied, "
+        "not a defect in the behaviour it would have checked.",
         f"- Tool evidence recorded by the run: {len(record.tool_evidence)} reference(s).",
         "",
         "## Collected facts",
         "",
-        "```json",
-        json.dumps(record.bundle.facts, indent=2, sort_keys=True),
-        "```",
+        f"A compact view; the complete facts are in this review's `{log_name}` entry (`facts`).",
+        "",
     ]
+    lines += facts_section(bundle.facts)
     if decision_hint is not None:
         lines += ["", "## Human release decision", "", DECISION_START, decision_hint, DECISION_END]
     return "\n".join(lines) + "\n"
 
 
+def verdict_basis(record: ReviewRecord, coverage: Sequence[OwnerCoverage]) -> str:
+    """One sentence that attributes the verdict to root causes and owners."""
+    bundle = record.bundle
+    unmet = [check for check in bundle.checks if check.status is not CheckStatus.PASSED]
+    if not unmet:
+        text = f"all {len(bundle.checks)} checks passed."
+    elif coverage:
+        groups: dict[OwnerStatus, list[str]] = {}
+        for item in coverage:
+            groups.setdefault(item.status, []).append(item.owner)
+        text = (
+            "; ".join(
+                f"{status.label} for {join_names(owners)}"
+                for status, owners in groups.items()
+                if status is not OwnerStatus.COMPLETE
+            )
+            + "."
+        )
+        complete = groups.get(OwnerStatus.COMPLETE)
+        if complete:
+            text += f" Complete: {join_names(complete)}."
+    else:
+        required = [check for check in unmet if check.required]
+        text = (
+            f"{len(required)} required check(s) failed or were not evaluated."
+            if required
+            else f"{len(unmet)} advisory check(s) were not met."
+        )
+    if record.model_verdict is not None and record.model_verdict is not record.checklist_verdict:
+        text += (
+            f" The model verdict ({record.model_verdict.value}) is stricter than the checklist "
+            f"verdict ({record.checklist_verdict.value})."
+        )
+    return f"{record.verdict.value} — {text}"
+
+
+def _coverage_section(coverage: Sequence[OwnerCoverage]) -> list[str]:
+    lines = [
+        "## Coverage by owner",
+        "",
+        "| Owner | Passed | Failed | Blocked | Status |",
+        "|---|---:|---:|---:|---|",
+    ]
+    for item in coverage:
+        status = item.status.label
+        if item.roots:
+            status += " (" + ", ".join(f"`{root}`" for root in item.roots) + ")"
+        lines.append(
+            f"| {item.owner} | {item.passed} | {item.failed} | {item.blocked} | {_cell(status)} |"
+        )
+    lines += [
+        "",
+        "Blocked checks were not evaluated because the named root check failed, usually because "
+        "the owner has not submitted that evidence yet.",
+        "",
+    ]
+    return lines
+
+
+def _findings_section(
+    findings: Sequence[EvidenceReviewFinding], bundle: EvidenceReviewBundle, *, coverage: bool
+) -> list[str]:
+    if not findings:
+        return ["No findings."]
+    by_id = {check.id: check for check in bundle.checks}
+    groups: dict[tuple[str, ...], list[EvidenceReviewFinding]] = {}
+    for finding in findings:
+        groups.setdefault(_roots_of(finding, by_id), []).append(finding)
+    ordered = sorted(
+        groups.items(),
+        key=lambda item: min(_SEVERITY_ORDER[finding.severity.value] for finding in item[1]),
+    )
+    owner = " Owner |" if coverage else ""
+    header = f"| Severity | Root cause |{owner} Finding | Evidence |"
+    lines = [header, "|---|---|" + ("---|" if coverage else "") + "---|---|"]
+    for roots, items in ordered:
+        cause = ", ".join(f"`{_cell(root)}`" for root in roots)
+        for finding in items:
+            owners = _owners_of(finding, by_id)
+            lines.append(
+                f"| {finding.severity.value} | {cause} |"
+                + (f" {_cell(owners)} |" if coverage else "")
+                + f" {_cell(finding.message)} | {_cell(', '.join(finding.evidence_refs))} |"
+            )
+    return lines
+
+
+def _roots_of(
+    finding: EvidenceReviewFinding, by_id: Mapping[str, EvidenceCheck]
+) -> tuple[str, ...]:
+    """The root checks a finding cites: a blocked check stands for the root that stopped it."""
+    roots = [
+        check.blocked_by or check.id
+        for reference in finding.evidence_refs
+        if (check := by_id.get(reference) or by_id.get(reference.partition("#")[0]))
+    ]
+    return tuple(dict.fromkeys(roots)) or (finding.area,)
+
+
+def _owners_of(finding: EvidenceReviewFinding, by_id: Mapping[str, EvidenceCheck]) -> str:
+    owners = [
+        check.owner or UNASSIGNED_OWNER
+        for reference in finding.evidence_refs
+        if (check := by_id.get(reference) or by_id.get(reference.partition("#")[0]))
+    ]
+    return ", ".join(dict.fromkeys(owners)) or "n/a"
+
+
+def _checklist_section(bundle: EvidenceReviewBundle, *, owners: bool) -> list[str]:
+    roots = blocked_by_root(bundle.checks)
+    by_id = {check.id: check for check in bundle.checks}
+    header = "| Check |" + (" Owner |" if owners else "") + " Required | Result | Detail |"
+    lines = [header, "|---|" + ("---|" if owners else "") + "---|---|---|"]
+    emitted: set[str] = set()
+
+    def row(check: EvidenceCheck) -> str:
+        mark = {CheckStatus.PASSED: "pass", CheckStatus.FAILED: "**FAIL**"}[check.status]
+        return (
+            f"| `{check.id}` {_cell(check.title)} |"
+            + (f" {check.owner or UNASSIGNED_OWNER} |" if owners else "")
+            + f" {'yes' if check.required else 'advisory'} | {mark} | {_cell(check.detail)} |"
+        )
+
+    def collapsed(root: str) -> str:
+        blocked = [by_id[check_id] for check_id in roots[root]]
+        emitted.update(roots[root])
+        prefix = root.rsplit(".", 1)[0] + "." if "." in root else ""
+        names = ", ".join(
+            check.id[len(prefix) :] if prefix and check.id.startswith(prefix) else check.id
+            for check in blocked
+        )
+        required = sum(1 for check in blocked if check.required)
+        label = f"`{prefix}*`: {names}" if prefix else names
+        block_owners = ", ".join(dict.fromkeys(c.owner or UNASSIGNED_OWNER for c in blocked))
+        return (
+            f"| {len(blocked)} check(s) blocked by `{root}` — {_cell(label)} |"
+            + (f" {block_owners} |" if owners else "")
+            + f" {required} required, {len(blocked) - required} advisory | blocked | "
+            f"Not evaluated: `{root}` failed. |"
+        )
+
+    for check in bundle.checks:
+        if check.status is CheckStatus.BLOCKED:
+            continue
+        lines.append(row(check))
+        if check.id in roots:
+            lines.append(collapsed(check.id))
+    for root in roots:
+        if not set(roots[root]) <= emitted:
+            lines.append(collapsed(root))
+    return lines
+
+
+def facts_section(facts: Mapping[str, JsonValue]) -> list[str]:
+    """Render facts compactly: owner-keyed records as a matrix, everything else as rows."""
+    if not facts:
+        return ["No facts recorded."]
+    lines: list[str] = []
+    flat: list[tuple[str, str]] = []
+    for key, value in facts.items():
+        records = _record_table(value)
+        if records is not None:
+            columns = list(records)
+            fields = list(dict.fromkeys(name for record in records.values() for name in record))
+            lines += [
+                f"**{_cell(key)}**",
+                "",
+                "| Fact | " + " | ".join(_cell(column) for column in columns) + " |",
+                "|---|" + "---|" * len(columns),
+            ]
+            for name in fields[:_MAX_FACT_ROWS]:
+                cells = [_cell(_fact_value(record.get(name))) for record in records.values()]
+                lines.append(f"| {_cell(name)} | " + " | ".join(cells) + " |")
+            lines.append("")
+        else:
+            flat += _flatten(key, value)
+    if flat:
+        lines += ["| Fact | Value |", "|---|---|"]
+        lines += [f"| `{_cell(name)}` | {_cell(text)} |" for name, text in flat[:_MAX_FACT_ROWS]]
+        if len(flat) > _MAX_FACT_ROWS:
+            lines.append(f"| … | {len(flat) - _MAX_FACT_ROWS} more in the validation log |")
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def _record_table(value: JsonValue) -> dict[str, dict[str, JsonValue]] | None:
+    """Two or more records sharing the same field names (such as per owner), else None."""
+    if not isinstance(value, dict) or len(value) < 2:
+        return None
+    records: dict[str, dict[str, JsonValue]] = {}
+    for key, record in value.items():
+        if not isinstance(record, dict) or not record:
+            return None
+        records[key] = record
+    first = set(next(iter(records.values())))
+    return records if all(set(record) == first for record in records.values()) else None
+
+
+def _flatten(prefix: str, value: JsonValue) -> list[tuple[str, str]]:
+    if isinstance(value, dict) and value and _has_nested_records(value):
+        rows: list[tuple[str, str]] = []
+        for key, item in value.items():
+            rows += _flatten(f"{prefix}.{key}", item)
+        return rows
+    return [(prefix, _fact_value(value))]
+
+
+def _has_nested_records(value: Mapping[str, JsonValue]) -> bool:
+    return any(isinstance(item, dict) for item in value.values())
+
+
+def _fact_value(value: JsonValue | None) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, int | float):
+        return str(value)
+    if isinstance(value, str):
+        return _short_text(value)
+    if isinstance(value, list):
+        if not value:
+            return "none"
+        shown = ", ".join(_fact_value(item) for item in value[:3])
+        more = f" and {len(value) - 3} more" if len(value) > 3 else ""
+        return _short_text(shown, limit=_MAX_FACT_CELL * 2) + more
+    if not value:
+        return "none"
+    items = list(value.items())
+    shown = ", ".join(f"{key}: {_fact_value(item)}" for key, item in items[:5])
+    more = f" and {len(items) - 5} more" if len(items) > 5 else ""
+    return _short_text(shown, limit=_MAX_FACT_CELL * 2) + more
+
+
+def _short_text(text: str, *, limit: int = _MAX_FACT_CELL) -> str:
+    text = _inline(text)
+    if _SHA.match(text):
+        return text[:12]
+    if len(text) <= limit:
+        return text
+    if text.startswith(("http://", "https://")):
+        return text if len(text) <= 2 * limit else "…" + text[-(2 * limit - 1) :]
+    return text[: limit - 1] + "…"
+
+
 def log_entry(
     record: ReviewRecord, *, report_path: str, report_sha256: str
 ) -> dict[str, JsonValue]:
-    """Build one validation-log line: identities, hashes, every check and the verdicts."""
+    """Build one validation-log line: identities, hashes, every check, coverage and verdicts."""
+    counts = check_counts(record.bundle)
     return {
         "schema_version": LOG_SCHEMA_VERSION,
         "event": "review_completed",
@@ -193,16 +470,12 @@ def log_entry(
             }
             for item in record.bundle.inputs
         ],
-        "checks": [
-            {"id": check.id, "status": check.status.value, "required": check.required}
-            for check in record.bundle.checks
-        ],
-        "checks_passed": sum(
-            1 for check in record.bundle.checks if check.status is CheckStatus.PASSED
-        ),
-        "checks_failed": sum(
-            1 for check in record.bundle.checks if check.status is CheckStatus.FAILED
-        ),
+        "checks": [_log_check(check) for check in record.bundle.checks],
+        "checks_passed": counts[CheckStatus.PASSED],
+        "checks_failed": counts[CheckStatus.FAILED],
+        "checks_blocked": counts[CheckStatus.BLOCKED],
+        "owners": [item.model_dump(mode="json") for item in owner_coverage(record.bundle)],
+        "facts": record.bundle.facts,
         "phases": list(record.phases),
         "tool_evidence": list(record.tool_evidence[:20]),
         "model_output_valid": record.model_output_valid,
@@ -217,6 +490,19 @@ def log_entry(
         "report_path": report_path,
         "report_sha256": report_sha256,
     }
+
+
+def _log_check(check: EvidenceCheck) -> dict[str, JsonValue]:
+    entry: dict[str, JsonValue] = {
+        "id": check.id,
+        "status": check.status.value,
+        "required": check.required,
+    }
+    if check.owner is not None:
+        entry["owner"] = check.owner
+    if check.blocked_by is not None:
+        entry["blocked_by"] = check.blocked_by
+    return entry
 
 
 def append_log(path: Path, entry: Mapping[str, JsonValue]) -> None:

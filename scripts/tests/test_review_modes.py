@@ -18,6 +18,7 @@ from scripts.collect_ci_evidence import main as collect_ci_main
 from scripts.devtools.review import cli as review_cli
 from scripts.devtools.review import testing as review_testing
 from scripts.devtools.review.bounded import EvidenceReader
+from scripts.devtools.review.checklist import Checklist
 from scripts.devtools.review.deterministic import deterministic_review
 from scripts.devtools.review.loop import (
     PROMPT_ROOT,
@@ -53,8 +54,10 @@ from shared_contracts.evidence_review import (
     CheckStatus,
     EvidenceReviewBundle,
     InputStatus,
+    OwnerStatus,
     ReviewMode,
     ReviewVerdict,
+    owner_coverage,
 )
 from shared_testkit import ScriptedLLMProvider
 
@@ -124,7 +127,18 @@ def test_multi_agent_review_reports_workflow_defects(evidence: Path) -> None:
     assert "student-3.stages" not in failed  # awaiting_human was reached through every stage
     assert "student-4.handoffs" in failed
     assert "student-4.handoffs" not in {c.id for c in bundle.checks if c.required}
-    assert {"student-5.evidence", "student-5.correlation"} <= failed
+    # student-5 exported history but no audit: one root failure, the rest blocked by it.
+    assert "student-5.evidence" in failed
+    blocked = {check.id: check.blocked_by for check in bundle.checks if check.blocked_by}
+    assert blocked["student-5.correlation"] == "student-5.evidence"
+    assert {key for key, root in blocked.items() if root == "student-5.evidence"} == {
+        f"student-5.{kind}"
+        for kind in ("stages", "human-decision", "transitions", "tool-allowlist", "handoffs")
+    } | {"student-5.correlation"}
+    coverage = {item.owner: item.status for item in owner_coverage(bundle)}
+    assert coverage["student-5"] is OwnerStatus.EVIDENCE_INCOMPLETE
+    assert coverage["student-1"] is OwnerStatus.FAILING
+    assert coverage["student-4"] is OwnerStatus.ADVISORY_GAPS
     missing = {item.path: item.status for item in bundle.inputs}
     assert missing["multi-agent/student-5/coordination_audit.jsonl"] is InputStatus.MISSING
     assert bundle.checklist_verdict() is ReviewVerdict.FAIL
@@ -205,8 +219,15 @@ def test_testing_review_flags_unexplained_findings_and_red_ci(evidence: Path) ->
     assert "jinja2" in details["security.dependencies"]
     assert "ci.student-2.green" in failed
     assert {"ci.student-4.endpoints", "ci.student-4.junit"} <= failed
-    assert {"ci.student-5.run", "ci.student-5.green", "ci.student-5.endpoints"} <= failed
+    assert "ci.student-5.evidence" in failed
+    assert "Evidence not submitted: ci/student-5.md is missing" in details["ci.student-5.evidence"]
+    statuses = _checks(bundle)
+    for suffix in ("run", "green", "endpoints", "junit", "log"):
+        assert statuses[f"ci.student-5.{suffix}"] is CheckStatus.BLOCKED, suffix
     assert "ci.student-1.endpoints" not in failed
+    owners = {check.id: check.owner for check in bundle.checks}
+    assert owners["security.ruff"] == "shared"
+    assert owners["ci.student-5.green"] == "student-5"
 
 
 def test_collect_ci_evidence_output_passes_every_ci_check(evidence: Path) -> None:
@@ -219,7 +240,7 @@ def test_collect_ci_evidence_output_passes_every_ci_check(evidence: Path) -> Non
 
     bundle = collect_bundle("testing", evidence)
     checks = _checks(bundle)
-    for suffix in ("run", "green", "endpoints", "junit", "log"):
+    for suffix in ("evidence", "run", "green", "endpoints", "junit", "log"):
         assert checks[f"ci.student-1.{suffix}"] is CheckStatus.PASSED, suffix
     facts = bundle.facts["ci"]["student-1"]  # type: ignore[index,call-overload]
     assert facts["conclusion"] == "success"
@@ -323,11 +344,12 @@ def test_cloud_review_flags_failed_crud_ai_images_and_log_secrets(evidence: Path
     value = fixtures.smoke(ai_enabled=True)
     checks = value["checks"]
     assert isinstance(checks, list)
-    checks[2]["passed"] = False
+    student_2 = next(c for c in checks if c["owner"] == "student-2" and c["category"] == "crud")
+    student_2["passed"] = False
     images = value["images"]
     assert isinstance(images, dict)
     images["f3-backend"] = "psg20acr.azurecr.io/propertyscope/f3-backend:latest"
-    fixtures.write_json(evidence / "cloud/smoke.json", value)
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, value)
     log = evidence / "cloud/logs/deploy.log"
     log.write_text(
         log.read_text(encoding="utf-8")
@@ -361,7 +383,10 @@ def test_missing_evidence_is_reported_as_gaps(tmp_path: Path, mode: ReviewMode) 
     assert bundle.checklist_verdict() is ReviewVerdict.FAIL
     assert bundle.inputs
     assert all(item.status is InputStatus.MISSING for item in bundle.inputs)
-    assert any("Evidence gap" in check.detail for check in bundle.checks)
+    assert any(
+        "Evidence gap" in check.detail or "Evidence not submitted" in check.detail
+        for check in bundle.checks
+    )
 
 
 # --------------------------------------------------------------------------- deterministic loop
@@ -387,8 +412,9 @@ def test_deterministic_review_writes_report_and_log(
     assert record.engine == "deterministic"
     assert record.provider == "deterministic-review"
     assert record.phases == ("plan", "act", "observe", "adapt")
-    assert record.prompt_set == f"review-{mode}.v1"
-    assert any(f"review-{mode}/v1" in prompt for prompt in record.prompts)
+    assert record.prompt_set == f"review-{mode}.v2"
+    assert any(f"review-{mode}/v2" in prompt for prompt in record.prompts)
+    assert any("review-planner/v2" in prompt for prompt in record.prompts)
     report = result.report_path.read_text(encoding="utf-8")
     assert report.startswith("# ")
     assert f"| Verdict | **{verdict.value}** |" in report
@@ -400,7 +426,9 @@ def test_deterministic_review_writes_report_and_log(
     entry = entries[0]
     assert entry["event"] == "review_completed"
     assert entry["run_id"] == record.run_id
-    assert entry["prompt_set"] == f"review-{mode}.v1"
+    assert entry["prompt_set"] == f"review-{mode}.v2"
+    assert entry["schema_version"] == "1.1"
+    assert entry["facts"] == record.bundle.facts
     assert entry["verdict"] == verdict.value
     assert entry["report_sha256"] == hashlib.sha256(result.report_path.read_bytes()).hexdigest()
     assert len(entry["checks"]) == len(record.bundle.checks)  # type: ignore[arg-type]
@@ -410,24 +438,149 @@ def test_deterministic_review_writes_report_and_log(
     assert len(read_log(result.log_path)) == 2
 
 
-def test_deterministic_review_of_missing_evidence_fails_with_findings(tmp_path: Path) -> None:
+def test_deterministic_review_of_missing_evidence_reports_root_causes(tmp_path: Path) -> None:
     result = run_review(
         "testing", evidence_dir=tmp_path / "none", out_dir=tmp_path / "out", deterministic=True
     )
 
-    assert result.record.verdict is ReviewVerdict.FAIL
-    failed = _failed(result.record.bundle)
-    findings = result.record.output.findings
-    assert len(failed) > 30, "more failed checks than the schema allows findings"
-    assert len(findings) == 30
+    record = result.record
+    assert record.verdict is ReviewVerdict.FAIL
+    failed = _failed(record.bundle)
+    blocked = {c.id for c in record.bundle.checks if c.status is CheckStatus.BLOCKED}
+    assert {f"ci.student-{n}.evidence" for n in range(1, 6)} <= failed
+    assert len(blocked) == 25, "five dependent CI checks per student were not evaluated"
+    findings = record.output.findings
+    coverage = [f for f in findings if f.area == "evidence coverage"]
+    assert len(coverage) == 1, "one finding for the shared root cause, not one per student"
+    assert coverage[0].message.startswith(
+        "Evidence not submitted by student-1, student-2, student-3, student-4 and student-5"
+    )
+    assert "25 dependent check(s) were not evaluated" in coverage[0].message
+    assert len(findings) == len(failed) - 5 + 1
     cited = {ref for finding in findings for ref in finding.evidence_refs}
-    named = " ".join(finding.message for finding in findings)
-    assert all(check in cited or check in named for check in failed), "none silently dropped"
-    required = {check.id for check in result.record.bundle.checks if check.required}
-    assert all(f.evidence_refs[0] in required for f in findings[: len(failed & required)])
-    assert findings[-1].message.startswith(f"{len(failed) - 29} further failed check(s)")
-    assert result.record.output.recommendations
-    assert "Evidence gap" in result.report_path.read_text(encoding="utf-8")
+    assert failed <= cited, "no failed check is silently dropped"
+    assert not blocked & {finding.evidence_refs[0] for finding in findings}
+    assert any(
+        text.startswith("student-1, student-2, student-3, student-4 and student-5: submit")
+        for text in record.output.recommendations
+    )
+    assert any("25 check(s) were not evaluated" in r.description for r in record.output.risks)
+    report = result.report_path.read_text(encoding="utf-8")
+    assert "## Coverage by owner" in report
+    assert "| shared | 0 | 6 | 0 | required checks failing |" in report
+    assert "| student-3 | 0 | 1 | 5 | evidence not submitted (`ci.student-3.evidence`) |" in report
+    assert "5 check(s) blocked by `ci.student-2.evidence`" in report
+    assert "Evidence gap" in report
+    assert "```json" not in report
+
+
+def test_partial_submission_reads_as_owner_gaps_not_defects(evidence: Path, tmp_path: Path) -> None:
+    for student in fixtures.STUDENTS[1:]:
+        fixtures.drop_student(evidence, student)
+
+    result = run_review(
+        "multi-agent", evidence_dir=evidence, out_dir=tmp_path / "out", deterministic=True
+    )
+
+    record = result.record
+    assert record.verdict is ReviewVerdict.FAIL
+    assert [finding.area for finding in record.output.findings] == ["evidence coverage"]
+    assert "Complete: student-1." in record.output.summary
+    assert (
+        "Evidence not submitted: student-2, student-3, student-4 and student-5."
+        in record.output.summary
+    )
+    assert len(record.output.recommendations) == 1
+    report = result.report_path.read_text(encoding="utf-8")
+    assert (
+        "**Verdict basis:** fail — evidence not submitted for student-2, student-3, student-4 "
+        "and student-5. Complete: student-1." in report
+    )
+    assert "| student-1 | 7 | 0 | 0 | complete |" in report
+    assert "| Checks | 7 passed, 4 failed, 24 blocked (not evaluated) of 35 |" in report
+    assert report.count("| blocked |") == 4, "blocked checks collapse to one row per root"
+    assert "| Fact | student-1 | student-2 | student-3 | student-4 | student-5 |" in report
+    entry = read_log(result.log_path)[-1]
+    assert (entry["checks_passed"], entry["checks_failed"], entry["checks_blocked"]) == (7, 4, 24)
+    owners = {item["owner"]: item["status"] for item in entry["owners"]}  # type: ignore[index,union-attr]
+    assert owners == {
+        "student-1": "complete",
+        **dict.fromkeys(fixtures.STUDENTS[1:], "evidence_not_submitted"),
+    }
+    blocked = [item for item in entry["checks"] if "blocked_by" in item]  # type: ignore[union-attr,operator]
+    assert {"id": "student-2.stages", "status": "blocked", "required": True} | {
+        "owner": "student-2",
+        "blocked_by": "student-2.evidence",
+    } in blocked
+
+
+def test_deterministic_review_summarises_findings_beyond_the_schema_limit() -> None:
+    bundle = EvidenceReviewBundle.model_validate(
+        {
+            "mode": "cloud",
+            "inputs": [],
+            "checks": [
+                {
+                    "id": f"cloud.case-{index:02d}",
+                    "title": f"Case {index}",
+                    "status": "failed",
+                    "required": index % 2 == 0,
+                    "detail": "Failed.",
+                }
+                for index in range(35)
+            ],
+        }
+    )
+
+    review = deterministic_review(bundle)
+
+    assert len(review.findings) == 30
+    assert review.findings[-1].message.startswith("6 further failed check(s)")
+    required = {check.id for check in bundle.checks if check.required}
+    assert all(finding.evidence_refs[0] in required for finding in review.findings[:18])
+    cited = {ref for finding in review.findings for ref in finding.evidence_refs}
+    named = " ".join(finding.message for finding in review.findings)
+    assert all(check.id in cited or check.id in named for check in bundle.checks)
+    assert "Coverage" not in review.summary and review.verdict is ReviewVerdict.FAIL
+
+
+def test_checklist_blocks_dependants_of_a_failed_prerequisite(tmp_path: Path) -> None:
+    reader = EvidenceReader(tmp_path)
+    reader.read_text("ci/student-2.md")
+    checklist = Checklist(reader)
+
+    assert not checklist.add(
+        "gate", "Gate", passed=False, detail="Missing.", refs=("ci/student-2.md",), owner="s-2"
+    )
+    assert not checklist.add(
+        "child",
+        "Child",
+        passed=True,
+        detail="Ignored.",
+        refs=("ci/student-2.md",),
+        prerequisite="gate",
+    )
+    assert not checklist.add(
+        "grandchild", "Grandchild", passed=True, detail="x", prerequisite=["child"]
+    )
+    assert checklist.add("other", "Other", passed=True, detail="Passed.", owner="shared")
+    assert checklist.add("after", "After", passed=True, detail="Passed.", prerequisite="other")
+    with pytest.raises(ValueError, match="must be added before"):
+        checklist.add("orphan", "Orphan", passed=True, detail="x", prerequisite="later")
+    with pytest.raises(ValueError, match="already added"):
+        checklist.add("gate", "Gate", passed=True, detail="x")
+
+    bundle = checklist.bundle("testing", {})
+    checks = {check.id: check for check in bundle.checks}
+    assert checks["child"].status is CheckStatus.BLOCKED
+    assert checks["child"].blocked_by == "gate"
+    assert checks["grandchild"].blocked_by == "gate", "blocked_by names the root failure"
+    assert checks["child"].owner == "s-2", "owner is inherited from the prerequisite"
+    assert checks["child"].evidence_refs == ()
+    assert checks["child"].detail == "Not evaluated: blocked by gate, which failed."
+    assert checks["after"].status is CheckStatus.PASSED and checks["after"].owner == "shared"
+    assert checklist.status("grandchild") is CheckStatus.BLOCKED
+    assert bundle.checklist_verdict() is ReviewVerdict.FAIL
 
 
 def test_deterministic_review_has_an_info_finding_when_everything_passes(evidence: Path) -> None:
@@ -573,7 +726,7 @@ def test_live_review_runs_through_ai_mode_and_records_the_run(
     stored = services.store.get(UUID(record.run_id or ""))
     assert stored is not None
     assert stored.run.feature_key == "agentic-loop"
-    assert stored.run.prompt_set == "review-testing.v1"
+    assert stored.run.prompt_set == "review-testing.v2"
     assert stored.run.title == "Release 2 testing evidence review"
     report = result.report_path.read_text(encoding="utf-8")
     assert "(AI-mode Activity history)" in report
@@ -631,7 +784,7 @@ def test_cli_rejects_a_succeeded_run_whose_review_breaks_the_schema(
         assert request.headers[AI_SERVICE_TOKEN_HEADER] == TOKEN
         if request.method == "POST":
             body = json.loads(request.content)
-            assert body["prompt_set"] == "review-cloud.v1"
+            assert body["prompt_set"] == "review-cloud.v2"
             assert body["tool_allowlist"] == ["review.evidence.v1"]
             assert EvidenceReviewBundle.model_validate_json(body["objective"]) == bundle
             return httpx.Response(202, json={"id": run_id})
@@ -773,7 +926,7 @@ def test_release_decision_guards(evidence: Path, tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="No completed cloud review"):
         record_release_decision(decision="hold", **decide)  # type: ignore[arg-type]
 
-    fixtures.write_json(evidence / "cloud/smoke.json", fixtures.smoke(ai_enabled=True))
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, fixtures.smoke(ai_enabled=True))
     run_review("cloud", evidence_dir=evidence, out_dir=out, deterministic=True)
     with pytest.raises(RuntimeError, match="acknowledge-failed-review"):
         record_release_decision(decision="release", **decide)  # type: ignore[arg-type]
@@ -785,7 +938,7 @@ def test_release_decision_guards(evidence: Path, tmp_path: Path) -> None:
     )
     assert "| Overrode a failed review | yes |" in overridden.read_text(encoding="utf-8")
 
-    fixtures.write_json(evidence / "cloud/smoke.json", fixtures.smoke())
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, fixtures.smoke())
     with pytest.raises(RuntimeError, match="changed since review"):
         record_release_decision(decision="hold", **decide)  # type: ignore[arg-type]
     with pytest.raises(RuntimeError, match="--decider"):

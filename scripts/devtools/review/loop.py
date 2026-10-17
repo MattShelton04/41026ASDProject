@@ -106,7 +106,9 @@ def objective_for(bundle: EvidenceReviewBundle) -> tuple[EvidenceReviewBundle, s
     """Fit the bundle into AI-mode's objective budget, compacting only when needed."""
     candidates = (bundle, *_compactions(bundle))
     for candidate in candidates:
-        text = candidate.model_dump_json()
+        # Fields at their default (no owner, not blocked, required, no refs ...) are omitted to
+        # save budget; parsing the objective restores them.
+        text = candidate.model_dump_json(exclude_defaults=True)
         if len(text) <= MAX_REVIEW_OBJECTIVE_CHARS:
             return candidate, text
     raise ReviewLoopError(
@@ -123,7 +125,7 @@ def _compactions(bundle: EvidenceReviewBundle) -> tuple[EvidenceReviewBundle, ..
     )
     short_checks = without_facts.evolve(
         checks=tuple(
-            _short_check(check, keep_detail=check.status.value == "failed")
+            _short_check(check, keep_detail=check.status.value != "passed")
             for check in bundle.checks
         )
     )
@@ -131,7 +133,7 @@ def _compactions(bundle: EvidenceReviewBundle) -> tuple[EvidenceReviewBundle, ..
 
 
 def _short_check(check: EvidenceCheck, *, keep_detail: bool) -> dict[str, Any]:
-    payload = check.model_dump(mode="json")
+    payload = check.model_dump(mode="json", exclude_none=True)
     payload["detail"] = check.detail[:160] if keep_detail else "Passed."
     payload["evidence_refs"] = list(check.evidence_refs[:3])
     return payload
@@ -177,7 +179,9 @@ class ChecklistReviewProvider:
                         "purpose": "Read the schema-validated evidence bundle for this run",
                     }
                 ],
-                "success_criteria": ["Every failed checklist item is reported as a finding"],
+                "success_criteria": [
+                    "Every root cause is reported once, with blocked checks summarised per owner"
+                ],
                 "risk_level": "low",
                 "assumptions": [],
             }

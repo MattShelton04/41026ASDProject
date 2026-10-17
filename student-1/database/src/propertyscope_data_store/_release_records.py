@@ -74,6 +74,8 @@ class _ReleaseRecords:
             "jsonb_strip_nulls(jsonb_build_object("
             "'state',release.coverage_json->'state','locality',release.coverage_json->'locality',"
             "'complete',release.coverage_json->'complete',"
+            # Migration 047 marks the seeded demonstration baseline; real releases never carry it.
+            "'synthetic',release.coverage_json->'synthetic',"
             "'source_record_count',release.coverage_json->'source_record_count')) AS coverage_json"
             if summary
             else "release.*"

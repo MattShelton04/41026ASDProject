@@ -45,9 +45,9 @@ factory, a host process on `:5013`, no Dockerfile.
    - `multi-agent`: workflow histories and audits
    - `testing`: the security report and `ci/*.md`
    - `cloud`: the deployment report, workflow logs and smoke output
-3. Each mode starts an AI-mode run with a review prompt set (`review-multi-agent.v1`,
-   `review-testing.v1`, `review-cloud.v1`). The output schema has findings, risks,
-   recommendations and a verdict.
+3. Each mode starts an AI-mode run with a review prompt set (`review-multi-agent.v2`,
+   `review-testing.v2`, `review-cloud.v2`; v1 is kept for earlier logs). The output schema has
+   findings, risks, recommendations and a verdict.
 4. Write `reviews/<mode>-review.md` and `<mode>-validation-log.jsonl` (run ID, prompt version,
    inputs hashed, checks passed/failed). Add a `--deterministic` flag for tests.
 5. The cloud review ends with a human release decision, recorded in `cloud/release-decision.md`.
@@ -84,10 +84,17 @@ factory, a host process on `:5013`, no Dockerfile.
    default.
 3. **Scripts** `deployment/azure/deploy.sh` (and a `dev.py cloud` wrapper): `provision`, `push`,
    `deploy`, `smoke`, `ai on|off`. They are idempotent and reusable from a laptop or from Actions.
-4. **`cloud-deployment.yml`:** gate on Integration CI success, then OIDC login, build and push
-   images, Bicep deploy, VM deploy through `az vm run-command`, then the public smoke test (the
-   home page plus each feature's CRUD case). Upload the logs and the report. Use the `production`
-   environment.
+4. **`cloud-deployment.yml`:** triggered when Integration CI completes for a push to `main` (or
+   by hand), in three jobs. `verify-ci` is the release gate: Integration CI must have succeeded
+   on the deployed commit, and each path-filtered `student-N.yml` on its latest run at that
+   commit or an ancestor (`scripts/verify_release_gate.py`, which waits for runs still in
+   progress). `build-validate` builds every release image and validates the Azure Compose model
+   (`scripts/validate_release_images.py`). Only then does `deploy` run in the `production`
+   environment: OIDC login, Bicep provision, push images, VM deploy through `az vm run-command`,
+   then the public smoke test (the home page plus each feature's CRUD case). Upload the gate
+   record, build record, logs and report. This follows the brief's flow: pre-commit → GitHub
+   Actions → endpoint tests → Docker build/validation → `cloud-deployment.yml` → Azure. **Done**;
+   `deploy` skips until `AZURE_SUBSCRIPTION_ID` is set.
 5. Produce the cloud deployment report automatically from the workflow outputs into
    `evidence/cloud/`.
 6. Write ADR-048 and the Azure reference architecture diagram for the report.

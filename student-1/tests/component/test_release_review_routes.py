@@ -6,6 +6,7 @@ only over HTTP (``fake.transport()`` or ``fake.serve()``); they never import the
 
 from __future__ import annotations
 
+import json
 import socket
 import uuid
 from pathlib import Path
@@ -42,6 +43,7 @@ from shared_testkit import FAKE_MULTI_AGENT_TOKEN, FakeMultiAgentServer
 
 MANIFEST = Path(__file__).resolve().parents[2] / "config" / "multi-agent" / "workflow.yaml"
 BASE = "/api/data-platform/v1/release-reviews"
+CAPABILITIES = "/api/data-platform/v1/runtime-capabilities"
 RELEASE_ID = "60000000-0000-0000-0000-000000000042"
 REQUEST_ID = "release-review-test-request-0001"
 
@@ -125,6 +127,32 @@ def _assert_problem(response: Any, status: int, code: str) -> dict[str, Any]:
     body = response.get_json()
     assert body["code"] == code
     return dict(body)
+
+
+def test_manifest_checks_provenance_the_release_builder_records() -> None:
+    template = _feature_template()
+    checks = {check.id: check for check in template.reviewer_checks}
+    manifest_schema = json.loads(
+        (MANIFEST.parents[2] / "contracts" / "release-manifest.v2.schema.json").read_text("utf-8")
+    )
+
+    assert template.version == "v2"
+    assert "data.release_publish.v1" not in template.allowed_tools
+    assert checks["queue-read"].rule.kind == "step_succeeded"
+    assert checks["queue-read"].rule.step == "queue"
+    assert checks["queue-read"].severity.value == "low"
+    provenance = {
+        check_id: checks[check_id].rule.path
+        for check_id in ("publisher-recorded", "licence-recorded", "retrieval-time-recorded")
+    }
+    assert provenance == {
+        "publisher-recorded": "release.manifest_json.publisher",
+        "licence-recorded": "release.manifest_json.source_licence",
+        "retrieval-time-recorded": "release.manifest_json.source_retrieved_at",
+    }
+    for path in provenance.values():
+        assert path is not None and path.rsplit(".", 1)[-1] in manifest_schema["properties"]
+    assert "self-attested" in (template.human_review_guidance or "")
 
 
 def test_template_route_returns_the_feature_workflow_descriptor(client: FlaskClient) -> None:
@@ -503,3 +531,155 @@ def test_unconfigured_client_raises_a_distinct_error() -> None:
     assert not multi_agent.configured
     with pytest.raises(MultiAgentUnavailableError, match="not configured"):
         multi_agent.template(RELEASE_REVIEW_TEMPLATE_ID, {})
+
+
+@pytest.mark.parametrize(
+    ("requested_by", "message"),
+    [
+        (42, "requested_by must be a string"),
+        ("   ", "requested_by must not be empty"),
+        ("x" * 101, "requested_by must be at most 100 characters"),
+        ("operator\nforged-line", "requested_by must start with a letter or digit"),
+        ("<script>", "requested_by must start with a letter or digit"),
+        ("-leading-dash", "requested_by must start with a letter or digit"),
+    ],
+)
+def test_start_rejects_unsafe_requested_by_before_calling_the_server(
+    client: FlaskClient, fake: FakeMultiAgentServer, requested_by: Any, message: str
+) -> None:
+    problem = _assert_problem(
+        _start(client, requested_by=requested_by), 422, "invalid_release_review_request"
+    )
+
+    assert problem["detail"].startswith(message)
+    assert problem["errors"] == [
+        {"field": "requested_by", "message": problem["detail"], "code": "invalid_actor"}
+    ]
+    assert fake.requests == []
+
+
+def test_start_trims_and_accepts_ordinary_names(
+    client: FlaskClient, fake: FakeMultiAgentServer
+) -> None:
+    name = "Zoë O\N{RIGHT SINGLE QUOTATION MARK}Brien (ops) @ unit-1"
+    response = _start(client, requested_by=f"  {name}  ")
+
+    assert response.status_code == 202
+    assert fake.requests[-1][2]["requested_by"] == name
+
+
+@pytest.mark.parametrize(
+    ("body", "field", "message"),
+    [
+        ({"decision": "approve", "note": ""}, "actor", "actor is required"),
+        ({"decision": "approve", "actor": ["operator"]}, "actor", "actor must be a string"),
+        ({"decision": "approve", "actor": "a\x00b"}, "actor", "actor must start with"),
+        ({"decision": "reject", "actor": "operator", "note": 7}, "note", "note must be a string"),
+        (
+            {"decision": "reject", "actor": "operator", "note": "n" * 2_001},
+            "note",
+            "note must be at most 2000 characters",
+        ),
+        (
+            {"decision": "reject", "actor": "operator", "note": "fine\x1b[2Jforged"},
+            "note",
+            "note must not contain control characters",
+        ),
+    ],
+)
+def test_decision_rejects_unsafe_audit_text_before_calling_the_server(
+    client: FlaskClient,
+    fake: FakeMultiAgentServer,
+    body: dict[str, Any],
+    field: str,
+    message: str,
+) -> None:
+    run_id = _start(client).get_json()["id"]
+    calls = len(fake.requests)
+
+    problem = _assert_problem(
+        client.post(f"{BASE}/{run_id}/decision", json=body), 422, "invalid_release_review_request"
+    )
+
+    assert problem["detail"].startswith(message)
+    assert problem["errors"][0]["field"] == field
+    assert len(fake.requests) == calls
+    assert not fake.run(run_id).decisions
+
+
+def test_decision_forwards_trimmed_text_and_keeps_line_breaks(
+    client: FlaskClient, fake: FakeMultiAgentServer
+) -> None:
+    run_id = _start(client).get_json()["id"]
+
+    response = client.post(
+        f"{BASE}/{run_id}/decision",
+        json={"decision": "reject", "note": "  Line one\nLine two\t ", "actor": " operator "},
+    )
+
+    assert response.status_code == 200
+    assert fake.requests[-1][2] == {
+        "decision": "reject",
+        "note": "Line one\nLine two",
+        "actor": "operator",
+    }
+
+
+def test_cancel_rejects_an_unsafe_actor(client: FlaskClient, fake: FakeMultiAgentServer) -> None:
+    run_id = _start(client).get_json()["id"]
+    calls = len(fake.requests)
+
+    problem = _assert_problem(
+        client.post(f"{BASE}/{run_id}/cancel", json={"actor": "x" * 101}),
+        422,
+        "invalid_release_review_request",
+    )
+
+    assert problem["errors"] == [
+        {
+            "field": "actor",
+            "message": "actor must be at most 100 characters",
+            "code": "invalid_actor",
+        }
+    ]
+    assert len(fake.requests) == calls
+
+
+def test_review_capabilities_report_configured_services(fake: FakeMultiAgentServer) -> None:
+    offline = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503)))
+    app = create_app(
+        store_client=DataStoreClient("http://database", "secret", client=offline),
+        ai_mode_client=AiModeClient("http://ai", service_token="ai-token", client=offline),
+        multi_agent_client=MultiAgentClient(
+            "http://multi-agent",
+            service_token=FAKE_MULTI_AGENT_TOKEN,
+            client=httpx.Client(transport=fake.transport()),
+        ),
+    )
+
+    response = app.test_client().get(CAPABILITIES)
+
+    assert response.status_code == 200
+    assert response.get_json()["review_actions"] == {
+        "readiness_review": {"enabled": True, "detail": None},
+        "ai_review": {"enabled": True, "detail": None},
+    }
+    assert fake.requests == [], "the answer comes from configuration, not a probe"
+
+
+def test_review_capabilities_explain_the_cloud_baseline_without_ai() -> None:
+    # The cloud baseline (AI tier off) gives the backend neither service credential.
+    client = _app(MultiAgentClient("http://multi-agent", service_token=" ")).test_client()
+
+    response = client.get(CAPABILITIES)
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["review_actions"] == {
+        "readiness_review": {
+            "enabled": False,
+            "detail": "Multi-agent review is not enabled in this deployment.",
+        },
+        "ai_review": {"enabled": False, "detail": "AI review is not enabled in this deployment."},
+    }
+    assert "connected_live_profiles" in body, "acquisition capabilities are unchanged"

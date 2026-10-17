@@ -1,0 +1,5 @@
+prompt_id: review-planner
+version: v2
+role: planner
+template: v2.system.j2
+description: Release 2 evidence review planner (v2) that reads the attached bundle once and plans for root causes, owners and blocked checks.

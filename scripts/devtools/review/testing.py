@@ -20,6 +20,10 @@ Expected files below the evidence root:
     from ``shared_testkit.junit_summary``. ``scripts/collect_ci_evidence.py`` writes it.
 ``ci/student-N/run.log`` (optional, advisory)
     The retained log of the run's endpoint-test steps, also written by the collector.
+
+The security checks are owned by ``shared``; each ``ci.student-N.*`` check by that student.
+``ci.student-N.evidence`` is the gate: when ``ci/student-N.md`` was not submitted (or cannot be
+read), the student's other CI checks are ``blocked`` by it instead of failing one by one.
 """
 
 from __future__ import annotations
@@ -37,7 +41,7 @@ from scripts.security.report import (
     FALSE_POSITIVE,
     PENDING_OWNER,
 )
-from shared_contracts.evidence_review import EvidenceReviewBundle
+from shared_contracts.evidence_review import EvidenceReviewBundle, InputStatus
 
 STUDENTS = tuple(f"student-{number}" for number in range(1, 6))
 REPORT = "security/pre-commit-report.md"
@@ -45,6 +49,7 @@ RUFF = "security/ruff-security.json"
 SECRETS = "security/detect-secrets.json"
 AUDIT = "security/pip-audit.json"
 MIN_ENDPOINT_TESTS = 2
+SHARED = "shared"
 RUN_URL = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/actions/runs/\d+(?:/attempts/\d+)?")
 # The run conclusion is a line or table row that *starts* with "Conclusion", so a "Status /
 # conclusion | completed" row or a jobs-table header can never be read as the conclusion.
@@ -97,6 +102,7 @@ def _security(reader: EvidenceReader, checklist: Checklist) -> dict[str, JsonVal
             else f"The report does not mention: {', '.join(missing_scans)}."
         ),
         refs=(REPORT,),
+        owner=SHARED,
     )
     checklist.add(
         "security.traceability",
@@ -109,6 +115,7 @@ def _security(reader: EvidenceReader, checklist: Checklist) -> dict[str, JsonVal
             else "No commit SHA found, so the scan cannot be tied to a release commit."
         ),
         refs=(REPORT,),
+        owner=SHARED,
     )
     return {
         "ruff": _ruff(reader, checklist, lowered),
@@ -186,6 +193,7 @@ def _ruff(reader: EvidenceReader, checklist: Checklist, report: str) -> dict[str
             else f"Unexplained findings: {summarise(unexplained)}."
         ),
         refs=(RUFF, REPORT),
+        owner=SHARED,
     )
     if classified is not None:
         owners = [f"{owner} {count}" for owner, count in sorted(pending.items())]
@@ -201,6 +209,7 @@ def _ruff(reader: EvidenceReader, checklist: Checklist, report: str) -> dict[str
                 f"owner fixes or justifies them: {summarise(owners)}."
             ),
             refs=(RUFF, REPORT),
+            owner=SHARED,
         )
     return {
         "findings": total,
@@ -254,6 +263,7 @@ def _secrets(reader: EvidenceReader, checklist: Checklist) -> dict[str, JsonValu
             f"{summarise(unaudited) or 'none'}."
         ),
         refs=(SECRETS, REPORT),
+        owner=SHARED,
     )
     return {
         "potential": potential,
@@ -308,6 +318,7 @@ def _dependencies(
             else f"Unexplained vulnerable dependencies: {summarise(unexplained)}."
         ),
         refs=(AUDIT, REPORT),
+        owner=SHARED,
     )
     checklist.add(
         "security.dependencies-clean",
@@ -322,6 +333,7 @@ def _dependencies(
             else "Dependency audit unavailable."
         ),
         refs=(AUDIT,),
+        owner=SHARED,
     )
     return {"scanned": scanned, "vulnerable": len(vulnerable), "unexplained": len(unexplained)}
 
@@ -339,7 +351,23 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
     failing = sorted(name for name, outcome in outcomes.items() if outcome in {"failed", "error"})
     totals = _totals(text)
     endpoints = sorted({f"{method} {route}" for method, route in ENDPOINT.findall(text)})
-    gap = f"Evidence gap: {path} is {loaded.status.value}."
+    number = student.rsplit("-", 1)[-1]
+    checklist.add(
+        _gate(student),
+        f"{student} submitted CI endpoint evidence",
+        passed=loaded.text is not None,
+        detail=(
+            f"{path} was read."
+            if loaded.text is not None
+            else f"Evidence not submitted: {path} is missing. {student} collects it with "
+            f"`uv run python scripts/collect_ci_evidence.py --student {number}`."
+            if loaded.status is InputStatus.MISSING
+            else f"Evidence gap: {path} is {loaded.status.value}. Re-collect it with "
+            f"`uv run python scripts/collect_ci_evidence.py --student {number}`."
+        ),
+        refs=(path,),
+        owner=student,
+    )
     checklist.add(
         f"ci.{student}.run",
         f"{student} CI evidence links the Actions run and commit",
@@ -347,8 +375,6 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
         detail=(
             f"Run {run_url.group(0)} at commit {sha.group(0)[:12]}."
             if run_url and sha
-            else gap
-            if loaded.text is None
             else "Missing "
             + " and ".join(
                 label for label, found in (("run URL", run_url), ("commit SHA", sha)) if not found
@@ -356,6 +382,7 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
             + "."
         ),
         refs=(path,),
+        prerequisite=_gate(student),
     )
     checklist.add(
         f"ci.{student}.green",
@@ -364,11 +391,10 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
         detail=(
             "Conclusion: success."
             if conclusion == "success"
-            else gap
-            if loaded.text is None
             else f"Conclusion is {conclusion or 'not recorded'}."
         ),
         refs=(path,),
+        prerequisite=_gate(student),
     )
     endpoint_ok = len(passed_tests) >= MIN_ENDPOINT_TESTS and not failing
     checklist.add(
@@ -378,14 +404,13 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
         detail=(
             f"{len(passed_tests)} passing endpoint test(s): {summarise(passed_tests, limit=3)}."
             if endpoint_ok
-            else gap
-            if loaded.text is None
             else f"Failing tests: {summarise(failing)}."
             if failing
             else f"Only {len(passed_tests)} passing endpoint test(s) recorded; "
             f"{MIN_ENDPOINT_TESTS} are required."
         ),
         refs=(path,),
+        prerequisite=_gate(student),
     )
     totals_ok = (
         totals is not None
@@ -405,6 +430,7 @@ def _ci(reader: EvidenceReader, checklist: Checklist, student: str) -> dict[str,
             else f"{totals['failed']} failed and {totals['errors']} errors of {totals['tests']}."
         ),
         refs=(path,),
+        prerequisite=_gate(student),
     )
     log = _run_log(reader, checklist, student)
     return {
@@ -430,6 +456,7 @@ def _run_log(reader: EvidenceReader, checklist: Checklist, student: str) -> dict
             required=False,
             detail=f"Evidence gap: {path} is missing; re-run scripts/collect_ci_evidence.py.",
             refs=(f"ci/{student}.md",),
+            prerequisite=_gate(student),
         )
         return {"present": False, "pytest_results": []}
     loaded = reader.read_text(path, tail_bytes=DEFAULT_LOG_TAIL_BYTES)
@@ -451,8 +478,14 @@ def _run_log(reader: EvidenceReader, checklist: Checklist, student: str) -> dict
             else "The log records no passing pytest result line."
         ),
         refs=(path,),
+        prerequisite=_gate(student),
     )
     return {"present": loaded.text is not None, "pytest_results": list(results[:6])}
+
+
+def _gate(student: str) -> str:
+    """The check every other CI check of a student depends on: their CI evidence was read."""
+    return f"ci.{student}.evidence"
 
 
 def _test_outcomes(text: str) -> dict[str, str]:

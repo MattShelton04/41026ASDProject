@@ -1560,7 +1560,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _probe(environment: Mapping[str, str]) -> Mapping[str, Any]:
     from scripts.release1_probe import probe
 
-    return probe(environment)
+    return probe(environment, request_id_prefix=REQUEST_PREFIX)
 
 
 if __name__ == "__main__":

@@ -119,11 +119,14 @@ host process and container-only services cannot host it.
 
 ![Figure 4 DevOps flow from commit to Azure](assets/release-2/devops-flow.png)
 
-A commit runs the pre-commit hooks. A push to `main` runs each `student-N.yml` and
-`integration-ci.yml`. A successful Integration CI push run triggers `cloud-deployment.yml`, which
-runs the reusable [`deploy.sh`](../../deployment/azure/README.md) steps shown.
+A commit runs the pre-commit hooks. A push to `main` runs `integration-ci.yml` and each
+`student-N.yml`, which tests two endpoint functions. When Integration CI completes,
+`cloud-deployment.yml` gates the release: `verify-ci` waits until Integration CI and all five
+student workflows have passed for that commit, and `build-validate` builds every image and
+validates the Azure Compose model. Only then does `deploy` run the reusable
+[`deploy.sh`](../../deployment/azure/README.md) steps in the protected `production` environment.
 
-[[TODO: Matthew Shelton | Azure is prepared but not provisioned. After the first deployment, state the subscription, region and VM size used, and whether cloud deployment should also wait for the five student workflows]]
+[[TODO: Matthew Shelton | Azure is prepared but not provisioned. After the first deployment, state the subscription, region and VM size used]]
 
 ## 5 Pre-commit security testing
 
@@ -192,7 +195,7 @@ feature origin (:5200) and through the shared edge (:5100):
 ## 7 Testing review
 
 `dev.py ai review testing` collects the security report and each `ci/student-N.md`, builds a
-deterministic checklist and reviews it through the shared loop (`review-testing.v1`). The verdict
+deterministic checklist and reviews it through the shared loop (`review-testing.v2`). The verdict
 is the stricter of the model's and the checklist's; each review appends to the validation log.
 
 [[REVIEW_SUMMARY testing]]
@@ -286,8 +289,10 @@ Section 12 lists each student's commits.
 | 10 Oct | [bef57da](https://github.com/MattShelton04/41026ASDProject/commit/bef57da) | Shared multi-agent panel, F1 readiness review, live UI evidence |
 | 10 Oct | [06e0ed0](https://github.com/MattShelton04/41026ASDProject/commit/06e0ed0) | Panel redesigned as a live mission relay |
 | 15 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43) | CI evidence collection, stack reliability and F1 improvements |
+| 16 Oct | [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81) | Local deployment evidence and report builder |
+| 16 Oct | [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272) | Parallel quality gate |
 
-[[TODO: Matthew Shelton | Add the report, local evidence and Azure deployment commits]]
+[[TODO: Matthew Shelton | Add the merged commit of the pending Wave 1/2 PR (CI release gate, Azure hardening, owner-attributed reviews, RAG/MCP request logging, showcase runbook) and the Azure deployment commit]]
 
 ### Student 2 Burhan Naeem
 
@@ -372,5 +377,7 @@ contributions:
   - bef57da
   - 06e0ed0
   - d449a43
+  - 07b1c81
+  - 72f3272
 attendance: {}
 -->

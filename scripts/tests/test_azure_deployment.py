@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import base64
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
+from scripts.devtools import cloud
 
 ROOT = Path(__file__).resolve().parents[2]
 AZURE = ROOT / "deployment" / "azure"
@@ -27,6 +31,7 @@ DATABASE_TIER = {
     "f5-db-api": "f5-data",
 }
 SECRET_VARIABLES = re.compile(r"(TOKEN|PASSWORD|DATABASE_URL|API_KEY)$")
+RUN_ID = "0b8f0e64-5d0c-4e43-9a59-2b1f3c4d5e6f"
 
 
 class ComposeTag:
@@ -201,7 +206,7 @@ def test_compose_override_validates_with_dummy_values(tmp_path: Path) -> None:
         pytest.skip("docker is not installed")
     for name in ("internal-token", "runner-token", "f1-postgres-password", "f1-database-url",
                  "f4-postgres-password", "f4-database-url", "edge-basic-auth",
-                 "ai-mode-service-token"):  # fmt: skip
+                 "ai-mode-service-token", "multi-agent-service-token"):  # fmt: skip
         (tmp_path / name).write_text("dummy", encoding="utf-8")
     environment = {
         **os.environ,
@@ -337,13 +342,28 @@ def test_edge_protects_operations_and_ai_routes_consistently() -> None:
         "/api/data-platform/v1/jobs/abc/runs",
         "/api/data-platform/v1/dataset-releases/abc/publish",
         "/api/suburb-analytics/v1/data-imports/x",
+        # Feature 1's Multi-Agent proxy: starts paid model runs and records human decisions.
+        "/api/data-platform/v1/release-reviews",
+        "/api/data-platform/v1/release-reviews/template",
+        f"/api/data-platform/v1/release-reviews/{RUN_ID}",
+        f"/api/data-platform/v1/release-reviews/{RUN_ID}/decision",
+        f"/api/data-platform/v1/release-reviews/{RUN_ID}/cancel",
+        f"/api/data-platform/v1/release-reviews/{RUN_ID}/history",
+        # The same collections are covered for any feature, at any depth.
+        "/api/market-intelligence/v1/release-reviews",
+        "/api/due-diligence/v1/site-reviews/x/release-reviews",
+        "/api/buyer-workspaces/v1/buyer-cases/x/multi-agent/runs",
+        "/api/suburb-analytics/v1/agent-runs",
     ]
     public = [
         "/",
         "/api/shared-health/ai-mode",
         "/api/data-platform/v1/sources",
+        "/api/data-platform/v1/dataset-releases/abc",
         "/api/buyer-workspaces/v1/buyer-cases",
+        "/api/due-diligence/v1/site-reviews/x",
         "/features/data-platform/",
+        "/fragments/rate-limit-probe",
     ]
     for path in sensitive:
         assert caddy_pattern.search(path), path
@@ -381,3 +401,410 @@ def test_deploy_script_offers_every_documented_subcommand() -> None:
     assert "secret show" not in script.replace(
         "az keyvault secret show --vault-name $KEY_VAULT_NAME --name edge-basic-auth-password", ""
     )
+
+
+# --- Multi-Agent wiring --------------------------------------------------------------------------
+
+MULTI_AGENT_BACKENDS = sorted(
+    name
+    for name, service in BASE["services"].items()
+    if "MULTI_AGENT_BASE_URL" in service.get("environment", {})
+)
+
+
+def test_multi_agent_backends_are_the_ones_the_overlays_wire() -> None:
+    # Feature 3 declares no Multi-Agent connection locally, so the Azure files leave it alone.
+    assert MULTI_AGENT_BACKENDS == ["f1-backend", "f2-backend", "f4-backend", "f5-backend"]
+
+
+def test_baseline_closes_the_multi_agent_server_and_blanks_its_token() -> None:
+    for name in MULTI_AGENT_BACKENDS:
+        environment = _plain(AZURE_OVERRIDE["services"][name]["environment"])
+        assert isinstance(environment, dict)
+        assert environment["MULTI_AGENT_BASE_URL"] == "http://127.0.0.1:9", name
+        assert environment["MULTI_AGENT_SERVICE_TOKEN"] == "", name
+    f3 = AZURE_OVERRIDE["services"]["f3-backend"]["environment"]
+    assert "MULTI_AGENT_SERVICE_TOKEN" not in f3
+
+
+def test_ai_overlay_hands_each_multi_agent_backend_its_token_as_a_compose_secret() -> None:
+    secret = AZURE_AI["secrets"]["multi_agent_service_token"]
+    assert secret["file"] == (
+        "${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/multi-agent-service-token"
+    )
+    for name in MULTI_AGENT_BACKENDS:
+        service = AZURE_AI["services"][name]
+        pairs = dict(
+            pair.split("=") for pair in service["environment"]["PROPERTYSCOPE_SECRET_ENV"].split()
+        )
+        assert pairs["MULTI_AGENT_SERVICE_TOKEN"] == "multi_agent_service_token", name
+        assert pairs["AI_MODE_SERVICE_TOKEN"] == "ai_mode_service_token", name
+        assert "multi_agent_service_token" in service["secrets"], name
+        assert service["environment"]["MULTI_AGENT_BASE_URL"].startswith(
+            "http://host.docker.internal:"
+        )
+        # The baseline still mounts the shim and blanks the variable the shim fills.
+        assert "entrypoint" in AZURE_OVERRIDE["services"][name], name
+    # Pairs the baseline already lists stay listed when the overlay replaces the variable.
+    for name in MULTI_AGENT_BACKENDS:
+        baseline = _plain(AZURE_OVERRIDE["services"][name]["environment"])
+        assert isinstance(baseline, dict)
+        overlay = AZURE_AI["services"][name]["environment"]["PROPERTYSCOPE_SECRET_ENV"].split()
+        assert set(baseline["PROPERTYSCOPE_SECRET_ENV"].split()) <= set(overlay), name
+    f3 = AZURE_AI["services"]["f3-backend"]
+    assert "multi_agent_service_token" not in f3["secrets"]
+
+
+def test_vm_renders_compose_readable_entry_tokens_and_root_only_host_tokens() -> None:
+    script = (AZURE / "vm" / "propertyscope-vm.sh").read_text(encoding="utf-8")
+    assert "for name in ai-mode-service-token multi-agent-service-token; do" in script
+    assert 'write_secret "$name" "$value" 0444' in script
+    assert "for name in mcp-service-token rag-service-token; do" in script
+    assert 'write_secret "$name" "$value" 0400' in script
+    removal = script.split("remove_ai_secrets() {", 1)[1].split("\n}\n", 1)[0]
+    assert "multi-agent-service-token" in removal
+
+
+# --- Health checks -------------------------------------------------------------------------------
+
+
+def test_services_without_an_image_health_check_gain_one_in_azure() -> None:
+    services = AZURE_OVERRIDE["services"]
+    caddy = services[EDGE_SERVICE]["healthcheck"]["test"]
+    assert caddy == [
+        "CMD",
+        "wget",
+        "--quiet",
+        "--tries=1",
+        "--spider",
+        "http://127.0.0.1:8079/healthz",
+    ]
+    caddyfile = (AZURE / "Caddyfile").read_text(encoding="utf-8")
+    site = caddyfile.split("http://127.0.0.1:8079 {", 1)[1].split("\n}", 1)[0]
+    assert "bind 127.0.0.1" in site and 'respond /healthz "ok" 200' in site
+    assert "8079" not in str(services[EDGE_SERVICE]["ports"])
+    # The workers have no HTTP surface: each check reaches the dependency it polls, on a network
+    # the worker actually joins in Azure.
+    runner = " ".join(services["f1-runner"]["healthcheck"]["test"])
+    assert "http://f1-backend:5201/health/live" in runner
+    assert "networks" not in services["f1-runner"]  # stays on shared-platform with f1-backend
+    loader = " ".join(services["f1-db-loader"]["healthcheck"]["test"])
+    assert "('f1-postgres', 5432)" in loader
+    assert _plain(services["f1-db-loader"]["networks"]) == _plain(
+        services["f1-postgres"]["networks"]
+    )
+    routes = (ROOT / "student-1/backend/src/propertyscope_data_platform/api.py").read_text(
+        encoding="utf-8"
+    )
+    assert '@api.get("/health/live")' in routes
+
+
+# --- Edge rate limiting --------------------------------------------------------------------------
+
+
+def _nginx_api_limit_patterns() -> list[re.Pattern[str]]:
+    nginx = (AZURE / "nginx" / "00-propertyscope-production.conf").read_text(encoding="utf-8")
+    block = nginx.split("map $uri $propertyscope_api_limit_key {", 1)[1].split("}\n", 1)[0]
+    return [
+        re.compile(line.split()[0][1:])
+        for line in block.splitlines()
+        if line.strip().startswith("~")
+    ]
+
+
+def test_b5_rate_limit_probe_reaches_limit_req() -> None:
+    """The probe must not be answered by an nginx `return`, which runs before limit_req."""
+    validator = (AZURE / "validate-endpoint-security.sh").read_text(encoding="utf-8")
+    probe = re.search(r"RATE_LIMIT_PROBE=\$\{RATE_LIMIT_PROBE:-(\S+)\}", validator)
+    assert probe is not None
+    path = probe.group(1)
+    assert "/api/rate-limit-probe" not in validator
+    assert any(pattern.search(path) for pattern in _nginx_api_limit_patterns())
+    edge = (ROOT / "shared/frontend/nginx.conf").read_text(encoding="utf-8")
+    location = edge.split("location /fragments/ {", 1)[1].split("}", 1)[0]
+    assert "try_files $uri =404;" in location and "return" not in location
+    assert path.startswith("/fragments/")
+    generated = (ROOT / "shared/frontend/generated/enabled-feature-routes.conf").read_text(
+        encoding="utf-8"
+    )
+    # No feature fragment route (which would proxy to a backend) claims the probe.
+    assert not any(
+        path.startswith(prefix)
+        for prefix in re.findall(r"location \^~ (/fragments/\S+)", generated)
+    )
+    iac = (AZURE / "validate-iac.sh").read_text(encoding="utf-8")
+    assert f"readonly RATE_LIMIT_PROBE={path}" in iac
+
+
+# --- systemd -------------------------------------------------------------------------------------
+
+
+def test_ai_units_tolerate_a_missing_runtime_store_and_the_vm_creates_it() -> None:
+    for path in (AZURE / "systemd").glob("*.service"):
+        unit = path.read_text(encoding="utf-8")
+        paths = re.findall(r"^ReadWritePaths=(.+)$", unit, re.M)
+        assert paths, path.name
+        for value in paths:
+            assert all(item.startswith("-") for item in value.split()), (path.name, value)
+    script = (AZURE / "vm" / "propertyscope-vm.sh").read_text(encoding="utf-8")
+    assert "readonly RUNTIME_DIR=$SRC_DIR/.propertyscope-runtime" in script
+    assert 'install -d -m 0750 -o "$AI_USER" -g "$AI_USER" "$RUNTIME_DIR"' in script
+    # Created before the units start.
+    start = script.split("start_ai_tier() {", 1)[1]
+    assert start.index("checkout_source") < start.index("systemctl enable --now")
+
+
+# --- Bicep and provisioning ----------------------------------------------------------------------
+
+
+def test_bicep_guards_empty_parameters_and_the_conditional_vm_output() -> None:
+    main = (AZURE / "main.bicep").read_text(encoding="utf-8")
+    assert "virtualMachine!.outputs.principalId" in main
+    assert "virtualMachine.outputs" not in main
+    assert "var publicDnsLabel = empty(dnsLabel) ?" in main
+    assert "dnsLabel: publicDnsLabel" in main
+    assert "registries@2025-04-01" in (AZURE / "modules/registry.bicep").read_text(encoding="utf-8")
+    for name in ("main.bicepparam", "dev.bicepparam"):
+        params = (AZURE / name).read_text(encoding="utf-8")
+        assert "bool(readEnvironmentVariable" not in params, name
+        assert "int(readEnvironmentVariable" not in params, name
+        assert (
+            "param location = empty(locationSetting) ? 'australiaeast' : locationSetting" in params
+        )
+    production = (AZURE / "main.bicepparam").read_text(encoding="utf-8")
+    assert (
+        "param dnsLabel = empty(dnsLabelSetting) ? 'propertyscope-nsw-g20' : dnsLabelSetting"
+        in production
+    )
+
+
+def test_provision_recovers_a_soft_deleted_vault_before_deploying() -> None:
+    script = (AZURE / "deploy.sh").read_text(encoding="utf-8")
+    provision = script.split("cmd_provision() {", 1)[1].split("\n}\n", 1)[0]
+    assert provision.index("az group create") < provision.index("recover_deleted_key_vault")
+    assert provision.index("recover_deleted_key_vault") < provision.index("az deployment group")
+    recover = script.split("recover_deleted_key_vault() {", 1)[1].split("\n}\n", 1)[0]
+    assert "az_query keyvault list-deleted" in recover
+    assert "run az keyvault recover" in recover
+    assert "AZURE_KEY_VAULT_NAME_SEED" in recover
+    main = (AZURE / "main.bicep").read_text(encoding="utf-8")
+    assert "uniqueString(resourceGroup().id, keyVaultNameSeed)" in main
+    assert "enablePurgeProtection: true" in (AZURE / "modules/keyvault.bicep").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_ci_runs_the_offline_iac_validation() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/integration-ci.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["iac-lint"]
+    runs = "\n".join(step.get("run", "") for step in job["steps"])
+    assert "az bicep install --version" in runs
+    assert "bash deployment/azure/validate-iac.sh --strict" in runs
+    assert "az login" not in runs and "azure/login" not in str(job)
+    assert job["timeout-minutes"] <= 15
+    iac = (AZURE / "validate-iac.sh").read_text(encoding="utf-8")
+    for script in (
+        "deployment/azure/deploy.sh",
+        "deployment/azure/vm/propertyscope-vm.sh",
+        "deployment/azure/validate-endpoint-security.sh",
+        "deployment/azure/validate-data-security.sh",
+    ):
+        assert f"    {script}\n" in iac, script
+
+
+# --- Shell behaviour (runs only where a POSIX bash is available) ---------------------------------
+
+
+def _bash() -> str:
+    try:
+        return cloud.bash_executable()
+    except RuntimeError:
+        pytest.skip("bash is not installed")
+
+
+def _run_bash(script: str, tmp_path: Path, **environment: str) -> subprocess.CompletedProcess[str]:
+    harness = tmp_path / "harness.sh"
+    harness.write_bytes(script.encode("utf-8"))
+    return subprocess.run(  # noqa: S603 - fixed bash and a harness written by this test
+        [_bash(), harness.as_posix(), tmp_path.as_posix()],
+        cwd=ROOT,
+        env={**os.environ, **environment},
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
+# Sources the VM script (its functions only) with curl, jq and sleep replaced by fakes. Each curl
+# call takes the next "<status>:<body>" from RESPONSES (the last one repeats); kv_get's `-w`
+# calls print the body and the status, `-f` calls fail on anything but 200.
+VM_HARNESS = r"""
+set -euo pipefail
+WORK=$1
+source deployment/azure/vm/propertyscope-vm.sh
+set +e
+echo 0 >"$WORK/calls"
+: >"$WORK/sleeps"
+read -r -a RESPONSES <<<"$FAKE_RESPONSES"
+curl() {
+    local count entry status body
+    count=$(<"$WORK/calls")
+    echo $((count + 1)) >"$WORK/calls"
+    entry=${RESPONSES[count]:-${RESPONSES[${#RESPONSES[@]}-1]}}
+    status=${entry%%:*}
+    body=${entry#*:}
+    if [[ " $* " == *" -w "* ]]; then
+        printf '%s\n%s' "$body" "$status"
+    elif [[ $status == 200 ]]; then
+        printf '%s' "$body"
+    else
+        return 22
+    fi
+}
+jq() {
+    local key=${2#.} input value
+    input=$(cat)
+    value=$(sed -n "s/.*\"$key\":\"\([^\"]*\)\".*/\1/p" <<<"$input")
+    [[ -n $value ]] || return 1
+    printf '%s\n' "$value"
+}
+sleep() { printf '%s ' "$1" >>"$WORK/sleeps"; }
+"""
+
+
+@pytest.mark.parametrize(
+    ("responses", "call", "status", "output", "calls", "sleeps"),
+    [
+        ('403:{} 403:{} 200:{"value":"s3cret"}', "kv_get internal-token", 0, "s3cret", 3, "5 10"),
+        ('000: 503:{} 200:{"value":"s3cret"}', "kv_get internal-token", 0, "s3cret", 3, "5 10"),
+        ("404:{}", "kv_get openai-api-key optional", 3, "", 1, ""),
+        ("404:{}", "kv_get internal-token", 1, "", 1, ""),
+        ("400:{}", "kv_get internal-token", 1, "", 1, ""),
+        ("403:{}", "kv_get internal-token", 1, "", 4, "5 10 20"),
+        (
+            '400:{} 400:{} 200:{"access_token":"tok"}',
+            "imds_token https://vault.azure.net",
+            0,
+            "tok",
+            3,
+            "5 10",
+        ),
+        ("400:{}", "imds_token https://vault.azure.net", 1, "", 4, "5 10 20"),
+    ],
+    ids=[
+        "kv-403-propagation",
+        "kv-network-and-5xx",
+        "kv-optional-missing",
+        "kv-required-missing",
+        "kv-bad-request",
+        "kv-gives-up",
+        "imds-identity-not-ready",
+        "imds-gives-up",
+    ],
+)
+def test_vm_azure_calls_retry_with_bounded_backoff(
+    tmp_path: Path,
+    responses: str,
+    call: str,
+    status: int,
+    output: str,
+    calls: int,
+    sleeps: str,
+) -> None:
+    script = VM_HARNESS + f'value=$({call})\nrc=$?\nprintf "rc=%s value=%s\\n" "$rc" "$value"\n'
+    completed = _run_bash(
+        script,
+        tmp_path,
+        FAKE_RESPONSES=responses,
+        PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS="4",
+        KEY_VAULT_NAME="example-kv",
+        KV_TOKEN="token",
+    )
+    assert f"rc={status} value={output}\n" in completed.stdout, completed.stderr
+    assert (tmp_path / "calls").read_text(encoding="utf-8").strip() == str(calls)
+    assert (tmp_path / "sleeps").read_text(encoding="utf-8").strip() == sleeps
+
+
+def test_vm_backoff_grows_to_a_one_minute_cap(tmp_path: Path) -> None:
+    script = VM_HARNESS + (
+        "for attempt in $(seq 1 12); do\n"
+        '    backoff "$attempt" probe 2>/dev/null || echo "stop=$attempt"\n'
+        "done\n"
+    )
+    completed = _run_bash(script, tmp_path, FAKE_RESPONSES="200:{}")
+    assert "stop=12" in completed.stdout, completed.stderr
+    assert (tmp_path / "sleeps").read_text(encoding="utf-8").split() == [
+        "5", "10", "20", "40", "60", "60", "60", "60", "60", "60", "60",
+    ]  # fmt: skip
+
+
+def test_vm_pull_logs_in_again_until_acr_accepts_the_identity(tmp_path: Path) -> None:
+    script = VM_HARNESS + (
+        'echo 0 >"$WORK/pulls"; echo 0 >"$WORK/logins"\n'
+        'compose() { local n; n=$(<"$WORK/pulls"); echo $((n + 1)) >"$WORK/pulls"; ((n >= 2)); }\n'
+        'acr_login() { local n; n=$(<"$WORK/logins"); echo $((n + 1)) >"$WORK/logins"; }\n'
+        'pull_images && echo "pulled pulls=$(<"$WORK/pulls") logins=$(<"$WORK/logins")"\n'
+    )
+    completed = _run_bash(
+        script, tmp_path, FAKE_RESPONSES="200:{}", IMAGE_TAG="abc", ACR_LOGIN_SERVER="x.azurecr.io"
+    )
+    assert "pulled pulls=3 logins=2" in completed.stdout, completed.stderr
+
+
+def test_vm_settings_are_validated(tmp_path: Path) -> None:
+    script = VM_HARNESS + ("(validate_settings) && echo valid\n")
+    good = _run_bash(script, tmp_path, FAKE_RESPONSES="200:{}")
+    assert "valid" in good.stdout, good.stderr
+    bad = _run_bash(
+        script, tmp_path, FAKE_RESPONSES="200:{}", PROPERTYSCOPE_STARTUP_WAIT_SECONDS="soon"
+    )
+    assert "valid" not in bad.stdout
+    assert "PROPERTYSCOPE_STARTUP_WAIT_SECONDS" in bad.stderr
+
+
+def test_dry_run_deploy_payload_is_valid_bash_and_ships_the_bundle(tmp_path: Path) -> None:
+    completed = subprocess.run(  # noqa: S603 - fixed bash and repository script
+        [_bash(), "deployment/azure/deploy.sh", "--dry-run", "deploy"],
+        cwd=ROOT,
+        env={
+            **os.environ,
+            "PROPERTYSCOPE_CLOUD_LOG_DIR": tmp_path.as_posix(),
+            "AZURE_ENV_FILE": (tmp_path / "missing.env").as_posix(),
+            "PROPERTYSCOPE_ACME_EMAIL": "operator@example.com",
+            "IMAGE_TAG": "0" * 40,
+            "PROPERTYSCOPE_STARTUP_WAIT_SECONDS": "1200",
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    payload = tmp_path / "vm-deploy.payload.sh"
+    text = payload.read_text(encoding="utf-8")
+    assert "export PROPERTYSCOPE_STARTUP_WAIT_SECONDS=1200" in text
+    # Root's tar keeps the operator checkout's modes (found by the local rehearsal: a 0600 nginx
+    # include broke the edge), so the payload makes the bundle readable for non-root containers.
+    extract = text.index("| tar -xzf - -C /opt/propertyscope/app")
+    normalise = text.index("chmod -R u=rwX,go=rX /opt/propertyscope/app/deployment")
+    assert extract < normalise < text.index("propertyscope-vm.sh deploy")
+    syntax = subprocess.run(  # noqa: S603 - fixed bash and the payload just written
+        [_bash(), "-n", payload.as_posix()], capture_output=True, text=True, check=False
+    )
+    assert syntax.returncode == 0, syntax.stderr
+    encoded = re.search(r"printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d", text)
+    assert encoded is not None
+    with tarfile.open(fileobj=io.BytesIO(base64.b64decode(encoded.group(1))), mode="r:gz") as tar:
+        names = set(tar.getnames())
+    for required in (
+        "docker-compose.azure.yml",
+        "docker-compose.azure-ai.yml",
+        "deployment/azure/Caddyfile",
+        "deployment/azure/vm/propertyscope-vm.sh",
+        "deployment/azure/systemd/propertyscope-multi-agent.service",
+        "deployment/azure/nginx/00-propertyscope-production.conf",
+    ):
+        assert required in names, required

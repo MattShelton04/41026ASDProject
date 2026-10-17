@@ -3,7 +3,7 @@
 - `check.py`: the single cross-platform deterministic quality runner. Its `format`, `lint`,
   `architecture`, `styles`, `typecheck`, `compile`, and `test` stages are independently callable;
   no argument runs the complete pre-PR gate. It keeps the 90% shared/AI core threshold separate
-  from the 60% Feature 1 ratchet so uncovered feature code cannot hide behind core coverage.
+  from the 72% Feature 1 ratchet so uncovered feature code cannot hide behind core coverage.
 - `dev.py`: grouped stack, UI-fixture, and data-acquisition workflows
 - `devtools/`: focused command parsing and shared workflow configuration
 - `generate_contracts.py`: generate or drift-check public JSON Schema and OpenAPI snapshots

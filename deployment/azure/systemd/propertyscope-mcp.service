@@ -21,7 +21,8 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/opt/propertyscope/src/.propertyscope-runtime
+# "-": a missing path must not fail the unit with 226/NAMESPACE (propertyscope-vm.sh creates it).
+ReadWritePaths=-/opt/propertyscope/src/.propertyscope-runtime
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes

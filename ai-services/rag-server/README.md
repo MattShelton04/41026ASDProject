@@ -47,6 +47,7 @@ alternatively contain inline `text`; its HTTP payload is the normalized `CorpusI
 | `RAG_EMBEDDING_MODE` | `semantic`; explicit `fixture` enables deterministic lexical hashing |
 | `RAG_ALLOWED_CORPORA` | `student-1-propertyscope-data-platform:operator-guidance`; comma-separated exact pairs |
 | `RAG_OFFICIAL_EVIDENCE_CORPORA` | Empty; exact registered corpus pairs whose reviewed adapters may submit `official` documents |
+| `RAG_LOG_LEVEL` | `INFO`; `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` for the request log below |
 
 Fixture mode validates mechanics and must never be reported as semantic quality. Changing embedding
 identity requires complete reingestion; an old-model index reports unavailable until refreshed.
@@ -69,6 +70,20 @@ character position, safe display URL, source date, ingestion time, evidence kind
 version. Scores are cosine relevance, not confidence probabilities. AI-mode separately validates final
 claims and evidence confidence. Recheck the current-version route before claiming resumed context is
 current; historical citations retain their own self-contained excerpt and version.
+
+## Request log
+
+The managed WSGI server writes no access log, so the service writes one JSON line per request to
+stdout (the host log `.propertyscope-runtime/host/rag.log`), in AI-mode's log schema:
+`event: http.request.completed`, `request_id`, `run_id`, `method`, route-template `path`,
+`status_code`, `outcome`, `duration_ms` and the problem `error_code`. A valid incoming
+`X-Request-ID` (AI-mode sends the run's request ID) is logged and echoed in the response;
+otherwise a UUID is generated and echoed. `X-Agent-Run-ID` becomes `run_id` when it is a UUID.
+Retrieval adds `feature_key`, `corpus_id`, `retrieval_status` and `result_count`; ingestion and
+the corpus routes add document, chunk or result counts. A corpus scope from a URL is logged only
+when it is registered. The formatter serializes an allowlist of fields only: query text, document
+text, excerpts, tokens and exception messages are never written. An unexpected failure returns
+`internal_error` problem JSON and logs at `error` with only the exception type.
 
 Ingestion normalizes Unicode/newlines, sorts documents and fingerprints the complete text and metadata,
 model artifact identity/dimensions, and chunk strategy. Identical ingestion returns the original version

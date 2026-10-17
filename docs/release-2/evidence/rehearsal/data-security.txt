@@ -1,0 +1,27 @@
+INFO local rehearsal: only the on-host half (propertyscope-vm.sh validate-data) ran; the Azure control-plane checks of validate-data-security.sh need Azure
+PASS secrets directory is root-only (0700)
+PASS no secret file is group/other writable
+PASS no secret value in any container environment (docker inspect)
+PASS no secret value in any image history layer
+PASS network f1-data is internal (no internet route)
+PASS network f2-data is internal (no internet route)
+PASS network f3-data is internal (no internet route)
+PASS network f4-data is internal (no internet route)
+PASS network f5-data is internal (no internet route)
+PASS f1-postgres publishes no host port
+PASS f1-postgres is not on the shared network
+PASS f4-postgres publishes no host port
+PASS f4-postgres is not on the shared network
+PASS f1-db-api publishes no host port
+PASS f1-db-api is not on the shared network
+PASS f2-db-api publishes no host port
+PASS f2-db-api is not on the shared network
+PASS f3-database publishes no host port
+PASS f3-database is not on the shared network
+PASS f4-db-api publishes no host port
+PASS f4-db-api is not on the shared network
+PASS f5-db-api publishes no host port
+PASS f5-db-api is not on the shared network
+PASS nothing but 80/443 (and host AI entry points) listens beyond loopback
+PASS sshd is not running
+PASS Docker keeps no ACR credential after the pull

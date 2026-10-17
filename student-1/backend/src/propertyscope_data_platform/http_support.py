@@ -137,17 +137,21 @@ def forward_json_bytes(upstream: httpx.Response) -> Response:
     return response
 
 
-def problem(status: int, code: str, detail: str) -> Response:
-    response = jsonify(
-        {
-            "type": f"https://propertyscope.local/problems/{code}",
-            "title": code.replace("_", " ").title(),
-            "status": status,
-            "detail": detail,
-            "code": code,
-            "request_id": request.headers.get(REQUEST_ID_HEADER, "unknown"),
-        }
-    )
+def problem(
+    status: int, code: str, detail: str, *, errors: list[dict[str, str]] | None = None
+) -> Response:
+    """Problem Details; ``errors`` lists field issues as ``{field, message, code}``."""
+    body: dict[str, Any] = {
+        "type": f"https://propertyscope.local/problems/{code}",
+        "title": code.replace("_", " ").title(),
+        "status": status,
+        "detail": detail,
+        "code": code,
+        "request_id": request.headers.get(REQUEST_ID_HEADER, "unknown"),
+    }
+    if errors:
+        body["errors"] = errors
+    response = jsonify(body)
     response.status_code = status
     response.content_type = PROBLEM_DETAIL_MEDIA_TYPE
     return response

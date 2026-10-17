@@ -4,7 +4,9 @@ import { createMultiAgentClient, createMultiAgentPanel } from "../multi-agent/in
 export const RELEASE_REVIEW_API_ROOT = "/api/data-platform/v1/release-reviews";
 // Runs record which surface asked for them; each human decision records its own actor.
 export const READINESS_REVIEW_REQUESTER = "property-data-release-review";
-export const READINESS_REVIEW_STATUSES = Object.freeze(new Set(["validated", "candidate", "review", "review_required", "awaiting_review"]));
+// The release statuses the database allows (ops.dataset_release CHECK) that still await a
+// publication decision; the workflow's reviewable-status check accepts the same two.
+export const READINESS_REVIEW_STATUSES = Object.freeze(new Set(["candidate", "awaiting_review"]));
 
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

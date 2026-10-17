@@ -244,7 +244,8 @@ Open <http://localhost:5200>. The main product path is:
    publish changes and remains available later in **Activity history**. Dataset, failed-check and
    publishing entry points use the shared chat with the exact dataset attached and an editable
    suggested question. Existing `#ai/<run-id>` links reopen their saved answer and source inspection
-   in that same component, with follow-up questions available after the review finishes.
+   in that same component, with follow-up questions available after the review finishes. In a
+   deployment without AI (the cloud baseline) the button is disabled and says why.
 
 Use **Ask about Property data** for free-form, read-only questions about the feature, its sources,
 updates, releases, coverage or accepted property evidence. Both this page and **AI review** use the
@@ -442,6 +443,15 @@ The browser calls only these routes under `/api/data-platform/v1`:
 | `POST /release-reviews/{run_id}/cancel` | `POST /runs/{run_id}/cancel` |
 | `GET /release-reviews/{run_id}/history` | `GET /runs/{run_id}/history` |
 
+Before relaying, the proxy checks the text that lands in the run's audit trail. `requested_by`
+and the decision or cancel `actor` are trimmed and must be 1-100 characters that start with a
+letter or digit and contain only letters, digits, spaces and `. , ' @ ( ) - _`. A decision `note`
+is trimmed, at most 2,000 characters, and may contain line breaks and tabs but no other control
+characters. Anything else is `422 invalid_release_review_request` with a field error
+(`errors[{field, message, code}]`, code `invalid_actor` or `invalid_note`), and nothing is sent
+upstream. Feature 1 has no authenticated operator identity, so names stay caller-supplied. The
+server still validates the decision itself (`decision`, `accepted_step_ids`, a required note).
+
 Per-run routes first load the run and answer `404 release_review_not_found` unless it belongs to
 this feature and template. The server's Problem Details are relayed unchanged. A missing token, a
 rejected token or an unreachable server returns `503 multi_agent_unavailable`; everything else in
@@ -450,7 +460,7 @@ review decides on the recommendation only and never publishes. The backend never
 `multi_agent_server`; tests use `shared_testkit.FakeMultiAgentServer`
 (`tests/component/test_release_review_routes.py`).
 
-In the UI, **Readiness review** on a candidate or awaiting-review release (`#releases/{id}`) mounts
+In the UI, **Readiness review** on a `candidate` or `awaiting_review` release (`#releases/{id}`) mounts
 the shared panel (`shared/frontend/multi-agent/`) inline through
 `frontend/integration/release-review.js`. The release and dataset IDs are fixed inputs. The run ID
 is kept as `?review={run_id}`, so a reload reopens the run, and the panel survives the page's
@@ -459,7 +469,36 @@ publication polling with its focus intact. The browser also remembers the latest
 once the proxy confirms it still exists for this release, instead of starting a duplicate. The
 Multi-Agent Server remains the record; the memory is only a per-browser convenience. Publish stays
 the page's separate action. Live evidence of a full UI run is in
-`docs/release-2/evidence/multi-agent/student-1/18740ca5-ui/`.
+`docs/release-2/evidence/multi-agent/student-1/18740ca5-ui/` (recorded with template v1).
+
+`GET /runtime-capabilities` now also returns `review_actions`, which tells the release page, from
+configuration alone, which review actions this deployment enables: `readiness_review` needs
+`MULTI_AGENT_SERVICE_TOKEN` and `ai_review` needs
+`AI_MODE_SERVICE_TOKEN`. The managed local stack always provides both. The cloud baseline (AI tier
+off) provides neither, so **Readiness review** and **Review with AI** stay visible but are
+`aria-disabled`, still focusable, and described by a visible note ("Multi-agent review is not
+enabled in this deployment." / "AI review is not enabled in this deployment."). A recorded
+`?review=` run is not reopened there. The page asks once per load
+(`frontend/integration/review-capabilities.js`); if the answer cannot be read, both actions stay
+available and their own routes report any failure as before.
+
+Template v2 checks, besides the release itself: the queue step succeeded (low), and the release
+manifest records `publisher` and `source_licence` (medium) and `source_retrieved_at` (low). Its
+human guidance says completeness against the publisher's totals is self-attested, because the
+read-only tools cannot fetch upstream totals. There is no compare step: the template engine cannot
+make a step depend on an optional input, and `data.release_compare.v1` needs an accepted
+predecessor that a first release does not have. Validate the manifest with
+`uv run multi-agent-server validate student-1/config/multi-agent/workflow.yaml`.
+
+### Demonstration-data notice
+
+While every accepted release is the seeded demonstration baseline (`coverage_json.synthetic`,
+set by migration 047), the Data overview, Property research, Data products and Coverage pages
+show a quiet notice that the data is a seeded demonstration baseline of synthetic records, not
+complete NSW publisher data. The shell reads
+`dataset-releases?lifecycle=published&view=summary` at most once a minute
+(`frontend/integration/demonstration-data.js`); the summary view now carries the `synthetic`
+marker. Publishing any real release removes the notice, and a failed read hides it.
 
 Tutor approval for the narrow ADR-016 PostgreSQL/PostGIS exception has been confirmed. A durable
 link or copy of that written approval should still be attached to the submission evidence; the

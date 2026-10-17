@@ -46,8 +46,9 @@ uv run python scripts/check.py
 Select `.venv` as the Python interpreter in your editor. The same commands work in PowerShell,
 Command Prompt, Bash, and zsh.
 
-`pre-commit install` is required: every `git commit` then runs Ruff, formatting, mypy and the three
-[security scans](#security-scans) on the staged files, and `git push` runs only the full gate
+`pre-commit install` is required (`scripts/check.py` warns when either hook is missing): every
+`git commit` then runs Ruff, formatting, mypy and the three [security scans](#security-scans) on
+the staged files, and `git push` runs only the full gate
 (`scripts/check.py pre-push`), which includes Ruff and mypy. The push skips the gate when the pushed commit's tree already passed
 `uv run python scripts/check.py` in this clone, so pushing straight after a green local run is
 instant. Each passing run records its working-tree hash in the Git directory
@@ -99,7 +100,7 @@ only for documented, non-secret defaults.
 | Type-check canonical Python | `uv run python scripts/check.py typecheck` |
 | Syntax-check first-party browser JavaScript | `uv run python scripts/check.py compile` |
 | Run deterministic Python and frontend tests | `uv run python scripts/check.py test` |
-| Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 60% Feature 1 ratchet) |
+| Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 72% Feature 1 ratchet) |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
 | Generate or drift-check deployment projections | `uv run python scripts/generate_deployment.py` / `uv run python scripts/generate_deployment.py --check` |
 | Validate repository boundaries | `uv run python scripts/validate_architecture.py` |

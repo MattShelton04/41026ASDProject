@@ -38,7 +38,10 @@ from propertyscope_data_platform.release_projection import (
 from propertyscope_data_platform.release_projection import (
     release_detail_contract as release_detail_contract,
 )
-from propertyscope_data_platform.release_review_routes import register_release_review_routes
+from propertyscope_data_platform.release_review_routes import (
+    register_release_review_routes,
+    review_capabilities,
+)
 from propertyscope_data_platform.release_routes import (
     ensure_import_operation,
     finalize_candidate_release,
@@ -168,6 +171,12 @@ def create_blueprint(
                 "cached_source_years": {"psi-sales": list(psi_cached_years)},
                 "cached_source_weeks": {"psi-sales": list(psi_cached_weeks)},
                 "catalogued_profiles": ["psi-sales"],
+                # Which release-page review actions this deployment enables, so the page can
+                # explain a disabled one instead of opening a 503 panel.
+                "review_actions": review_capabilities(
+                    multi_agent_configured=multi_agent.configured,
+                    ai_mode_configured=ai_mode.configured,
+                ),
             }
         )
 

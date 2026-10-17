@@ -11,6 +11,10 @@ Multi-Agent Server contract (``sequence``, ``run_id``, ``at``, ``from_state``/``
 ``event``/``role``/``actor``/``detail``). A run's tool allowlist is read from any audit
 ``detail.allowed_tools`` (or ``tool_allowlist``) or from an exported template's
 ``allowed_tools``.
+
+Each student owns their checks. ``student-N.evidence`` is the gate: when a student has not
+exported readable runs, their other checks are ``blocked`` by it rather than failed, so the
+review reports one missing export instead of seven failures.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from pydantic import JsonValue
 
 from scripts.devtools.review.bounded import EvidenceReader
 from scripts.devtools.review.checklist import Checklist, first_string, parse_timestamp, summarise
-from shared_contracts.evidence_review import EvidenceReviewBundle
+from shared_contracts.evidence_review import EvidenceReviewBundle, InputStatus
 
 STUDENTS = tuple(f"student-{number}" for number in range(1, 6))
 HISTORY_FILE = "workflow_history.jsonl"
@@ -87,10 +91,11 @@ def _collect_student(
     runs: dict[str, _Run] = {}
     problems: list[str] = []
     refs = [*histories, *audits]
+    missing: list[str] = []
     for path in histories:
-        _, records = reader.read_jsonl(path)
+        loaded, records = reader.read_jsonl(path)
         if records is None:
-            problems.append(f"{path} unreadable")
+            _record_gap(path, loaded.status, problems, missing)
             continue
         for record in records:
             run_id = first_string(record, *_RUN_KEYS)
@@ -99,9 +104,9 @@ def _collect_student(
                 continue
             runs.setdefault(run_id, _Run(run_id)).history.append(record)
     for path in audits:
-        _, records = reader.read_jsonl(path)
+        loaded, records = reader.read_jsonl(path)
         if records is None:
-            problems.append(f"{path} unreadable")
+            _record_gap(path, loaded.status, problems, missing)
             continue
         for record in records:
             run_id = first_string(record, *_RUN_KEYS)
@@ -138,11 +143,15 @@ def _collect_student(
         detail=(
             f"{len(runs)} run(s) across {len(histories)} history and {len(audits)} audit file(s)."
             if present
+            else f"Evidence not submitted: {student} has not exported {HISTORY_FILE} or "
+            f"{AUDIT_FILE} into {directory}/."
+            if len(missing) == len(refs)
             else "Evidence gap: "
             + (summarise(problems) if problems else "no workflow runs were exported")
             + f". Export with the Multi-Agent Server CLI into {directory}/."
         ),
         refs=refs,
+        owner=student,
     )
     ordered = sorted(runs.values(), key=lambda run: run.run_id)
     decided = [run for run in ordered if _human_decision(run) is not None]
@@ -169,6 +178,7 @@ def _collect_student(
             + "."
         ),
         refs=refs,
+        prerequisite=_gate(student),
     )
     tool_calls = [
         record for run in ordered for record in run.audit if _event(record) == "tool.call"
@@ -222,6 +232,7 @@ def _stage_check(
             else f"Stage order or agent audit events missing for run(s) {summarise(incomplete)}."
         ),
         refs=refs,
+        prerequisite=_gate(student),
     )
 
 
@@ -256,6 +267,7 @@ def _decision_check(
             else f"Decision without a human actor or timestamp in run(s) {summarise(unattributed)}."
         ),
         refs=refs,
+        prerequisite=_gate(student),
     )
 
 
@@ -278,6 +290,7 @@ def _transition_check(
             else summarise(problems, limit=3)
         ),
         refs=refs,
+        prerequisite=_gate(student),
     )
 
 
@@ -363,6 +376,7 @@ def _tool_check(
         passed=passed,
         detail=detail,
         refs=refs,
+        prerequisite=_gate(student),
     )
 
 
@@ -393,7 +407,21 @@ def _handoff_check(
             else f"Handoffs not recorded: {', '.join(missing)}."
         ),
         refs=refs,
+        prerequisite=_gate(student),
     )
+
+
+def _record_gap(path: str, status: InputStatus, problems: list[str], missing: list[str]) -> None:
+    if status is InputStatus.MISSING:
+        missing.append(path)
+        problems.append(f"{path} is missing")
+    else:
+        problems.append(f"{path} is {status.value}")
+
+
+def _gate(student: str) -> str:
+    """The check every other check of a student depends on: readable exported runs."""
+    return f"{student}.evidence"
 
 
 def _human_decision(run: _Run) -> str | None:
