@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import httpx
@@ -280,6 +281,39 @@ def test_multi_agent_probe_reports_invalid_readiness_and_listing() -> None:
     evidence = _run(httpx.MockTransport(respond))
 
     assert _failed(evidence) == ["accepts the service token", "lists workflow templates"]
+
+
+def test_a_request_id_prefix_tags_every_probe_request_for_log_correlation() -> None:
+    inner = _handler()
+    seen: list[str | None] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-Request-ID"))
+        return inner.handle_request(request)
+
+    with httpx.Client(transport=httpx.MockTransport(record)) as client:
+        evidence = release1_probe.probe(
+            {}, client=client, features=(FEATURE,), request_id_prefix="local-deploy"
+        )
+        assert client.event_hooks["request"] == []
+
+    assert evidence["passed"] is True
+    assert seen
+    assert all(value and re.fullmatch(r"local-deploy-[0-9a-f]{16}", value) for value in seen)
+    assert len(set(seen)) == len(seen)
+
+
+def test_probe_requests_carry_no_request_id_without_a_prefix() -> None:
+    inner = _handler()
+    seen: list[str | None] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-Request-ID"))
+        return inner.handle_request(request)
+
+    _run(httpx.MockTransport(record))
+    assert seen
+    assert set(seen) == {None}
 
 
 def test_probe_refuses_to_run_in_ci() -> None:

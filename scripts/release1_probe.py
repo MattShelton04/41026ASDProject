@@ -10,6 +10,7 @@ reconfigures a service, and never ingests documents.
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +20,7 @@ import yaml
 
 from scripts.devtools import host_runtime
 from scripts.devtools.config import REPOSITORY_ROOT
-from shared_contracts import HealthStatus
+from shared_contracts import REQUEST_ID_HEADER, HealthStatus
 from shared_contracts.deployment import DeploymentProjectionV1, TypedHealthProjection
 from shared_contracts.grounding import GROUNDING_MIN_SCORE
 from shared_contracts.multi_agent import MULTI_AGENT_API_PREFIX, MULTI_AGENT_SERVICE_NAME
@@ -331,20 +332,38 @@ def _probe_rag(
     return checks
 
 
+def _request_id_hook(prefix: str) -> Callable[[httpx.Request], None]:
+    def tag(request: httpx.Request) -> None:
+        request.headers.setdefault(REQUEST_ID_HEADER, f"{prefix}-{uuid.uuid4().hex[:16]}")
+
+    return tag
+
+
 def probe(
     environment: Mapping[str, str],
     *,
     client: httpx.Client | None = None,
     features: tuple[RegisteredFeature, ...] | None = None,
     output: Path | None = None,
+    request_id_prefix: str | None = None,
 ) -> dict[str, object]:
-    """Probe the already running host services and return JSON-serialisable evidence."""
+    """Probe the already running host services and return JSON-serialisable evidence.
+
+    With ``request_id_prefix``, every probe request carries an ``X-Request-ID`` of
+    ``<prefix>-<16 hex>`` so the host service logs can be correlated with this run.
+    """
     if environment.get("CI", "").lower() in {"true", "1"}:
         raise RuntimeError("Live MCP/RAG probing is local-only; CI keeps both disabled")
     resolved = host_runtime.prepare_environment(environment, mode="combined")
     registered = registered_features() if features is None else features
     urls = {service: host_runtime.local_url(service, resolved) for service in host_runtime.SERVICES}
     session = client or httpx.Client(timeout=60.0, follow_redirects=False)
+    hooks = session.event_hooks
+    if request_id_prefix is not None:
+        session.event_hooks = {
+            **hooks,
+            "request": [*hooks.get("request", []), _request_id_hook(request_id_prefix)],
+        }
     probes: dict[str, Callable[[], list[Check]]] = {
         "ai-mode": lambda: _probe_ai_mode(
             session, urls["ai-mode"], resolved["AI_MODE_SERVICE_TOKEN"]
@@ -369,6 +388,8 @@ def probe(
     finally:
         if client is None:
             session.close()
+        else:
+            session.event_hooks = hooks
     evidence: dict[str, object] = {
         "schema_version": "1.0",
         "passed": bool(checks) and all(check.passed for check in checks),
