@@ -243,8 +243,12 @@ The smoke contract (`schema_version` 2):
 
 - `commit_sha`, `image_tag` and `registry` come from `--commit-sha`, `--image-tag` and `--registry`.
   Without them they come from `PROPERTYSCOPE_DEPLOY_SHA` (or `PROPERTYSCOPE_GIT_SHA`), `IMAGE_TAG`
-  and `ACR_LOGIN_SERVER`, which the workflow sets. `images` lists every `${IMAGE_TAG}` image in
-  `docker-compose.azure.yml`, unless `--image SERVICE=REF` names them (for example a digest).
+  and `ACR_LOGIN_SERVER`, which the workflow sets. `images` comes from, in order: `--image
+  SERVICE=REF`; the running images the VM reported (`--vm-log vm-deploy.log`, its
+  `PROPERTYSCOPE_IMAGES` line, `repository@sha256:...` where a digest is known), with
+  `images_source` "the VM (docker compose ps, PROPERTYSCOPE_IMAGES in vm-deploy.log)"; otherwise
+  every `${IMAGE_TAG}` image in `docker-compose.azure.yml` derived from the tag, as in the example.
+  `deploy.sh smoke` passes `--vm-log` when the deploy log exists.
 - `ai_enabled` is what the AI check observed: `false` only for an explicit `503 ai_disabled`,
   `true` when AI-mode answered, and `null` when it was unreachable or not checked (`ai_state`
   says which).

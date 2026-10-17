@@ -252,7 +252,7 @@ def test_vm_reports_running_images_on_their_own_line_before_the_result(tmp_path:
     # run-command keeps only the output's tail: the result line must come last.
     assert images < result
     assert json.loads(lines[images].split("=", 1)[1]) == {
-        "f1-backend": "reg:5000/propertyscope/f1-backend:abc@sha256:" + "a" * 64,
+        "f1-backend": "reg:5000/propertyscope/f1-backend@sha256:" + "a" * 64,
         "shared-edge-proxy": "reg:5000/propertyscope/mirror/caddy:2.10.2-alpine",
     }
     assert json.loads(lines[result].split("=", 1)[1])["containers_running"] == 2

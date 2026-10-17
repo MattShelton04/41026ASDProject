@@ -514,7 +514,12 @@ running_images() {
         fi
         digest=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null |
             awk -F@ -v repository="$repository" '$1 == repository && $2 ~ /^sha256:[0-9a-f]+$/ { print $2; exit }')
-        images=$(jq -c --arg service "$service" --arg image "${image}${digest:+@$digest}" \
+        # repository@digest pins the image without repeating the tag: tagged and digested
+        # references for every service would overflow run-command's 4 KiB tail on ACR names.
+        if [[ -n $digest ]]; then
+            image="$repository@$digest"
+        fi
+        images=$(jq -c --arg service "$service" --arg image "$image" \
             '. + {($service): $image}' <<<"$images")
     done < <(compose ps --status running --format '{{.Service}} {{.Image}}')
     printf '%s' "$images"

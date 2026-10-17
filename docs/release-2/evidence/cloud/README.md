@@ -48,7 +48,7 @@ cancelled).
 | `release-gate.json` / `.md` | `cloud-deployment-<sha>`: `gate/` (or `release-gate-<sha>`) | For each of Integration CI and Student 1–5 CI: state, run number and URL, head commit, relation and detail |
 | `image-build.json` / `.md` | `image-build-<sha>` | Compose models validated, the images built (ID, size, user), and any missing, unbuilt or root image |
 | `logs/*.log` | `cloud-deployment-<sha>`: `logs/`, plus `build.log` from `image-build-<sha>` | Step output of provision, push, deploy, smoke and the image build |
-| `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, seeded-baseline check and `PROPERTYSCOPE_RESULT` summary |
+| `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, seeded-baseline check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
 | `workflow-run.md` | person | Link to the successful *Cloud Deployment* run, its approval, and the downloaded artifact names |
 | `release-decision.md` | person, after `dev.py ai review cloud` | The human release decision: approve, approve with conditions, or reject, with reasons |
 | `../bonus/endpoint-security.txt`, `../bonus/data-security.txt` | `deploy.sh validate-endpoint` / `validate-data` | Bonus B5 and B6 validation output |
@@ -65,9 +65,12 @@ full in [review-modes.md](../../review-modes.md#cloud).
 - `commit_sha`, `image_tag` and `registry` record what was deployed. The workflow passes them as
   `PROPERTYSCOPE_DEPLOY_SHA`, `IMAGE_TAG` and `ACR_LOGIN_SERVER` (CLI: `--commit-sha`,
   `--image-tag`, `--registry`).
-- `images` maps each `${IMAGE_TAG}` service in `docker-compose.azure.yml` to its reference.
-  `images_source` says where the references came from. The smoke test does not inspect the VM.
-  The VM's own `image_tag` is in `vm-deploy.log`.
+- `images` maps each service to its image reference. With `--vm-log vm-deploy.log` (which
+  `deploy.sh smoke` passes) these are the images the VM reported running, pinned by digest;
+  otherwise they are derived from `IMAGE_TAG` for each `${IMAGE_TAG}` service in
+  `docker-compose.azure.yml`. `images_source` says which. run-command returns only the last
+  4 KiB of output; a cut-off `PROPERTYSCOPE_IMAGES` line is ignored and the derived references are
+  used, so check `images_source` after the first real deploy.
 - `ai_enabled` and `ai_state` record what the AI check observed. `ai_enabled` is `false` only
   for an explicit `503 ai_disabled`, and `null` when the tier was unreachable or not checked.
 - `checks[]` has one entry per observation: `name`, `owner` (`shared` or `student-N`),
