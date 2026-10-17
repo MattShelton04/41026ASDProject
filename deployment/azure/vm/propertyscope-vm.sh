@@ -13,6 +13,10 @@
 #   optional: PROPERTYSCOPE_CLOUD_AI (true|false, default: keep the VM's current state)
 #             PROPERTYSCOPE_GIT_SHA PROPERTYSCOPE_REPO_URL PROPERTYSCOPE_EDGE_USER CADDY_IMAGE_TAG
 #             PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES
+#             PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS (default 12: about 8 minutes of backoff while a new
+#               managed identity, RBAC role assignment or vault firewall rule propagates)
+#             PROPERTYSCOPE_STARTUP_WAIT_SECONDS (default 900: `compose up --wait` on a first boot
+#               also runs the Feature 1 migrations and seeds the demonstration baseline)
 #
 # Secrets never pass through the run-command payload: the VM's managed identity reads them from
 # Key Vault (IMDS token -> Key Vault REST) into root-only files. Nothing here enables `set -x`.
@@ -28,7 +32,10 @@ readonly AI_USER=propertyscope-ai
 readonly AI_HOME=/var/lib/propertyscope-ai
 readonly COMPOSE_PROJECT=ps-azure
 readonly AI_UNITS=(propertyscope-ai-mode propertyscope-mcp propertyscope-rag propertyscope-multi-agent)
-readonly IMDS=http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01
+readonly IMDS='http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01'
+readonly RUNTIME_DIR=$SRC_DIR/.propertyscope-runtime
+AUTH_RETRY_ATTEMPTS=${PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS:-12}
+STARTUP_WAIT_SECONDS=${PROPERTYSCOPE_STARTUP_WAIT_SECONDS:-900}
 
 log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 die() {
@@ -40,6 +47,27 @@ require_env() {
     for name in "$@"; do
         [[ -n ${!name:-} ]] || die "$name is required"
     done
+}
+
+validate_settings() {
+    [[ $AUTH_RETRY_ATTEMPTS =~ ^[1-9][0-9]?$ ]] || die "PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS must be 1-99"
+    [[ $STARTUP_WAIT_SECONDS =~ ^[1-9][0-9]{1,4}$ ]] || die "PROPERTYSCOPE_STARTUP_WAIT_SECONDS must be 10-99999"
+}
+
+# Waits before the next attempt of a call that depends on Azure converging: a new VM's managed
+# identity, a fresh AcrPull / Key Vault Secrets User role assignment, or the vault firewall rule
+# for the VM subnet can each take minutes to take effect after `deploy.sh provision`. Delays grow
+# 5, 10, 20, 40, then 60 seconds; returns 1 once PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS is spent.
+# Logs go to stderr because callers run inside command substitutions that capture stdout.
+backoff() {
+    local attempt=$1 what=$2 delay=5 step
+    ((attempt < AUTH_RETRY_ATTEMPTS)) || return 1
+    for ((step = 1; step < attempt && delay < 60; step++)); do
+        delay=$((delay * 2))
+    done
+    ((delay <= 60)) || delay=60
+    log "${what}: not ready (attempt ${attempt}/${AUTH_RETRY_ATTEMPTS}); retrying in ${delay}s" >&2
+    sleep "$delay"
 }
 
 wait_for_bootstrap() {
@@ -78,23 +106,44 @@ compose() {
 # --- Managed identity ------------------------------------------------------------------------
 
 imds_token() {
-    curl -fsS --retry 5 --retry-delay 2 -H Metadata:true "$IMDS&resource=$1" | jq -er .access_token
+    local resource=$1 attempt=1 token
+    while :; do
+        # IMDS answers 400/404 until a new VM's identity is ready, which curl does not retry.
+        if token=$(curl -fsS --max-time 10 -H Metadata:true "$IMDS&resource=$resource" 2>/dev/null |
+            jq -er .access_token 2>/dev/null); then
+            printf '%s' "$token"
+            return 0
+        fi
+        backoff "$attempt" "managed identity token for $resource" ||
+            die "the VM managed identity could not get a token for $resource"
+        attempt=$((attempt + 1))
+    done
 }
 
-# Prints a Key Vault secret value; returns 3 for a missing optional secret.
+# Prints a Key Vault secret value; returns 3 for a missing optional secret. 401/403 (role
+# assignment or firewall not propagated yet), 408/429/5xx and network errors are retried.
 kv_get() {
-    local name=$1 optional=${2:-} response status
-    response=$(curl -sS --retry 3 -w '\n%{http_code}' -H "Authorization: Bearer $KV_TOKEN" \
-        "https://${KEY_VAULT_NAME}.vault.azure.net/secrets/${name}?api-version=7.4")
-    status=${response##*$'\n'}
-    if [[ $status == 200 ]]; then
-        jq -er .value <<<"${response%$'\n'*}"
-        return 0
-    fi
-    if [[ $status == 404 && $optional == optional ]]; then
-        return 3
-    fi
-    die "Key Vault secret '$name' could not be read (HTTP $status). Run 'deploy.sh secrets' first."
+    local name=$1 optional=${2:-} response status attempt=1
+    while :; do
+        response=$(curl -sS --max-time 15 -w '\n%{http_code}' -H "Authorization: Bearer $KV_TOKEN" \
+            "https://${KEY_VAULT_NAME}.vault.azure.net/secrets/${name}?api-version=7.4" 2>/dev/null || true)
+        status=${response##*$'\n'}
+        case $status in
+            200)
+                jq -er .value <<<"${response%$'\n'*}"
+                return 0
+                ;;
+            404)
+                [[ $optional == optional ]] && return 3
+                die "Key Vault secret '$name' does not exist. Run 'deploy.sh secrets' first."
+                ;;
+            401 | 403 | 408 | 429 | 5[0-9][0-9] | 000 | '') ;;
+            *) die "Key Vault secret '$name' could not be read (HTTP $status)." ;;
+        esac
+        backoff "$attempt" "Key Vault secret $name (HTTP ${status:-none})" ||
+            die "Key Vault secret '$name' could not be read (HTTP ${status:-none}). Check the VM identity's Key Vault Secrets User role and the vault firewall (VM subnet), or run 'deploy.sh secrets'."
+        attempt=$((attempt + 1))
+    done
 }
 
 write_secret() {
@@ -108,15 +157,33 @@ write_secret() {
 
 acr_login() {
     require_env ACR_LOGIN_SERVER
-    local arm refresh
+    local arm refresh attempt=1
     arm=$(imds_token https://management.azure.com/)
-    refresh=$(curl -fsS --retry 3 -X POST "https://${ACR_LOGIN_SERVER}/oauth2/exchange" \
-        --data-urlencode grant_type=access_token \
-        --data-urlencode "service=${ACR_LOGIN_SERVER}" \
-        --data-urlencode "access_token=${arm}" | jq -er .refresh_token)
-    printf '%s' "$refresh" |
-        docker login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin >/dev/null
-    log "ACR login with the VM managed identity (AcrPull)"
+    while :; do
+        if refresh=$(curl -fsS --max-time 15 -X POST "https://${ACR_LOGIN_SERVER}/oauth2/exchange" \
+            --data-urlencode grant_type=access_token \
+            --data-urlencode "service=${ACR_LOGIN_SERVER}" \
+            --data-urlencode "access_token=${arm}" 2>/dev/null | jq -er .refresh_token 2>/dev/null) &&
+            printf '%s' "$refresh" | docker login "$ACR_LOGIN_SERVER" \
+                --username 00000000-0000-0000-0000-000000000000 --password-stdin >/dev/null 2>&1; then
+            log "ACR login with the VM managed identity (AcrPull)"
+            return 0
+        fi
+        backoff "$attempt" "ACR token exchange for ${ACR_LOGIN_SERVER}" ||
+            die "could not log in to ${ACR_LOGIN_SERVER} with the VM managed identity"
+        attempt=$((attempt + 1))
+    done
+}
+
+# `compose pull` answers 401/403 until the AcrPull assignment propagates; log in again and retry.
+pull_images() {
+    local attempt=1
+    until compose pull --quiet; do
+        backoff "$attempt" "pulling ${IMAGE_TAG} from ${ACR_LOGIN_SERVER}" ||
+            die "could not pull ${IMAGE_TAG} images (AcrPull role, or 'deploy.sh push' missing?)"
+        attempt=$((attempt + 1))
+        acr_login
+    done
 }
 
 acr_logout() {
@@ -149,12 +216,15 @@ render_application_secrets() {
 render_ai_secrets() {
     KV_TOKEN=${KV_TOKEN:-$(imds_token https://vault.azure.net)}
     local name value
-    # The AI-mode entry token is a Compose secret for the edge and the backends (non-root container
-    # users), so it is world-readable inside the root-only directory. The others stay root-only:
-    # only systemd (as root) reads them into the host AI environment file.
-    value=$(kv_get ai-mode-service-token)
-    write_secret ai-mode-service-token "$value" 0444
-    for name in mcp-service-token rag-service-token multi-agent-service-token; do
+    # The AI-mode and Multi-Agent entry tokens are Compose secrets for the edge and the backends
+    # (non-root container users), so they are world-readable inside the root-only (0700)
+    # directory. The others stay root-only: only this script (as root) reads them into the host AI
+    # environment file that systemd loads.
+    for name in ai-mode-service-token multi-agent-service-token; do
+        value=$(kv_get "$name")
+        write_secret "$name" "$value" 0444
+    done
+    for name in mcp-service-token rag-service-token; do
         value=$(kv_get "$name")
         write_secret "$name" "$value" 0400
     done
@@ -278,11 +348,11 @@ deploy() {
     acr_login
     trap acr_logout EXIT
     log "Pulling ${IMAGE_TAG} images"
-    compose pull --quiet
+    pull_images
     render_application_secrets
     acr_logout
     trap - EXIT
-    local up_arguments=(up --detach --wait --wait-timeout 300 --no-build --remove-orphans)
+    local up_arguments=(up --detach --wait --wait-timeout "$STARTUP_WAIT_SECONDS" --no-build --remove-orphans)
     if [[ ${PROPERTYSCOPE_FORCE_RECREATE:-false} == true ]]; then
         up_arguments+=(--force-recreate)
     fi
@@ -332,6 +402,9 @@ checkout_source() {
     as_ai_user git -C "$SRC_DIR" fetch --quiet --depth 1 origin "$PROPERTYSCOPE_GIT_SHA"
     as_ai_user git -C "$SRC_DIR" checkout --quiet --force FETCH_HEAD
     unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+    # The runtime store is Git-ignored, so a fresh checkout lacks it; every AI unit's
+    # ReadWritePaths= names it, and the services write their state and the RAG model there.
+    install -d -m 0750 -o "$AI_USER" -g "$AI_USER" "$RUNTIME_DIR"
     (cd "$SRC_DIR" && as_ai_user uv sync --quiet --locked --all-packages --all-groups)
     log "Host AI source at ${PROPERTYSCOPE_GIT_SHA} with the locked workspace"
 }
@@ -381,8 +454,11 @@ start_ai_tier() {
     local corpus
     while IFS= read -r corpus; do
         [[ -n $corpus ]] || continue
-        with_host_ai_environment .venv/bin/rag-server ingest "$corpus" >/dev/null &&
-            log "Ingested RAG corpus ${corpus}" || log "WARNING: could not ingest ${corpus}"
+        if with_host_ai_environment .venv/bin/rag-server ingest "$corpus" >/dev/null; then
+            log "Ingested RAG corpus ${corpus}"
+        else
+            log "WARNING: could not ingest ${corpus}"
+        fi
     done < <(jq -r '.features[].ai.rag_corpus // empty' "$SRC_DIR/deployment/enabled-features.v1.json")
     printf 'true\n' >"$STATE_DIR/cloud-ai"
 }
@@ -390,7 +466,7 @@ start_ai_tier() {
 wait_for_ai_tier() {
     local attempt
     for attempt in $(seq 1 30); do
-        if curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:${AI_MODE_PORT:-5005}/health/live; then
+        if curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:${AI_MODE_PORT:-5005}/health/live"; then
             log "AI-mode is live on the host (systemd)"
             return 0
         fi
@@ -418,7 +494,7 @@ ai_toggle() {
     else
         stop_ai_tier
     fi
-    compose up --detach --wait --wait-timeout 300 --no-build --remove-orphans
+    compose up --detach --wait --wait-timeout "$STARTUP_WAIT_SECONDS" --no-build --remove-orphans
     summary "ai-${wanted}"
 }
 
@@ -490,9 +566,9 @@ container_is_off_shared_network() {
 # Docker publishes 80/443 through iptables; anything else listening must be loopback-only, apart
 # from the host AI entry points that containers reach through the host gateway.
 only_expected_listeners() {
-    [[ -z $(ss -Htln | awk '{print $4}' |
+    ! ss -Htln | awk '{print $4}' |
         grep -vE '^(127\.[0-9.]+|\[::1\]|127\.0\.0\.53%lo):[0-9]+$' |
-        grep -vE ':(80|443|5005|5013)$') ]]
+        grep -qvE ':(80|443|5005|5013)$'
 }
 sshd_is_stopped() { ! systemctl is-active --quiet ssh.service; }
 no_stored_registry_credential() { ! grep -q azurecr.io /root/.docker/config.json 2>/dev/null; }
@@ -537,6 +613,7 @@ validate_data() {
 
 main() {
     [[ $EUID -eq 0 ]] || die "run as root (az vm run-command does)"
+    validate_settings
     local action=${1:-}
     case $action in
         deploy) deploy ;;
@@ -549,4 +626,7 @@ main() {
     esac
 }
 
-main "$@"
+# Sourcing the script (scripts/tests/test_azure_deployment.py) defines the functions only.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
+fi

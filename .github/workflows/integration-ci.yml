@@ -69,6 +69,34 @@ jobs:
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 config --quiet
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --file docker-compose.dev.yml --profile release-0 config --quiet
 
+  # Offline checks of the Azure deployment (ADR-048): Bicep build/lint and parameter files, ShellCheck,
+  # Caddy and nginx configuration in their pinned images, and the cloud-init schema. No Azure
+  # sign-in or subscription is used. Workflows are linted by actionlint in the quality job.
+  iac-lint:
+    name: Azure IaC and edge lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Bicep CLI
+        env:
+          BICEP_VERSION: v0.48.1
+        run: |
+          az bicep install --version "${BICEP_VERSION}"
+          echo "BICEP=${HOME}/.azure/bin/bicep" >> "${GITHUB_ENV}"
+
+      - name: Install cloud-init for schema validation
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends cloud-init
+
+      - name: Validate Bicep, shell scripts, Caddy, nginx and cloud-init
+        run: bash deployment/azure/validate-iac.sh --strict
+
   # The same three pre-commit security scans (R2-30), enforced on every pull request and push.
   security:
     name: Pre-commit security scans

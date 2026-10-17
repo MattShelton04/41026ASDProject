@@ -61,7 +61,7 @@ redirect=$(curl --silent --output /dev/null --max-time 15 --write-out '%{http_co
 expect "HTTP permanently redirects to HTTPS" "$redirect" "^(301|308) https://${HOST//./\\.}/features/data-platform/$"
 
 # --- Headers ---------------------------------------------------------------------------------
-headers=$(curl --silent --dump-header - --output /dev/null --max-time 15 "$BASE/" | tr -d '\r' | tr 'A-Z' 'a-z')
+headers=$(curl --silent --dump-header - --output /dev/null --max-time 15 "$BASE/" | tr -d '\r' | tr '[:upper:]' '[:lower:]')
 expect "HSTS for at least one year" "$(grep '^strict-transport-security:' <<<"$headers")" 'max-age=(3153[6-9][0-9]{3}|[4-9][0-9]{7}|[0-9]{9,})'
 expect "X-Content-Type-Options nosniff" "$(grep '^x-content-type-options:' <<<"$headers" | head -n 1)" 'nosniff'
 expect "Framing denied" "$(grep -E '^(x-frame-options|content-security-policy):' <<<"$headers" | tr '\n' ' ')" "(x-frame-options: deny|frame-ancestors 'none')"
@@ -75,7 +75,8 @@ else
 fi
 
 # --- Authentication on operations and AI routes ----------------------------------------------
-for path in /operations/ai-mode/ /api/ai-mode/runs /api/v1/runs /api/data-platform/v1/artifact-retention /api/market-intelligence/v1/assistant/turns; do
+for path in /operations/ai-mode/ /api/ai-mode/runs /api/v1/runs /api/data-platform/v1/artifact-retention \
+    /api/data-platform/v1/release-reviews /api/market-intelligence/v1/assistant/turns; do
     code=$(status_of "$BASE$path")
     expect "anonymous $path requires operator credentials" "$code" '^401$'
 done
@@ -93,10 +94,14 @@ code=$(status_of "$BASE/api/data-platform/v1/sources?limit=1")
 expect "ordinary feature API stays public" "$code" '^200$'
 
 # --- Rate limiting ---------------------------------------------------------------------------
-# A burst well above the /api/ zone (20 r/s, burst 40) from one client must see 429s. The path
-# is answered by the edge itself (404), so the burst never reaches a feature database.
-codes=$(seq 1 150 | xargs -P 30 -I{} curl --silent --output /dev/null --max-time 15 --write-out '%{http_code}\n' "$BASE/api/rate-limit-probe" 2>/dev/null | sort | uniq -c | tr '\n' ' ')
-expect "API rate limit answers a burst with 429" "$codes" '[0-9]+ 429'
+# A burst well above the edge zone (20 r/s, burst 40) from one client must see 429s. The probe is
+# a missing static fragment: nginx answers it from disk (404) with try_files, which runs after
+# limit_req, so the burst never reaches a feature backend or database. An edge `return` (such as
+# the catch-all `location /api/` 404) runs in the rewrite phase, before limit_req, and can never
+# answer 429, so it must not be used as the probe.
+RATE_LIMIT_PROBE=${RATE_LIMIT_PROBE:-/fragments/rate-limit-probe}
+codes=$(seq 1 150 | xargs -P 30 -I{} curl --silent --output /dev/null --max-time 15 --write-out '%{http_code}\n' "$BASE$RATE_LIMIT_PROBE" 2>/dev/null | sort | uniq -c | tr '\n' ' ')
+expect "edge rate limit (/api/ and /fragments/ zone) answers a burst on $RATE_LIMIT_PROBE with 429" "$codes" '[0-9]+ 429'
 sleep 3
 
 # --- Closed ports ----------------------------------------------------------------------------

@@ -18,7 +18,9 @@
 # - The AI tier is off (PROPERTYSCOPE_CLOUD_AI=false): no host-gateway mapping, AI URLs point at a
 #   closed loopback port, and Caddy answers the shared AI routes with 503 ai_disabled.
 #   docker-compose.azure-ai.yml re-enables the host AI wiring for the bonus tiers.
-# - Log rotation and restart policies are explicit; health checks are inherited unchanged.
+# - Log rotation and restart policies are explicit. Health checks are inherited unchanged, and the
+#   services without one locally gain one here: Caddy (a loopback-only liveness site in the
+#   Caddyfile), and the Feature 1 runner and loader (each can reach the dependency it polls).
 #
 # Service commands below restate each image's Dockerfile CMD because the secret shim replaces the
 # entrypoint; scripts/tests/test_azure_deployment.py keeps them identical to the Dockerfiles.
@@ -50,6 +52,12 @@ x-azure-ai-disabled: &azure-ai-disabled
   MCP_SERVER_URL: ""
   RAG_SERVER_URL: ""
 
+# The backends that call the host Multi-Agent Server locally (Features 1, 2, 4 and 5) get the same
+# closed loopback URL and no token; docker-compose.azure-ai.yml restores both.
+x-azure-multi-agent-disabled: &azure-multi-agent-disabled
+  MULTI_AGENT_BASE_URL: http://127.0.0.1:9
+  MULTI_AGENT_SERVICE_TOKEN: ""
+
 services:
   shared-edge-proxy:
     profiles: [release-0]
@@ -73,6 +81,13 @@ services:
       shared-frontend:
         condition: service_healthy
     networks: [shared-edge]
+    # The Caddyfile serves /healthz on the container loopback only (127.0.0.1:8079, never published).
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8079/healthz]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
     read_only: true
     tmpfs:
       - /tmp
@@ -140,6 +155,14 @@ services:
     volumes:
       - *azure-secret-shim
     networks: !override [f1-data]
+    # The loader has no HTTP surface: it polls PostgreSQL. Healthy means it can reach the database
+    # on its internal network (the wiring this override changes).
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('f1-postgres', 5432), timeout=2).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
     restart: unless-stopped
     logging: *azure-logging
 
@@ -150,7 +173,7 @@ services:
     command: ["gunicorn", "--bind=0.0.0.0:5201", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_data_platform.app:create_app()"]
     extra_hosts: !reset []
     environment:
-      <<: *azure-ai-disabled
+      <<: [*azure-ai-disabled, *azure-multi-agent-disabled]
       AI_MODE_BASE_URL: http://127.0.0.1:9
       PROPERTYSCOPE_INTERNAL_TOKEN: ""
       PROPERTYSCOPE_RUNNER_TOKEN: ""
@@ -171,6 +194,14 @@ services:
       PROPERTYSCOPE_RUNNER_TOKEN: ""
       PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_RUNNER_TOKEN=runner_token
     secrets: [runner_token]
+    # The runner has no HTTP surface: it polls the Feature 1 backend. Healthy means it can reach
+    # the backend's liveness route.
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://f1-backend:5201/health/live', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
     volumes:
       - *azure-secret-shim
       # Replaces the local host source-cache bind mount with an (initially empty) named volume.
@@ -207,7 +238,7 @@ services:
     command: ["gunicorn", "--bind=0.0.0.0:5301", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_market_intelligence.app:create_app()"]
     extra_hosts: !reset []
     environment:
-      <<: *azure-ai-disabled
+      <<: [*azure-ai-disabled, *azure-multi-agent-disabled]
       AI_MODE_BASE_URL: http://127.0.0.1:9
       PROPERTYSCOPE_INTERNAL_TOKEN: ""
       PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
@@ -285,7 +316,7 @@ services:
     command: ["gunicorn", "--bind=0.0.0.0:5401", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_due_diligence.app:create_app()"]
     extra_hosts: !reset []
     environment:
-      <<: *azure-ai-disabled
+      <<: [*azure-ai-disabled, *azure-multi-agent-disabled]
       AI_MODE_BASE_URL: http://127.0.0.1:9
       PROPERTYSCOPE_INTERNAL_TOKEN: ""
       PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
@@ -325,7 +356,7 @@ services:
     command: ["gunicorn", "--bind=0.0.0.0:5501", "--workers=1", "--threads=4", "--timeout=180", "--graceful-timeout=30", "--access-logfile=-", "--error-logfile=-", "propertyscope_buyer_workspaces.app:create_app()"]
     extra_hosts: !reset []
     environment:
-      <<: *azure-ai-disabled
+      <<: [*azure-ai-disabled, *azure-multi-agent-disabled]
       AI_MODE_BASE_URL: http://127.0.0.1:9
       PROPERTYSCOPE_INTERNAL_TOKEN: ""
       PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token

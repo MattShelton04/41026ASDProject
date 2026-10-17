@@ -17,7 +17,7 @@ param sku string = 'Basic'
 
 param tags object = {}
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+resource registry 'Microsoft.ContainerRegistry/registries@2025-04-01' = {
   name: registryName
   location: location
   tags: tags

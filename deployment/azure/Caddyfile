@@ -12,7 +12,7 @@
 # Files:
 #   /run/secrets/edge_basic_auth           "<user> <bcrypt hash>", rendered from Key Vault
 #   /etc/caddy/propertyscope-ai.caddy      ai-disabled.caddy (default) or ai-enabled.caddy
-
+# Formatting: `caddy fmt` (deployment/azure/validate-iac.sh checks it).
 {
 	email {$PROPERTYSCOPE_ACME_EMAIL}
 	admin off
@@ -46,8 +46,13 @@
 
 	# Routes that start model runs, call MCP tool callbacks, or operate the Feature 1 / Feature 3
 	# data pipelines. Ordinary feature pages, reads and the per-feature CRUD stay public.
+	# Any feature's assistant, agent-run, case-summary, multi-agent or release-review collection is
+	# covered generically (/api/<feature>/v1/[.../]<collection>...), so a feature's Multi-Agent proxy
+	# (Feature 1: /api/data-platform/v1/release-reviews, which starts paid runs and records human
+	# decisions) needs no edge change. Keep this regex identical to the nginx sensitive limit map
+	# (scripts/tests/test_azure_deployment.py checks both).
 	@protected {
-		path_regexp protected ^/(operations/|api/(ai-mode|v1)/|api/[a-z-]+/v1/((.+/)?(assistant/turns|agent-runs|case-summary-runs|multi-agent)|tools/)|api/data-platform/v1/(artifact-retention|jobs/[^/]+/(plans|runs)|ingestion-runs/[^/]+/|dataset-releases/[^/]+/(publish|reject|submit-review|retry-delivery))|api/suburb-analytics/v1/data-imports/)
+		path_regexp protected ^/(operations/|api/(ai-mode|v1)/|api/[a-z-]+/v1/((.+/)?(assistant/turns|agent-runs|case-summary-runs|multi-agent|release-reviews)|tools/)|api/data-platform/v1/(artifact-retention|jobs/[^/]+/(plans|runs)|ingestion-runs/[^/]+/|dataset-releases/[^/]+/(publish|reject|submit-review|retry-delivery))|api/suburb-analytics/v1/data-imports/)
 	}
 
 	route {
@@ -75,4 +80,13 @@
 		output stdout
 		format json
 	}
+}
+
+# Container health check for docker-compose.azure.yml only: bound to the container's loopback, never
+# published and not reachable from the Compose network. It proves Caddy is serving; certificate
+# state is checked by propertyscope-vm.sh and the public smoke test.
+http://127.0.0.1:8079 {
+	bind 127.0.0.1
+	respond /healthz "ok" 200
+	respond 404
 }

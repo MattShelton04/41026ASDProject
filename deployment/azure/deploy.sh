@@ -213,6 +213,54 @@ budget_start_date() {
     fi
 }
 
+environment_name() {
+    if [[ $AZURE_PARAMETERS_FILE == *dev.bicepparam ]]; then
+        printf 'dev'
+    else
+        printf 'prod'
+    fi
+}
+
+# Purge protection keeps a deleted vault, and its name, for the retention period (7 days), and the
+# vault name is derived from the resource group ID. Tearing the group down and provisioning it
+# again within that window would therefore collide with the soft-deleted vault. Recover it
+# instead, which also brings its secrets back. A fresh empty vault needs AZURE_KEY_VAULT_NAME_SEED.
+recover_deleted_key_vault() {
+    if [[ -n ${AZURE_KEY_VAULT_NAME_SEED:-} ]]; then
+        return 0
+    fi
+    if [[ $DRY_RUN == true ]]; then
+        log "[dry-run] would recover a soft-deleted PropertyScope Key Vault from $AZURE_RESOURCE_GROUP, if any"
+        return 0
+    fi
+    local listing prefix rg_path name vault_id environment candidates=()
+    prefix="${AZURE_NAME_PREFIX:-propertyscope}"
+    prefix="${prefix:0:8}-kv-"
+    rg_path=$(printf '/resourcegroups/%s/providers/microsoft.keyvault/vaults/' "$AZURE_RESOURCE_GROUP" | tr '[:upper:]' '[:lower:]')
+    # Listing deleted vaults is a subscription-scope read; a resource-group-scoped deployer cannot.
+    if ! listing=$(az_query keyvault list-deleted --resource-type vault \
+        --query "[?properties.location=='${AZURE_LOCATION}'].[name, properties.vaultId, properties.tags.environment]" \
+        --output tsv 2>/dev/null); then
+        log "Could not list soft-deleted Key Vaults (needs subscription-level read); skipping the recovery check"
+        return 0
+    fi
+    while IFS=$'\t' read -r name vault_id environment; do
+        [[ -n $name && $name == "$prefix"* ]] || continue
+        [[ $(tr '[:upper:]' '[:lower:]' <<<"$vault_id") == *"$rg_path"* ]] || continue
+        [[ -z $environment || $environment == None || $environment == "$(environment_name)" ]] || continue
+        candidates+=("$name")
+    done <<<"$listing"
+    case ${#candidates[@]} in
+        0) return 0 ;;
+        1)
+            log "Recovering soft-deleted Key Vault ${candidates[0]} (purge protection keeps it after a teardown)"
+            run az keyvault recover --name "${candidates[0]}" --resource-group "$AZURE_RESOURCE_GROUP" \
+                --location "$AZURE_LOCATION" --only-show-errors --output none
+            ;;
+        *) die "several soft-deleted Key Vaults from $AZURE_RESOURCE_GROUP (${candidates[*]}): recover the right one with 'az keyvault recover --name <vault>', or set AZURE_KEY_VAULT_NAME_SEED for a fresh vault" ;;
+    esac
+}
+
 cmd_provision() {
     ensure_azure_context
     cd "$REPO_ROOT"
@@ -237,11 +285,10 @@ Or set AZURE_ENCRYPTION_AT_HOST=false (documented trade-off in deployment/azure/
     else
         log "Resource group $AZURE_RESOURCE_GROUP already exists"
     fi
+    recover_deleted_key_vault
 
-    local vm_name="${AZURE_NAME_PREFIX:-propertyscope}-prod-vm" key_dir=""
-    if [[ $AZURE_PARAMETERS_FILE == *dev.bicepparam ]]; then
-        vm_name="${AZURE_NAME_PREFIX:-propertyscope}-dev-vm"
-    fi
+    local vm_name key_dir=""
+    vm_name="${AZURE_NAME_PREFIX:-propertyscope}-$(environment_name)-vm"
     if [[ $DRY_RUN != true ]] && az vm show --resource-group "$AZURE_RESOURCE_GROUP" --name "$vm_name" --only-show-errors >/dev/null 2>&1; then
         # customData and the SSH key are immutable; later releases converge through run-command.
         export AZURE_DEPLOY_VM=false
@@ -382,7 +429,8 @@ vm_payload() {
     printf '%s\n' '#!/bin/bash' 'set -euo pipefail' 'umask 022'
     for variable in ACR_LOGIN_SERVER IMAGE_TAG KEY_VAULT_NAME PROPERTYSCOPE_PUBLIC_HOST PROPERTYSCOPE_ACME_EMAIL \
         PROPERTYSCOPE_CLOUD_AI PROPERTYSCOPE_GIT_SHA PROPERTYSCOPE_REPO_URL PROPERTYSCOPE_EDGE_USER \
-        PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES PROPERTYSCOPE_SEED_FIXTURE; do
+        PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES PROPERTYSCOPE_SEED_FIXTURE \
+        PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS PROPERTYSCOPE_STARTUP_WAIT_SECONDS; do
         if [[ -n ${!variable:-} ]]; then
             printf 'export %s=%q\n' "$variable" "${!variable}"
         fi
