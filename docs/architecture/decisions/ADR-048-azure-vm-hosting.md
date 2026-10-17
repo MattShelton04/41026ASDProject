@@ -73,12 +73,26 @@ SQLite's single-writer guidance on network file systems.
    still runs on the host, never in a container. From AI-mode's point of view this is its
    `local` environment: MCP and RAG stay on the VM loopback, and AI-mode's port 5005 is reachable
    only from the containers (the NSG never admits it).
-8. **The workflow is gated.** `cloud-deployment.yml` runs on `workflow_run` after **Integration
-   CI** succeeds for a push to `main`, or on manual dispatch. It skips cleanly until the
-   repository variable `AZURE_SUBSCRIPTION_ID` is set, uses the protected `production`
-   environment (a human approval point), and calls the same `deploy.sh` subcommands an operator
-   runs: `provision`, `push`, `deploy`, `smoke`. It then builds the deployment report and uploads
-   the logs.
+8. **The workflow is gated.** `cloud-deployment.yml` is triggered when **Integration CI
+   completes** for a push to `main` (`workflow_run`, `types: [completed]`, whatever its
+   conclusion; a cancelled or skipped run starts nothing), or by manual dispatch. The trigger is
+   not the gate. Three jobs run in order:
+   - `verify-ci` (`scripts/verify_release_gate.py`, read-only `gh api`) requires Integration CI
+     to have succeeded on the deploy SHA itself, and the latest push or manual run on `main` of
+     each path-filtered Student 1–5 CI workflow whose head is the deploy SHA or an ancestor of it
+     to have succeeded. Runs still in progress are waited for (up to 60 minutes); any other
+     conclusion fails the gate and records which run blocked it in `release-gate.json`.
+   - `build-validate` builds every release image and validates the Azure Compose models
+     (`scripts/validate_release_images.py`), with no Azure access.
+   - `deploy` (timeout 120 minutes) is skipped until the repository variable
+     `AZURE_SUBSCRIPTION_ID` is set. It uses the protected `production` environment (a human
+     approval point), re-checks the gate before touching Azure, and calls the same `deploy.sh`
+     subcommands an operator runs: `provision`, `push`, `deploy`, `smoke`. It then builds the
+     deployment report (which includes the gate record) and uploads the logs.
+
+   One deployment runs at a time and is never cancelled. `dev.py cloud rehearse` exercises the
+   same `deploy.sh` path locally, against a registry container and a Docker-in-Docker VM, without
+   Azure (deployment/azure/README.md, "Local rehearsal").
 9. **The demonstration data is labelled.** The cloud starts from the seeded demonstration
    baseline that Feature 1's migrations create, and runs the `fixture-property` collection once
    to prove the runner/loader pipeline. Real releases are collected and published in the cloud

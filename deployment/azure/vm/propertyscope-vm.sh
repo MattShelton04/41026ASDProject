@@ -500,15 +500,38 @@ ai_toggle() {
 
 # --- Observability ---------------------------------------------------------------------------
 
+# Service -> the image each running container uses, with the registry digest the VM pulled: what
+# the VM really runs, for the public smoke document and the deployment report (a JSON object).
+# summary() prints it on its own PROPERTYSCOPE_IMAGES line before PROPERTYSCOPE_RESULT: run-command
+# returns only the last 4 KiB of output, so a long image list must never push the result out.
+running_images() {
+    local service image repository digest images='{}'
+    while read -r service image; do
+        [[ -n $service && -n $image ]] || continue
+        repository=$image
+        if [[ ${image##*/} == *:* ]]; then
+            repository=${image%:*}
+        fi
+        digest=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null |
+            awk -F@ -v repository="$repository" '$1 == repository && $2 ~ /^sha256:[0-9a-f]+$/ { print $2; exit }')
+        images=$(jq -c --arg service "$service" --arg image "${image}${digest:+@$digest}" \
+            '. + {($service): $image}' <<<"$images")
+    done < <(compose ps --status running --format '{{.Service}} {{.Image}}')
+    printf '%s' "$images"
+}
+
 summary() {
-    local action=$1 running total units=()
+    local action=$1 running total units=() images
     running=$(compose ps --status running --quiet | wc -l)
     total=$(compose ps --all --quiet | wc -l)
+    images=$(running_images 2>/dev/null) || images=''
+    [[ $images == \{* ]] || images='{}'
     local unit
     for unit in "${AI_UNITS[@]}"; do
         units+=("\"${unit#propertyscope-}\":\"$(systemctl is-active "$unit" 2>/dev/null || true)\"")
     done
     local IFS=,
+    printf 'PROPERTYSCOPE_IMAGES=%s\n' "$images"
     printf 'PROPERTYSCOPE_RESULT={"action":"%s","image_tag":"%s","cloud_ai":"%s","containers_running":%s,"containers_total":%s,"ai_units":{%s}}\n' \
         "$action" "$(cat "$STATE_DIR/image-tag" 2>/dev/null || echo unknown)" "$(cloud_ai_state)" \
         "$running" "$total" "${units[*]}"
@@ -625,6 +648,15 @@ main() {
         *) die "usage: propertyscope-vm.sh deploy|ai-on|ai-off|status|logs|validate-data" ;;
     esac
 }
+
+# Local rehearsal only (`dev.py cloud rehearse`, deployment/azure/rehearsal/): the rehearsal VM
+# container installs this file to stand in for the Azure-only steps (IMDS, Key Vault and the ACR
+# token exchange). cloud-init never writes it, so an Azure VM never sources it.
+readonly REHEARSAL_HOOK=/etc/propertyscope/rehearsal.sh
+if [[ -f $REHEARSAL_HOOK ]]; then
+    # shellcheck source=/dev/null
+    . "$REHEARSAL_HOOK"
+fi
 
 # Sourcing the script (scripts/tests/test_azure_deployment.py) defines the functions only.
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

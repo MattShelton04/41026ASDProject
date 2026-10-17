@@ -14,7 +14,11 @@ is chosen, deployment is a configuration step: work through the
 ```mermaid
 flowchart LR
     dev([Developer push to main]) --> ci[Integration CI<br/>quality gate + Compose validation]
-    ci -- success --> cd[cloud-deployment.yml<br/>environment: production]
+    dev --> sci[Student 1-5 CI<br/>path-filtered endpoint tests]
+    ci -- "completed (workflow_run)<br/>or manual dispatch" --> gate[verify-ci job<br/>Integration CI green on the SHA,<br/>latest Student 1-5 CI green at SHA or ancestor]
+    sci -. "run history (gh api)" .-> gate
+    gate -- pass --> build[build-validate job<br/>build every image,<br/>validate Azure Compose models]
+    build -- "pass; skipped until<br/>AZURE_SUBSCRIPTION_ID is set" --> cd[deploy job<br/>environment: production<br/>re-checks the gate]
     cd -- OIDC federated credential --> entra[(Microsoft Entra ID)]
     cd -- "deploy.sh push<br/>images :git-sha" --> acr[(Azure Container Registry<br/>admin user off)]
     cd -- "deploy.sh provision<br/>Bicep" --> rg
@@ -243,9 +247,9 @@ Docker command instead of running it. The run-command payloads are written to
 |---|---|
 | `provision` | Creates the resource group if missing, recovers a soft-deleted PropertyScope Key Vault left by a teardown, and applies `main.bicepparam`. If the VM already exists, it converges everything else, because the VM's customData and SSH key are immutable |
 | `secrets` | Creates missing Key Vault secrets (see the table above) |
-| `push` | Builds every enabled image, then pushes `propertyscope/<service>:<git-sha>` to ACR and mirrors Caddy and PostGIS into ACR. An uncommitted tree gets the tag `<sha>-dirty` |
+| `push [--reuse-images]` | Builds every enabled image, then pushes `propertyscope/<service>:<git-sha>` to ACR and mirrors Caddy and PostGIS into ACR. An uncommitted tree gets the tag `<sha>-dirty`. `--reuse-images` skips the build only when this machine already built this clean commit's images (their IDs are recorded under `.propertyscope-runtime/cloud-builds/`); it never reuses a `-dirty` tag. `PROPERTYSCOPE_BUILD_TAG` builds under a local tag other than `dev` |
 | `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, checks the seeded baseline, and runs the `fixture-property` collection once. Key Vault reads, the ACR login and the pull retry with backoff while new role assignments propagate |
-| `smoke [--expect-ai]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: home page, each feature route and health, one self-cleaning CRUD case per feature, and the AI-off check |
+| `smoke [--expect-ai] [--insecure]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: home page, each feature route and health, one self-cleaning CRUD case per feature (Feature 1 also updates its record), and the AI-off check. It passes the deployment identity (`--commit-sha`, `--image-tag`, `--registry`) and, after a deploy, `--vm-log vm-deploy.log`, so `cloud-smoke.json` records the images the VM reported running, with registry digests |
 | `ai on` / `ai off` | Bonus tiers: checks out the deployed SHA on the VM, `uv sync`s it, prepares the RAG model and corpora, starts the systemd units and applies the AI overlay. `off` reverses all of this |
 | `status`, `logs [service] [lines]` | Container health, AI units and listening sockets. Recent Compose logs, or journal logs for `ai-mode`, `mcp`, `rag` and `multi-agent` |
 | `outputs` | FQDN, ACR login server, VM name and Key Vault name from the Bicep deployment |
@@ -337,3 +341,45 @@ PROPERTYSCOPE_ACME_EMAIL=ops@example.test bash deployment/azure/deploy.sh --dry-
 uv run python scripts/cloud_smoke.py --base-url http://localhost:5100 --expect-ai   # against a local stack
 az bicep install && az bicep build --file deployment/azure/main.bicep               # Bicep only
 ```
+
+## Local rehearsal
+
+`uv run scripts/dev.py cloud rehearse` runs the whole deployment path on this machine, as close
+to the VM flow as Docker allows, in about 10 minutes (longer on the first build). Run it before
+the real deployment, and after any change to this directory or the Compose files. It needs
+Docker and Git Bash (on Windows), free loopback ports 80, 443 and 5000, and internet access only
+to pull base images and packages. It never calls `az`: `deploy.sh` refuses every `az` call in
+rehearsal mode, and child scripts find a refusing `az` first on `PATH`.
+
+| Stage | What runs |
+|---|---|
+| prepare | `.propertyscope-runtime/cloud-rehearsal/`: the VM's `/etc/docker/daemon.json` taken from `cloud-init.yaml`, and a random value for every Key Vault secret (a directory standing in for Key Vault; never printed) |
+| infrastructure | Compose project `ps-azure-rehearsal` ([`rehearsal/compose.yml`](rehearsal/compose.yml)): `registry:2` as `ps-rehearsal-registry` in place of ACR, and a Docker-in-Docker container in place of the VM. Only 80/443 (and the registry's 5000) are published, on the host loopback |
+| push | `deploy.sh push`: builds under `propertyscope/<service>:rehearsal` (the shared `:dev` images are untouched), pushes `:<git sha>` and the Caddy/PostGIS mirrors to the registry |
+| deploy | `deploy.sh deploy`: the exact run-command payload (bundle extraction, `propertyscope-vm.sh deploy`) runs as root in the rehearsal VM through `docker exec`. The VM script renders the secrets, pulls every image from the registry into an empty engine, starts `docker-compose.azure.yml` with AI off as project `ps-azure`, checks the seeded baseline and runs the `fixture-property` collection |
+| smoke | `deploy.sh smoke --insecure` against `https://localhost` (Caddy's internal CA): every page, health route, CRUD case (Feature 1 with its update) and the AI-disabled check |
+| endpoint_security | `deploy.sh validate-endpoint` (B5) with the stand-in operator password. The publicly-trusted-certificate check fails by design; the NSG check is skipped |
+| data_security | `deploy.sh vm-validate-data`: the on-host half of B6 inside the rehearsal VM |
+| ai_overlay_config | `docker compose config` with `docker-compose.azure-ai.yml` inside the VM: the AI-mode and Multi-Agent tokens are Compose secrets for the right backends. No AI service is started |
+| report, review | `scripts/cloud_deployment_report.py` (labelled as a rehearsal) and the deterministic Cloud Deployment Report Review over a scratch evidence tree laid out like the workflow artifacts (`evidence/cloud/`). The review fails only on `cloud.release-gate`, because no CI gate record exists locally |
+| teardown | `down --volumes` on `ps-azure-rehearsal` only, then the local registry tags, the `:rehearsal` build tags and the stand-in secrets are removed |
+
+`--keep` leaves the stack up at `https://localhost` for a look (the next run removes it),
+`--keep-images` keeps the `:rehearsal` build tags, and `--reuse-images` skips the build on a
+clean tree whose images the previous run kept. The verdict, stage table and expected gaps are in
+`.propertyscope-runtime/cloud-rehearsal/rehearsal-summary.md`; the latest committed run is in
+[docs/release-2/evidence/rehearsal/](../../docs/release-2/evidence/rehearsal/README.md).
+
+The rehearsal VM installs one file the Azure VM never has, `/etc/propertyscope/rehearsal.sh`
+([`rehearsal/vm/rehearsal.sh`](rehearsal/vm/rehearsal.sh)). `propertyscope-vm.sh` sources it if it
+exists. It replaces only the Azure-only steps: the IMDS token, Key Vault reads (from the stand-in
+directory), the ACR token exchange (the registry is anonymous) and, in the HTTPS check, trust in
+Caddy's internal CA.
+
+**What it does not prove.** Anything that needs Azure itself: ACR authentication and the
+managed-identity token exchange, Key Vault, IMDS and their RBAC propagation, the NSG and Azure
+networking, the public DNS label and the Let's Encrypt certificate (ACME), the OIDC sign-in and
+the `production` environment approval, Bicep deployment, cloud-init, `az vm run-command` itself
+(including its 4 KiB output limit), systemd and the host AI tier, the B6 control-plane checks,
+and the VM's size and performance. The CI release gate and the build-validate record come from
+GitHub Actions, so the rehearsal has neither.

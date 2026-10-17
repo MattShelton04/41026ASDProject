@@ -786,6 +786,11 @@ def test_dry_run_deploy_payload_is_valid_bash_and_ships_the_bundle(tmp_path: Pat
     payload = tmp_path / "vm-deploy.payload.sh"
     text = payload.read_text(encoding="utf-8")
     assert "export PROPERTYSCOPE_STARTUP_WAIT_SECONDS=1200" in text
+    # Root's tar keeps the operator checkout's modes (found by the local rehearsal: a 0600 nginx
+    # include broke the edge), so the payload makes the bundle readable for non-root containers.
+    extract = text.index("| tar -xzf - -C /opt/propertyscope/app")
+    normalise = text.index("chmod -R u=rwX,go=rX /opt/propertyscope/app/deployment")
+    assert extract < normalise < text.index("propertyscope-vm.sh deploy")
     syntax = subprocess.run(  # noqa: S603 - fixed bash and the payload just written
         [_bash(), "-n", payload.as_posix()], capture_output=True, text=True, check=False
     )

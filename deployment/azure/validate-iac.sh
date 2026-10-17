@@ -32,6 +32,7 @@ readonly SHELL_SCRIPTS=(
     deployment/azure/validate-endpoint-security.sh
     deployment/azure/validate-data-security.sh
     deployment/azure/vm/propertyscope-vm.sh
+    deployment/azure/rehearsal/vm/rehearsal.sh
     deployment/azure/compose/secret-env.sh
     deployment/azure/compose/18-propertyscope-secrets.envsh
     deployment/nginx/19-ai-mode-host.envsh
