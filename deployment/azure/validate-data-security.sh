@@ -3,12 +3,14 @@
 #
 # Control-plane part (read-only az queries): Key Vault RBAC, soft delete, purge protection and
 # firewall; ACR admin user and anonymous pull disabled; the VM's system-assigned identity holds
-# only AcrPull and Key Vault Secrets User; encryption at host and managed-disk encryption; no
-# inbound SSH or database rule; the GitHub deployer uses a federated credential, not a secret.
+# only AcrPull and Key Vault Secrets User; encryption at host and managed-disk encryption; the OS
+# disk cannot be exported; no inbound SSH or database rule; the GitHub deployer (app registration
+# or user-assigned managed identity) uses a federated credential, not a secret.
 # On-host part (through `az vm run-command`, see propertyscope-vm.sh validate-data): secret files
 # are root-only, no secret value appears in any container environment (`docker inspect`) or image
 # history, data networks are internal, databases publish no port and sit off the shared network,
-# nothing but 80/443 listens publicly, sshd is stopped and no registry credential is stored.
+# nothing but 80/443 listens publicly, sshd is stopped, no registry credential is stored and no
+# container can reach the instance metadata service (IMDS).
 #
 # Usage: deploy.sh validate-data
 # Requires AZURE_RESOURCE_GROUP, ACR_NAME, VM_NAME, KEY_VAULT_NAME (deploy.sh exports them).
@@ -74,8 +76,12 @@ else
     result FAIL "encryption at host is disabled (AZURE_ENCRYPTION_AT_HOST=false or feature not registered)"
 fi
 disk=$(query vm show --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" --query storageProfile.osDisk.managedDisk.id)
-expect "OS disk is encrypted at rest" \
-    "$(query disk show --ids "$disk" --query encryption.type)" EncryptionAtRestWithPlatformKey
+# One call for both values; az prints a list one value per line (2.89+) or tab-separated.
+read -r disk_encryption disk_access < <(query disk show --ids "$disk" \
+    --query "[encryption.type, networkAccessPolicy]" | tr '\n' ' ')
+expect "OS disk is encrypted at rest" "${disk_encryption:-}" EncryptionAtRestWithPlatformKey
+# Without this, anyone with Contributor can export the disk (secrets and databases) through a SAS.
+expect "OS disk cannot be exported (network access policy)" "${disk_access:-}" DenyAll
 expect "Trusted Launch (secure boot + vTPM) is enabled" \
     "$(query vm show --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" --query securityProfile.securityType)" TrustedLaunch
 
@@ -86,14 +92,26 @@ expect "no NSG rule admits SSH, PostgreSQL or all ports" "${exposed:-none}" none
 
 # --- Deployment credentials ------------------------------------------------------------------
 if [[ -n ${AZURE_CLIENT_ID:-} ]]; then
-    subjects=$(query ad app federated-credential list --id "$AZURE_CLIENT_ID" --query "[].subject" | tr '\n' ' ')
-    if [[ $subjects == *environment:production* ]]; then
-        result PASS "GitHub Actions deploys through OIDC (federated subject: ${subjects% })"
+    # The deployer is an app registration or, where the tenant blocks those, a user-assigned
+    # managed identity in the resource group (deployment/azure/README.md, step 3).
+    identity=$(query identity list --resource-group "$AZURE_RESOURCE_GROUP" \
+        --query "[?clientId=='$AZURE_CLIENT_ID'].name | [0]")
+    if [[ -n $identity ]]; then
+        subjects=$(query identity federated-credential list --resource-group "$AZURE_RESOURCE_GROUP" \
+            --identity-name "$identity" --query "[].subject" | tr '\n' ' ')
+        kind="managed identity $identity"
+        secrets=0 # a managed identity cannot hold a client secret
     else
-        result FAIL "no federated credential for the production environment on $AZURE_CLIENT_ID"
+        subjects=$(query ad app federated-credential list --id "$AZURE_CLIENT_ID" --query "[].subject" | tr '\n' ' ')
+        kind="app registration"
+        secrets=$(query ad app credential list --id "$AZURE_CLIENT_ID" --query "length(@)")
     fi
-    secrets=$(query ad app credential list --id "$AZURE_CLIENT_ID" --query "length(@)")
-    expect "the deployer app has no client secrets" "${secrets:-0}" 0
+    if [[ $subjects == *environment:production* ]]; then
+        result PASS "GitHub Actions deploys through OIDC ($kind, federated subject: ${subjects% })"
+    else
+        result FAIL "no federated credential for the production environment on $AZURE_CLIENT_ID ($kind)"
+    fi
+    expect "the deployer has no client secrets ($kind)" "${secrets:-0}" 0
 else
     result SKIP "GitHub OIDC federated credential (set AZURE_CLIENT_ID)"
 fi
@@ -104,7 +122,7 @@ if bash "$SCRIPT_DIR/deploy.sh" vm-validate-data >"$OUTPUT_DIR/data-security-vm.
 else
     result FAIL "on-host checks failed (see data-security-vm.txt)"
 fi
-grep -E '^(PASS|FAIL) ' "$OUTPUT_DIR/data-security-vm.txt" | sed 's/^/  vm: /' | tee -a "$REPORT"
+grep -E '^(PASS|FAIL|SKIP) ' "$OUTPUT_DIR/data-security-vm.txt" | sed 's/^/  vm: /' | tee -a "$REPORT"
 
 echo "DATA_SECURITY_FAILURES=${FAILURES}" | tee -a "$REPORT"
 [[ $FAILURES -eq 0 ]]

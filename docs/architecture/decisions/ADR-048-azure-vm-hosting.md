@@ -244,3 +244,33 @@ Where the tenant blocks app registrations, a user-assigned managed identity in t
 can be the GitHub deployer instead: the same federated credentials and roles, `AZURE_CLIENT_ID` set
 to its `clientId` and `AZURE_DEPLOYER_PRINCIPAL_ID` to its `principalId`. Deleting the resource
 group at teardown removes it.
+
+**17 October 2026, security audit.** A read-only audit of the live deployment and the repository
+found no secret in the public logs or artifacts. It found that the risk lies in who can get the
+deployer identity, and what that identity can then do. These changes followed:
+
+- **Separate operations identity.** The `operations` environment has no reviewers, so that the
+  nightly deallocation never waits, and it signed in as the deployer: Contributor plus RBAC
+  Administrator on the resource group, reachable by any workflow merged into `main`.
+  `cloud-auto-deallocate.yml` now signs in as its own user-assigned identity
+  (`AZURE_OPERATIONS_CLIENT_ID`). It holds only *Desktop Virtualization Power On Off
+  Contributor*, scoped to the VM. The deployer keeps only the `production` credential. The stale
+  classic-subject credentials are deleted.
+- **Conditioned RBAC Administrator.** The deployer's assignment carries an ABAC condition
+  (version 2.0). It may write or delete assignments of AcrPull, AcrPush, Key Vault Secrets User
+  and Key Vault Secrets Officer only, the four roles the Bicep creates, so it cannot make anyone
+  Owner.
+- **IMDS guard.** `propertyscope-vm.sh deploy` installs `propertyscope-imds-guard.service`, which
+  drops container traffic to `169.254.169.254` in `DOCKER-USER`. A compromised container can no
+  longer mint the VM identity's Key Vault token. Host scripts and the host AI tier keep IMDS. B6
+  checks it from inside a feature backend. The local rehearsal has no systemd or IMDS, so it skips
+  the guard and reports the check as SKIP.
+- **Smaller exposure.** The OS disk denies export (`networkAccessPolicy: DenyAll`), and B6
+  checks it. The ACME email is a `production` environment secret, so the logs mask it. The B6
+  validator reads the federated credentials of a managed-identity deployer, where it used
+  `az ad app` before.
+- **Repository.** `.github/CODEOWNERS` covers only the cloud setup: `deployment/azure/`, the two
+  cloud workflows, the Azure Compose files and itself. The rest of the repository has no code
+  owner and keeps zero required approvals. Secret scanning, push protection and Dependabot
+  alerts are on, Actions must be pinned to full commit SHAs, and fork pull requests from any
+  external contributor need approval before workflows run.

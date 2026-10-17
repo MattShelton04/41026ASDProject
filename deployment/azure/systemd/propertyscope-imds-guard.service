@@ -1,0 +1,17 @@
+# Keeps containers away from the Azure Instance Metadata Service (security audit M2, ADR-048).
+# A container that reached IMDS could mint the VM identity's Key Vault token and read every secret.
+# DOCKER-USER sees only forwarded (container) traffic, so root host scripts and the host AI tier,
+# which do not run in containers, still reach IMDS. Installed and started by
+# propertyscope-vm.sh deploy; PartOf/WantedBy re-apply the rule whenever Docker (re)starts.
+[Unit]
+Description=PropertyScope: block container access to the instance metadata service
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'iptables -w -C DOCKER-USER -d 169.254.169.254/32 -j DROP || iptables -w -I DOCKER-USER -d 169.254.169.254/32 -j DROP'
+
+[Install]
+WantedBy=multi-user.target docker.service

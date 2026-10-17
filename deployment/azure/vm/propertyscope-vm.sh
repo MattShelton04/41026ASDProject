@@ -2,7 +2,7 @@
 # PropertyScope VM operations (ADR-048). Runs ON the Azure VM as root, delivered by
 # `deployment/azure/deploy.sh` through `az vm run-command invoke`; there is no SSH.
 #
-#   propertyscope-vm.sh deploy          render secrets, pull SHA images, compose up --wait, verify
+#   propertyscope-vm.sh deploy          IMDS guard, render secrets, pull SHA images, compose up --wait, verify
 #   propertyscope-vm.sh ai-on|ai-off    toggle the systemd AI tier and the Compose AI overlay
 #   propertyscope-vm.sh status          containers, AI units, listening sockets, certificate
 #   propertyscope-vm.sh logs [service]  recent Compose (or AI unit) logs
@@ -363,9 +363,27 @@ PY
     fi
 }
 
+# --- Instance metadata guard (security audit M2) -----------------------------------------------
+
+readonly IMDS_GUARD_UNIT=propertyscope-imds-guard.service
+
+# A container that reached IMDS could mint this VM's Key Vault token and read every secret. The
+# oneshot unit drops forwarded (container) traffic to 169.254.169.254 in DOCKER-USER and re-applies
+# the rule whenever Docker starts; host scripts and the host AI tier keep IMDS. Idempotent: the
+# unit inserts the rule only when it is missing.
+install_imds_guard() {
+    install -m 0644 "$APP_DIR/deployment/azure/systemd/$IMDS_GUARD_UNIT" /etc/systemd/system/
+    systemctl daemon-reload
+    if ! systemctl enable "$IMDS_GUARD_UNIT" >/dev/null 2>&1 || ! systemctl restart "$IMDS_GUARD_UNIT"; then
+        die "the IMDS guard did not start; inspect 'journalctl -u $IMDS_GUARD_UNIT'"
+    fi
+    log "IMDS guard active: containers cannot reach the instance metadata service"
+}
+
 deploy() {
     wait_for_bootstrap
     require_env ACR_LOGIN_SERVER IMAGE_TAG KEY_VAULT_NAME PROPERTYSCOPE_PUBLIC_HOST PROPERTYSCOPE_ACME_EMAIL
+    install_imds_guard
     local cloud_ai
     cloud_ai=$(cloud_ai_state)
     write_compose_environment
@@ -625,6 +643,21 @@ only_expected_listeners() {
 sshd_is_stopped() { ! systemctl is-active --quiet ssh.service; }
 no_stored_registry_credential() { ! grep -q azurecr.io /root/.docker/config.json 2>/dev/null; }
 count_is_zero() { [[ $1 -eq 0 ]]; }
+# Runs inside a feature backend (Python, on the routed shared network), the view a compromised
+# container has. Prints "blocked" only when the TCP connection fails, so a missing container or a
+# failed exec never passes.
+readonly IMDS_PROBE='import socket
+try:
+    socket.create_connection(("169.254.169.254", 80), timeout=3).close()
+    print("reachable")
+except OSError:
+    print("blocked")'
+container_cannot_reach_imds() {
+    [[ $(docker exec "${COMPOSE_PROJECT}-f1-backend-1" python -c "$IMDS_PROBE" 2>/dev/null) == blocked ]]
+}
+validate_imds_guard() {
+    check "a container cannot reach the instance metadata service (IMDS guard)" container_cannot_reach_imds
+}
 
 validate_data() {
     local file value name leaked_env=0 leaked_history=0 inspect history containers
@@ -659,6 +692,7 @@ validate_data() {
     check "nothing but 80/443 (and host AI entry points) listens beyond loopback" only_expected_listeners
     check "sshd is not running" sshd_is_stopped
     check "Docker keeps no ACR credential after the pull" no_stored_registry_credential
+    validate_imds_guard
     echo "PROPERTYSCOPE_RESULT={\"action\":\"validate-data\",\"failures\":${VALIDATION_FAILURES}}"
     [[ $VALIDATION_FAILURES -eq 0 ]]
 }
