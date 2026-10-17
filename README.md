@@ -2,25 +2,30 @@
 
 A NSW property-research application for Group 20, 41026 Advanced Software Development.
 Five owned feature slices share a research shell, strict contracts and a bounded AI assistant.
-Release 1 adds registered MCP tools, versioned guidance retrieval, cited answers, confidence
-categories and insufficient-context handling.
+The current release is **Release 2** (showcase 23 October 2026, report due 25 October). It keeps
+Release 1's MCP tools, cited guidance retrieval and confidence categories, and adds a host
+Multi-Agent Server (Planner → Worker → Reviewer → human review), three agentic-loop review modes,
+pre-commit security scans, endpoint tests in each student's CI, and an Azure deployment gated on
+that CI.
 
 The tutor-approved project uses Python 3.12 and a `uv` monorepo. Frontends, feature APIs and
-owned databases run in Docker Compose. AI-mode, its Plan/Act/Observe/Adapt loop, MCP and RAG
-run as host processes. Matthew reconfirmed the tutor's OpenAI and PostgreSQL/PostGIS approval on
-3 October 2026. Release 2 adds an Azure deployment (one VM behind a Caddy TLS edge, images in
-ACR, secrets in Key Vault, AI tier off by default) and a host Multi-Agent Server. Feature 1's
-release review page runs its Planner → Worker → Reviewer → human readiness review through the
-shared [multi-agent panel](shared/frontend/multi-agent/README.md); the other features adopt the
-same panel and proxy contract.
+owned databases run in Docker Compose. AI-mode, its Plan/Act/Observe/Adapt loop, MCP, RAG and the
+Multi-Agent Server run as host processes. Matthew reconfirmed the tutor's OpenAI and
+PostgreSQL/PostGIS approval on 3 October 2026. The Azure deployment is one VM behind a Caddy TLS
+edge, with images in ACR, secrets in Key Vault and the AI tier off by default; it is prepared but
+not yet provisioned. Feature 1's release review page runs its Planner → Worker → Reviewer → human
+readiness review through the shared [multi-agent panel](shared/frontend/multi-agent/README.md);
+the other features adopt the same panel and proxy contract.
 
 ## Start here
 
+- [Release 2 status](docs/release-2/README.md): requirements, implementation plan, per-feature responsibilities, remaining work and known issues.
+- [Release 2 showcase runbook](docs/release-2/showcase-runbook.md): the script for the video and live showcase.
+- [Release 2 report](docs/reports/release-2-technical-report.md) and its [draft PDF](docs/reports/submissions/release-2/group-20.pdf), built by `scripts/build_release2_report.py` ([reports guide](docs/reports/README.md)).
 - [Developer workflow](CONTRIBUTING.md): dependencies, tests and contribution commands.
 - [Shared platform architecture](docs/architecture/shared-platform-design.md): boundaries and contracts.
 - [Release 1 report](docs/reports/release-1-technical-report.md), [submission PDF](docs/reports/submissions/release-1/group-20.pdf) and [submission plan](docs/release-1/submission-plan-2026-10-03.md).
 - [Presentation](https://youtu.be/0Z0Rt146lD0): Release 1 showcase, 9 minutes 35 seconds.
-- [Release 2 requirements, plan and status](docs/release-2/README.md): requirements, implementation plan, per-feature responsibilities, remaining work and known issues.
 - [Azure deployment](deployment/azure/README.md): one-time setup, `deploy.sh` / `dev.py cloud`, costs and teardown ([ADR-048](docs/architecture/decisions/ADR-048-azure-vm-hosting.md)).
 - [Agent instructions](AGENTS.md): ownership, safe data operations and required checks.
 
@@ -169,7 +174,7 @@ starts offline direct AI-mode; the submission plan records the owner's CI follow
 | Verify live service contracts | `uv run scripts/dev.py ai probe` |
 | Capture verified live assistant evidence | `uv run python scripts/capture_release1_screenshots.py` |
 | Capture safe UI/API/persistence evidence | `uv run python scripts/capture_release1_integration.py --project ps-dev --output Temp/live-feature-operations.json` |
-| Check report readiness | `uv run python scripts/build_release1_report.py --status` |
+| Check report readiness | `uv run python scripts/build_release2_report.py --status` |
 
 Frontend edits reload after a browser refresh; feature Python services reload in the development
 stack. After AI-service Python changes, stop the affected host service and restart combined mode.

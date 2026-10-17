@@ -17,17 +17,22 @@ flowchart TB
         i1["Quality gate<br/>scripts/check.py"] --> i2["Docker Compose<br/>validation"]
         i3["Security scans<br/>and report"]
     end
-    integ -->|"workflow_run: success on push"| cd
-    students ~~~ cd
-    subgraph cd["5 cloud-deployment.yml, environment: production"]
+    integ -->|"workflow_run: completed on push"| gate
+    students -->|"gate waits for all five"| gate
+    subgraph gate["5 cloud-deployment.yml: release gate"]
+        direction LR
+        g1["verify-ci: Integration CI and<br/>Student 1-5 CI green for this commit"] --> g2["build-validate: build every image,<br/>validate the Azure Compose model"]
+    end
+    gate -->|"both gate jobs passed"| cd
+    subgraph cd["6 deploy job, environment: production"]
         direction LR
         c1["OIDC<br/>login"] --> c2["provision<br/>Bicep"] --> c3["push<br/>images to ACR"] --> c4["deploy<br/>VM run-command"] --> c5["smoke<br/>CRUD, AI off"] --> c6["report and<br/>logs artifact"]
     end
-    cd --> azure[("6 Azure VM: public HTTPS endpoint")]
+    cd --> azure[("7 Azure VM: public HTTPS endpoint")]
 
     classDef shared fill:#dfeded,stroke:#176b75,color:#111827;
     classDef feature fill:#eff6f6,stroke:#6b969b,color:#111827;
     classDef note fill:#faf2e4,stroke:#a67c00,color:#111827;
-    class h1,h2,h3,h4,i1,i2,i3,c1,c2,c3,c4,c5,c6 shared;
+    class h1,h2,h3,h4,i1,i2,i3,g1,g2,c1,c2,c3,c4,c5,c6 shared;
     class s1,s2,s3 feature;
     class dev,gh,azure note;

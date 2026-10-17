@@ -413,8 +413,8 @@ def multi_agent_runs(argument: str) -> list[str]:
             issues.append(
                 _todo(
                     TEAM.get(number, "Owner"),
-                    f"Export a decided run with `multi-agent-server export <run> --server` "
-                    f"into `{_shown(base)}/`",
+                    "Export a decided run with "
+                    f"`uv run multi-agent-server export <run> --out {_shown(base)}/<run> --server`",
                 )
             )
     return rows + (["", *issues] if issues else [])

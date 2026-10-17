@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| Status | Living architecture; Release 1 shared runtime and all five enabled feature MCP/RAG registrations |
-| Last verified | Source/configuration reviewed 3 October 2026; live release evidence tracked separately |
+| Status | Living architecture; Release 2 shared runtime: AI-mode, MCP, RAG and the Multi-Agent Server as host processes (ADR-046, ADR-047), and the prepared, not yet provisioned, Azure VM deployment (ADR-048) |
+| Last verified | Source/configuration reviewed 17 October 2026; live release evidence tracked separately in `docs/release-2/evidence/` |
 | Scope | Shared services and integration contracts across Releases 0-2 |
 | Primary audience | Project team, tutor, reviewers, and future maintainers |
 | Related records | `docs/architecture/registered-feature-scope.md`, `docs/architecture/repository-architecture.md` and `docs/architecture/feature-integration-and-experience-contract.md` |
@@ -302,8 +302,8 @@ student-owned feature slices and a small set of shared integration services.
 
 Each feature slice owns its frontend, backend/API, database service, tests, and
 container artefacts. Shared services provide the unified web entry point, agentic
-orchestration, remote model access, common contracts, test utilities, MCP and RAG. Multi-agent and
-Azure integration remain Release 2 extensions. Shared services must not absorb feature business
+orchestration, remote model access, common contracts, test utilities, MCP, RAG and, in Release 2,
+the Multi-Agent Server (ADR-047) and the Azure deployment (ADR-048). Shared services must not absorb feature business
 logic or erase evidence of individual ownership.
 
 The central design pattern is a deterministic state machine around a probabilistic
@@ -345,9 +345,10 @@ The main architectural constraints are:
 - non-containerised local AI-mode, MCP, RAG and shared loop in Release 1, with AI-mode/MCP/RAG
   disabled during CI/CD, as specified by the current Release 1 assignment;
 - local Planner, Worker, Reviewer, and human review in Release 2;
-- Azure or AWS deployment in Release 2;
-- AI-mode with remote OpenAI model access enabled in the cloud while MCP, RAG, and multi-agent services are
-  disabled; and
+- Azure or AWS deployment in Release 2 (the group chose Azure);
+- in the Release 2 cloud baseline, AI-mode, MCP, RAG and the Multi-Agent Server **disabled by
+  default**, with enabling each one in the cloud as bonus work (the Release 2 brief; earlier
+  specification text kept AI-mode enabled in the cloud); and
 - individual workflows, integrated testing, diagrams, execution evidence, and reports.
 
 ### 2.2 Recorded interpretations
@@ -387,8 +388,8 @@ The main architectural constraints are:
 | Release 1 MCP/RAG/grounding | Adapters over existing tools plus citation-bearing retrieval | MCP Inspector/contract output and RAG evaluation report |
 | Release 2 multi-agent/human review | Host Multi-Agent Server: Planner, Worker, Reviewer and one human decision over feature-owned templates (ADR-047) | `coordination_audit.jsonl`, `workflow_history.jsonl`, exported run summaries, architecture diagram |
 | Pre/post testing | Deterministic pre-commit pytest and isolated AI-assisted test stage | JUnit/coverage artefacts and generated-test evidence |
-| Azure deployment | Container Apps, ACR, Bicep, OIDC, smoke/rollback workflow | Deployment output, endpoint tests, infrastructure diagram |
-| Advanced services disabled in cloud | Services absent from Azure graph and flags false | Automated negative reachability/configuration assertions |
+| Azure deployment | One Ubuntu VM running the Compose model, ACR, Bicep, OIDC and a gated `cloud-deployment.yml` (ADR-048) | Deployment report, release gate and image build records, public smoke output, infrastructure diagram |
+| Advanced services disabled in cloud | `PROPERTYSCOPE_CLOUD_AI=false` by default: no host AI wiring in the baseline override, AI routes answer `503 ai_disabled` | `validate_architecture.py` override checks and the smoke test's AI-off assertion |
 | Reports, diagrams, logs, screenshots | Evidence paths and reproducible scripts built into the platform | Release evidence manifest tied to one commit/tag |
 
 ## 3. Goals and non-goals
@@ -468,16 +469,24 @@ flowchart LR
     O --> L[Remote model API: OpenAI default / Gemini dev]
     O --> M[Local MCP server]
     O --> R[Local RAG server]
-    O -. Release 2 local .-> A[Multi-agent roles]
+    F1 --> A[Multi-Agent Server :5013<br/>Planner, Worker, Reviewer, human decision]
+    FN --> A
+    A --> L
+    A --> M
     M --> F1
     M --> FN
     R --> C[(Retrieval corpus)]
 ```
 
-The edge and feature slices are containers. The Release 1 assessment topology runs AI-mode
-(including the loop), MCP and RAG as local host processes; that is the only local topology
-(ADR-046).
-Azure is a separate future topology, not an extra destination in this runtime.
+The edge and feature slices are containers. AI-mode (including the loop), MCP, RAG and the
+Release 2 Multi-Agent Server run as local host processes; that is the only local topology
+(ADR-046, ADR-047). Each backend calls the Multi-Agent Server over HTTP through its own proxy
+routes. The server's Worker reaches feature tools through MCP (or directly in `direct` mode), and
+its agents use the same provider and model registry as AI-mode. AI-mode only reads the server's
+readiness for the status page; it does not run the Planner, Worker or Reviewer.
+The Azure deployment (ADR-048, section 16.2) runs the same containers on one VM. There the host
+services are optional systemd units that are off by default; it is not an extra destination in
+this local runtime.
 Feature 1's PostgreSQL/PostGIS exception replaces the generic SQLite branch below only within
 its credential-owning database API/loader boundary.
 
@@ -973,6 +982,10 @@ ownership checks include PID creation time and command identity before signallin
 
 ### 10.3 Azure persistence constraint
 
+ADR-048 resolves this constraint: on the Azure VM each database keeps one owning service on a
+local Docker volume, so no SQLite file sits on a network filesystem. The original analysis, which
+assumed Azure Container Apps, follows for the record.
+
 Azure Container Apps offers persistent Azure Files mounts, while SQLite cautions
 against multi-client access over network filesystems. For the course-mandated SQLite
 cloud topology:
@@ -1248,10 +1261,12 @@ write permission to the repository.
 
 ### 15.4 Cloud deployment workflow
 
-`cloud-deployment.yml` is manually dispatchable by every team member and deploys only
-after required image/test jobs succeed. It records the commit, image digests,
-infrastructure plan, deployment result, endpoint, smoke-test report, and rollback
-target. Use GitHub OIDC to Azure rather than long-lived cloud credentials.
+`cloud-deployment.yml` runs when Integration CI completes for a push to `main`, and is manually
+dispatchable by every team member. Its `verify-ci` job requires Integration CI and every
+`student-N.yml` workflow to have passed for the deployed commit, and its `build-validate` job
+builds every image and validates the Azure Compose model; only then does `deploy` run. It records
+the release gate, the image build, the deployed commit, the deployment logs, the endpoint and the
+smoke-test report. It uses GitHub OIDC to Azure rather than long-lived cloud credentials.
 
 ## 16. Local and Azure deployment
 
@@ -1307,7 +1322,8 @@ one-time setup and the operations are in [deployment/azure/README.md](../../depl
   (`PROPERTYSCOPE_CLOUD_AI=false`). Caddy answers the shared AI routes with `503 ai_disabled`, and
   `scripts/cloud_smoke.py` asserts this. For the bonus tiers they run as systemd host processes
   (never containers, ADR-046), enabled with `deploy.sh ai on`.
-- `cloud-deployment.yml` deploys after Integration CI succeeds on `main`, or by hand, through
+- `cloud-deployment.yml` deploys only after its `verify-ci` gate (Integration CI and Student 1–5
+  CI green for the commit) and `build-validate` job pass, on a push to `main` or by hand, through
   GitHub OIDC and the protected `production` environment.
 - `scripts/validate_architecture.py` enforces the Azure overrides: a single public edge, no
   source bind mounts, and no host AI wiring in the baseline.
@@ -1319,12 +1335,12 @@ owning service on a local Docker volume. This is not a claim of a production HA 
 
 The assessment-facing structure retains each owner's independent slice and makes the shared
 runtime additions explicit. This is a bounded directory map; individual feature READMEs own their
-internal modules. Future Azure folders are placeholders; the Multi-Agent Server is a Release 2
-host service.
+internal modules. The Multi-Agent Server is a Release 2 host service, and `deployment/azure/`
+holds the Release 2 Azure IaC and scripts.
 
 ```text
 .
-|-- .github/workflows/             # integration-ci.yml and student-1.yml ... student-5.yml
+|-- .github/workflows/             # integration-ci.yml, student-1.yml ... student-5.yml, cloud-deployment.yml
 |-- ai-services/
 |   |-- agent-core/                # deterministic Plan / Act / Observe / Adapt and grounding policy
 |   |-- ai-mode/                   # HTTP API, provider adapters, prompts, exclusive run store
@@ -1345,6 +1361,7 @@ host service.
 |   `-- tool-catalog.yaml
 |-- student-2/ ... student-5/       # separately owned feature containers and databases
 |-- deployment/                    # enablement, generated routes and Compose projection
+|   `-- azure/                     # Release 2 Bicep, deploy.sh, VM script, Caddy edge, systemd AI units
 |-- scripts/
 |   |-- check.py
 |   |-- dev.py
@@ -1354,7 +1371,6 @@ host service.
 |   `-- evaluate_release1_retrieval.py
 |-- docs/architecture/decisions/ADR-043-local-grounded-runtime.md
 |-- docs/release-1/                # reviewed plan, runtime, adoption and evidence
-|-- infra/azure/                   # Release 2 target
 |-- pyproject.toml
 |-- uv.lock
 |-- docker-compose.yml
@@ -1382,7 +1398,7 @@ prepared model assets, tokens and process metadata and must never be committed.
 | Quality | pytest, pytest-cov, Hypothesis, Ruff, mypy, pip-audit, Trivy, Gitleaks |
 | E2E | Playwright for Python |
 | Observability | standard logging + OpenTelemetry APIs; optional local collector |
-| Infrastructure | Docker Compose locally; Bicep + Azure Container Apps in Release 2 |
+| Infrastructure | Docker Compose locally; Bicep + one Azure VM running the same Compose model in Release 2 (ADR-048) |
 
 Pin exact versions when implementation starts and update them through reviewed pull
 requests. Do not paste floating `latest` image tags into release or deployment files.
@@ -1419,11 +1435,12 @@ requests. Do not paste floating `latest` image tags into release or deployment f
 
 ### Release 2 extension
 
-1. Split Planner, Worker, and Reviewer roles over the existing run model.
-2. Add the human-review UI and recovery tests.
-3. Enable pre-commit and post-commit assessment workflow stages.
-4. Implement Bicep, OIDC deployment, Azure persistence checks, and rollback.
-5. Prove local advanced services enabled and cloud advanced services absent.
+1. Add Planner, Worker and Reviewer roles in a separate host Multi-Agent Server with its own run
+   store (ADR-047), rather than over AI-mode's run model.
+2. Add the shared human-review panel and recovery tests.
+3. Enable the pre-commit security scans and the post-commit endpoint tests.
+4. Implement Bicep, OIDC deployment, the CI release gate and the VM deployment (ADR-048).
+5. Prove local advanced services enabled and cloud advanced services off by default.
 
 Avoid implementing all five domain features through the shared-platform workstream.
 The reference slice should demonstrate contracts and patterns without deciding other
@@ -1443,7 +1460,7 @@ students' feature logic.
 | ADR-018 | Add Gemini Chat Completions as an opt-in development provider |
 | ADR-019 | Continue one failed read through Observe/Adapt; stop an identical repeated failure |
 | ADR-012 | Build later-release seams early but gate capabilities by release and deployment |
-| ADR-013 | Target Azure Container Apps and document the SQLite/Azure Files limitation |
+| ADR-013 | Target Azure Container Apps and document the SQLite/Azure Files limitation (superseded by ADR-048: one Azure VM) |
 
 Each ADR should include context, decision, alternatives, consequences, owner, date, and
 superseding decision where applicable.
