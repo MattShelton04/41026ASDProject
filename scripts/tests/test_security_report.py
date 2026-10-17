@@ -814,3 +814,33 @@ def test_detect_secrets_scan_still_flags_unexplained_hex_and_credentials(tmp_pat
     flagged = {(entry["line_number"], entry["type"]) for entry in results["leaks.py"]}
     assert (1, "Hex High Entropy String") in flagged, "unexplained hex is still a finding"
     assert any(line == 3 for line, _ in flagged), "a credential next to 'sha256' is still a finding"
+
+
+def _git_repository(root: Path) -> None:
+    for arguments in (
+        ("init", "--quiet"),
+        ("config", "user.name", "Scan test"),
+        ("config", "user.email", "scan-test@example.invalid"),
+        ("config", "core.autocrlf", "false"),
+    ):
+        subprocess.run(("git", "-C", str(root), *arguments), check=True)  # noqa: S603, S607 - fixed git argv
+    evidence = root / "docs" / "release-2" / "evidence" / "security"
+    evidence.mkdir(parents=True)
+    (evidence / "pre-commit-report.md").write_text("old\n", encoding="utf-8")
+    (root / "source.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(("git", "-C", str(root), "add", "--all"), check=True)  # noqa: S603, S607 - fixed git argv
+    subprocess.run(  # noqa: S603 - fixed git argv
+        ("git", "-C", str(root), "commit", "--quiet", "-m", "init"),  # noqa: S607 - git from PATH
+        check=True,
+    )
+
+
+def test_rewritten_evidence_does_not_make_the_scanned_source_dirty(tmp_path: Path) -> None:
+    _git_repository(tmp_path)
+    report = tmp_path / "docs" / "release-2" / "evidence" / "security" / "pre-commit-report.md"
+    report.write_text("regenerated\n", encoding="utf-8")
+
+    assert scans.git_state(tmp_path)[2] is False
+
+    (tmp_path / "source.py").write_text("x = 2\n", encoding="utf-8")
+    assert scans.git_state(tmp_path)[2] is True

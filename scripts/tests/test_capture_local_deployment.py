@@ -538,3 +538,14 @@ def test_log_observations_surface_tracebacks_without_failing() -> None:
             "last": '{"level":"error","message":"boom"}',
         },
     ]
+
+
+def test_the_source_check_ignores_the_evidence_being_refreshed(tmp_path: Path) -> None:
+    runner = FakeRunner(containers=_containers())
+    report = capture(_context(tmp_path, runner=runner, edge=_edge()))
+
+    status = next(call for call in runner.calls if call[:2] == ("git", "status"))
+    assert status[-1] == ":(exclude)docs/release-2/evidence"
+    assert report["source"]["uncommitted_paths"] == 1
+    text = (tmp_path / "out" / "local-deployment-report.md").read_text(encoding="utf-8")
+    assert "1 uncommitted path(s) outside `docs/release-2/evidence` at capture" in text

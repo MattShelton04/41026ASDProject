@@ -23,6 +23,8 @@ from scripts.security.policy import (
 )
 from scripts.security.report import PipAuditResult, RawRuffFinding
 
+# Evidence a refresh rewrites while it runs; it never makes the scanned source "dirty".
+EVIDENCE_PATHSPEC = ":(exclude)docs/release-2/evidence"
 RUFF_TIMEOUT_SECONDS = 300
 DETECT_SECRETS_TIMEOUT_SECONDS = 600
 UV_EXPORT_TIMEOUT_SECONDS = 120
@@ -399,7 +401,10 @@ def tool_versions(root: Path) -> dict[str, str]:
 
 
 def git_state(root: Path) -> tuple[str, str, bool]:
-    """Return branch, commit and whether tracked files have uncommitted changes."""
+    """Return branch, commit and whether tracked source files have uncommitted changes.
+
+    The evidence directory is excluded: an evidence refresh rewrites it while it runs.
+    """
     git = shutil.which("git")
     if not git:
         return "unknown", "unknown", False
@@ -412,5 +417,7 @@ def git_state(root: Path) -> tuple[str, str, bool]:
 
     branch = read("branch", "--show-current") or "detached"
     commit = read("rev-parse", "HEAD") or "unknown"
-    dirty = bool(read("status", "--porcelain", "--untracked-files=no"))
+    dirty = bool(
+        read("status", "--porcelain", "--untracked-files=no", "--", ".", EVIDENCE_PATHSPEC)
+    )
     return branch, commit, dirty

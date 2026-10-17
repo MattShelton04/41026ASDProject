@@ -130,6 +130,7 @@ TYPECHECK_COMMANDS: tuple[Command, ...] = (
         "scripts/generate_deployment.py",
         "scripts/live_nginx_recreation.py",
         "scripts/onboarding.py",
+        "scripts/refresh_release2_evidence.py",
         "scripts/validate_architecture.py",
         "scripts/validate_frontend_styles.py",
         "scripts/validate_model_registry.py",

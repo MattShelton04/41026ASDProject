@@ -59,6 +59,7 @@ from scripts.devtools.review.cloud import SECRET_PATTERNS
 
 DEFAULT_OUTPUT_DIRECTORY = REPOSITORY_ROOT / "docs" / "release-2" / "evidence" / "local"
 REPORT_NAME = "local-deployment-report"
+EVIDENCE_PATHSPEC = ":(exclude)docs/release-2/evidence"
 EXPORT_DIRECTORY_NAME = "multi-agent-run"
 REQUEST_PREFIX = "local-deploy"
 F1_TEMPLATE = "f1-release-readiness-review"
@@ -470,7 +471,8 @@ class Capture:
             result = self.context.runner(("git", *arguments), 30)
             return result.stdout.strip() if result.returncode == 0 else ""
 
-        dirty = git("status", "--porcelain")
+        # The evidence directory is excluded: an evidence refresh rewrites it while it runs.
+        dirty = git("status", "--porcelain", "--", ".", EVIDENCE_PATHSPEC)
         return {
             "commit": git("rev-parse", "HEAD") or "unknown",
             "branch": git("rev-parse", "--abbrev-ref", "HEAD") or "unknown",
@@ -1330,7 +1332,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "|---|---|",
         f"| Captured | {report['started_at']} to {report['finished_at']} |",
         f"| Commit | `{source['commit']}` on `{source['branch']}` "
-        f"({source['uncommitted_paths']} uncommitted path(s) at capture) |",
+        f"({source['uncommitted_paths']} uncommitted path(s) outside `docs/release-2/evidence` "
+        "at capture) |",
         f"| Compose project | `{source['compose_project']}` |",
         f"| Edge | {source['edge_url']} |",
         f"| Host | {source['platform']}, Python {source['python']} |",

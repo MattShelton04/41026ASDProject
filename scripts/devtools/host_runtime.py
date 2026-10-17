@@ -142,6 +142,39 @@ def _owned_process(service: str) -> psutil.Process | None:
         return None
 
 
+def foreground_process(
+    service: str, environment: Mapping[str, str] | None = None
+) -> psutil.Process | None:
+    """The foreground ``ai serve SERVICE`` of this checkout, found by its listening port.
+
+    ``ai serve`` keeps no state file, so it is recognised by its command and working directory:
+    a ``host_runtime serve SERVICE`` process started in this checkout. One from another checkout
+    is not this checkout's and stays reported as a port holder.
+    """
+    port = port_for(service, os.environ if environment is None else environment)
+    try:
+        for connection in psutil.net_connections(kind="tcp"):
+            if not (
+                connection.status == psutil.CONN_LISTEN
+                and connection.laddr
+                and connection.laddr.port == port
+                and connection.pid
+            ):
+                continue
+            process = psutil.Process(connection.pid)
+            command = process.cmdline()
+            serves = "scripts.devtools.host_runtime" in command and command[-2:] == [
+                "serve",
+                service,
+            ]
+            if serves and Path(process.cwd()).resolve() == REPOSITORY_ROOT.resolve():
+                return process
+            return None
+    except (OSError, psutil.Error):
+        pass
+    return None
+
+
 def is_managed(service: str) -> bool:
     """Whether this checkout launched the identity-verified process for ``service``."""
     return _owned_process(service) is not None
@@ -193,14 +226,19 @@ def status(
     and a stopped service whose port another process holds is reported before ``ai start``.
     """
     values = os.environ if environment is None else environment
-    entries = [
-        {
+    entries: list[dict[str, str]] = []
+    for service in SERVICES:
+        managed = _owned_process(service) is not None
+        foreground = None if managed else foreground_process(service, values)
+        entry = {
             "service": service,
-            "state": "running" if _owned_process(service) else "stopped",
+            "state": "running" if managed or foreground else "stopped",
             "url": local_url(service, values),
         }
-        for service in SERVICES
-    ]
+        if foreground is not None:
+            entry["mode"] = "foreground"
+            entry["pid"] = str(foreground.pid)
+        entries.append(entry)
     if not probe:
         return entries
     authenticated = _with_existing_tokens(values)
@@ -210,6 +248,9 @@ def status(
             port = port_for(service, values)
             if entry["state"] == "running":
                 entry["health"], entry["detail"] = probe_health(service, authenticated, client)
+                if entry.get("mode") == "foreground":
+                    shown = f"foreground `ai serve`, PID {entry['pid']}"
+                    entry["detail"] = f"{shown}; {entry['detail']}" if entry["detail"] else shown
             elif not port_is_free(port):
                 entry["health"] = "port in use"
                 entry["detail"] = (

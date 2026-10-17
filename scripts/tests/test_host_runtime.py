@@ -753,3 +753,51 @@ def test_serve_in_terminal_refuses_a_busy_port(
         popen=lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not start")),
     )
     assert code == 1 and not (tmp_path / "rag.log").exists()
+
+
+class _Listener:
+    def __init__(self, pid: int, port: int) -> None:
+        self.status = runtime.psutil.CONN_LISTEN
+        self.laddr = type("Address", (), {"port": port})()
+        self.pid = pid
+
+
+class _ServeProcess:
+    def __init__(self, pid: int, service: str, cwd: Path) -> None:
+        self.pid = pid
+        self._service = service
+        self._cwd = cwd
+
+    def cmdline(self) -> list[str]:
+        return ["python.exe", "-m", "scripts.devtools.host_runtime", "serve", self._service]
+
+    def cwd(self) -> str:
+        return str(self._cwd)
+
+
+@pytest.mark.parametrize(("same_checkout", "expected"), [(True, "running"), (False, "stopped")])
+def test_a_foreground_serve_of_this_checkout_counts_as_running(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch, same_checkout: bool, expected: str
+) -> None:
+    checkout = runtime.REPOSITORY_ROOT if same_checkout else isolated / "other-checkout"
+    monkeypatch.setattr(runtime, "_owned_process", lambda _service: None)
+    monkeypatch.setattr(runtime.psutil, "net_connections", lambda kind: [_Listener(4242, 5012)])
+    monkeypatch.setattr(runtime.psutil, "Process", lambda pid: _ServeProcess(pid, "rag", checkout))
+    monkeypatch.setattr(runtime, "port_is_free", lambda port: port != 5012)
+    monkeypatch.setattr(runtime, "port_owner", lambda _port: "python.exe (PID 4242)")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "ok", "embedding_model": "model@digest"})
+
+    entries = {
+        entry["service"]: entry
+        for entry in runtime.status({}, probe=True, transport=httpx.MockTransport(handler))
+    }
+
+    assert entries["rag"]["state"] == expected
+    assert entries["ai-mode"]["state"] == "stopped"
+    if same_checkout:
+        assert entries["rag"]["health"] == "ready"
+        assert entries["rag"]["detail"].startswith("foreground `ai serve`, PID 4242")
+    else:
+        assert entries["rag"]["health"] == "port in use"
