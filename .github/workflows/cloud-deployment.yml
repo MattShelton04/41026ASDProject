@@ -184,6 +184,9 @@ jobs:
       AZURE_DNS_LABEL: ${{ vars.AZURE_DNS_LABEL || 'propertyscope-nsw-g20' }}
       AZURE_VM_SIZE: ${{ vars.AZURE_VM_SIZE || 'Standard_D4s_v5' }}
       AZURE_ENCRYPTION_AT_HOST: ${{ vars.AZURE_ENCRYPTION_AT_HOST || 'true' }}
+      # HHmm in AUS Eastern time, or off where Microsoft.DevTestLab/schedules is not offered
+      # (newzealandnorth); cloud-auto-deallocate.yml is the nightly backstop either way.
+      AZURE_AUTO_SHUTDOWN_TIME: ${{ vars.AZURE_AUTO_SHUTDOWN_TIME || '2330' }}
       AZURE_DEPLOYER_PRINCIPAL_ID: ${{ vars.AZURE_DEPLOYER_PRINCIPAL_ID }}
       AZURE_SECRET_OFFICER_IDS: ${{ vars.AZURE_SECRET_OFFICER_IDS }}
       AZURE_OPERATOR_IP_RANGES: ${{ vars.AZURE_OPERATOR_IP_RANGES }}

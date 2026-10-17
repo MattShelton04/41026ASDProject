@@ -1,4 +1,4 @@
-"""cloud-deployment.yml: the CI gate, the build/validation stage and the Azure deploy job."""
+"""The cloud-deployment.yml gate, build and deploy jobs, and cloud-auto-deallocate.yml."""
 
 from __future__ import annotations
 
@@ -117,6 +117,26 @@ def test_the_dns_label_defaults_to_the_bicep_parameter_default() -> None:
     )
 
 
+def test_the_deploy_job_keeps_the_daily_shutdown_unless_it_is_switched_off() -> None:
+    environment = _workflow("cloud-deployment.yml")["jobs"]["deploy"]["env"]
+    assert (
+        environment["AZURE_AUTO_SHUTDOWN_TIME"] == "${{ vars.AZURE_AUTO_SHUTDOWN_TIME || '2330' }}"
+    )
+    parameters = (ROOT / "deployment/azure/main.bicepparam").read_text(encoding="utf-8")
+    assert (
+        "var autoShutdownSetting = readEnvironmentVariable('AZURE_AUTO_SHUTDOWN_TIME', '2330')"
+        in parameters
+    )
+    # GitHub cannot pass an explicit empty value, so `off` drops the DevTestLab schedule, which
+    # some regions (newzealandnorth) do not offer.
+    assert (
+        "param autoShutdownTime = toLower(autoShutdownSetting) == 'off' ? '' : autoShutdownSetting"
+        in parameters
+    )
+    main = (ROOT / "deployment/azure/main.bicep").read_text(encoding="utf-8")
+    assert "module shutdown 'modules/shutdown.bicep' = if (!empty(autoShutdownTime))" in main
+
+
 def test_the_deploy_job_installs_only_the_root_tooling_and_keeps_ai_off() -> None:
     workflow = _workflow("cloud-deployment.yml")
     job = workflow["jobs"]["deploy"]
@@ -163,3 +183,38 @@ def test_the_evidence_readme_names_every_artifact_the_workflow_uploads() -> None
             assert upload["with"]["retention-days"] == 90
     deploy_upload = _uploads(jobs["deploy"])[0]
     assert "!.propertyscope-runtime/cloud/*.payload.sh" in deploy_upload["with"]["path"]
+
+
+def test_auto_deallocate_runs_nightly_or_by_hand_once_azure_is_configured() -> None:
+    workflow = _workflow("cloud-auto-deallocate.yml")
+    assert set(workflow[True]) == {"schedule", "workflow_dispatch"}
+    assert workflow[True]["schedule"] == [{"cron": "30 12 * * *"}]  # 23:30 AEDT
+    assert workflow["permissions"] == {"contents": "read"}
+    assert list(workflow["jobs"]) == ["deallocate"]
+    job = workflow["jobs"]["deallocate"]
+    assert job["if"] == "vars.AZURE_SUBSCRIPTION_ID != ''"
+    # Its own environment without reviewers: an unattended backstop never waits for approval.
+    assert job["environment"] == "operations"
+    assert job["permissions"] == {"id-token": "write", "contents": "read"}
+    # The deployment's group, so it never deallocates the VM in the middle of a deployment.
+    deploy = _workflow("cloud-deployment.yml")["jobs"]["deploy"]
+    assert job["concurrency"] == deploy["concurrency"]
+    assert job["concurrency"] == {
+        "group": "cloud-deployment-production",
+        "cancel-in-progress": False,
+    }
+
+
+def test_auto_deallocate_only_signs_in_and_deallocates_the_vm() -> None:
+    job = _workflow("cloud-auto-deallocate.yml")["jobs"]["deallocate"]
+    steps = job["steps"]
+    assert not any(step.get("uses", "").startswith("actions/checkout@") for step in steps)
+    login = next(step for step in steps if step.get("uses", "").startswith("azure/login@"))
+    assert set(login["with"]) == {"client-id", "tenant-id", "subscription-id"}
+    assert "secrets." not in str(job)  # OIDC: no stored credential
+    assert job["env"]["VM_NAME"] == "${{ vars.AZURE_NAME_PREFIX || 'propertyscope' }}-prod-vm"
+    runs = _runs(job)
+    assert 'az vm deallocate --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME"' in runs
+    # A VM that is already deallocated, or does not exist yet, is left alone.
+    assert "PowerState/deallocated | PowerState/deallocating)" in runs
+    assert "GITHUB_STEP_SUMMARY" in runs

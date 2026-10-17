@@ -282,7 +282,12 @@ def test_https_can_be_limited_to_listed_sources_while_http_stays_open() -> None:
         re.findall(r"name: '(Allow\w+Inbound)'\s*properties: \{(.*?)\n {8}\}", network, re.S)
     )
     assert set(rules) == {"AllowHttpsInbound", "AllowHttpInbound"}
-    assert "sourceAddressPrefixes: allowedHttpsSourcePrefixes" in rules["AllowHttpsInbound"]
+    # Azure rejects a service tag (the Internet default) in the plural list, so one source uses
+    # the singular property and only a longer list uses sourceAddressPrefixes.
+    assert "var singleHttpsSource = length(allowedHttpsSourcePrefixes) == 1" in network
+    https = rules["AllowHttpsInbound"]
+    assert "sourceAddressPrefix: singleHttpsSource ? allowedHttpsSourcePrefixes[0] : null" in https
+    assert "sourceAddressPrefixes: singleHttpsSource ? [] : allowedHttpsSourcePrefixes" in https
     # ACME HTTP-01 validation and renewal come from unpublished addresses: 80 is never limited.
     assert "sourceAddressPrefix: 'Internet'" in rules["AllowHttpInbound"]
     assert "allowedHttpsSourcePrefixes" not in rules["AllowHttpInbound"]

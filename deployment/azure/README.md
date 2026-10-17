@@ -64,6 +64,7 @@ flowchart LR
 | `deploy.sh` | The operator and CI entry point (below) |
 | `validate-endpoint-security.sh`, `validate-data-security.sh` | Bonus B5 and B6 validation |
 | `validate-iac.sh` | Offline Bicep, ShellCheck, Caddy, nginx and cloud-init checks (CI job `iac-lint`) |
+| `../../.github/workflows/cloud-auto-deallocate.yml` | Nightly cost backstop: deallocates the VM at 12:30 UTC (23:30 AEDT) |
 
 ## Switch-on checklist
 
@@ -98,7 +99,13 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
      An empty `restrictions` list means the size is offered. Otherwise request more quota, or
      set `AZURE_LOCATION` and `AZURE_VM_SIZE` (any size with 16 GiB or more) for both the laptop
-     and the GitHub variables.
+     and the GitHub variables. A region policy can block `australiaeast` altogether: *Azure for
+     Students* may allow only a few regions (for example `newzealandnorth`, with
+     `Standard_D4as_v4`). The policy error lists them.
+   - **Auto-shutdown schedules.** The daily shutdown is a `Microsoft.DevTestLab/schedules`
+     resource, which some regions do not offer (`newzealandnorth` among them). There, set
+     `AZURE_AUTO_SHUTDOWN_TIME=off`; the nightly
+     [auto-deallocate workflow](#costs-and-deallocation) still stops the VM.
    - **Budgets.** `provision` creates a monthly Cost Management budget when `AZURE_BUDGET_EMAILS`
      is set. If the subscription's offer does not support Cost Management budgets, the deployment
      can fail on the budget resource: set `AZURE_DEPLOY_BUDGET=false` and watch the credit balance in the portal instead.
@@ -158,6 +165,13 @@ az account set --subscription "$SUBSCRIPTION_ID"
    `repo:MattShelton04/41026ASDProject:environment:production`. A credential for
    `ref:refs/heads/main` is **not** needed and would not match.
 
+   **If the tenant blocks app registrations**, a user-assigned managed identity in the resource
+   group works the same way: create it with `az identity create`, add the same federated
+   credential with `az identity federated-credential create`, and give its `principalId` the
+   same two roles. Then `AZURE_CLIENT_ID` is the identity's `clientId` and
+   `AZURE_DEPLOYER_PRINCIPAL_ID` its `principalId`. `az group delete` at
+   [teardown](#teardown) removes it with everything else.
+
 4. **Configure the GitHub `production` environment and variables.** In *Settings →
    Environments*, create `production`. Add required reviewers to record a human approval for each
    deployment, and limit deployment branches to `main`. Then, in *Settings → Secrets and
@@ -178,6 +192,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `AZURE_ALLOWED_HTTPS_SOURCES` | `203.0.113.7/32,198.51.100.0/24` limits HTTPS (443) to these sources; empty means the internet. Port 80 always stays open ([Access control](#access-control)) | optional |
    | `PROPERTYSCOPE_SITE_AUTH`, `PROPERTYSCOPE_SITE_USER` | site-wide viewer login, defaults `on` and `propertyscope`; `off` makes pages public | optional |
    | `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ENCRYPTION_AT_HOST`, `AZURE_MONTHLY_BUDGET` | defaults `australiaeast`, `Standard_D4s_v5`, `true`, `100` | optional |
+   | `AZURE_AUTO_SHUTDOWN_TIME` | daily shutdown as HHmm, AUS Eastern time; default `2330`. `off` where DevTestLab schedules are not offered (for example `newzealandnorth`) | optional |
    | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
 
    **One GitHub secret, and no cloud credential.** While the site-wide login is on, add the
@@ -187,6 +202,12 @@ az account set --subscription "$SUBSCRIPTION_ID"
    An unset variable reaches the parameter files as an empty value,
    and `main.bicepparam` treats empty as "use the default", so a missing optional variable never
    produces an empty region, VM size or DNS label.
+
+   **Second environment for the nightly deallocation.** *Cloud Auto-Deallocate* runs in its own
+   environment so that it never waits for an approval. Create `operations`, limited to `main`,
+   with no required reviewers, and add a second federated credential to the deployer identity
+   from step 3 (name `github-operations-environment`, subject
+   `repo:MattShelton04/41026ASDProject:environment:operations`).
 
 5. **Provision once from a laptop.** Copy `.env.azure.example` to `.env.azure` (Git-ignored) and
    fill in the same values. Put your own object ID in `AZURE_SECRET_OFFICER_IDS`. Use
@@ -250,8 +271,8 @@ az account set --subscription "$SUBSCRIPTION_ID"
    `.propertyscope-runtime/cloud/`). Copy the accepted report into
    `docs/release-2/evidence/cloud/`.
 
-10. **Decide what stays on.** Choose one: keep the VM for the demonstration (it deallocates daily
-    at 23:30 AEST), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
+10. **Decide what stays on.** Choose one: keep the VM for the demonstration (it deallocates
+    nightly), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
     tier with `deploy.sh ai on`, or [tear it down](#teardown). Unset `AZURE_SUBSCRIPTION_ID` to
     stop further deployments.
 
@@ -352,9 +373,17 @@ subscription.
 | Standard static public IP | about US$4 per month |
 | Key Vault, budget, auto-shutdown | cents |
 
-The VM deallocates every day at 23:30 AEST (`AZURE_AUTO_SHUTDOWN_TIME`), and `deploy`
-starts it again automatically. Deallocate it by hand between demonstrations. The static IP and
-the FQDN survive deallocation.
+Two things stop the VM every night, and `deploy` starts it again automatically:
+
+- the Bicep auto-shutdown schedule at 23:30 AUS Eastern time (`AZURE_AUTO_SHUTDOWN_TIME`; `off`
+  in regions without DevTestLab schedules);
+- the *Cloud Auto-Deallocate* workflow (`.github/workflows/cloud-auto-deallocate.yml`) at 12:30
+  UTC, which is 23:30 AEDT and 22:30 AEST. It shares the deployment's concurrency group, so it
+  waits for a running deployment, and it leaves a VM that is already deallocated or missing
+  alone. Run it by hand from the Actions tab, or disable it there to keep the VM up overnight.
+
+Deallocate the VM by hand between demonstrations. The static IP and the FQDN survive
+deallocation.
 
 ```bash
 az vm deallocate --resource-group rg-propertyscope-prod --name propertyscope-prod-vm
@@ -368,7 +397,7 @@ spend.
 
 ```bash
 az group delete --name rg-propertyscope-prod --yes          # every resource, including the budget
-az ad app delete --id <AZURE_CLIENT_ID>                      # the GitHub deployer and its federated credential
+az ad app delete --id <AZURE_CLIENT_ID>                      # the GitHub deployer app (not needed for a managed identity)
 ```
 
 Key Vault purge protection keeps the deleted vault, and its name, for 7 days. It cannot be purged

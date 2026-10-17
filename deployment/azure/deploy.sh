@@ -268,7 +268,8 @@ load_outputs() {
     line=$(az_query deployment group show --resource-group "$AZURE_RESOURCE_GROUP" --name "$DEPLOYMENT_NAME" \
         --query '[properties.outputs.acrName.value, properties.outputs.acrLoginServer.value, properties.outputs.vmName.value, properties.outputs.keyVaultName.value, properties.outputs.fqdn.value]' \
         --output tsv 2>/dev/null) || die "no '$DEPLOYMENT_NAME' deployment in $AZURE_RESOURCE_GROUP; run 'deploy.sh provision' first"
-    read -r ACR_NAME ACR_LOGIN_SERVER VM_NAME KEY_VAULT_NAME PUBLIC_FQDN <<<"$line"
+    # az prints a flat list one value per line in tsv; join the lines so one read takes all five.
+    read -r ACR_NAME ACR_LOGIN_SERVER VM_NAME KEY_VAULT_NAME PUBLIC_FQDN <<<"${line//$'\n'/$'\t'}"
     [[ -n $PUBLIC_FQDN ]] || die "the Bicep outputs are incomplete; re-run 'deploy.sh provision'"
     export ACR_NAME ACR_LOGIN_SERVER VM_NAME KEY_VAULT_NAME PUBLIC_FQDN
 }

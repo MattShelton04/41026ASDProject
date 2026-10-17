@@ -28,6 +28,10 @@ param allowedHttpsSourcePrefixes array = [
 
 param tags object = {}
 
+// Azure rejects a service tag such as Internet in sourceAddressPrefixes (the list form), so a single
+// source, the Internet default included, goes into sourceAddressPrefix.
+var singleHttpsSource = length(allowedHttpsSourcePrefixes) == 1
+
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: '${namePrefix}-nsg'
   location: location
@@ -42,7 +46,8 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Inbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefixes: allowedHttpsSourcePrefixes
+          sourceAddressPrefix: singleHttpsSource ? allowedHttpsSourcePrefixes[0] : null
+          sourceAddressPrefixes: singleHttpsSource ? [] : allowedHttpsSourcePrefixes
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
           destinationPortRange: '443'
