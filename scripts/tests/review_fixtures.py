@@ -282,26 +282,46 @@ Endpoints under test: GET /api/v1/items and POST /api/v1/items.
     )
 
 
+# --- Cloud evidence ---------------------------------------------------------------------------
+# Built by the real producers (scripts/cloud_smoke.py, scripts/verify_release_gate.py and
+# scripts/validate_release_images.py) against fakes in cloud_fixtures, never written by hand, so
+# a producer/collector mismatch fails the cloud review tests.
+
+CLOUD_URL = "https://propertyscope-nsw-g20.australiaeast.cloudapp.azure.com"
+REGISTRY = "psg20acr.azurecr.io"
+SMOKE_PATH = "cloud/cloud-smoke.json"
+GATE_PATH = "cloud/release-gate.json"
+BUILD_PATH = "cloud/image-build.json"
+GITHUB_REPOSITORY = "MattShelton04/41026ASDProject"
+
+
 def smoke(**changes: object) -> dict[str, object]:
-    checks: list[dict[str, object]] = [
-        {"name": "shared home page", "category": "frontend", "passed": True, "status_code": 200}
-    ]
-    checks += [
-        {"name": f"{student} CRUD", "category": "crud", "feature": student, "passed": True}
-        for student in STUDENTS
-    ]
-    checks.append({"name": "AI routes disabled", "category": "ai_disabled", "passed": True})
-    value: dict[str, object] = {
-        "schema_version": "1.0",
-        "base_url": "https://propertyscope-g20.australiaeast.cloudapp.azure.com",
-        "commit_sha": COMMIT,
-        "generated_at": "2026-10-20T03:15:00Z",
-        "ai_enabled": False,
-        "images": {
-            service: f"psg20acr.azurecr.io/propertyscope/{service}:{COMMIT}" for service in SERVICES
-        },
-        "checks": checks,
-    }
+    """``cloud-smoke.json`` for a passing deployment of COMMIT, with ``changes`` applied."""
+    from scripts.tests import cloud_fixtures
+
+    value: dict[str, object] = cloud_fixtures.smoke_document(
+        base_url=CLOUD_URL, commit_sha=COMMIT, registry=REGISTRY
+    )
+    value.update(changes)
+    return value
+
+
+def release_gate(**changes: object) -> dict[str, object]:
+    """``release-gate.json`` with every required workflow green at COMMIT."""
+    from scripts.tests import cloud_fixtures
+
+    value: dict[str, object] = cloud_fixtures.release_gate_document(
+        sha=COMMIT, repository=GITHUB_REPOSITORY
+    )
+    value.update(changes)
+    return value
+
+
+def image_build(**changes: object) -> dict[str, object]:
+    """``image-build.json`` for a passing Docker build and validation of COMMIT."""
+    from scripts.tests import cloud_fixtures
+
+    value: dict[str, object] = cloud_fixtures.image_build_document(sha=COMMIT)
     value.update(changes)
     return value
 
@@ -312,22 +332,33 @@ def write_cloud(root: Path) -> None:
     (cloud / "cloud-deployment-report.md").write_text(
         f"""# Cloud deployment report
 
-Deployed commit {COMMIT} to Azure (australiaeast) by cloud-deployment.yml run
-{REPOSITORY}/actions/runs/1234567999.
+Generated 2026-10-20T03:16:00+00:00 by `scripts/cloud_deployment_report.py` from the deployment's
+own logs.
 
-Public URL: https://propertyscope-g20.australiaeast.cloudapp.azure.com
+## Summary
 
-AI-mode, MCP, RAG and the Multi-Agent Server are disabled in this baseline deployment.
+| Item | Value |
+|---|---|
+| Result | **SUCCEEDED** |
+| Public URL | {CLOUD_URL} |
+| Commit / image tag | `{COMMIT}` / `{COMMIT}` |
+| Trigger | workflow_run by MattShelton04 |
+| Workflow run | {REPOSITORY}/actions/runs/1234567999 |
+| Gating CI run | {REPOSITORY}/actions/runs/1234567990 |
+| AI tier | flag off (PROPERTYSCOPE_CLOUD_AI), edge reports disabled |
 """,
         encoding="utf-8",
     )
-    write_json(cloud / "smoke.json", smoke())
+    write_json(root / SMOKE_PATH, smoke())
+    write_json(root / GATE_PATH, release_gate())
+    write_json(root / BUILD_PATH, image_build())
     logs = cloud / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     (logs / "deploy.log").write_text(
-        "2026-10-20T03:10:00Z Logging in with OIDC federated credential\n"
-        "2026-10-20T03:11:00Z Pushing images tagged " + COMMIT + "\n"
-        "2026-10-20T03:13:00Z az vm run-command invoke: compose up --wait completed\n"
-        "2026-10-20T03:15:00Z Smoke test passed: 7 of 7 cases\n",
+        "[deploy.sh 03:10:00] Running 'deploy' on propertyscope-prod-vm through az vm "
+        "run-command invoke\n"
+        f"[deploy.sh 03:11:00] Pushed {REGISTRY}/propertyscope/f1-backend:{COMMIT}\n"
+        "[deploy.sh 03:13:00] PROPERTYSCOPE_EXIT=0\n"
+        f"[deploy.sh 03:13:01] Deployed {COMMIT} to {CLOUD_URL}\n",
         encoding="utf-8",
     )

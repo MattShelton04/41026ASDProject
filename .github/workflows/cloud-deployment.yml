@@ -1,8 +1,22 @@
 name: Cloud Deployment
 
-# Release 2 Azure deployment (R2-43, decision D7, ADR-048). Runs only after Integration CI has
-# succeeded for a push to main, or manually. The job is skipped until the repository variable
-# AZURE_SUBSCRIPTION_ID is set, so the workflow stays green before Azure is configured.
+# Release 2 Azure deployment (R2-43, decision D7, ADR-048), following the brief's DevOps flow:
+#   pre-commit -> GitHub Actions -> post-commit endpoint tests (student-N.yml)
+#   -> Docker build/validation -> cloud-deployment.yml -> Azure
+#
+# 1. verify-ci       The release gate. For the commit being deployed, Integration CI must have
+#                    succeeded on that exact commit, and each path-filtered Student N CI workflow
+#                    must have succeeded on its latest run at that commit or an ancestor
+#                    (scripts/verify_release_gate.py). Runs still in progress are waited for.
+# 2. build-validate  Builds every release image and validates the Compose model the VM runs
+#                    (scripts/validate_release_images.py). Needs no Azure.
+# 3. deploy          Provision, push, deploy, smoke and report. Skipped until the repository
+#                    variable AZURE_SUBSCRIPTION_ID is set, so the workflow stays green (and the
+#                    gate and build stay demonstrable) before Azure exists.
+#
+# It is triggered once per push to main, when Integration CI (which runs on every push) completes;
+# the gate then waits for the student workflows of the same push instead of re-triggering on each
+# of them, so one commit is deployed at most once. It can also be run by hand.
 on:
   workflow_run:
     workflows: ["Integration CI"]
@@ -23,18 +37,122 @@ env:
 permissions:
   contents: read
 
-# One deployment at a time; never cancel a deployment half-way.
-concurrency:
-  group: cloud-deployment-production
-  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
 
 jobs:
+  verify-ci:
+    name: Verify CI gate (Integration CI + Student 1-5 CI)
+    # A superseded (cancelled) Integration CI run is not a deployment candidate. A failed one
+    # still runs the gate, which then reports exactly what blocked the deployment.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion != 'cancelled' &&
+      github.event.workflow_run.conclusion != 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      sha: ${{ steps.gate.outputs.sha }}
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      GATE_DIR: ${{ github.workspace }}/.propertyscope-runtime/cloud/gate
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out the commit to deploy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+
+      - name: Verify Integration CI and Student 1-5 CI succeeded for this commit
+        id: gate
+        run: |
+          echo "sha=${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
+          python scripts/verify_release_gate.py --repo "$GITHUB_REPOSITORY" --sha "$DEPLOY_SHA" \
+            --branch main --wait-minutes 60 --poll-seconds 60 --output-dir "$GATE_DIR"
+
+      - name: Publish the gate table
+        if: always()
+        run: |
+          if [[ -f $GATE_DIR/release-gate.md ]]; then
+            cat "$GATE_DIR/release-gate.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the release gate record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-${{ env.DEPLOY_SHA }}
+          path: .propertyscope-runtime/cloud/gate/
+          if-no-files-found: warn
+          retention-days: 90
+
+  build-validate:
+    name: Docker build and validation
+    needs: verify-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DEPLOY_SHA: ${{ needs.verify-ci.outputs.sha }}
+      BUILD_DIR: ${{ github.workspace }}/.propertyscope-runtime/cloud/build
+    steps:
+      - name: Check out the gated commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+
+      # The same service set deploy.sh push builds and tags for ACR.
+      - name: Build every release image
+        run: |
+          mkdir -p "$BUILD_DIR"
+          compose=(docker compose -f docker-compose.yml -f deployment/enabled-features.compose.yml --profile release-0)
+          mapfile -t services < <("${compose[@]}" config --images | sed -n 's#^propertyscope/\([a-z0-9-]*\):dev$#\1#p' | sort -u)
+          if ((${#services[@]} == 0)); then
+            echo "::error::No buildable services in the Compose model"
+            exit 1
+          fi
+          echo "Building ${#services[@]} images for ${DEPLOY_SHA}: ${services[*]}"
+          "${compose[@]}" build --pull "${services[@]}" 2>&1 | tee "$BUILD_DIR/build.log"
+
+      - name: Validate images and the Azure Compose model
+        run: python scripts/validate_release_images.py --sha "$DEPLOY_SHA" --output-dir "$BUILD_DIR"
+
+      - name: Publish the build table
+        if: always()
+        run: |
+          if [[ -f $BUILD_DIR/image-build.md ]]; then
+            cat "$BUILD_DIR/image-build.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the build record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-build-${{ env.DEPLOY_SHA }}
+          path: .propertyscope-runtime/cloud/build/
+          if-no-files-found: warn
+          retention-days: 90
+
   deploy:
     name: Deploy to Azure
-    if: >-
-      vars.AZURE_SUBSCRIPTION_ID != '' &&
-      (github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    needs: [verify-ci, build-validate]
+    if: vars.AZURE_SUBSCRIPTION_ID != ''
     runs-on: ubuntu-latest
     timeout-minutes: 75
     environment:
@@ -43,17 +161,27 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      actions: read
+    # One deployment at a time; never cancel a deployment half-way.
+    concurrency:
+      group: cloud-deployment-production
+      cancel-in-progress: false
     env:
-      # Deploy exactly the commit Integration CI validated.
-      IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
-      PROPERTYSCOPE_DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      # Deploy exactly the commit the gate verified.
+      IMAGE_TAG: ${{ needs.verify-ci.outputs.sha }}
+      PROPERTYSCOPE_DEPLOY_SHA: ${{ needs.verify-ci.outputs.sha }}
       PROPERTYSCOPE_CI_RUN_URL: ${{ github.event.workflow_run.html_url }}
       PROPERTYSCOPE_CLOUD_AI: "false"
       PROPERTYSCOPE_CLOUD_LOG_DIR: ${{ github.workspace }}/.propertyscope-runtime/cloud
+      GH_TOKEN: ${{ github.token }}
+      # The deploy tooling (cloud_smoke.py, cloud_deployment_report.py, verify_release_gate.py)
+      # needs only the root project's dependencies; uv run must not sync the dev group.
+      UV_NO_DEFAULT_GROUPS: "1"
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'australiaeast' }}
-      AZURE_DNS_LABEL: ${{ vars.AZURE_DNS_LABEL }}
+      # Same default as deployment/azure/main.bicepparam; an empty value would override it.
+      AZURE_DNS_LABEL: ${{ vars.AZURE_DNS_LABEL || 'propertyscope-nsw-g20' }}
       AZURE_VM_SIZE: ${{ vars.AZURE_VM_SIZE || 'Standard_D4s_v5' }}
       AZURE_ENCRYPTION_AT_HOST: ${{ vars.AZURE_ENCRYPTION_AT_HOST || 'true' }}
       AZURE_DEPLOYER_PRINCIPAL_ID: ${{ vars.AZURE_DEPLOYER_PRINCIPAL_ID }}
@@ -64,7 +192,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       PROPERTYSCOPE_ACME_EMAIL: ${{ vars.PROPERTYSCOPE_ACME_EMAIL }}
     steps:
-      - name: Check out the validated commit
+      - name: Check out the gated commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.IMAGE_TAG }}
@@ -82,8 +210,16 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Install locked workspace
-        run: uv sync --locked --all-packages --all-groups
+      - name: Install the deployment tooling (root project only)
+        run: |
+          uv sync --locked
+          mkdir -p "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs"
+
+      # Nothing may have turned red between the gate and this deployment (e.g. a re-run).
+      - name: Re-check the CI gate before touching Azure
+        run: |
+          uv run --locked python scripts/verify_release_gate.py --repo "$GITHUB_REPOSITORY" \
+            --sha "$PROPERTYSCOPE_DEPLOY_SHA" --branch main --output-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR/gate"
 
       - name: Sign in to Azure with OIDC (no stored credentials)
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
@@ -98,24 +234,32 @@ jobs:
       - name: Provision infrastructure (resource group + Bicep)
         id: provision
         if: github.event_name != 'workflow_dispatch' || inputs.provision
-        run: bash deployment/azure/deploy.sh provision
+        run: bash deployment/azure/deploy.sh provision 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/provision.log"
 
       - name: Build and push images to ACR
         id: push
-        run: bash deployment/azure/deploy.sh push
+        run: bash deployment/azure/deploy.sh push 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/push.log"
 
       - name: Deploy to the VM through run-command
         id: deploy
         run: |
-          bash deployment/azure/deploy.sh deploy
+          bash deployment/azure/deploy.sh deploy 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/deploy.log"
           echo "public_url=$(cat "$PROPERTYSCOPE_CLOUD_LOG_DIR/public-url.txt")" >> "$GITHUB_OUTPUT"
 
-      - name: Public smoke test (AI tier must report disabled)
+      - name: Public smoke test (full CRUD per feature; AI tier must report disabled)
         id: smoke
         run: |
+          # cloud_smoke.py records the deployed commit (PROPERTYSCOPE_DEPLOY_SHA), the image tag
+          # (IMAGE_TAG) and the registry (ACR_LOGIN_SERVER) in cloud-smoke.json.
+          outputs="$PROPERTYSCOPE_CLOUD_LOG_DIR/outputs.txt"
+          if [[ ! -s $outputs ]]; then
+            bash deployment/azure/deploy.sh outputs > "$outputs"
+          fi
+          ACR_LOGIN_SERVER=$(sed -n 's/^acr_login_server=//p' "$outputs")
+          export ACR_LOGIN_SERVER
           # The first deployment may still be obtaining its certificate; retry briefly.
           for attempt in 1 2 3 4; do
-            if bash deployment/azure/deploy.sh smoke --output-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR/smoke"; then
+            if bash deployment/azure/deploy.sh smoke --output-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR/smoke" 2>&1 | tee -a "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/smoke.log"; then
               exit 0
             fi
             echo "Smoke attempt ${attempt} failed; retrying in 45 seconds"

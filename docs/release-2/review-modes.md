@@ -7,7 +7,7 @@ decision D5). They sit beside the Release 1 `ai validate mcp|rag` modes, which a
 |---|---|---|---|
 | Multi-Agent Workflow Review | `uv run scripts/dev.py ai review multi-agent` | Workflow histories and coordination audits exported by the Multi-Agent Server | `review-multi-agent.v1` |
 | Testing Report Review | `uv run scripts/dev.py ai review testing` | Pre-commit security scans and each student's post-commit CI endpoint evidence | `review-testing.v1` |
-| Cloud Deployment Report Review | `uv run scripts/dev.py ai review cloud` | Cloud deployment report, workflow logs and public smoke output | `review-cloud.v1` |
+| Cloud Deployment Report Review | `uv run scripts/dev.py ai review cloud` | Cloud deployment report, CI release gate, image build record, workflow logs and public smoke output | `review-cloud.v1` |
 | Human release decision | `uv run scripts/dev.py ai review decide ...` | Records a named person's decision on the latest cloud review | n/a |
 
 Each mode writes `docs/release-2/evidence/reviews/<mode>-review.md` and appends one line per run to
@@ -151,11 +151,52 @@ For each `student-1` to `student-5`, files up to three levels below
 
 ### `cloud`
 
-| File | Format |
-|---|---|
-| `cloud/cloud-deployment-report.md` | Names the public URL and the deployed 40-character commit SHA |
-| `cloud/smoke*.json` | `{"base_url", "commit_sha", "ai_enabled": false, "images": {service: "registry/name:<commit sha>" or "...@sha256:<digest>"}, "checks": [{"name", "category": "frontend" \| "crud" \| "ai_disabled", "feature": "student-N", "passed": true}]}`. `passed` may be `status`/`outcome`/`result` set to `passed` or `success`; `feature` may be `feature_key` or `student` |
-| `cloud/*.log`, `cloud/logs/**/*.{log,txt}`, `cloud/workflow-logs/**/*.{log,txt}` | Deployment workflow logs |
+Every file is written by `.github/workflows/cloud-deployment.yml` and copied in as
+[evidence/cloud/README.md](evidence/cloud/README.md) describes. Each JSON file is also accepted
+one folder down, as the workflow artifact lays it out (`cloud/smoke/`, `cloud/gate/`,
+`cloud/build/`). When more than one copy exists, the shallowest is reviewed and the others are
+named in the `cloud.smoke` detail.
+
+| File | Producer | Format |
+|---|---|---|
+| `cloud/cloud-deployment-report.md` | `scripts/cloud_deployment_report.py` | Names the public URL and the deployed 40-character commit SHA |
+| `cloud/cloud-smoke.json` | `scripts/cloud_smoke.py` | The smoke contract below. A legacy `cloud/smoke*.json` is read only when no `cloud-smoke.json` exists |
+| `cloud/release-gate.json` | `scripts/verify_release_gate.py` | `{"deploy_sha", "branch", "passed", "rule", "required_workflows", "workflows": [{"workflow", "file", "state", "passed", "conclusion", "run_number", "run_url", "head_sha", "relation", "commits_behind", "detail"}]}` |
+| `cloud/image-build.json` | `scripts/validate_release_images.py` | `{"commit_sha", "passed", "compose_models": [{"name", "valid"}], "azure_services", "images": [{"service", "id", "size_bytes", "user", "non_root"}], "missing_images", "unbuilt_azure_services", "root_images"}` |
+| `cloud/*.log`, `cloud/logs/**/*.{log,txt}`, `cloud/workflow-logs/**/*.{log,txt}` | the workflow (`logs/<stage>.log`), `deploy.sh` (`vm-deploy.log`) | Deployment workflow logs |
+
+The smoke contract (`schema_version` 2):
+
+```json
+{
+  "schema_version": 2, "tool": "scripts/cloud_smoke.py",
+  "base_url": "https://propertyscope-nsw-g20.australiaeast.cloudapp.azure.com",
+  "commit_sha": "<40 hex>", "image_tag": "<40 hex>", "registry": "<acr>.azurecr.io",
+  "images": {"f1-backend": "<acr>.azurecr.io/propertyscope/f1-backend:<tag>"},
+  "images_source": "docker-compose.azure.yml with IMAGE_TAG",
+  "ai_enabled": false, "ai_state": "disabled", "expect_ai": false,
+  "started_at": "...", "finished_at": "...", "passed": true,
+  "summary": {"total": 0, "passed": 0, "failed": 0, "by_owner": {"student-1": {"passed": 0, "failed": 0}}},
+  "checks": [{"name": "CRUD source definition: update", "owner": "student-1", "category": "crud",
+              "operation": "update", "passed": true, "detail": "HTTP 200, notes changed",
+              "method": "PUT", "path": "/api/data-platform/v1/sources/<id>",
+              "status_code": 200, "duration_ms": 41}]
+}
+```
+
+- `commit_sha`, `image_tag` and `registry` come from `--commit-sha`, `--image-tag` and `--registry`.
+  Without them they come from `PROPERTYSCOPE_DEPLOY_SHA` (or `PROPERTYSCOPE_GIT_SHA`), `IMAGE_TAG`
+  and `ACR_LOGIN_SERVER`, which the workflow sets. `images` lists every `${IMAGE_TAG}` image in
+  `docker-compose.azure.yml`, unless `--image SERVICE=REF` names them (for example a digest).
+- `ai_enabled` is what the AI check observed: `false` only for an explicit `503 ai_disabled`,
+  `true` when AI-mode answered, and `null` when it was unreachable or not checked (`ai_state`
+  says which).
+- `category` is `frontend`, `health`, `crud`, `cleanup` or `ai`. For CRUD, `operation` is
+  `create`, `read`, `update`, `confirm-update`, `delete`, `confirm-deleted`, `cleanup-retry`,
+  `request` (a transport failure) or `missing-case`. The owner is `shared` or `student-N`.
+- Older documents are still read: `feature`, `feature_key` or `student` instead of `owner`;
+  category `ai_disabled`; and `status`, `outcome` or `result` set to `passed` or `success`
+  instead of `passed`.
 
 `cloud/release-decision.md` is output, not input: it is never reviewed, so recording a decision
 does not invalidate the review it refers to.
@@ -163,13 +204,15 @@ does not invalidate the review it refers to.
 | Check | Required | Passes when |
 |---|---|---|
 | `cloud.report` | yes | The report records a URL and a commit SHA |
+| `cloud.release-gate` | yes | The gate passed for the deployed commit (the smoke `commit_sha`, else the report's), and Integration CI and Student 1–5 CI are each recorded as passed with conclusion `success` |
+| `cloud.build` | advisory | The image build record passed for the same commit with at least one image |
 | `cloud.smoke` | yes | Smoke output exists and every case passed |
 | `cloud.frontend` | yes | A frontend case passed |
-| `cloud.crud.student-N` | yes | That feature's CRUD case passed |
-| `cloud.ai-disabled` | yes | `ai_enabled` is `false`, or every `ai_disabled` case passed |
-| `cloud.images` | yes | Every image is tagged with the smoke commit SHA (at least 7 characters) or pinned by digest |
+| `cloud.crud.student-N` | yes | Every CRUD step owned by that feature passed. When steps carry an `operation`, `create`, `read`, `delete` and `confirm-deleted` must all be present (`update` is reported when present) |
+| `cloud.ai-disabled` | yes | `ai_enabled` is `false` and any AI case passed. A document without `ai_enabled` needs every AI case to have passed |
+| `cloud.images` | yes | Every image is tagged with the smoke commit SHA (at least 7 characters) or pinned by digest. A `-dirty` or floating tag fails |
 | `cloud.commit-consistency` | yes | Report and smoke output name the same commit |
-| `cloud.workflow` | yes | At least one readable log and no `##[error]`, non-zero exit or `ERROR` line |
+| `cloud.workflow` | yes | At least one readable log and no `##[error]`, non-zero exit, `ERROR` or `[deploy.sh] ERROR:` line |
 | `cloud.log-secrets` | yes | No private key, storage account key, provider or GitHub token, AWS key or client secret pattern in the logs |
 | `cloud.https` | advisory | The smoke base URL uses HTTPS |
 

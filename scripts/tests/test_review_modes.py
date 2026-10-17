@@ -323,11 +323,12 @@ def test_cloud_review_flags_failed_crud_ai_images_and_log_secrets(evidence: Path
     value = fixtures.smoke(ai_enabled=True)
     checks = value["checks"]
     assert isinstance(checks, list)
-    checks[2]["passed"] = False
+    student_2 = next(c for c in checks if c["owner"] == "student-2" and c["category"] == "crud")
+    student_2["passed"] = False
     images = value["images"]
     assert isinstance(images, dict)
     images["f3-backend"] = "psg20acr.azurecr.io/propertyscope/f3-backend:latest"
-    fixtures.write_json(evidence / "cloud/smoke.json", value)
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, value)
     log = evidence / "cloud/logs/deploy.log"
     log.write_text(
         log.read_text(encoding="utf-8")
@@ -773,7 +774,7 @@ def test_release_decision_guards(evidence: Path, tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="No completed cloud review"):
         record_release_decision(decision="hold", **decide)  # type: ignore[arg-type]
 
-    fixtures.write_json(evidence / "cloud/smoke.json", fixtures.smoke(ai_enabled=True))
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, fixtures.smoke(ai_enabled=True))
     run_review("cloud", evidence_dir=evidence, out_dir=out, deterministic=True)
     with pytest.raises(RuntimeError, match="acknowledge-failed-review"):
         record_release_decision(decision="release", **decide)  # type: ignore[arg-type]
@@ -785,7 +786,7 @@ def test_release_decision_guards(evidence: Path, tmp_path: Path) -> None:
     )
     assert "| Overrode a failed review | yes |" in overridden.read_text(encoding="utf-8")
 
-    fixtures.write_json(evidence / "cloud/smoke.json", fixtures.smoke())
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, fixtures.smoke())
     with pytest.raises(RuntimeError, match="changed since review"):
         record_release_decision(decision="hold", **decide)  # type: ignore[arg-type]
     with pytest.raises(RuntimeError, match="--decider"):
