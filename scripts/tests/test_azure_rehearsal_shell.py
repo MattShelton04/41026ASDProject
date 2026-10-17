@@ -197,6 +197,50 @@ def test_a_restricted_https_allowlist_admits_this_client_until_exit(
     assert "--name AllowDeployerHttpsTemporary" in delete
 
 
+# Answers the Bicep outputs query the way the az CLI under test prints it.
+OUTPUTS_CAPTURE = r"""
+az() {
+    case "$*" in
+        "deployment group show"*) printf '%b' "$AZ_OUTPUTS" ;;
+        *) echo "az $*" >>"$WORK/az"; return 1 ;;
+    esac
+}
+load_outputs
+printf '%s|' "$ACR_NAME" "$ACR_LOGIN_SERVER" "$VM_NAME" "$KEY_VAULT_NAME"
+printf '%s\n' "$PUBLIC_FQDN"
+"""
+OUTPUT_VALUES = (
+    "psg20acr",
+    "psg20acr.azurecr.io",
+    "propertyscope-prod-vm",
+    "property-kv-example",
+    "propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com",
+)
+
+
+@pytest.mark.parametrize(
+    "separator",
+    [r"\n", r"\t", r"\r\n"],
+    ids=["one-per-line", "tab-separated", "windows-crlf"],
+)
+def test_load_outputs_reads_all_five_bicep_outputs(tmp_path: Path, separator: str) -> None:
+    # az CLI 2.89 prints a flat list in tsv one value per line; older releases used tabs.
+    completed = _deploy_bash(
+        OUTPUTS_CAPTURE, tmp_path, AZ_OUTPUTS=separator.join(OUTPUT_VALUES) + separator
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.splitlines()[-1] == "|".join(OUTPUT_VALUES)
+    assert not (tmp_path / "az").exists()
+
+
+def test_load_outputs_refuses_an_incomplete_answer(tmp_path: Path) -> None:
+    completed = _deploy_bash(
+        OUTPUTS_CAPTURE, tmp_path, AZ_OUTPUTS=r"psg20acr\npsg20acr.azurecr.io\n"
+    )
+    assert completed.returncode != 0
+    assert "the Bicep outputs are incomplete" in completed.stderr
+
+
 def test_rehearsal_refuses_every_az_call_and_needs_its_stand_ins(tmp_path: Path) -> None:
     script = r"""
 if (az account show) 2>"$WORK/az.err"; then echo az-ran; else echo az-refused; fi
