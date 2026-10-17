@@ -93,7 +93,10 @@ def test_the_build_job_builds_and_validates_without_azure() -> None:
 
 def test_the_deploy_job_is_skipped_without_azure_and_deploys_the_gated_commit() -> None:
     job = _workflow("cloud-deployment.yml")["jobs"]["deploy"]
-    assert job["if"] == "vars.AZURE_SUBSCRIPTION_ID != ''"
+    assert job["if"] == (
+        "vars.AZURE_SUBSCRIPTION_ID != '' && "
+        "(github.event_name == 'workflow_dispatch' || vars.AZURE_AUTO_DEPLOY != 'false')"
+    )
     assert job["environment"]["name"] == "production"
     assert job["permissions"] == {"id-token": "write", "contents": "read", "actions": "read"}
     assert job["concurrency"] == {

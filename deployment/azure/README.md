@@ -206,6 +206,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `PROPERTYSCOPE_SITE_AUTH`, `PROPERTYSCOPE_SITE_USER` | site-wide viewer login, defaults `on` and `propertyscope`; `off` makes pages public | optional |
    | `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ENCRYPTION_AT_HOST`, `AZURE_MONTHLY_BUDGET` | defaults `australiaeast`, `Standard_D4s_v5`, `true`, `100` | optional |
    | `AZURE_AUTO_SHUTDOWN_TIME` | daily shutdown as HHmm, AUS Eastern time; default `2330`. `off` where DevTestLab schedules are not offered (for example `newzealandnorth`) | optional |
+   | `AZURE_AUTO_DEPLOY` | `false` starts a quiet period: pushes to `main` no longer deploy, and only a manual *Run workflow* does (after the same CI gate). Unset or `true` deploys every green push | optional |
    | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
 
    **One GitHub secret, and no cloud credential.** While the site-wide login is on, add the
@@ -269,8 +270,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 7. **Run the workflow.** Set `AZURE_SUBSCRIPTION_ID` (step 4), then run *Cloud Deployment* by
    hand, or push to `main` and let it follow a green *Integration CI*. Approve the `production`
-   environment when GitHub asks. From a laptop, `bash deployment/azure/deploy.sh all` does the
-   same. On a first deployment the VM waits, with backoff, for the new AcrPull and Key Vault
+   environment when GitHub asks. Set `AZURE_AUTO_DEPLOY=false` for a quiet period without
+   automatic deployments; manual runs still deploy, and the nightly deallocation keeps running.
+   From a laptop, `bash deployment/azure/deploy.sh all` does the same. On a first deployment the VM waits, with backoff, for the new AcrPull and Key Vault
    role assignments and the vault firewall rule to take effect (up to about 8 minutes,
    `PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS`), then gives the stack up to 15 minutes to become healthy
    (`PROPERTYSCOPE_STARTUP_WAIT_SECONDS`). The first certificate can take a few more minutes.
@@ -288,8 +290,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 10. **Decide what stays on.** Choose one: keep the VM for the demonstration (it deallocates
     nightly), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
-    tier with `deploy.sh ai on`, or [tear it down](#teardown). Unset `AZURE_SUBSCRIPTION_ID` to
-    stop further deployments.
+    tier with `deploy.sh ai on`, or [tear it down](#teardown). Set `AZURE_AUTO_DEPLOY=false` to
+    stop automatic deployments, or unset `AZURE_SUBSCRIPTION_ID` to stop every deployment and the
+    nightly deallocation.
 
 ## Access control
 
