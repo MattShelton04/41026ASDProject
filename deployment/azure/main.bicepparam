@@ -5,7 +5,10 @@
 // readEnvironmentVariable() uses its default only when a variable is UNSET. GitHub Actions passes
 // an unset repository variable as an empty string, and .env.azure may leave a value blank, so every
 // setting below treats empty as "use the default" too. The one exception is
-// AZURE_AUTO_SHUTDOWN_TIME, where an explicit empty value means "keep the VM running".
+// AZURE_AUTO_SHUTDOWN_TIME, where an explicit empty value or `off` means "no auto-shutdown
+// schedule". GitHub Actions can only pass `off`. Use it in a region without
+// Microsoft.DevTestLab/schedules (newzealandnorth); .github/workflows/cloud-auto-deallocate.yml
+// then deallocates the VM nightly instead.
 using './main.bicep'
 
 var locationSetting = readEnvironmentVariable('AZURE_LOCATION', 'australiaeast')
@@ -22,6 +25,7 @@ var operatorIpRangesSetting = readEnvironmentVariable('AZURE_OPERATOR_IP_RANGES'
 var httpsSourcesSetting = readEnvironmentVariable('AZURE_ALLOWED_HTTPS_SOURCES', '')
 var secretOfficerIdsSetting = readEnvironmentVariable('AZURE_SECRET_OFFICER_IDS', '')
 var budgetEmailsSetting = readEnvironmentVariable('AZURE_BUDGET_EMAILS', '')
+var autoShutdownSetting = readEnvironmentVariable('AZURE_AUTO_SHUTDOWN_TIME', '2330')
 
 param location = empty(locationSetting) ? 'australiaeast' : locationSetting
 param namePrefix = empty(namePrefixSetting) ? 'propertyscope' : namePrefixSetting
@@ -32,7 +36,7 @@ param vmSize = empty(vmSizeSetting) ? 'Standard_D4s_v5' : vmSizeSetting
 param adminSshPublicKey = readEnvironmentVariable('AZURE_VM_SSH_PUBLIC_KEY', '')
 param deployVirtualMachine = toLower(deployVmSetting) != 'false'
 param enableEncryptionAtHost = toLower(encryptionAtHostSetting) != 'false'
-param autoShutdownTime = readEnvironmentVariable('AZURE_AUTO_SHUTDOWN_TIME', '2330')
+param autoShutdownTime = toLower(autoShutdownSetting) == 'off' ? '' : autoShutdownSetting
 param operatorIpRanges = empty(operatorIpRangesSetting) ? [] : split(operatorIpRangesSetting, ',')
 // Empty: HTTPS open to the internet. A comma list (e.g. 203.0.113.7/32,198.51.100.0/24) limits 443 only.
 param allowedHttpsSourcePrefixes = empty(httpsSourcesSetting) ? ['Internet'] : split(httpsSourcesSetting, ',')

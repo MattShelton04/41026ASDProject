@@ -1,0 +1,72 @@
+name: Cloud Auto-Deallocate
+
+# Nightly cost backstop for the Azure VM (ADR-048). The Bicep auto-shutdown schedule
+# (Microsoft.DevTestLab/schedules) is not offered in every region, newzealandnorth included, so this
+# workflow deallocates the VM from GitHub instead. It also runs where that schedule exists; a VM
+# that is already deallocated is left alone. Deployments start the VM again.
+#
+# GitHub cron is UTC: 12:30 UTC is 23:30 AEDT (October to April) and 22:30 AEST otherwise, and a
+# scheduled run can start some minutes late. Skipped until the repository variable
+# AZURE_SUBSCRIPTION_ID is set. To keep the VM up overnight (a marking window), disable this
+# workflow in the Actions tab and enable it again afterwards.
+on:
+  schedule:
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+
+# The required cloud baseline keeps AI-mode, MCP, RAG and Multi-Agent off.
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deallocate:
+    name: Deallocate the Azure VM
+    if: vars.AZURE_SUBSCRIPTION_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # No required reviewers: an unattended backstop must not wait for an approval. The OIDC
+    # federated credential for this environment (subject ...:environment:operations) belongs to
+    # the same deployer identity as production.
+    environment: operations
+    permissions:
+      id-token: write
+      contents: read
+    # Shares the deployment's group, so it never deallocates the VM in the middle of a deployment.
+    concurrency:
+      group: cloud-deployment-production
+      cancel-in-progress: false
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      VM_NAME: ${{ vars.AZURE_NAME_PREFIX || 'propertyscope' }}-prod-vm
+    steps:
+      - name: Sign in to Azure with OIDC (no stored credentials)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deallocate the VM unless it is already deallocated
+        run: |
+          state=$(az vm get-instance-view --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" \
+            --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" \
+            --output tsv 2>/dev/null || echo missing)
+          case $state in
+            PowerState/deallocated | PowerState/deallocating)
+              message="$VM_NAME is already deallocated" ;;
+            missing | "")
+              message="$VM_NAME does not exist in $AZURE_RESOURCE_GROUP; nothing to do" ;;
+            *)
+              az vm deallocate --resource-group "$AZURE_RESOURCE_GROUP" --name "$VM_NAME" --only-show-errors
+              message="Deallocated $VM_NAME (was ${state#PowerState/})" ;;
+          esac
+          echo "$message"
+          echo "$message" >> "$GITHUB_STEP_SUMMARY"

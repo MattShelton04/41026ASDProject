@@ -215,3 +215,32 @@ challenge (the operator routes' too, before this change), skipped the deferred s
 the first response a browser saw carried no HSTS. The security headers are now a Caddyfile
 snippet imported by the site and by `handle_errors`, and the validator checks the challenge's
 HSTS.
+
+**17 October 2026, first switch-on.** The *Azure for Students* subscription allows only five
+regions by policy (`newzealandnorth`, `malaysiawest`, `japaneast`, `indonesiacentral`,
+`koreacentral`), so the deployment targets `newzealandnorth` with `Standard_D4as_v4`. A read-only
+`az deployment group what-if` found the first two problems below, and the first `provision` the
+third:
+
+- **NSG service tag.** Azure rejects a service tag such as `Internet` in the plural
+  `sourceAddressPrefixes` (`SecurityRuleParameterContainsUnsupportedValue`), and the HTTPS rule
+  put its `['Internet']` default there. This affected every region. A single source, the default
+  included, now goes into `sourceAddressPrefix`, and only a list of two or more uses the plural
+  form. `deploy.sh` and the B5 validator already read both properties.
+- **Auto-shutdown is optional, with a nightly backstop.** `Microsoft.DevTestLab/schedules` is not
+  offered in `newzealandnorth`, and the workflow never passed `AZURE_AUTO_SHUTDOWN_TIME`, so CI
+  always tried to create the schedule. The deploy job now passes the variable (default `2330`), and
+  `off` (GitHub cannot pass an explicit empty value) skips the schedule. The new
+  `cloud-auto-deallocate.yml` workflow deallocates the VM at 12:30 UTC in every region. It runs in
+  its own `operations` environment without reviewers, so an unattended run never waits for an
+  approval, signs in with OIDC (a second federated credential on the same deployer identity), and
+  shares the deployment's concurrency group, so it never stops the VM mid-deployment.
+- **Reading the Bicep outputs.** Azure CLI 2.89 prints a flat list query in `tsv` one value per
+  line, where earlier releases used tabs. `deploy.sh` read only the first line, so `provision`
+  stopped with "the Bicep outputs are incomplete". `load_outputs` now joins the lines first and
+  accepts either form; `deploy.sh outputs` against the subscription printed all five values.
+
+Where the tenant blocks app registrations, a user-assigned managed identity in the resource group
+can be the GitHub deployer instead: the same federated credentials and roles, `AZURE_CLIENT_ID` set
+to its `clientId` and `AZURE_DEPLOYER_PRINCIPAL_ID` to its `principalId`. Deleting the resource
+group at teardown removes it.
