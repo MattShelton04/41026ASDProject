@@ -78,7 +78,7 @@ KEY_VAULT_SECRETS = (
     "multi-agent-service-token",
 )
 # A Key Vault secret name and a Compose secret mapping, never values.
-EDGE_PASSWORD_SECRET = "edge-basic-auth-password"  # pragma: allowlist secret  # noqa: S105
+EDGE_PASSWORD_SECRET = "edge-basic-auth-password"  # pragma: allowlist secret  # noqa: S105 - name
 MULTI_AGENT_SECRET_ENV = "=".join(("MULTI_AGENT_SERVICE_TOKEN", "multi_agent_service_token"))
 # Backends the AI overlay hands the Multi-Agent token (docker-compose.azure-ai.yml).
 MULTI_AGENT_BACKENDS = ("f1-backend", "f2-backend", "f4-backend", "f5-backend")
