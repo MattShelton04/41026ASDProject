@@ -18,6 +18,7 @@ param secretOfficerPrincipalIds array = []
   'Group'
   'ServicePrincipal'
 ])
+#disable-next-line secure-secrets-in-params // A principal type (User/Group/ServicePrincipal), not a secret.
 param secretOfficerPrincipalType string = 'User'
 
 var roles = {
@@ -27,7 +28,7 @@ var roles = {
   keyVaultSecretsOfficer: 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 }
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+resource registry 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
   name: registryName
 }
 

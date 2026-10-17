@@ -6,8 +6,8 @@ operations script and the bonus security validations. The design and its trade-o
 in [ADR-048](../../docs/architecture/decisions/ADR-048-azure-vm-hosting.md).
 
 **Status:** prepared and validated locally. Nothing has been provisioned yet. Once a subscription
-is chosen, deployment is a configuration step: complete the [one-time setup](#one-time-setup),
-then run the workflow or `deploy.sh all`.
+is chosen, deployment is a configuration step: work through the
+[switch-on checklist](#switch-on-checklist) in order.
 
 ## Architecture
 
@@ -59,11 +59,13 @@ flowchart LR
 | `vm/propertyscope-vm.sh` | Runs on the VM through run-command: deploy, AI on/off, status, logs, on-host validation |
 | `deploy.sh` | The operator and CI entry point (below) |
 | `validate-endpoint-security.sh`, `validate-data-security.sh` | Bonus B5 and B6 validation |
+| `validate-iac.sh` | Offline Bicep, ShellCheck, Caddy, nginx and cloud-init checks (CI job `iac-lint`) |
 
-## One-time setup
+## Switch-on checklist
 
-Do these steps once, as a subscription Owner, after choosing the subscription. Replace the
-placeholders. None of the values below is a secret.
+Do these steps in order, once, after choosing the subscription. Steps 1 to 6 need a subscription
+Owner (or Contributor plus User Access Administrator). Replace the placeholders. None of the
+values below is a secret.
 
 ```bash
 SUBSCRIPTION_ID=<subscription-guid>
@@ -73,6 +75,32 @@ REPO=MattShelton04/41026ASDProject
 az login
 az account set --subscription "$SUBSCRIPTION_ID"
 ```
+
+0. **Check that the subscription can host the VM.** Student and sponsored subscriptions (for
+   example *Azure for Students*) are the usual cause of a failed first deployment:
+
+   - **Credit and spending limit.** The VM costs about US$0.25 per running hour (see
+     [Costs](#costs-and-deallocation)). When a credit-based subscription reaches its spending
+     limit, Azure stops its resources until the next credit period. Keep auto-shutdown on and
+     deallocate between demonstrations.
+   - **vCPU quota and allowed regions.** `Standard_D4s_v5` needs 4 vCPUs of the DSv5 family in
+     the region. Student subscriptions often have a small regional quota, and some are limited to
+     certain regions by policy. Check both before provisioning:
+
+     ```bash
+     az vm list-usage --location "$LOCATION" --output table | grep -Ei 'total regional|DSv5'
+     az vm list-skus --location "$LOCATION" --size Standard_D4s_v5 --query "[].restrictions" --output json
+     ```
+
+     An empty `restrictions` list means the size is offered. Otherwise request more quota, or
+     set `AZURE_LOCATION` and `AZURE_VM_SIZE` (any size with 16 GiB or more) for both the laptop
+     and the GitHub variables.
+   - **Budgets.** `provision` creates a monthly Cost Management budget when `AZURE_BUDGET_EMAILS`
+     is set. If the subscription's offer does not support Cost Management budgets, the deployment
+     can fail on the budget resource: set `AZURE_DEPLOY_BUDGET=false` and watch the credit balance in the portal instead.
+   - **App registrations.** Step 3 creates an Entra ID app registration. Many university tenants
+     do not let students register applications. If `az ad app create` is refused, ask a tenant
+     administrator to create the app and its federated credential (step 3) for you.
 
 1. **Register the resource providers and the encryption-at-host feature.** Registration takes a
    few minutes. Wait until the feature shows `Registered`.
@@ -96,7 +124,8 @@ az account set --subscription "$SUBSCRIPTION_ID"
    az group create --name "$RG" --location "$LOCATION"
    ```
 
-3. **Create the GitHub deployer identity with OIDC.** It has no client secret.
+3. **Create the GitHub deployer identity with an OIDC federated credential.** It has no client
+   secret.
 
    ```bash
    APP_ID=$(az ad app create --display-name propertyscope-github-deployer --query appId -o tsv)
@@ -121,34 +150,46 @@ az account set --subscription "$SUBSCRIPTION_ID"
    `repo:MattShelton04/41026ASDProject:environment:production`. A credential for
    `ref:refs/heads/main` is **not** needed and would not match.
 
-4. **Configure GitHub.** In *Settings → Environments*, create `production`. Add required reviewers
-   to record a human approval for each deployment, and limit deployment branches to `main`. Then,
-   in *Settings → Secrets and variables → Actions → Variables*, add these repository variables:
+4. **Configure the GitHub `production` environment and variables.** In *Settings →
+   Environments*, create `production`. Add required reviewers to record a human approval for each
+   deployment, and limit deployment branches to `main`. Then, in *Settings → Secrets and
+   variables → Actions → Variables*, add these repository variables. Leave
+   `AZURE_SUBSCRIPTION_ID` until last: setting it is what switches the workflow on.
 
    | Variable | Example | Required |
    |---|---|---|
-   | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes |
    | `AZURE_TENANT_ID` | tenant GUID | yes |
    | `AZURE_CLIENT_ID` | `$APP_ID` from step 3 | yes |
    | `AZURE_RESOURCE_GROUP` | `rg-propertyscope-prod` | yes |
-   | `AZURE_DNS_LABEL` | `propertyscope-nsw-g20` (unique in the region) | yes |
+   | `AZURE_DNS_LABEL` | `propertyscope-nsw-g20` (unique in the region; empty also means this default) | yes |
    | `PROPERTYSCOPE_ACME_EMAIL` | team address for certificate notices | yes |
    | `AZURE_DEPLOYER_PRINCIPAL_ID` | `$SP_ID` (granted AcrPush) | recommended |
    | `AZURE_BUDGET_EMAILS` | `a@uni.edu,b@uni.edu` (the budget is skipped while empty) | recommended |
    | `AZURE_SECRET_OFFICER_IDS` | object IDs of the operators who run `deploy.sh secrets` | recommended |
    | `AZURE_OPERATOR_IP_RANGES` | operator public IPv4/CIDR list for the Key Vault firewall | optional |
    | `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ENCRYPTION_AT_HOST`, `AZURE_MONTHLY_BUDGET` | defaults `australiaeast`, `Standard_D4s_v5`, `true`, `100` | optional |
+   | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
 
    **No GitHub secrets are required.** The provider key for the optional AI tier goes into Key
-   Vault, never into GitHub.
+   Vault, never into GitHub. An unset variable reaches the parameter files as an empty value,
+   and `main.bicepparam` treats empty as "use the default", so a missing optional variable never
+   produces an empty region, VM size or DNS label.
 
-5. **Provision once from a laptop, then create the runtime secrets.** Copy
-   `.env.azure.example` to `.env.azure` (Git-ignored) and fill in the same values. Put your own
-   object ID in `AZURE_SECRET_OFFICER_IDS`. Use `az ad signed-in-user show --query id -o tsv` to
-   find it.
+5. **Provision once from a laptop.** Copy `.env.azure.example` to `.env.azure` (Git-ignored) and
+   fill in the same values. Put your own object ID in `AZURE_SECRET_OFFICER_IDS`. Use
+   `az ad signed-in-user show --query id -o tsv` to find it.
 
    ```bash
+   bash deployment/azure/validate-iac.sh          # offline: Bicep, ShellCheck, Caddy, nginx
    bash deployment/azure/deploy.sh provision
+   ```
+
+   The first run creates every resource, including the VM, and takes about 10 minutes. Later
+   runs converge the same resources.
+
+6. **Create the runtime secrets in Key Vault.**
+
+   ```bash
    # The vault firewall denies the internet; admit this machine for the call only:
    KEY_VAULT_CLIENT_IP=<your public IPv4> bash deployment/azure/deploy.sh secrets
    # Optional, for the bonus AI tiers only:
@@ -163,13 +204,33 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `internal-token` | backend-to-database-API service token (all features) |
    | `runner-token` | Feature 1 runner-to-backend token |
    | `f1-postgres-password`, `f4-postgres-password` | PostGIS superuser passwords. The VM also renders the database URLs |
-   | `edge-basic-auth-password` | operator password for `/operations/*`, AI and data-pipeline routes (user `propertyscope-operator`) |
-   | `ai-mode-service-token`, `mcp-service-token`, `rag-service-token`, `multi-agent-service-token` | host AI tier service tokens (read only when the AI tier is on) |
+   | `edge-basic-auth-password` | operator password for `/operations/*`, AI, release-review and data-pipeline routes (user `propertyscope-operator`) |
+   | `ai-mode-service-token`, `multi-agent-service-token` | host AI-mode and Multi-Agent entry tokens. Read only when the AI tier is on, and handed to the edge and backends as Compose secrets |
+   | `mcp-service-token`, `rag-service-token` | host MCP and RAG tokens (AI tier only; root-only on the VM) |
    | `openai-api-key` (optional) | AI-mode provider key, handed to systemd as a credential file |
    | `github-repo-token` (optional) | read-only token, needed only if the repository becomes private (AI tier source checkout) |
 
-6. **Deploy.** Run the *Cloud Deployment* workflow manually, or push to `main` and let it follow
-   Integration CI. From a laptop, `bash deployment/azure/deploy.sh all` does the same.
+7. **Run the workflow.** Set `AZURE_SUBSCRIPTION_ID` (step 4), then run *Cloud Deployment* by
+   hand, or push to `main` and let it follow a green *Integration CI*. Approve the `production`
+   environment when GitHub asks. From a laptop, `bash deployment/azure/deploy.sh all` does the
+   same. On a first deployment the VM waits, with backoff, for the new AcrPull and Key Vault
+   role assignments and the vault firewall rule to take effect (up to about 8 minutes,
+   `PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS`), then gives the stack up to 15 minutes to become healthy
+   (`PROPERTYSCOPE_STARTUP_WAIT_SECONDS`). The first certificate can take a few more minutes.
+
+8. **Smoke-test the public URL.** The workflow runs `deploy.sh smoke` after the deployment. To
+   repeat it, run `bash deployment/azure/deploy.sh smoke`. It checks the home page, every feature
+   route and health endpoint, one self-cleaning CRUD case per feature, and that AI is off.
+
+9. **Review the evidence.** Run `deploy.sh validate-endpoint` (B5) and `deploy.sh validate-data`
+   (B6), and read `cloud-deployment-report.md` in the workflow artifact (or
+   `.propertyscope-runtime/cloud/`). Copy the accepted report into
+   `docs/release-2/evidence/cloud/`.
+
+10. **Decide what stays on.** Choose one: keep the VM for the demonstration (it deallocates daily
+    at 23:30 AEST), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
+    tier with `deploy.sh ai on`, or [tear it down](#teardown). Unset `AZURE_SUBSCRIPTION_ID` to
+    stop further deployments.
 
 ## Using `deploy.sh`
 
@@ -180,10 +241,10 @@ Docker command instead of running it. The run-command payloads are written to
 
 | Command (`deploy.sh …` or `dev.py cloud …`) | What it does |
 |---|---|
-| `provision` | Creates the resource group if missing and applies `main.bicepparam`. If the VM already exists, it converges everything else, because the VM's customData and SSH key are immutable |
+| `provision` | Creates the resource group if missing, recovers a soft-deleted PropertyScope Key Vault left by a teardown, and applies `main.bicepparam`. If the VM already exists, it converges everything else, because the VM's customData and SSH key are immutable |
 | `secrets` | Creates missing Key Vault secrets (see the table above) |
 | `push` | Builds every enabled image, then pushes `propertyscope/<service>:<git-sha>` to ACR and mirrors Caddy and PostGIS into ACR. An uncommitted tree gets the tag `<sha>-dirty` |
-| `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, checks the seeded baseline, and runs the `fixture-property` collection once |
+| `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, checks the seeded baseline, and runs the `fixture-property` collection once. Key Vault reads, the ACR login and the pull retry with backoff while new role assignments propagate |
 | `smoke [--expect-ai]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: home page, each feature route and health, one self-cleaning CRUD case per feature, and the AI-off check |
 | `ai on` / `ai off` | Bonus tiers: checks out the deployed SHA on the VM, `uv sync`s it, prepares the RAG model and corpora, starts the systemd units and applies the AI overlay. `off` reverses all of this |
 | `status`, `logs [service] [lines]` | Container health, AI units and listening sockets. Recent Compose logs, or journal logs for `ai-mode`, `mcp`, `rag` and `multi-agent` |
@@ -206,9 +267,14 @@ the `feature-1-data` skill). Protected data-pipeline routes require the operator
 ### Bonus tiers (B1–B6)
 
 - **B5 endpoint security:** Caddy provides TLS, the HTTP→HTTPS redirect, HSTS and security
-  headers, and basic auth on operations, AI and pipeline routes. nginx adds `limit_req` with
-  20 r/s on `/api/` and 30 r/min on sensitive routes. The NSG admits 80/443 only. Evidence:
-  `deploy.sh validate-endpoint`.
+  headers, and basic auth on operations, AI, pipeline and release-review routes. Any feature's
+  `assistant/turns`, `agent-runs`, `case-summary-runs`, `multi-agent` or `release-reviews`
+  collection is protected generically, so Feature 1's Multi-Agent proxy
+  (`/api/data-platform/v1/release-reviews`) needs operator credentials. nginx adds `limit_req`
+  with 20 r/s on `/api/` and `/fragments/` and 30 r/min on the same sensitive routes. The
+  validator bursts `/fragments/rate-limit-probe`, a static miss that nginx answers after
+  `limit_req`. An nginx `return` (such as the catch-all `/api/` 404) runs before `limit_req`
+  and can never answer 429. The NSG admits 80/443 only. Evidence: `deploy.sh validate-endpoint`.
 - **B6 data security:** secrets are kept only in Key Vault and read by the managed identity, the
   repository holds no cloud secret (OIDC), disks are encrypted at host and at rest, databases sit
   on internal networks, and no secret appears in `docker inspect` or image history. Evidence:
@@ -250,19 +316,24 @@ az ad app delete --id <AZURE_CLIENT_ID>                      # the GitHub deploy
 ```
 
 Key Vault purge protection keeps the deleted vault, and its name, for 7 days. It cannot be purged
-early. To redeploy within that window, recover it with `az keyvault recover --name <vault>`, or use
-a new resource group or `AZURE_NAME_PREFIX`. Remove the GitHub variables to make the workflow skip
-again.
+early, and the vault name is derived from the resource group ID, so a new group with the same
+name wants the same vault. `deploy.sh provision` therefore recovers the soft-deleted vault
+(with its secrets) before it deploys. Listing deleted vaults needs subscription-level read, so
+run that first `provision` from a laptop as an Owner; the resource-group-scoped GitHub deployer
+only logs that it cannot check. To start with a fresh, empty vault instead, set
+`AZURE_KEY_VAULT_NAME_SEED` to any new value and rerun `provision` and `secrets`. Remove the
+GitHub variables to make the workflow skip again.
 
 ## Local validation (no Azure needed)
 
 ```bash
 uv run pytest scripts/tests -q -k "azure or cloud or workflow or architecture"
+bash deployment/azure/validate-iac.sh     # Bicep build/lint/params, ShellCheck, caddy validate/fmt, nginx -t + 429 burst
 ACR_LOGIN_SERVER=example.azurecr.io IMAGE_TAG=0000000 PROPERTYSCOPE_PUBLIC_HOST=example.test \
 PROPERTYSCOPE_ACME_EMAIL=ops@example.test PROPERTYSCOPE_SECRETS_DIR=<dir with dummy files> \
   docker compose -f docker-compose.yml -f deployment/enabled-features.compose.yml \
   -f docker-compose.azure.yml --profile release-0 config --quiet
 PROPERTYSCOPE_ACME_EMAIL=ops@example.test bash deployment/azure/deploy.sh --dry-run deploy
 uv run python scripts/cloud_smoke.py --base-url http://localhost:5100 --expect-ai   # against a local stack
-az bicep build --file deployment/azure/main.bicep                                    # when Bicep is installed
+az bicep install && az bicep build --file deployment/azure/main.bicep               # Bicep only
 ```
