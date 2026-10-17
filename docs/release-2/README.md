@@ -57,28 +57,39 @@ Evidence collected for the report goes in `evidence/`, as described in the imple
 
 ### Evidence refresh at the freeze (on clean main)
 
-Run these in order on a clean checkout of `main` at the 20 October freeze (`git status --short`
-prints nothing), then commit the results together:
+One command runs every capture in order and logs each step:
+`scripts/refresh_release2_evidence.py` (see its docstring). It copies nothing into the repository
+in a dry run, and under `--final` it refuses to start unless the checkout is `main` at
+`origin/main` with a clean source tree. The capture tools ignore `docs/release-2/evidence` when
+they check for uncommitted changes, so one step's output never marks the next capture as dirty.
 
-1. Security report: `uv run scripts/dev.py security report`. Check that the report no longer says
-   "with uncommitted changes".
-2. CI evidence, once `student-1.yml` is green on `main`:
-   `uv run python scripts/collect_ci_evidence.py --student 1`.
-3. Local deployment: `uv run scripts/dev.py stack up`, then `uv run scripts/dev.py ai stop`, then
-   `uv run scripts/dev.py ai serve <service>` for `mcp`, `rag`, `ai-mode` and `multi-agent`, each
-   in its own foreground terminal ([layout](evidence/local/README.md#several-real-terminals)), then
-   `uv run python scripts/capture_local_deployment.py`.
-4. A fresh Feature 1 UI Readiness review with the current panel and template v2, decided by a real
-   person, then exported with
-   `uv run multi-agent-server export <run> --out docs/release-2/evidence/multi-agent/student-1/<run>-ui --server`.
-5. `uv run scripts/dev.py ai review cloud` before Azure exists, to prove the mode (its verdict is
-   `fail` until cloud evidence exists). After the first deployment, run it again, then
-   `uv run scripts/dev.py ai review decide`.
-6. `uv run scripts/dev.py ai review testing` and `uv run scripts/dev.py ai review multi-agent`,
-   after Students 2–5 have merged their CI and workflow evidence.
-7. Contribution tables (report Section 12): every student's commits, including the merged Wave 1/2
-   PR.
-8. Rebuild the report: `uv run python scripts/build_release2_report.py`.
+1. Start the stack and the four host services, each in its own foreground terminal
+   ([layout](evidence/local/README.md#several-real-terminals)): `uv run scripts/dev.py stack up`,
+   `uv run scripts/dev.py ai stop` (stack up starts them in the background), then
+   `uv run scripts/dev.py ai serve <service>` for `ai-mode`, `mcp`, `rag` and `multi-agent`.
+2. Rehearse first, into a scratch folder under `.propertyscope-runtime/evidence-refresh/`:
+
+   ```text
+   uv run python scripts/refresh_release2_evidence.py
+   ```
+
+3. At the freeze, once every `student-N.yml` is green on `main` and Students 2–5 have merged
+   their evidence:
+
+   ```text
+   uv run python scripts/refresh_release2_evidence.py --final --ci-students all
+   ```
+
+   The steps are `preflight`, `security`, `ci`, `local`, `ui`, `reviews` and `report`. At `ui` the
+   command waits for a person to decide a Feature 1 Readiness review in the UI (current panel,
+   template v2) and exports that run to `multi-agent/student-1/<run>-ui/`. `--ui-run-id` exports
+   an already-decided run instead; `--only` and `--skip` rerun single steps. The cloud review
+   reports `fail` until cloud evidence exists; after the first Azure deployment rerun
+   `--final --only reviews`, then `uv run scripts/dev.py ai review decide`.
+4. Check `summary.md` in the run folder, review `git diff --stat docs/release-2/evidence`, and
+   commit the refreshed evidence.
+5. Contribution tables (report Section 12): every student's commits, including the merged Wave 1/2
+   PR. Then rebuild the report: `uv run python scripts/build_release2_report.py`.
 
 ### Known issues
 
