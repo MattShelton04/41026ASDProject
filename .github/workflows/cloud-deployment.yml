@@ -12,7 +12,9 @@ name: Cloud Deployment
 #                    (scripts/validate_release_images.py). Needs no Azure.
 # 3. deploy          Provision, push, deploy, smoke and report. Skipped until the repository
 #                    variable AZURE_SUBSCRIPTION_ID is set, so the workflow stays green (and the
-#                    gate and build stay demonstrable) before Azure exists.
+#                    gate and build stay demonstrable) before Azure exists. AZURE_AUTO_DEPLOY=false
+#                    starts a quiet period: pushes then stop at build-validate, and only a manual
+#                    run deploys (after the same gate).
 #
 # It is triggered once per push to main, when Integration CI (which runs on every push) completes;
 # the gate then waits for the student workflows of the same push instead of re-triggering on each
@@ -152,7 +154,9 @@ jobs:
   deploy:
     name: Deploy to Azure
     needs: [verify-ci, build-validate]
-    if: vars.AZURE_SUBSCRIPTION_ID != ''
+    if: >-
+      vars.AZURE_SUBSCRIPTION_ID != '' &&
+      (github.event_name == 'workflow_dispatch' || vars.AZURE_AUTO_DEPLOY != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     environment:

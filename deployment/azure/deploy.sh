@@ -149,11 +149,14 @@ refuse_azure_in_child_processes() {
     export PATH="$bin:$PATH"
 }
 
+# Git Bash (MSYS) rewrites native-program arguments that look like POSIX paths, so an Azure
+# resource ID such as /subscriptions/... would reach az as C:/Program Files/Git/subscriptions/...
+# Every az call here turns that off; file arguments go through native_path explicitly instead.
 az() {
     if [[ $REHEARSAL == true ]]; then
         die "the local rehearsal never calls Azure (refused: az ${1:-})"
     fi
-    command az "$@"
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' command az "$@"
 }
 
 push_registry() {
@@ -213,7 +216,8 @@ require_tool() {
     done
 }
 
-# az is a native Windows program under Git Bash: hand it Windows paths for temporary files.
+# az is a native Windows program under Git Bash and az() turns off automatic path conversion:
+# hand it Windows paths for every file argument.
 native_path() {
     if command -v cygpath >/dev/null 2>&1; then
         cygpath -w "$1"
@@ -399,7 +403,7 @@ Or set AZURE_ENCRYPTION_AT_HOST=false (documented trade-off in deployment/azure/
     run az deployment group create \
         --resource-group "$AZURE_RESOURCE_GROUP" \
         --name "$DEPLOYMENT_NAME" \
-        --parameters "$AZURE_PARAMETERS_FILE" \
+        --parameters "$(native_path "$AZURE_PARAMETERS_FILE")" \
         --only-show-errors --output none
     if [[ $DRY_RUN != true ]]; then
         cmd_outputs | tee "$LOG_DIR/outputs.txt"

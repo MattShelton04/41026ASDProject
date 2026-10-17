@@ -239,6 +239,16 @@ third:
   line, where earlier releases used tabs. `deploy.sh` read only the first line, so `provision`
   stopped with "the Bicep outputs are incomplete". `load_outputs` now joins the lines first and
   accepts either form; `deploy.sh outputs` against the subscription printed all five values.
+- **Immutable OIDC subjects.** The first GitHub Actions deployment failed its Azure sign-in with
+  `AADSTS700213`: this repository uses GitHub's immutable subject claims, so the token subject is
+  `repo:<owner>@<owner id>/<repo>@<repo id>:environment:<name>`, not the classic
+  `repo:<owner>/<repo>:environment:<name>`. The README now has operators read the format from
+  `actions/oidc/customization/sub` before creating the `production` and `operations` credentials.
+- **Git Bash and the smoke AI check.** Git Bash rewrote `/subscriptions/...` arguments into Windows
+  paths, which gave the B6 validator a false failure on the OS disk and broke manual
+  `az role assignment create --scope` calls; `deploy.sh` and both validators now call az with
+  `MSYS_NO_PATHCONV=1`. The smoke check "AI tier disabled by default" passed when nothing answered
+  (a DNS failure); it now passes only on the edge's explicit `503 ai_disabled`.
 
 Where the tenant blocks app registrations, a user-assigned managed identity in the resource group
 can be the GitHub deployer instead: the same federated credentials and roles, `AZURE_CLIENT_ID` set

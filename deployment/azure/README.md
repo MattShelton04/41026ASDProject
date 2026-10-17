@@ -136,7 +136,18 @@ az account set --subscription "$SUBSCRIPTION_ID"
    ```
 
 3. **Create the GitHub deployer identity with an OIDC federated credential.** It has no client
-   secret.
+   secret. First check which subject format GitHub puts in this repository's OIDC tokens:
+
+   ```bash
+   gh api repos/MattShelton04/41026ASDProject/actions/oidc/customization/sub
+   ```
+
+   With `"use_immutable_subject": true` (as in this repository), the token subject starts with
+   the reported `sub_claim_prefix`, which carries the owner and repository IDs, so the credential
+   subject must be `<sub_claim_prefix>:environment:production`, here
+   `repo:MattShelton04@103937891/41026ASDProject@1312401450:environment:production`. Otherwise the
+   classic subject in the example below applies. A mismatch fails the workflow's Azure sign-in
+   with `AADSTS700213` (no matching federated identity record).
 
    ```bash
    APP_ID=$(az ad app create --display-name propertyscope-github-deployer --query appId -o tsv)
@@ -157,9 +168,15 @@ az account set --subscription "$SUBSCRIPTION_ID"
    echo "AZURE_CLIENT_ID=$APP_ID  AZURE_DEPLOYER_PRINCIPAL_ID=$SP_ID  AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)"
    ```
 
-   The job uses `environment: production`, so the token subject is always
-   `repo:MattShelton04/41026ASDProject:environment:production`. A credential for
-   `ref:refs/heads/main` is **not** needed and would not match.
+   In Git Bash on Windows, run these with `export MSYS_NO_PATHCONV=1` first: Git Bash otherwise
+   rewrites the `/subscriptions/...` scope into a Windows path and az fails with
+   `MissingSubscription`. `deploy.sh` and its validators already do this for every az call.
+
+   The job uses `environment: production`, so the token subject always ends in
+   `:environment:production`: `repo:MattShelton04/41026ASDProject:environment:production` with
+   classic subjects, `<sub_claim_prefix>:environment:production` with immutable ones. Creating a
+   credential for each format is harmless. A credential for `ref:refs/heads/main` is **not**
+   needed and would not match.
 
    **If the tenant blocks app registrations**, a user-assigned managed identity in the resource
    group works the same way: create it with `az identity create`, add the same federated
@@ -189,6 +206,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `PROPERTYSCOPE_SITE_AUTH`, `PROPERTYSCOPE_SITE_USER` | site-wide viewer login, defaults `on` and `propertyscope`; `off` makes pages public | optional |
    | `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ENCRYPTION_AT_HOST`, `AZURE_MONTHLY_BUDGET` | defaults `australiaeast`, `Standard_D4s_v5`, `true`, `100` | optional |
    | `AZURE_AUTO_SHUTDOWN_TIME` | daily shutdown as HHmm, AUS Eastern time; default `2330`. `off` where DevTestLab schedules are not offered (for example `newzealandnorth`) | optional |
+   | `AZURE_AUTO_DEPLOY` | `false` starts a quiet period: pushes to `main` no longer deploy, and only a manual *Run workflow* does (after the same CI gate). Unset or `true` deploys every green push | optional |
    | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
 
    **One GitHub secret, and no cloud credential.** While the site-wide login is on, add the
@@ -203,7 +221,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
    environment so that it never waits for an approval. Create `operations`, limited to `main`,
    with no required reviewers, and add a second federated credential to the deployer identity
    from step 3 (name `github-operations-environment`, subject
-   `repo:MattShelton04/41026ASDProject:environment:operations`).
+   `repo:MattShelton04/41026ASDProject:environment:operations`, or, with immutable subjects as in
+   step 3, `<sub_claim_prefix>:environment:operations`, here
+   `repo:MattShelton04@103937891/41026ASDProject@1312401450:environment:operations`).
 
 5. **Provision once from a laptop.** Copy `.env.azure.example` to `.env.azure` (Git-ignored) and
    fill in the same values. Put your own object ID in `AZURE_SECRET_OFFICER_IDS`. Use
@@ -250,8 +270,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 7. **Run the workflow.** Set `AZURE_SUBSCRIPTION_ID` (step 4), then run *Cloud Deployment* by
    hand, or push to `main` and let it follow a green *Integration CI*. Approve the `production`
-   environment when GitHub asks. From a laptop, `bash deployment/azure/deploy.sh all` does the
-   same. On a first deployment the VM waits, with backoff, for the new AcrPull and Key Vault
+   environment when GitHub asks. Set `AZURE_AUTO_DEPLOY=false` for a quiet period without
+   automatic deployments; manual runs still deploy, and the nightly deallocation keeps running.
+   From a laptop, `bash deployment/azure/deploy.sh all` does the same. On a first deployment the VM waits, with backoff, for the new AcrPull and Key Vault
    role assignments and the vault firewall rule to take effect (up to about 8 minutes,
    `PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS`), then gives the stack up to 15 minutes to become healthy
    (`PROPERTYSCOPE_STARTUP_WAIT_SECONDS`). The first certificate can take a few more minutes.
@@ -269,8 +290,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 10. **Decide what stays on.** Choose one: keep the VM for the demonstration (it deallocates
     nightly), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
-    tier with `deploy.sh ai on`, or [tear it down](#teardown). Unset `AZURE_SUBSCRIPTION_ID` to
-    stop further deployments.
+    tier with `deploy.sh ai on`, or [tear it down](#teardown). Set `AZURE_AUTO_DEPLOY=false` to
+    stop automatic deployments, or unset `AZURE_SUBSCRIPTION_ID` to stop every deployment and the
+    nightly deallocation.
 
 ## Access control
 
@@ -303,7 +325,8 @@ network allowlist, which needs your addresses.
 ## Using `deploy.sh`
 
 Run the script from Git Bash, WSL, Linux or macOS. On Windows, `uv run scripts/dev.py cloud ...`
-finds Git Bash for you. Every subcommand accepts `--dry-run`, which prints each mutating Azure or
+finds Git Bash for you; the script turns off Git Bash path conversion for its az calls, so
+Azure resource IDs (`/subscriptions/...`) reach az unchanged. Every subcommand accepts `--dry-run`, which prints each mutating Azure or
 Docker command instead of running it. The run-command payloads are written to
 `.propertyscope-runtime/cloud/` for inspection.
 

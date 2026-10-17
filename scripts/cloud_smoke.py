@@ -832,9 +832,9 @@ class Smoke:
             passed = state == "available"
             name = "AI tier reachable (--expect-ai)"
         else:
-            # The required baseline: explicitly disabled at the edge. An unreachable AI-mode on a
-            # local stack also means no AI is served, but it is reported as not explicit.
-            passed = state in {"disabled", "unreachable"}
+            # The required baseline: explicitly disabled at the edge (503 ai_disabled). No answer
+            # (DNS, connection or TLS failure, timeout) or any other status proves nothing.
+            passed = state == "disabled"
             name = "AI tier disabled by default"
         self.record(
             CheckResult(

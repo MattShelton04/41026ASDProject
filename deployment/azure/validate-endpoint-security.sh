@@ -74,6 +74,10 @@ expect() {
     fi
 }
 
+# Git Bash (MSYS) rewrites native-program arguments that look like POSIX paths; az gets none of
+# that, the same guard as deploy.sh's az(). curl keeps its conversion for the CA file path.
+az() { MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' command az "$@"; }
+
 # Every check but the public-trust one: trusts EDGE_CA_FILE when it is set.
 edge_curl() {
     curl "${TLS_OPTIONS[@]}" "$@"
@@ -199,7 +203,7 @@ for port in 22 2375 3389 5005 5011 5012 5013 5100 5200 5202 5300 5400 5432 5500 
 done
 
 # --- NSG (read-only Azure query) -------------------------------------------------------------
-if command -v az >/dev/null 2>&1 && [[ -n ${AZURE_RESOURCE_GROUP:-} ]]; then
+if type -P az >/dev/null 2>&1 && [[ -n ${AZURE_RESOURCE_GROUP:-} ]]; then
     allowed=$(az network nsg list --resource-group "$AZURE_RESOURCE_GROUP" \
         --query "[].securityRules[?direction=='Inbound' && access=='Allow'].[destinationPortRange] | [] | []" \
         --output tsv 2>/dev/null | tr -d '\r' | sort -u | tr '\n' ' ')
