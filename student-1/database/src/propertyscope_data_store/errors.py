@@ -25,3 +25,19 @@ class LeaseConflictError(ConflictError):
 
 class ReadBudgetExceededError(StoreError):
     """An interactive read was cancelled before its HTTP caller gives up."""
+
+
+class SuburbNotFoundError(NotFoundError):
+    """The suburb is not in the accepted gazetted-suburb generation."""
+
+
+class SuburbBoundariesUnavailableError(StoreError):
+    """No compatible accepted suburb-boundary generation (or projection) is available."""
+
+
+class UnsupportedCategoryError(ValidationError):
+    """A requested map category is not registered or is deliberately not published."""
+
+
+class ResponseLimitExceededError(ValidationError):
+    """A complete answer would exceed a documented response ceiling."""

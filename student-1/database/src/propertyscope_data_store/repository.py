@@ -31,6 +31,13 @@ from propertyscope_data_store._property_reads import (
     _normalise_property_query as _normalise_property_query,
 )
 from propertyscope_data_store._release_records import _ReleaseRecords
+from propertyscope_data_store._suburb_map_reads import (
+    MapContextRequest,
+    SuburbMapReads,
+    map_context_etag,
+    relevant_datasets,
+    suburb_detail_etag,
+)
 from propertyscope_data_store.configuration import (
     MAX_LOADER_TEMP_FILE_LIMIT_KIB,
     MIN_LOADER_TEMP_FILE_LIMIT_KIB,
@@ -80,6 +87,8 @@ JsonObject = dict[str, Any]
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
 TERMINAL_ACTIVATION_STATES = frozenset({"succeeded", "failed"})
 INDEXED_ACTIVATION_DATASETS = ("gnaf-nsw", "fixture-property")
+# Accepted releases whose display projection must exist before their pointer switches.
+PROJECTED_ACTIVATION_DATASETS = ("nsw-suburb-boundaries",)
 _POSTGRES_FILESYSTEM_CAPACITY_PROGRAM = (
     'set -eu; test -n "$PGDATA"; '
     'LC_ALL=C df -PB1 -- "$PGDATA" "$PGDATA/pg_wal" '
@@ -1771,6 +1780,37 @@ class PropertyScopeStore:
                     stopped.set()
                     watcher.join(timeout=2)
 
+        if work["dataset_id"] in PROJECTED_ACTIVATION_DATASETS:
+            # Release-scoped and idempotent: a retried activation rebuilds the same rows.
+            with self.connection() as connection:
+                stopped = Event()
+
+                def monitor_projection_stop() -> None:
+                    if stop_event is None and lease_failed_event is None:
+                        return
+                    while not stopped.wait(0.5):
+                        if (stop_event is not None and stop_event.is_set()) or (
+                            lease_failed_event is not None and lease_failed_event.is_set()
+                        ):
+                            connection.cancel()
+                            return
+
+                watcher = Thread(
+                    target=monitor_projection_stop,
+                    name=f"activation-projection-cancel-{operation_id}",
+                    daemon=True,
+                )
+                watcher.start()
+                try:
+                    connection.execute(
+                        "SELECT serving.build_suburb_boundary_display(%s)",
+                        (work["dataset_release_id"],),
+                    )
+                    connection.commit()
+                finally:
+                    stopped.set()
+                    watcher.join(timeout=2)
+
         materialized_at = datetime.now(UTC)
         with self.connection() as connection:
             row = connection.execute(
@@ -2192,6 +2232,48 @@ class PropertyScopeStore:
     @interactive_read()
     def property_seifa(self, property_ref: uuid.UUID) -> JsonObject:
         return self._properties().property_seifa(property_ref)
+
+    @contextmanager
+    def _suburb_map(self) -> Iterator[SuburbMapReads]:
+        """One read-only repeatable-read snapshot for every statement of a suburb-map read."""
+        with self.connection() as connection:
+            connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            yield SuburbMapReads(_SnapshotRows(connection))
+
+    @interactive_read()
+    def suburb_search(self, query: str, *, postcode: str | None, limit: int) -> JsonObject:
+        with self._suburb_map() as reads:
+            return reads.search(query, postcode=postcode, limit=limit)
+
+    @interactive_read()
+    def suburb_detail_etag(self, suburb_id: str) -> str:
+        with self._suburb_map() as reads:
+            pointers = reads.release_pointers(("nsw-suburb-boundaries",))
+        return suburb_detail_etag(suburb_id, pointers["nsw-suburb-boundaries"])
+
+    @interactive_read()
+    def suburb_detail(self, suburb_id: str) -> tuple[JsonObject, str]:
+        with self._suburb_map() as reads:
+            detail = reads.detail(suburb_id)
+        return detail, suburb_detail_etag(suburb_id, detail["release"]["dataset_release_id"])
+
+    @interactive_read()
+    def suburb_map_context_etag(self, request: MapContextRequest) -> str:
+        with self._suburb_map() as reads:
+            pointers = reads.release_pointers(relevant_datasets(request.categories))
+        return map_context_etag(request, pointers)
+
+    @interactive_read()
+    def suburb_map_context(self, request: MapContextRequest) -> tuple[JsonObject, str]:
+        with self._suburb_map() as reads:
+            context = reads.map_context(request)
+        used = {
+            str(release["dataset_id"]): str(release["dataset_release_id"])
+            for release in context["releases"].values()
+            if release is not None
+        }
+        pointers = {dataset: used.get(dataset) for dataset in relevant_datasets(request.categories)}
+        return context, map_context_etag(request, pointers)
 
     def overview(self) -> JsonObject:
         with self.connection() as connection:
@@ -2723,3 +2805,17 @@ def _is_partial_release_coverage(value: Any) -> bool:
     return isinstance(value, Mapping) and (
         value.get("complete") is False or value.get("profile") == "psi-year-range"
     )
+
+
+class _SnapshotRows:
+    """Normalised row access over one already-open snapshot connection."""
+
+    def __init__(self, connection: Connection[Any]) -> None:
+        self._connection = connection
+
+    def fetch_one(self, query: str, params: Sequence[Any] | Mapping[str, Any]) -> JsonObject | None:
+        row = self._connection.execute(query, params).fetchone()
+        return _dict(row) if row else None
+
+    def fetch_all(self, query: str, params: Sequence[Any] | Mapping[str, Any]) -> list[JsonObject]:
+        return _rows(self._connection.execute(query, params).fetchall())

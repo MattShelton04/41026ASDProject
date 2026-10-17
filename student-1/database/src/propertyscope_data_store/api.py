@@ -9,16 +9,29 @@ from typing import Any
 import orjson
 from flask import Blueprint, Response, current_app, jsonify, request
 
+from propertyscope_data_store._suburb_map_reads import (
+    build_map_context_request,
+    validate_suburb_id,
+)
 from propertyscope_data_store.errors import (
     ConflictError,
     NotFoundError,
     ReadBudgetExceededError,
+    ResponseLimitExceededError,
     StoreError,
+    SuburbBoundariesUnavailableError,
+    SuburbNotFoundError,
+    UnsupportedCategoryError,
     ValidationError,
 )
 from propertyscope_data_store.export_pages import columnar_export_page
 from propertyscope_data_store.migrations import SCHEMA_FINGERPRINT_POLICY_VERSION
 from propertyscope_data_store.repository import PropertyScopeStore
+from propertyscope_data_store.suburb_map_catalog import (
+    DEFAULT_SEARCH_RESULTS,
+    MAX_RESPONSE_BYTES,
+    MAX_SEARCH_RESULTS,
+)
 from shared_contracts import PROBLEM_DETAIL_MEDIA_TYPE, REQUEST_ID_HEADER, is_valid_request_id
 
 # Source and job definitions share this lifecycle (CHECK constraints in sql/001_initial.sql).
@@ -606,6 +619,48 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
     def property_seifa(property_ref: uuid.UUID) -> Response:
         return jsonify(store.property_seifa(property_ref))
 
+    @api.get("/internal/data-platform/v1/suburbs/search")
+    def suburb_search() -> Response:
+        unknown = set(request.args) - {"q", "postcode", "limit"}
+        if unknown:
+            raise ValidationError("unsupported suburb-search query field")
+        query = request.args.get("q", "").strip()
+        if not query:
+            raise ValidationError("q is required")
+        limit = query_integer(
+            "limit", minimum=1, maximum=MAX_SEARCH_RESULTS, default=DEFAULT_SEARCH_RESULTS
+        )
+        postcode = request.args.get("postcode", "").strip() or None
+        response = jsonify(store.suburb_search(query, postcode=postcode, limit=limit))
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+    @api.get("/internal/data-platform/v1/suburbs/<suburb_id>")
+    def suburb_detail(suburb_id: str) -> Response:
+        if request.args:
+            raise ValidationError("suburb detail accepts no query fields")
+        validate_suburb_id(suburb_id)
+        current = store.suburb_detail_etag(suburb_id)
+        if etag_matches(request.headers.get("If-None-Match"), current):
+            return not_modified(current)
+        detail, etag = store.suburb_detail(suburb_id)
+        return cacheable_json(orjson.dumps(detail), etag)
+
+    @api.get("/internal/data-platform/v1/suburbs/<suburb_id>/map-context")
+    def suburb_map_context(suburb_id: str) -> Response:
+        map_request = build_map_context_request(suburb_id, request.args)
+        current = store.suburb_map_context_etag(map_request)
+        if etag_matches(request.headers.get("If-None-Match"), current):
+            return not_modified(current)
+        context, etag = store.suburb_map_context(map_request)
+        body = orjson.dumps(context)
+        if len(body) > MAX_RESPONSE_BYTES:
+            raise ResponseLimitExceededError(
+                f"the response would be {len(body)} bytes, above the {MAX_RESPONSE_BYTES} "
+                "byte limit; request fewer categories, a lower limit or a lower detail"
+            )
+        return cacheable_json(body, etag)
+
     @api.post("/internal/data-platform/v1/imports")
     def imports_create() -> tuple[Response, int]:
         operation, created = store.create_import(payload())
@@ -673,7 +728,12 @@ def create_blueprint(store: PropertyScopeStore, *, internal_token: str) -> Bluep
 
 def register_error_handlers(app: Any) -> None:
     """Map known store failures without exposing SQL or exception text."""
+    # Flask resolves the most specific registered class, so subclasses keep their own codes.
     mappings: tuple[tuple[type[StoreError], int, str], ...] = (
+        (SuburbNotFoundError, 404, "suburb_not_found"),
+        (SuburbBoundariesUnavailableError, 503, "suburb_boundaries_unavailable"),
+        (UnsupportedCategoryError, 422, "unsupported_category"),
+        (ResponseLimitExceededError, 422, "response_limit_exceeded"),
         (NotFoundError, 404, "not_found"),
         (ConflictError, 409, "conflict"),
         (ValidationError, 422, "invalid_request"),
@@ -692,6 +752,31 @@ def register_error_handlers(app: Any) -> None:
     app.register_error_handler(
         405, lambda _: problem(405, "method_not_allowed", "Method is not allowed")
     )
+
+
+def etag_matches(header: str | None, etag: str) -> bool:
+    """RFC 9110 weak comparison for ``If-None-Match`` (``*`` or a list of entity tags)."""
+    if not header or len(header) > 2048:
+        return False
+    candidates = [item.strip() for item in header.split(",")]
+    if "*" in candidates:
+        return True
+    return etag in {item[2:] if item.startswith("W/") else item for item in candidates}
+
+
+def not_modified(etag: str) -> Response:
+    response = Response(status=304)
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+def cacheable_json(body: bytes, etag: str) -> Response:
+    """Accepted-pointer responses: clients revalidate every use; 304 until a publication."""
+    response = Response(body, status=200, content_type="application/json")
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 def payload() -> dict[str, Any]:
