@@ -154,7 +154,7 @@ jobs:
     needs: [verify-ci, build-validate]
     if: vars.AZURE_SUBSCRIPTION_ID != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     environment:
       name: production
       url: ${{ steps.deploy.outputs.public_url }}
