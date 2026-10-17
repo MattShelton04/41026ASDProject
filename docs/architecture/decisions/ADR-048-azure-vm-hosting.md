@@ -156,3 +156,28 @@ SQLite's single-writer guidance on network file systems.
   `/fragments/rate-limit-probe`. The catch-all `location /api/` answers with `return`, which runs
   in nginx's rewrite phase, before `limit_req`, so it could never produce a 429. A throwaway
   nginx container with the production include now proves the 429.
+
+**17 October 2026, local rehearsal (still not provisioned).** `uv run scripts/dev.py cloud
+rehearse` runs the real `deploy.sh` push, deploy, smoke and validate commands against a
+Docker-in-Docker "VM" and a `registry:2` stand-in for ACR, with the Key Vault secrets in throwaway
+files and every `az` call refused (`deployment/azure/README.md`, "Local rehearsal"). The
+production VM script only gains a hook that sources `/etc/propertyscope/rehearsal.sh` when the
+file exists, and only the rehearsal image installs that file. Evidence:
+`docs/release-2/evidence/rehearsal/` (not the Azure deployment). The run found these bugs, now
+fixed:
+
+- **Bundle file modes.** The VM extracted the bundle as root with the modes from the operator's
+  checkout. From a 0600 checkout (Windows, or umask 077), nginx could not read its production
+  include and the edge never became healthy. The payload now makes the deployment files
+  world-readable after extraction.
+- **False passes on a dead edge.** `validate-endpoint-security.sh` accepted `000` (no answer) for
+  "valid operator credentials pass the edge", and "TLS 1.1 refused" passed while nothing answered
+  at all. The credentials check now needs a real answer from behind the edge, and the legacy TLS
+  check needs TLS 1.2 to answer `200` on the same URL. `EDGE_CA_FILE` lets the HTTP-level checks
+  trust a private CA; the publicly-trusted-certificate check never does.
+- **Deployed image identity.** The VM now prints `PROPERTYSCOPE_IMAGES` (each running container's
+  image and registry digest) before `PROPERTYSCOPE_RESULT`. `cloud_smoke.py --vm-log` records them
+  as the observed identity. `deploy.sh smoke` passes the registry, image tag, deploy SHA and VM log
+  through, and needs no Azure sign-in when the outputs are known. `push --reuse-images` pushes
+  images built earlier only when a build manifest for the same clean tag matches the local image
+  IDs.

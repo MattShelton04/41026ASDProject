@@ -99,7 +99,7 @@ EXPECTED_ENDPOINT_FAILURES = (
     re.compile(r"^HTTPS certificate is not trusted"),
 )
 EXPECTED_REVIEW_GAPS = {
-    "cloud.release-gate": "the CI release gate needs the commit's GitHub Actions runs",
+    "cloud.release-gate": "the CI release gate record (it needs the commit's GitHub Actions runs)",
     "cloud.build": "the workflow's build-validate job record (image-build.json)",
 }
 # Everything not secret that the stages pass to deploy.sh. AZURE_* and ARM_* settings from the
