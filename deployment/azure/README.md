@@ -5,8 +5,13 @@ production Compose wiring, the TLS edge, systemd units for the optional cloud AI
 operations script and the bonus security validations. The design and its trade-offs are recorded
 in [ADR-048](../../docs/architecture/decisions/ADR-048-azure-vm-hosting.md).
 
-**Status:** prepared and validated locally. Nothing has been provisioned yet. Once a subscription
-is chosen, deployment is a configuration step: work through the
+**Status:** provisioned and deployed since 17 October 2026. The deployment runs on an *Azure for
+Students* subscription in `newzealandnorth` (the Students region policy blocks `australiaeast`) on a
+`Standard_D4as_v4` VM (no DSv5 quota), with `AZURE_AUTO_SHUTDOWN_TIME=off` and a user-assigned
+managed identity as the GitHub deployer (the tenant blocks app registrations). The URL is
+<https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com>, behind the site-wide login. The first successful CI deployment is
+[run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), attempt 2. Automatic deployments are paused (`AZURE_AUTO_DEPLOY=false`).
+The VM is deallocated every night. For a new subscription, work through the
 [switch-on checklist](#switch-on-checklist) in order.
 
 ## Architecture
@@ -18,14 +23,14 @@ flowchart LR
     ci -- "completed (workflow_run)<br/>or manual dispatch" --> gate[verify-ci job<br/>Integration CI green on the SHA,<br/>latest Student 1-5 CI green at SHA or ancestor]
     sci -. "run history (gh api)" .-> gate
     gate -- pass --> build[build-validate job<br/>build every image,<br/>validate Azure Compose models]
-    build -- "pass; skipped until<br/>AZURE_SUBSCRIPTION_ID is set" --> cd[deploy job<br/>environment: production<br/>re-checks the gate]
+    build -- "pass; skipped until AZURE_SUBSCRIPTION_ID is set,<br/>and on pushes while AZURE_AUTO_DEPLOY=false" --> cd[deploy job<br/>environment: production<br/>re-checks the gate]
     cd -- OIDC federated credential --> entra[(Microsoft Entra ID)]
     cd -- "deploy.sh push<br/>images :git-sha" --> acr[(Azure Container Registry<br/>admin user off)]
     cd -- "deploy.sh provision<br/>Bicep" --> rg
     cd -- "deploy.sh deploy<br/>az vm run-command" --> vm
     cd -- "deploy.sh smoke" --> pip
 
-    subgraph rg[Resource group, australiaeast]
+    subgraph rg[Resource group, newzealandnorth]
         pip[Standard public IP<br/>DNS label] --> nsg{{NSG: 80/443 only, 443 optionally allowlisted<br/>no SSH, no DB ports}}
         nsg --> vm
         kv[(Key Vault<br/>RBAC, purge protection,<br/>firewall)]
@@ -75,7 +80,7 @@ values below is a secret.
 ```bash
 SUBSCRIPTION_ID=<subscription-guid>
 RG=rg-propertyscope-prod
-LOCATION=australiaeast
+LOCATION=newzealandnorth   # this deployment; the template default is australiaeast
 REPO=MattShelton04/41026ASDProject
 az login
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -214,6 +219,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
    | `AZURE_AUTO_SHUTDOWN_TIME` | daily shutdown as HHmm, AUS Eastern time; default `2330`. `off` where DevTestLab schedules are not offered (for example `newzealandnorth`) | optional |
    | `AZURE_AUTO_DEPLOY` | `false` starts a quiet period: pushes to `main` no longer deploy, and only a manual *Run workflow* does (after the same CI gate). Unset or `true` deploys every green push | optional |
    | `AZURE_SUBSCRIPTION_ID` | subscription GUID. The workflow skips until this is set | yes, last |
+
+   This deployment sets `AZURE_LOCATION=newzealandnorth`, `AZURE_VM_SIZE=Standard_D4as_v4` and
+   `AZURE_AUTO_SHUTDOWN_TIME=off`. The defaults above are the template's.
 
    **Two environment secrets, and no cloud credential.** Add the team address for certificate
    notices as the `production` *environment* secret `PROPERTYSCOPE_ACME_EMAIL`, not as a
@@ -429,7 +437,8 @@ subscription.
 
 | Resource | Approximate cost |
 |---|---|
-| `Standard_D4s_v5` VM | about US$0.25 per running hour (about US$180 per month if never stopped) |
+| `Standard_D4s_v5` VM (template default) | about US$0.25 per running hour (about US$180 per month if never stopped) |
+| `Standard_D4as_v4` VM (this deployment, `newzealandnorth`) | about US$0.23 per running hour |
 | 128 GiB Premium SSD OS disk | about US$20 per month (charged while deallocated) |
 | ACR Basic | about US$5 per month |
 | Standard static public IP | about US$4 per month |

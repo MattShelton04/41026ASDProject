@@ -85,7 +85,10 @@ docs/release-2/evidence/
 ## Open decisions (owner)
 
 - Which member's Azure subscription and credit to use, and who has deploy rights (Matthew).
-- Public DNS label for the VM and the region (default `australiaeast`).
+- Public DNS label for the VM and the region (default `australiaeast`). *Resolved 17 October:*
+  `propertyscope-nsw-g20` in `newzealandnorth`, because the *Azure for Students* region policy
+  blocks `australiaeast`. Pushes deploy automatically unless the repository variable
+  `AZURE_AUTO_DEPLOY` is `false` (a quiet period); a manual run always deploys.
 - Whether the tutor accepts non-cumulative bonus combinations.
 
 Closed:

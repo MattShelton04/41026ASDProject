@@ -1,6 +1,7 @@
 # ADR-048: Host the Release 2 cloud deployment on one Azure VM, with the AI tier behind a flag
 
-- Status: Accepted (infrastructure prepared; not yet provisioned)
+- Status: Accepted (provisioned and deployed 17 October 2026 in `newzealandnorth`, see
+  [Amendments](#amendments))
 - Date: 9 October 2026 (amended 17 October 2026, see [Amendments](#amendments))
 - Owner: Shared platform (Matthew Shelton)
 - Reaffirms: [ADR-046](ADR-046-non-containerised-ai-tier.md) (AI services are host processes)
@@ -284,3 +285,14 @@ deployer identity, and what that identity can then do. These changes followed:
   owner and keeps zero required approvals. Secret scanning, push protection and Dependabot
   alerts are on, Actions must be pinned to full commit SHAs, and fork pull requests from any
   external contributor need approval before workflows run.
+
+**17 October 2026, provisioned and deployed.** The decisions above still describe the template's
+defaults (`australiaeast`, `Standard_D4s_v5`). The live deployment differs only in its settings:
+*Azure for Students*, `newzealandnorth` (the region policy blocks `australiaeast`),
+`Standard_D4as_v4` (no DSv5 quota, about US$0.23 per running hour), `AZURE_AUTO_SHUTDOWN_TIME=off`
+with the nightly *Cloud Auto-Deallocate* workflow, and a user-assigned managed identity with
+immutable OIDC subjects as the GitHub deployer. The first successful *Cloud Deployment*, run
+39018442663 (attempt 2, commit `ad2b443f`), passed the gate, ran 21 of 21 containers, passed the
+smoke test 37 of 37 with the AI tier off, and passed the B5 validation with 52 checks.
+`AZURE_AUTO_DEPLOY=false` now pauses automatic deployments for a quiet period, and a manual run
+still deploys after the same gate. The cloud AI tier (B1–B4) has not run on Azure yet.
