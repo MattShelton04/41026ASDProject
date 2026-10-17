@@ -54,6 +54,7 @@ DISPLAY_WIDTH = 110
 # Kept in the Git common directory: shared by every worktree of this clone, never committed.
 PASSED_TREES_FILE = Path("propertyscope-check") / "passed-trees"
 PASSED_TREES_LIMIT = 50
+REQUIRED_GIT_HOOKS = ("pre-commit", "pre-push")
 # `git rev-parse --local-env-vars`: Git exports these to hooks (githooks(5)). Inherited by the
 # gate's tests, they would point a test's temporary repository at this checkout instead, so the
 # gate drops them and every command finds the repository from its working directory.
@@ -562,8 +563,37 @@ def record_passed_tree(tree: str, *, now: Callable[[], float] = time.time) -> No
     path.write_text("".join(lines), encoding="utf-8")
 
 
+def missing_git_hooks() -> tuple[str, ...]:
+    """Return the required Git hook types that are not installed in this clone.
+
+    ``git rev-parse --git-path`` resolves linked worktrees and ``core.hooksPath``. Outside a Git
+    checkout, or when Git is unavailable, nothing is reported.
+    """
+    missing: list[str] = []
+    for hook in REQUIRED_GIT_HOOKS:
+        path = _git("rev-parse", "--git-path", f"hooks/{hook}")
+        if path is not None and not (REPOSITORY_ROOT / path).is_file():
+            missing.append(hook)
+    return tuple(missing)
+
+
+def warn_about_missing_hooks() -> None:
+    """Warn locally when commits would skip the pre-commit security scans."""
+    if os.environ.get("CI", "").lower() in {"1", "true"}:
+        return
+    missing = missing_git_hooks()
+    if missing:
+        print(
+            f"warning: Git hook(s) not installed: {', '.join(missing)}. Commits skip the "
+            "pre-commit security scans. Run: "
+            "uv run pre-commit install --hook-type pre-commit --hook-type pre-push",
+            file=sys.stderr,
+        )
+
+
 def run_full_gate(*, jobs: int) -> int:
     """Run every stage; on success record the checked working tree for the pre-push hook."""
+    warn_about_missing_hooks()
     tree = working_tree_hash()
     returncode = run_commands(commands_for("check"), jobs=jobs)
     if returncode or tree is None:

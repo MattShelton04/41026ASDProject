@@ -469,3 +469,38 @@ def test_pre_push_warns_when_the_checked_tree_is_not_the_pushed_one(
     assert "differs from the pushed commit" in capsys.readouterr().out
     monkeypatch.setattr(check, "run_full_gate", lambda *, jobs: 4)
     assert check.main(["pre-push"]) == 4
+
+
+def test_missing_git_hooks_reports_each_uninstalled_hook(git_repository: Path) -> None:
+    hooks = git_repository / ".git" / "hooks"
+    assert check.missing_git_hooks() == ("pre-commit", "pre-push")
+
+    (hooks / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+    assert check.missing_git_hooks() == ("pre-push",)
+
+    (hooks / "pre-push").write_text("#!/bin/sh\n", encoding="utf-8")
+    assert check.missing_git_hooks() == ()
+
+
+def test_missing_git_hooks_is_empty_outside_a_git_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(check, "_git", lambda *_arguments, **_kwargs: None)
+    monkeypatch.setattr(check, "REPOSITORY_ROOT", tmp_path)
+
+    assert check.missing_git_hooks() == ()
+
+
+@pytest.mark.parametrize(("ci", "warned"), [("", True), ("true", False)])
+def test_full_gate_warns_locally_when_hooks_are_missing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], ci: str, warned: bool
+) -> None:
+    monkeypatch.setenv("CI", ci)
+    monkeypatch.setattr(check, "missing_git_hooks", lambda: ("pre-commit",))
+    monkeypatch.setattr(check, "working_tree_hash", lambda: None)
+    monkeypatch.setattr(check, "commands_for", lambda _stage, *, write=False: ())
+
+    assert check.main(["check"]) == 0
+    error = capsys.readouterr().err
+    assert ("Git hook(s) not installed: pre-commit" in error) is warned
+    assert ("pre-commit install --hook-type pre-commit --hook-type pre-push" in error) is warned
