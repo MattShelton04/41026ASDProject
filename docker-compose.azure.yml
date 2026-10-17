@@ -73,10 +73,13 @@ services:
     volumes:
       - ./deployment/azure/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deployment/azure/caddy/ai-disabled.caddy:/etc/caddy/propertyscope-ai.caddy:ro
+      # Site-wide login: site-auth-on.caddy (default) or site-auth-off.caddy.
+      - ./deployment/azure/caddy/site-auth-${PROPERTYSCOPE_SITE_AUTH:-on}.caddy:/etc/caddy/propertyscope-site-auth.caddy:ro
       - shared-caddy-data:/data
       - shared-caddy-config:/config
     secrets:
       - edge_basic_auth
+      - edge_site_auth
     depends_on:
       shared-frontend:
         condition: service_healthy
@@ -409,3 +412,5 @@ secrets:
     file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/f4-database-url
   edge_basic_auth:
     file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/edge-basic-auth
+  edge_site_auth:
+    file: ${PROPERTYSCOPE_SECRETS_DIR:-/opt/propertyscope/secrets}/edge-site-auth

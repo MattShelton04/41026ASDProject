@@ -404,3 +404,78 @@ def test_a_failed_delete_is_reported_and_retried_until_the_record_is_gone() -> N
     assert "dependency_unavailable" in by_name["CRUD source definition: delete"].detail
     assert by_name["CRUD source definition: cleanup retry"].passed is True
     assert by_name["CRUD source definition: cleanup retry"].operation == "cleanup-retry"
+
+
+SITE_LOGIN = ("propertyscope", "viewer-password-for-tests")  # pragma: allowlist secret
+WRONG_SITE_PASSWORD = "not-the-viewer-password"  # pragma: allowlist secret
+
+
+def test_site_login_is_proved_then_every_request_signs_in(tmp_path: Path) -> None:
+    edge = FakeEdge(site_login=SITE_LOGIN)
+    status = main(
+        ["--base-url", "https://edge.example", "--output-dir", str(tmp_path), "--site-login"],
+        transport=httpx.MockTransport(edge),
+        environment={"PROPERTYSCOPE_SITE_PASSWORD": SITE_LOGIN[1]},
+    )
+
+    assert status == 0
+    document = json.loads((tmp_path / "cloud-smoke.json").read_text(encoding="utf-8"))
+    assert document["site_login"] == "enforced"
+    by_name = {check["name"]: check for check in document["checks"]}
+    assert by_name["Site login required"]["passed"] is True
+    assert by_name["Site login required"]["status_code"] == 401
+    assert "challenge Basic" in by_name["Site login required"]["detail"]
+    assert by_name["Edge liveness stays public"]["passed"] is True
+    # Only the two deliberate anonymous probes went out without the viewer login.
+    assert edge.anonymous == ["/", "/healthz"]
+    assert "Site-wide login: enforced" in (tmp_path / "cloud-smoke.md").read_text(encoding="utf-8")
+
+
+def test_an_edge_without_the_site_login_fails_the_check(tmp_path: Path) -> None:
+    status = main(
+        ["--base-url", "https://edge.example", "--output-dir", str(tmp_path), "--site-login"],
+        transport=httpx.MockTransport(FakeEdge(site_login=SITE_LOGIN, enforce_site_login=False)),
+        environment={"PROPERTYSCOPE_SITE_PASSWORD": SITE_LOGIN[1]},
+    )
+
+    assert status == 1
+    document = json.loads((tmp_path / "cloud-smoke.json").read_text(encoding="utf-8"))
+    assert document["site_login"] == "not_enforced"
+    failed = [check["name"] for check in document["checks"] if not check["passed"]]
+    assert failed == ["Site login required"]
+
+
+def test_a_wrong_site_password_fails_every_page_behind_the_login(tmp_path: Path) -> None:
+    status = main(
+        ["--base-url", "https://edge.example", "--output-dir", str(tmp_path), "--site-login"],
+        transport=httpx.MockTransport(FakeEdge(site_login=SITE_LOGIN)),
+        environment={"PROPERTYSCOPE_SITE_PASSWORD": WRONG_SITE_PASSWORD},
+    )
+
+    assert status == 1
+    document = json.loads((tmp_path / "cloud-smoke.json").read_text(encoding="utf-8"))
+    by_name = {check["name"]: check for check in document["checks"]}
+    assert by_name["Site login required"]["passed"] is True
+    assert by_name["Shared home page"]["status_code"] == 401
+
+
+def test_site_login_needs_the_password_from_the_environment(tmp_path: Path) -> None:
+    status = main(
+        ["--base-url", "https://edge.example", "--output-dir", str(tmp_path), "--site-login"],
+        environment={"PROPERTYSCOPE_SITE_USER": "propertyscope"},
+    )
+    assert status == 2
+    assert not (tmp_path / "cloud-smoke.json").exists()
+
+
+def test_without_site_login_the_document_records_not_checked(tmp_path: Path) -> None:
+    assert (
+        main(
+            ["--base-url", "https://edge.example", "--output-dir", str(tmp_path)],
+            transport=httpx.MockTransport(FakeEdge()),
+            environment={},
+        )
+        == 0
+    )
+    document = json.loads((tmp_path / "cloud-smoke.json").read_text(encoding="utf-8"))
+    assert document["site_login"] == "not_checked"

@@ -276,6 +276,78 @@ def test_bicep_keeps_the_security_baseline() -> None:
     assert "readEnvironmentVariable('AZURE_VM_SIZE', 'Standard_D4s_v5')" in params
 
 
+def test_https_can_be_limited_to_listed_sources_while_http_stays_open() -> None:
+    network = (AZURE / "modules/network.bicep").read_text(encoding="utf-8")
+    rules = dict(
+        re.findall(r"name: '(Allow\w+Inbound)'\s*properties: \{(.*?)\n {8}\}", network, re.S)
+    )
+    assert set(rules) == {"AllowHttpsInbound", "AllowHttpInbound"}
+    assert "sourceAddressPrefixes: allowedHttpsSourcePrefixes" in rules["AllowHttpsInbound"]
+    # ACME HTTP-01 validation and renewal come from unpublished addresses: 80 is never limited.
+    assert "sourceAddressPrefix: 'Internet'" in rules["AllowHttpInbound"]
+    assert "allowedHttpsSourcePrefixes" not in rules["AllowHttpInbound"]
+    main = (AZURE / "main.bicep").read_text(encoding="utf-8")
+    assert "allowedHttpsSourcePrefixes: allowedHttpsSourcePrefixes" in main
+    assert re.search(
+        r"@minLength\(1\)\nparam allowedHttpsSourcePrefixes array = \[\n  'Internet'\n\]", main
+    )
+    for name in ("main.bicepparam", "dev.bicepparam"):
+        params = (AZURE / name).read_text(encoding="utf-8")
+        assert "readEnvironmentVariable('AZURE_ALLOWED_HTTPS_SOURCES', '')" in params, name
+        assert (
+            "param allowedHttpsSourcePrefixes = empty(httpsSourcesSetting) ? ['Internet'] "
+            ": split(httpsSourcesSetting, ',')"
+        ) in params, name
+
+
+def test_site_wide_login_is_on_by_default_and_spares_only_liveness() -> None:
+    caddyfile = (AZURE / "Caddyfile").read_text(encoding="utf-8")
+    on = (AZURE / "caddy" / "site-auth-on.caddy").read_text(encoding="utf-8")
+    off = (AZURE / "caddy" / "site-auth-off.caddy").read_text(encoding="utf-8")
+    assert "@site_login not path /healthz\n" in caddyfile
+    # Operator check, then the site login, then the AI tier and the proxy.
+    order = [
+        caddyfile.index("basic_auth @protected"),
+        caddyfile.index("import /etc/caddy/propertyscope-site-auth.caddy"),
+        caddyfile.index("import /etc/caddy/propertyscope-ai.caddy"),
+        caddyfile.index("reverse_proxy shared-frontend:8080"),
+    ]
+    assert order == sorted(order)
+    assert 'basic_auth @site_login bcrypt "PropertyScope NSW" {' in on
+    assert "import /run/secrets/edge_site_auth" in on
+    assert "basic_auth" not in off
+    # Caddy's own error answers (the 401 login challenges) carry the site's security headers too.
+    errors = caddyfile.split("handle_errors {", 1)[1].split("\n\t}\n", 1)[0]
+    assert "import security_headers" in errors
+    assert caddyfile.count("import security_headers") == 2
+    edge = AZURE_OVERRIDE["services"]["shared-edge-proxy"]
+    assert (
+        "./deployment/azure/caddy/site-auth-${PROPERTYSCOPE_SITE_AUTH:-on}.caddy:"
+        "/etc/caddy/propertyscope-site-auth.caddy:ro"
+    ) in edge["volumes"]
+    assert edge["secrets"] == ["edge_basic_auth", "edge_site_auth"]
+    assert AZURE_OVERRIDE["secrets"]["edge_site_auth"]["file"].endswith("/edge-site-auth")
+    deploy = (AZURE / "deploy.sh").read_text(encoding="utf-8")
+    assert "export PROPERTYSCOPE_SITE_AUTH=${PROPERTYSCOPE_SITE_AUTH:-on}" in deploy
+    assert "edge-site-password)" in deploy  # one of REQUIRED_SECRETS
+
+
+def test_workflow_hands_the_viewer_password_only_to_smoke_and_endpoint_validation() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "cloud-deployment.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["deploy"]
+    assert job["env"]["PROPERTYSCOPE_SITE_AUTH"] == "${{ vars.PROPERTYSCOPE_SITE_AUTH || 'on' }}"
+    assert job["env"]["AZURE_ALLOWED_HTTPS_SOURCES"] == "${{ vars.AZURE_ALLOWED_HTTPS_SOURCES }}"
+    assert "PROPERTYSCOPE_SITE_PASSWORD" not in job["env"]
+    holders = sorted(
+        step["id"]
+        for step in job["steps"]
+        if "secrets.PROPERTYSCOPE_SITE_PASSWORD" in str(step.get("env", {}))
+    )
+    assert holders == ["endpoint_security", "smoke"]
+
+
 def test_cloud_init_installs_the_runtime_and_disables_ssh() -> None:
     text = (AZURE / "cloud-init.yaml").read_text(encoding="utf-8")
     assert text.startswith("#cloud-config\n")
@@ -763,6 +835,69 @@ def test_vm_settings_are_validated(tmp_path: Path) -> None:
     )
     assert "valid" not in bad.stdout
     assert "PROPERTYSCOPE_STARTUP_WAIT_SECONDS" in bad.stderr
+
+
+@pytest.mark.parametrize(
+    ("site_auth", "expected", "reads"),
+    [
+        (
+            "on",
+            "viewer $2a$hash(pw-edge-site-password)\n"
+            "propertyscope-operator $2a$hash(pw-edge-basic-auth-password)",
+            True,
+        ),
+        ("off", "propertyscope-operator $2a$hash(pw-edge-basic-auth-password)", False),
+    ],
+    ids=["site-login-on", "site-login-off"],
+)
+def test_vm_renders_the_site_login_for_the_viewer_and_the_operator(
+    tmp_path: Path, site_auth: str, expected: str, reads: bool
+) -> None:
+    script = VM_HARNESS + (
+        "imds_token() { printf token; }\n"
+        'kv_get() { echo "$1" >>"$WORK/reads"; printf "pw-%s" "$1"; }\n'
+        'caddy_hash() { printf "\\$2a\\$hash(%s)" "$1"; }\n'
+        "jq() { printf x; }\n"
+        'write_secret() { printf "%s" "$2" >"$WORK/secret-$1"; }\n'
+        "render_application_secrets >/dev/null\n"
+    )
+    completed = _run_bash(
+        script,
+        tmp_path,
+        FAKE_RESPONSES="200:{}",
+        KEY_VAULT_NAME="example-kv",
+        PROPERTYSCOPE_SITE_AUTH=site_auth,
+        PROPERTYSCOPE_SITE_USER="viewer",
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert (tmp_path / "secret-edge-site-auth").read_text(encoding="utf-8") == expected
+    assert (tmp_path / "secret-edge-basic-auth").read_text(encoding="utf-8") == (
+        "propertyscope-operator $2a$hash(pw-edge-basic-auth-password)"
+    )
+    reads_site = "edge-site-password" in (tmp_path / "reads").read_text(encoding="utf-8")
+    assert reads_site is reads
+
+
+@pytest.mark.parametrize(
+    ("variables", "message"),
+    [
+        ({"PROPERTYSCOPE_SITE_AUTH": "maybe"}, "PROPERTYSCOPE_SITE_AUTH must be on or off"),
+        ({"PROPERTYSCOPE_SITE_USER": "Viewer Name"}, "3-32 lower-case characters"),
+        ({"PROPERTYSCOPE_SITE_USER": "propertyscope-operator"}, "must differ from the operator"),
+    ],
+    ids=["bad-toggle", "bad-user", "same-as-operator"],
+)
+def test_vm_rejects_bad_site_login_settings(
+    tmp_path: Path, variables: dict[str, str], message: str
+) -> None:
+    completed = _run_bash(
+        VM_HARNESS + "(validate_settings) && echo valid\n",
+        tmp_path,
+        FAKE_RESPONSES="200:{}",
+        **variables,
+    )
+    assert "valid" not in completed.stdout
+    assert message in completed.stderr
 
 
 def test_dry_run_deploy_payload_is_valid_bash_and_ships_the_bundle(tmp_path: Path) -> None:

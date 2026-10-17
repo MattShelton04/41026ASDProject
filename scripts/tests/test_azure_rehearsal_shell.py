@@ -17,6 +17,7 @@ import yaml
 from scripts.tests.test_azure_deployment import AZURE, ROOT, VM_HARNESS, _bash, _run_bash
 
 COMMIT = "3f2a9c1d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a39"
+SITE_PASSWORD = "viewer-password-for-tests"  # pragma: allowlist secret
 REHEARSAL_DIRECTORY = AZURE / "rehearsal"
 # Sources deploy.sh (functions only) and configures it the way `main` does.
 DEPLOY_HARNESS = r"""
@@ -68,6 +69,7 @@ def _deploy_bash(
 
 SMOKE_CAPTURE = r"""
 run() { printf '%s\n' "$@" >"$WORK/argv"; }
+az() { echo "az $*" >>"$WORK/az"; return 1; }
 python_runner() { printf 'python'; }
 if [[ -n ${TAG_FILE:-} ]]; then printf '%s\n' "$TAG_FILE" >"$LOG_DIR/image-tag.txt"; fi
 echo 'PROPERTYSCOPE_EXIT=0' >"$LOG_DIR/vm-deploy.log"
@@ -79,9 +81,16 @@ cmd_smoke --insecure
     ("environment", "expected", "absent"),
     [
         (
-            # The workflow: IMAGE_TAG and PROPERTYSCOPE_DEPLOY_SHA set, outputs from Azure.
-            {**KNOWN_OUTPUTS, "IMAGE_TAG": COMMIT, "PROPERTYSCOPE_DEPLOY_SHA": COMMIT},
+            # The workflow: IMAGE_TAG and PROPERTYSCOPE_DEPLOY_SHA set, outputs from Azure, the
+            # site login on (the default) with the environment secret.
+            {
+                **KNOWN_OUTPUTS,
+                "IMAGE_TAG": COMMIT,
+                "PROPERTYSCOPE_DEPLOY_SHA": COMMIT,
+                "PROPERTYSCOPE_SITE_PASSWORD": SITE_PASSWORD,
+            },
             [
+                "--site-login\n",
                 "--base-url\nhttps://demo.australiaeast.cloudapp.azure.com\n",
                 f"--image-tag\n{COMMIT}\n",
                 f"--commit-sha\n{COMMIT}\n",
@@ -93,9 +102,10 @@ cmd_smoke --insecure
         ),
         (
             # A laptop after `deploy.sh push`: the recorded tag; a non-SHA tag names no commit.
-            {**KNOWN_OUTPUTS, "TAG_FILE": "0000000"},
+            # With the site login off no viewer login is needed.
+            {**KNOWN_OUTPUTS, "TAG_FILE": "0000000", "PROPERTYSCOPE_SITE_AUTH": "off"},
             ["--image-tag\n0000000\n"],
-            ["--commit-sha"],
+            ["--commit-sha", "--site-login"],
         ),
         (
             # The rehearsal: stand-in names, never an Azure lookup.
@@ -105,8 +115,10 @@ cmd_smoke --insecure
                 "ACR_LOGIN_SERVER": "ps-rehearsal-registry:5000",
                 "PUBLIC_FQDN": "localhost",
                 "TAG_FILE": f"{COMMIT}-dirty",
+                "PROPERTYSCOPE_SITE_PASSWORD": SITE_PASSWORD,
             },
             [
+                "--site-login\n",
                 "--base-url\nhttps://localhost\n",
                 f"--image-tag\n{COMMIT}-dirty\n",
                 f"--commit-sha\n{COMMIT}\n",
@@ -128,6 +140,61 @@ def test_smoke_passes_the_deployment_identity_to_cloud_smoke(
         assert fragment in argv, (fragment, argv)
     for fragment in absent:
         assert fragment not in argv
+    # The viewer password reaches cloud_smoke.py through the environment, never its arguments.
+    assert SITE_PASSWORD not in argv
+
+
+def test_smoke_with_the_site_login_on_needs_the_viewer_password(tmp_path: Path) -> None:
+    completed = _deploy_bash(SMOKE_CAPTURE, tmp_path, **KNOWN_OUTPUTS)
+    assert completed.returncode != 0
+    assert "PROPERTYSCOPE_SITE_PASSWORD" in completed.stderr
+    assert not (tmp_path / "argv").exists()
+
+
+# Answers the two read-only NSG queries and records every other az call.
+NSG_CAPTURE = r"""
+az() {
+    case "$*" in
+        "deployment group show"*) printf 'propertyscope-prod-nsg\n' ;;
+        "network nsg rule show"*) printf '%b\n' "$HTTPS_SOURCES" ;;
+        *) echo "az $*" >>"$WORK/az" ;;
+    esac
+}
+curl() { printf '198.51.100.23\n'; }
+sleep() { :; }
+open_https_for_this_client
+echo "opened"
+"""
+
+
+@pytest.mark.parametrize(
+    ("sources", "created"),
+    [
+        (r"Internet\tNone", False),
+        (r"None\t203.0.113.7/32 198.51.100.0/24", True),
+        (r"None\t198.51.100.23/32", False),
+    ],
+    ids=["open-to-the-internet", "restricted", "runner-already-listed"],
+)
+def test_a_restricted_https_allowlist_admits_this_client_until_exit(
+    tmp_path: Path, sources: str, created: bool
+) -> None:
+    completed = _deploy_bash(NSG_CAPTURE, tmp_path, **KNOWN_OUTPUTS, HTTPS_SOURCES=sources)
+    assert completed.returncode == 0, completed.stderr
+    assert "opened" in completed.stdout
+    log = tmp_path / "az"
+    calls = log.read_text(encoding="utf-8") if log.exists() else ""
+    if not created:
+        assert calls == ""
+        return
+    create, delete = calls.splitlines()
+    assert create.startswith("az network nsg rule create ")
+    assert "--name AllowDeployerHttpsTemporary" in create
+    assert "--source-address-prefixes 198.51.100.23/32" in create
+    assert "--destination-port-ranges 443 " in create
+    # The EXIT trap removes the temporary rule again.
+    assert delete.startswith("az network nsg rule delete ")
+    assert "--name AllowDeployerHttpsTemporary" in delete
 
 
 def test_rehearsal_refuses_every_az_call_and_needs_its_stand_ins(tmp_path: Path) -> None:

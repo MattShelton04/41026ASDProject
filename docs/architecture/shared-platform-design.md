@@ -1310,11 +1310,13 @@ Ubuntu 24.04 VM runs the same Compose model with `docker-compose.azure.yml`. The
 one-time setup and the operations are in [deployment/azure/README.md](../../deployment/azure/README.md).
 
 - Bicep in `deployment/azure/` (resource-group scope) defines ACR, a VNet/NSG admitting only
-  80/443, a Standard public IP with a DNS label, the VM with a system-assigned identity
+  80/443 (443 optionally limited to listed sources; 80 stays open for certificates), a Standard
+  public IP with a DNS label, the VM with a system-assigned identity
   (`AcrPull`, `Key Vault Secrets User`), an RBAC-mode Key Vault with purge protection, an
   auto-shutdown schedule and a budget.
-- Only the Caddy TLS edge publishes ports. It proxies to the unchanged nginx edge, which gains a
-  production-only rate-limit include. Database tiers sit on internal per-feature networks.
+- Only the Caddy TLS edge publishes ports. By default it asks for a shared viewer login on every
+  route except `/healthz`, and always for the operator login on operations and AI routes. It
+  proxies to the unchanged nginx edge, which gains a production-only rate-limit include. Database tiers sit on internal per-feature networks.
 - Images are built once per commit and pulled from ACR by Git SHA. Secrets are Key Vault values
   rendered to root-only files and passed to processes as Compose secrets. There is no SSH:
   operations use `az vm run-command`.

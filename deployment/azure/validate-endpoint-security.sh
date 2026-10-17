@@ -3,11 +3,15 @@
 #
 # Black-box checks from outside the VM, exactly as an internet client sees the service:
 #   TLS with a publicly trusted certificate, no TLS 1.0/1.1, a permanent HTTP -> HTTPS redirect,
-#   HSTS and security headers, no server version disclosure, 401 on operations/AI routes
-#   without operator credentials, 429 from the nginx rate limits, and closed SSH/database/AI/
-#   development ports. With Azure access it also reads the NSG (read-only).
+#   HSTS and security headers, no server version disclosure, the site-wide login (401 for
+#   anonymous callers everywhere but /healthz), 401 on operations/AI routes without operator
+#   credentials (also for the viewer login), 429 from the nginx rate limits, and closed SSH/
+#   database/AI/development ports. With Azure access it also reads the NSG (read-only).
 #
 # Usage: deploy.sh validate-endpoint    (or set PUBLIC_FQDN and run this script directly)
+# Site login: PROPERTYSCOPE_SITE_AUTH   on (default, as deploy.sh) or off (a public demonstration)
+#           PROPERTYSCOPE_SITE_USER / PROPERTYSCOPE_SITE_PASSWORD   the viewer login; required while
+#                                       the site login is on (deploy.sh exports it)
 # Optional: EDGE_USER / EDGE_PASSWORD   also prove that valid operator credentials pass Caddy
 #           AZURE_RESOURCE_GROUP        enables the NSG rule check
 #           LOG_DIR                     where endpoint-security.txt is written
@@ -31,6 +35,23 @@ if [[ -n ${EDGE_CA_FILE:-} ]]; then
     # A private CA publishes no revocation list; Windows (Schannel) curl would otherwise refuse
     # it. With Schannel the file must also hold the intermediate certificate.
     TLS_OPTIONS=(--cacert "$EDGE_CA_FILE" --ssl-no-revoke)
+fi
+SITE_AUTH=${PROPERTYSCOPE_SITE_AUTH:-on}
+SITE_USER=${PROPERTYSCOPE_SITE_USER:-propertyscope}
+[[ $SITE_AUTH == on || $SITE_AUTH == off ]] || {
+    echo "PROPERTYSCOPE_SITE_AUTH must be on or off" >&2
+    exit 2
+}
+[[ $SITE_AUTH == off || -n ${PROPERTYSCOPE_SITE_PASSWORD:-} ]] || {
+    echo "PROPERTYSCOPE_SITE_PASSWORD is required while the site login is on (PROPERTYSCOPE_SITE_AUTH=on)" >&2
+    exit 2
+}
+# The viewer login reaches curl through a private netrc file, never a command line.
+VIEWER_NETRC=$(mktemp)
+trap 'rm -f "$VIEWER_NETRC"' EXIT
+chmod 0600 "$VIEWER_NETRC"
+if [[ $SITE_AUTH == on ]]; then
+    printf 'machine %s\nlogin %s\npassword %s\n' "$HOST" "$SITE_USER" "$PROPERTYSCOPE_SITE_PASSWORD" >"$VIEWER_NETRC"
 fi
 mkdir -p "$OUTPUT_DIR"
 : >"$REPORT"
@@ -62,6 +83,11 @@ status_of() {
     edge_curl --silent --output /dev/null --max-time 15 --write-out '%{http_code}' "$@" || true
 }
 
+# As status_of, signed in with the viewer login while the site login is on (anonymous when off).
+viewer_status_of() {
+    status_of --netrc-file "$VIEWER_NETRC" "$@"
+}
+
 echo "Endpoint security validation for ${BASE} at $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a "$REPORT"
 if ((${#TLS_OPTIONS[@]})); then
     result INFO "HTTP-level checks trust EDGE_CA_FILE; the public-trust check below never does"
@@ -87,7 +113,7 @@ redirect=$(curl --silent --output /dev/null --max-time 15 --write-out '%{http_co
 expect "HTTP permanently redirects to HTTPS" "$redirect" "^(301|308) https://${HOST//./\\.}/features/data-platform/$"
 
 # --- Headers ---------------------------------------------------------------------------------
-headers=$(edge_curl --silent --dump-header - --output /dev/null --max-time 15 "$BASE/" | tr -d '\r' | tr '[:upper:]' '[:lower:]')
+headers=$(edge_curl --netrc-file "$VIEWER_NETRC" --silent --dump-header - --output /dev/null --max-time 15 "$BASE/" | tr -d '\r' | tr '[:upper:]' '[:lower:]')
 expect "HSTS for at least one year" "$(grep '^strict-transport-security:' <<<"$headers")" 'max-age=(3153[6-9][0-9]{3}|[4-9][0-9]{7}|[0-9]{9,})'
 expect "X-Content-Type-Options nosniff" "$(grep '^x-content-type-options:' <<<"$headers" | head -n 1)" 'nosniff'
 expect "Framing denied" "$(grep -E '^(x-frame-options|content-security-policy):' <<<"$headers" | tr '\n' ' ')" "(x-frame-options: deny|frame-ancestors 'none')"
@@ -100,11 +126,36 @@ else
     result FAIL "server version disclosed: $server"
 fi
 
+# --- Site-wide login -------------------------------------------------------------------------
+if [[ $SITE_AUTH == on ]]; then
+    for path in / /features/data-platform/ "/api/data-platform/v1/sources?limit=1"; do
+        code=$(status_of "$BASE$path")
+        expect "anonymous $path requires the site login" "$code" '^401$'
+    done
+    anonymous=$(edge_curl --silent --dump-header - --output /dev/null --max-time 15 "$BASE/" | tr -d '\r' | tr '[:upper:]' '[:lower:]')
+    expect "the site login answers with a Basic challenge" "$(grep '^www-authenticate:' <<<"$anonymous")" 'basic realm="propertyscope nsw"'
+    expect "the login challenge itself carries HSTS" "$(grep '^strict-transport-security:' <<<"$anonymous")" 'max-age='
+    code=$(status_of --user "${SITE_USER}:wrong-password" "$BASE/")
+    expect "a wrong site password is rejected" "$code" '^401$'
+    code=$(status_of "$BASE/healthz")
+    expect "edge liveness (/healthz) stays public for uptime checks" "$code" '^200$'
+    code=$(viewer_status_of "$BASE/")
+    expect "the viewer login opens the site" "$code" '^200$'
+else
+    result INFO "site-wide login is off (PROPERTYSCOPE_SITE_AUTH=off): pages and feature APIs are public"
+    code=$(status_of "$BASE/")
+    expect "the home page is public while the site login is off" "$code" '^200$'
+fi
+
 # --- Authentication on operations and AI routes ----------------------------------------------
 for path in /operations/ai-mode/ /api/ai-mode/runs /api/v1/runs /api/data-platform/v1/artifact-retention \
     /api/data-platform/v1/release-reviews /api/market-intelligence/v1/assistant/turns; do
     code=$(status_of "$BASE$path")
     expect "anonymous $path requires operator credentials" "$code" '^401$'
+    if [[ $SITE_AUTH == on ]]; then
+        code=$(viewer_status_of "$BASE$path")
+        expect "the viewer login does not open $path" "$code" '^401$'
+    fi
 done
 challenge=$(edge_curl --silent --dump-header - --output /dev/null --max-time 15 "$BASE/operations/ai-mode/" | tr -d '\r' | grep -i '^www-authenticate:' || true)
 expect "401 carries a Basic challenge" "$challenge" '[Bb]asic'
@@ -115,19 +166,26 @@ if [[ -n ${EDGE_PASSWORD:-} ]]; then
     # Any answer from behind the edge except 401/403; 000 (no answer) is a failure.
     expect "valid operator credentials pass the edge" "$code" '^([235][0-9]{2}|40[45])$'
 fi
-code=$(status_of "$BASE/api/shared-health/ai-mode")
-expect "public AI health stays readable (503 ai_disabled, or 200 when the bonus tier is on)" "$code" '^(200|503)$'
-code=$(status_of "$BASE/api/data-platform/v1/sources?limit=1")
-expect "ordinary feature API stays public" "$code" '^200$'
+code=$(viewer_status_of "$BASE/api/shared-health/ai-mode")
+expect "AI health stays readable without operator credentials (503 ai_disabled, or 200 when the bonus tier is on)" "$code" '^(200|503)$'
+code=$(viewer_status_of "$BASE/api/data-platform/v1/sources?limit=1")
+expect "ordinary feature API needs no operator credentials" "$code" '^200$'
 
 # --- Rate limiting ---------------------------------------------------------------------------
 # A burst well above the edge zone (20 r/s, burst 40) from one client must see 429s. The probe is
 # a missing static fragment: nginx answers it from disk (404) with try_files, which runs after
 # limit_req, so the burst never reaches a feature backend or database. An edge `return` (such as
 # the catch-all `location /api/` 404) runs in the rewrite phase, before limit_req, and can never
-# answer 429, so it must not be used as the probe.
+# answer 429, so it must not be used as the probe. The burst signs in with the viewer login while
+# the site login is on, so Caddy passes it to nginx instead of answering 401 itself.
 RATE_LIMIT_PROBE=${RATE_LIMIT_PROBE:-/fragments/rate-limit-probe}
-codes=$(seq 1 150 | xargs -P 30 -I{} curl "${TLS_OPTIONS[@]}" --silent --output /dev/null --max-time 15 --write-out '%{http_code}\n' "$BASE$RATE_LIMIT_PROBE" 2>/dev/null | sort | uniq -c | tr '\n' ' ')
+# One curl process runs the 150 transfers in parallel: spawning a process per request (xargs) is
+# too slow on some hosts (Windows) to outrun 20 r/s plus the burst of 40.
+BURST_DIR=$(mktemp -d)
+codes=$(edge_curl --netrc-file "$VIEWER_NETRC" --silent --parallel --parallel-immediate --parallel-max 50 \
+    --max-time 15 --output "$BURST_DIR/#1" --write-out '%{http_code}\n' \
+    "$BASE$RATE_LIMIT_PROBE?burst=[1-150]" 2>/dev/null | sort | uniq -c | tr '\n' ' ')
+rm -rf "$BURST_DIR"
 expect "edge rate limit (/api/ and /fragments/ zone) answers a burst on $RATE_LIMIT_PROBE with 429" "$codes" '[0-9]+ 429'
 sleep 3
 
@@ -146,6 +204,15 @@ if command -v az >/dev/null 2>&1 && [[ -n ${AZURE_RESOURCE_GROUP:-} ]]; then
         --query "[].securityRules[?direction=='Inbound' && access=='Allow'].[destinationPortRange] | [] | []" \
         --output tsv 2>/dev/null | tr -d '\r' | sort -u | tr '\n' ' ')
     expect "NSG allows only 80 and 443 inbound" "${allowed% }" '^(443 80|80 443)$'
+    # Port 80 must stay open to the internet: Let's Encrypt validates and renews over it.
+    http_source=$(az network nsg list --resource-group "$AZURE_RESOURCE_GROUP" \
+        --query "[].securityRules[?name=='AllowHttpInbound'].sourceAddressPrefix | [] | [0]" \
+        --output tsv 2>/dev/null | tr -d '\r')
+    expect "NSG keeps port 80 open to the internet (certificate issuance and renewal)" "$http_source" '^Internet$'
+    https_sources=$(az network nsg list --resource-group "$AZURE_RESOURCE_GROUP" \
+        --query "[].securityRules[?name=='AllowHttpsInbound'].[sourceAddressPrefix, join(' ', sourceAddressPrefixes)] | [] | []" \
+        --output tsv 2>/dev/null | tr -d '\r' | tr '\t\n' '  ' | sed 's/None//g; s/  */ /g; s/^ //; s/ $//')
+    result INFO "NSG HTTPS (443) sources: ${https_sources:-unknown}"
 else
     result SKIP "NSG rules (needs az and AZURE_RESOURCE_GROUP)"
 fi

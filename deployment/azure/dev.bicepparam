@@ -9,6 +9,7 @@ using './main.bicep'
 var locationSetting = readEnvironmentVariable('AZURE_LOCATION', 'australiaeast')
 var vmSizeSetting = readEnvironmentVariable('AZURE_VM_SIZE', 'Standard_D4s_v5')
 var operatorIpRangesSetting = readEnvironmentVariable('AZURE_OPERATOR_IP_RANGES', '')
+var httpsSourcesSetting = readEnvironmentVariable('AZURE_ALLOWED_HTTPS_SOURCES', '')
 var secretOfficerIdsSetting = readEnvironmentVariable('AZURE_SECRET_OFFICER_IDS', '')
 
 param location = empty(locationSetting) ? 'australiaeast' : locationSetting
@@ -21,6 +22,8 @@ param enableEncryptionAtHost = false
 param osDiskSizeGB = 64
 param autoShutdownTime = '1900'
 param operatorIpRanges = empty(operatorIpRangesSetting) ? [] : split(operatorIpRangesSetting, ',')
+// Empty: HTTPS open to the internet. A comma list (e.g. 203.0.113.7/32,198.51.100.0/24) limits 443 only.
+param allowedHttpsSourcePrefixes = empty(httpsSourcesSetting) ? ['Internet'] : split(httpsSourcesSetting, ',')
 param secretOfficerPrincipalIds = empty(secretOfficerIdsSetting) ? [] : split(secretOfficerIdsSetting, ',')
 param keyVaultNameSeed = readEnvironmentVariable('AZURE_KEY_VAULT_NAME_SEED', '')
 param deployerPrincipalId = readEnvironmentVariable('AZURE_DEPLOYER_PRINCIPAL_ID', '')

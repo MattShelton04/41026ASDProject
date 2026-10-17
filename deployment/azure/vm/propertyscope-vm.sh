@@ -12,6 +12,8 @@
 #   ACR_LOGIN_SERVER IMAGE_TAG KEY_VAULT_NAME PROPERTYSCOPE_PUBLIC_HOST PROPERTYSCOPE_ACME_EMAIL
 #   optional: PROPERTYSCOPE_CLOUD_AI (true|false, default: keep the VM's current state)
 #             PROPERTYSCOPE_GIT_SHA PROPERTYSCOPE_REPO_URL PROPERTYSCOPE_EDGE_USER CADDY_IMAGE_TAG
+#             PROPERTYSCOPE_SITE_AUTH (on|off, default on: the site-wide viewer login)
+#             PROPERTYSCOPE_SITE_USER (default propertyscope: the viewer login's user name)
 #             PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES
 #             PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS (default 12: about 8 minutes of backoff while a new
 #               managed identity, RBAC role assignment or vault firewall rule propagates)
@@ -36,6 +38,9 @@ readonly IMDS='http://169.254.169.254/metadata/identity/oauth2/token?api-version
 readonly RUNTIME_DIR=$SRC_DIR/.propertyscope-runtime
 AUTH_RETRY_ATTEMPTS=${PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS:-12}
 STARTUP_WAIT_SECONDS=${PROPERTYSCOPE_STARTUP_WAIT_SECONDS:-900}
+SITE_AUTH=${PROPERTYSCOPE_SITE_AUTH:-on}
+SITE_USER=${PROPERTYSCOPE_SITE_USER:-propertyscope}
+EDGE_USER=${PROPERTYSCOPE_EDGE_USER:-propertyscope-operator}
 
 log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 die() {
@@ -51,6 +56,10 @@ require_env() {
 
 validate_settings() {
     [[ $AUTH_RETRY_ATTEMPTS =~ ^[1-9][0-9]?$ ]] || die "PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS must be 1-99"
+    [[ $SITE_AUTH == on || $SITE_AUTH == off ]] || die "PROPERTYSCOPE_SITE_AUTH must be on or off"
+    [[ $SITE_USER =~ ^[a-z][a-z0-9._-]{2,31}$ && $EDGE_USER =~ ^[a-z][a-z0-9._-]{2,31}$ ]] ||
+        die "PROPERTYSCOPE_SITE_USER and PROPERTYSCOPE_EDGE_USER must be 3-32 lower-case characters"
+    [[ $SITE_USER != "$EDGE_USER" ]] || die "PROPERTYSCOPE_SITE_USER must differ from the operator user"
     [[ $STARTUP_WAIT_SECONDS =~ ^[1-9][0-9]{1,4}$ ]] || die "PROPERTYSCOPE_STARTUP_WAIT_SECONDS must be 10-99999"
 }
 
@@ -190,10 +199,19 @@ acr_logout() {
     docker logout "$ACR_LOGIN_SERVER" >/dev/null 2>&1 || true
 }
 
+# A bcrypt hash for a Caddy basic_auth account file; the password reaches Caddy on stdin only.
+caddy_hash() {
+    local hash
+    hash=$(printf '%s\n' "$1" | docker run --rm -i --network none --entrypoint caddy \
+        "${ACR_LOGIN_SERVER}/propertyscope/mirror/caddy:${CADDY_IMAGE_TAG:-2.10.2-alpine}" hash-password | tail -n 1)
+    [[ $hash == \$2* ]] || die "could not hash an edge password with Caddy"
+    printf '%s' "$hash"
+}
+
 render_application_secrets() {
     require_env KEY_VAULT_NAME
     KV_TOKEN=$(imds_token https://vault.azure.net)
-    local internal runner f1_password f4_password edge_password edge_hash caddy_image
+    local internal runner f1_password f4_password edge_password edge_hash site_password site_hash
     internal=$(kv_get internal-token)
     runner=$(kv_get runner-token)
     f1_password=$(kv_get f1-postgres-password)
@@ -205,11 +223,16 @@ render_application_secrets() {
     write_secret f4-postgres-password "$f4_password"
     write_secret f1-database-url "postgresql://${PROPERTYSCOPE_POSTGRES_USER:-propertyscope}:$(jq -rn --arg v "$f1_password" '$v|@uri')@f1-postgres:5432/${PROPERTYSCOPE_POSTGRES_DB:-propertyscope}"
     write_secret f4-database-url "postgresql://${PROPERTYSCOPE_DUE_DILIGENCE_USER:-due_diligence}:$(jq -rn --arg v "$f4_password" '$v|@uri')@f4-postgres:5432/${PROPERTYSCOPE_DUE_DILIGENCE_DB:-due_diligence}"
-    caddy_image="${ACR_LOGIN_SERVER}/propertyscope/mirror/caddy:${CADDY_IMAGE_TAG:-2.10.2-alpine}"
-    edge_hash=$(printf '%s\n' "$edge_password" |
-        docker run --rm -i --network none --entrypoint caddy "$caddy_image" hash-password | tail -n 1)
-    [[ $edge_hash == \$2* ]] || die "could not hash the edge operator password"
-    write_secret edge-basic-auth "${PROPERTYSCOPE_EDGE_USER:-propertyscope-operator} ${edge_hash}"
+    edge_hash=$(caddy_hash "$edge_password")
+    write_secret edge-basic-auth "${EDGE_USER} ${edge_hash}"
+    # The site-wide login accepts the viewer and the operator, so an operator signs in once.
+    if [[ $SITE_AUTH == on ]]; then
+        site_password=$(kv_get edge-site-password)
+        site_hash=$(caddy_hash "$site_password")
+        write_secret edge-site-auth "$(printf '%s %s\n%s %s' "$SITE_USER" "$site_hash" "$EDGE_USER" "$edge_hash")"
+    else
+        write_secret edge-site-auth "${EDGE_USER} ${edge_hash}"
+    fi
     log "Rendered application secrets from Key Vault ${KEY_VAULT_NAME} (values not logged)"
 }
 
@@ -260,6 +283,7 @@ PROPERTYSCOPE_PUBLIC_HOST=${PROPERTYSCOPE_PUBLIC_HOST}
 PROPERTYSCOPE_ACME_EMAIL=${PROPERTYSCOPE_ACME_EMAIL}
 PROPERTYSCOPE_SECRETS_DIR=${SECRETS_DIR}
 PROPERTYSCOPE_EDGE_CONFIG_SHA=${digest}
+PROPERTYSCOPE_SITE_AUTH=${SITE_AUTH}
 EOF
     umask 077
 }
@@ -616,7 +640,7 @@ validate_data() {
         xargs -r -n1 docker history --no-trunc --format '{{.CreatedBy}}' 2>/dev/null || true)
     for file in "$SECRETS_DIR"/*; do
         name=$(basename "$file")
-        [[ -f $file && $name != edge-basic-auth && $name != *.env ]] || continue
+        [[ -f $file && $name != edge-basic-auth && $name != edge-site-auth && $name != *.env ]] || continue
         value=$(<"$file")
         [[ ${#value} -ge 12 ]] || continue
         if grep -qF -- "$value" <<<"$inspect"; then leaked_env=$((leaked_env + 1)); fi

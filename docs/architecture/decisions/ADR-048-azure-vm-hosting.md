@@ -181,3 +181,37 @@ fixed:
   through, and needs no Azure sign-in when the outputs are known. `push --reuse-images` pushes
   images built earlier only when a build manifest for the same clean tag matches the local image
   IDs.
+
+**17 October 2026, access control (still not provisioned).** A public demonstration URL exposed
+every page and the per-feature CRUD to anyone who found it. Two controls were added:
+
+- **Site-wide login, on by default.** Caddy asks every caller for a shared viewer login
+  (`PROPERTYSCOPE_SITE_USER`, default `propertyscope`; Key Vault `edge-site-password`) on every
+  route except `/healthz`, which stays anonymous for uptime checks and the B5 certificate check.
+  The operator login also opens the site, and operator routes still need the operator login,
+  in its own realm, on top. `PROPERTYSCOPE_SITE_AUTH=off` restores a public demonstration. The VM
+  renders the viewer and operator bcrypt hashes into `edge-site-auth`, and the toggle selects
+  which snippet (`caddy/site-auth-on.caddy` or `site-auth-off.caddy`) Compose mounts. Basic
+  authentication was chosen over Microsoft Entra sign-in: markers may have no account in our
+  tenant, and Caddy already holds the operator login, so no new service or identity provider is
+  needed.
+- **HTTPS source allowlist, optional.** `AZURE_ALLOWED_HTTPS_SOURCES` limits the NSG's 443 rule
+  to listed IPv4/CIDR sources. Port 80 always stays open to the internet: Let's Encrypt validates
+  and renews over HTTP-01 from unpublished addresses, and Caddy answers nothing else there but a
+  redirect. While 443 is limited, `deploy.sh smoke` and `validate-endpoint` add a temporary NSG
+  rule for their own address and remove it on exit, so GitHub-hosted runners can still check the
+  edge.
+
+`cloud_smoke.py --site-login` proves that anonymous callers get 401 and `/healthz` stays public,
+then signs in as the viewer, and records `site_login` in `cloud-smoke.json` (schema 2,
+additive). The B5 validator adds the site-login checks, confirms that the viewer login does not
+open any operator route, and checks that the NSG keeps port 80 open. The viewer password reaches
+both tools only through the environment: in GitHub Actions it is the `production` environment
+secret `PROPERTYSCOPE_SITE_PASSWORD`, given only to those two steps. `deploy.sh` still never reads
+a secret value out of Key Vault.
+
+The local rehearsal found one gap: Caddy's own error answers, including every 401 login
+challenge (the operator routes' too, before this change), skipped the deferred site headers, so
+the first response a browser saw carried no HSTS. The security headers are now a Caddyfile
+snippet imported by the site and by `handle_errors`, and the validator checks the challenge's
+HSTS.

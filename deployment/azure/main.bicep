@@ -59,6 +59,12 @@ param autoShutdownTimeZone string = 'AUS Eastern Standard Time'
 ])
 param acrSku string = 'Basic'
 
+@description('Source IPv4 addresses/CIDRs (or service tags) allowed to reach HTTPS. Internet is a public demo; port 80 always stays open for certificate issuance and renewal.')
+@minLength(1)
+param allowedHttpsSourcePrefixes array = [
+  'Internet'
+]
+
 @description('Public operator IPv4 addresses/CIDRs allowed through the Key Vault firewall (for secret setup).')
 param operatorIpRanges array = []
 
@@ -127,6 +133,7 @@ module network 'modules/network.bicep' = {
     location: location
     namePrefix: baseName
     dnsLabel: publicDnsLabel
+    allowedHttpsSourcePrefixes: allowedHttpsSourcePrefixes
     tags: allTags
   }
 }
@@ -228,3 +235,4 @@ output vmPrincipalId string = vmPrincipalId
 output keyVaultName string = keyVault.outputs.keyVaultName
 output keyVaultUri string = keyVault.outputs.keyVaultUri
 output nsgName string = network.outputs.nsgName
+output httpsSourcePrefixes array = allowedHttpsSourcePrefixes
