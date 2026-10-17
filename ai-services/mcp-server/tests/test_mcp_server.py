@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -11,6 +12,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp_server import create_app, create_server
+from mcp_server.observability import JsonLogFormatter
 from shared_tool_runtime import HttpToolBinding, HttpToolExecutor, ToolCatalog
 from shared_tool_runtime.invocation import INVOCATION_META_KEY, sign_invocation
 
@@ -18,6 +20,16 @@ from shared_contracts import ApprovalStatus, ToolCall
 
 TOKEN = "deterministic-test-service-token-123456"
 FEATURE = "student-1-propertyscope-data-platform"
+
+
+def tool_lines(caplog: pytest.LogCaptureFixture) -> list[dict[str, object]]:
+    """MCP boundary records rendered by the production formatter, as the host log sees them."""
+    formatter = JsonLogFormatter()
+    return [
+        json.loads(formatter.format(record))
+        for record in caplog.records
+        if getattr(record, "event", None) == "mcp.tool_call.completed"
+    ]
 
 
 def catalog() -> ToolCatalog:
@@ -132,19 +144,21 @@ def test_sdk_discovers_original_schemas_resources_and_preserves_result() -> None
 
 
 @pytest.mark.parametrize(
-    "failure",
+    ("failure", "reason", "verified"),
     [
-        "missing",
-        "wrong-feature",
-        "wrong-token",
-        "expired",
-        "changed-args",
-        "wrong-tool",
-        "invalid-args",
-        "approval",
+        ("missing", "missing_invocation", False),
+        ("wrong-feature", "scope_mismatch", True),
+        ("wrong-token", "invalid_invocation", False),
+        ("expired", "invalid_invocation", False),
+        ("changed-args", "invalid_invocation", False),
+        ("wrong-tool", "invalid_invocation", False),
+        ("invalid-args", "invalid_arguments", True),
+        ("approval", "policy_denied", True),
     ],
 )
-def test_sdk_rejects_invalid_context_before_http(failure: str) -> None:
+def test_sdk_rejects_invalid_context_before_http(
+    failure: str, reason: str, verified: bool, caplog: pytest.LogCaptureFixture
+) -> None:
     requests: list[httpx.Request] = []
     server = create_server(catalog(), service_token=TOKEN, executor=executor(requests))
     invocation = call("delete" if failure == "approval" else "read")
@@ -173,11 +187,25 @@ def test_sdk_rejects_invalid_context_before_http(failure: str) -> None:
             assert result.isError
             assert "secret-invalid" not in result.model_dump_json()
 
-    asyncio.run(scenario())
+    with caplog.at_level(logging.INFO, logger="mcp_server"):
+        asyncio.run(scenario())
     assert requests == []
+    [line] = tool_lines(caplog)
+    assert (line["level"], line["outcome"], line["error_code"]) == ("warning", "rejected", reason)
+    assert line["tool_name"] == name
+    # Correlation comes only from a verified signature, never from unverified metadata.
+    assert line["request_id"] == ("test-correlation" if verified else None)
+    signed_feature = "student-2" if failure == "wrong-feature" else FEATURE
+    assert line["feature_key"] == (signed_feature if verified else None)
+    rendered = json.dumps(line)
+    for secret in ("secret-invalid", TOKEN, TOKEN[::-1], *signed.values()):
+        assert secret not in rendered
+    assert '"value"' not in rendered
 
 
-def test_mutation_replay_is_rejected_and_approved_mutation_reaches_owner() -> None:
+def test_mutation_replay_is_rejected_and_approved_mutation_reaches_owner(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     requests: list[httpx.Request] = []
     server = create_server(catalog(), service_token=TOKEN, executor=executor(requests))
 
@@ -192,9 +220,163 @@ def test_mutation_replay_is_rejected_and_approved_mutation_reaches_owner() -> No
                 await session.call_tool(invocation.tool_name, invocation.arguments, meta=signed)
             ).isError
 
-    asyncio.run(scenario())
+    with caplog.at_level(logging.INFO, logger="mcp_server"):
+        asyncio.run(scenario())
     assert len(requests) == 1
     assert requests[0].headers["Idempotency-Key"] == "deterministic-write"
+    accepted, replayed = tool_lines(caplog)
+    assert (accepted["outcome"], replayed["outcome"]) == ("success", "rejected")
+    assert replayed["error_code"] == "replay_rejected"
+    assert replayed["tool_call_id"] == accepted["tool_call_id"]
+    assert "deterministic-write" not in json.dumps([accepted, replayed])
+
+
+def test_successful_call_logs_verified_correlation_without_arguments_or_results(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    requests: list[httpx.Request] = []
+    server = create_server(catalog(), service_token=TOKEN, executor=executor(requests))
+    invocation = call().model_copy(update={"arguments": {"value": 424242}})
+    signed = metadata(invocation)
+
+    async def scenario() -> None:
+        async with create_connected_server_and_client_session(server) as session:
+            result = await session.call_tool(
+                invocation.tool_name, invocation.arguments, meta=signed
+            )
+            assert result.structuredContent == {"value": 424242}
+
+    with caplog.at_level(logging.INFO, logger="mcp_server"):
+        asyncio.run(scenario())
+    [line] = tool_lines(caplog)
+    assert line["event"] == "mcp.tool_call.completed"
+    assert line["service"] == "mcp-server"
+    assert line["level"] == "info"
+    assert line["request_id"] == "test-correlation"
+    assert line["run_id"] == str(invocation.run_id)
+    assert line["step_id"] == str(invocation.step_id)
+    assert line["tool_call_id"] == str(invocation.id)
+    assert line["feature_key"] == FEATURE
+    assert (line["tool_name"], line["tool_version"]) == ("test.read.v1", "v1")
+    assert (line["outcome"], line["tool_outcome"], line["error_code"]) == (
+        "success",
+        "succeeded",
+        None,
+    )
+    assert line["retryable"] is False
+    assert isinstance(line["duration_ms"], int) and line["duration_ms"] >= 0
+    rendered = json.dumps(line)
+    for secret in ("424242", TOKEN, signed[INVOCATION_META_KEY]):
+        assert secret not in rendered
+
+
+def test_unknown_tool_rejection_does_not_echo_the_requested_name(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    server = create_server(catalog(), service_token=TOKEN, executor=executor([]))
+
+    async def scenario() -> None:
+        async with create_connected_server_and_client_session(server) as session:
+            result = await session.call_tool("attacker-chosen-name", {"value": 1})
+            assert result.isError
+
+    with caplog.at_level(logging.INFO, logger="mcp_server"):
+        asyncio.run(scenario())
+    [line] = tool_lines(caplog)
+    assert (line["outcome"], line["error_code"]) == ("rejected", "unknown_tool")
+    assert "tool_name" not in line and line["request_id"] is None
+    assert "attacker-chosen-name" not in json.dumps(line)
+
+
+def test_feature_failure_and_executor_crash_are_logged_as_failures(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def unavailable(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"detail": "owner secret detail"})
+
+    failing = HttpToolExecutor(
+        service_base_urls={"feature-api": "http://127.0.0.1:5200"},
+        bindings=[
+            HttpToolBinding(
+                tool_name="test.read.v1",
+                tool_version="v1",
+                service="feature-api",
+                method="POST",
+                path="/tools/read",
+            )
+        ],
+        client=httpx.Client(transport=httpx.MockTransport(unavailable)),
+    )
+
+    class CrashingExecutor:
+        def execute(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("executor crash mentioning secret-argument")
+
+    async def scenario(server: object) -> None:
+        async with create_connected_server_and_client_session(server) as session:  # type: ignore[arg-type]
+            invocation = call()
+            result = await session.call_tool(
+                invocation.tool_name, invocation.arguments, meta=metadata(invocation)
+            )
+            assert result.isError
+
+    with caplog.at_level(logging.INFO, logger="mcp_server"):
+        asyncio.run(scenario(create_server(catalog(), service_token=TOKEN, executor=failing)))
+        asyncio.run(
+            scenario(
+                create_server(
+                    catalog(),
+                    service_token=TOKEN,
+                    executor=CrashingExecutor(),  # type: ignore[arg-type]
+                )
+            )
+        )
+    failed, crashed = tool_lines(caplog)
+    assert (failed["level"], failed["outcome"], failed["tool_outcome"]) == (
+        "warning",
+        "failure",
+        "failed",
+    )
+    assert failed["error_code"] is not None and failed["request_id"] == "test-correlation"
+    assert (crashed["level"], crashed["outcome"], crashed["error_code"]) == (
+        "error",
+        "failure",
+        "executor_error",
+    )
+    assert crashed["exception_type"] == "RuntimeError"
+    rendered = json.dumps([failed, crashed])
+    assert "owner secret detail" not in rendered and "secret-argument" not in rendered
+
+
+def test_entrypoint_configures_json_stdout_logging(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import mcp_server.__main__ as entrypoint
+    from mcp_server.observability import LOGGER_NAMES, log_level_from_environment
+
+    served: dict[str, object] = {}
+    monkeypatch.setenv("MCP_SERVICE_TOKEN", TOKEN)
+    monkeypatch.setenv("MCP_TOOL_CATALOG_PATHS", " catalog-a.json , ")
+    monkeypatch.setenv("MCP_LOG_LEVEL", "info")
+    monkeypatch.setattr(entrypoint, "load_tool_catalogs", lambda paths: catalog())
+    monkeypatch.setattr(
+        entrypoint.uvicorn, "run", lambda app, **options: served.update(app=app, **options)
+    )
+    entrypoint.main()
+    assert served["port"] == 5011 and served["host"] == "127.0.0.1"
+    for name in LOGGER_NAMES:
+        assert logging.getLogger(name).propagate is False
+    logging.getLogger("shared_tool_runtime.http").info(
+        "Feature tool call completed", extra={"request_id": "local-deploy-runtime"}
+    )
+    [line] = [json.loads(text) for text in capsys.readouterr().out.splitlines()]
+    assert (line["service"], line["request_id"]) == ("mcp-server", "local-deploy-runtime")
+    monkeypatch.setenv("MCP_LOG_LEVEL", "chatty")
+    with pytest.raises(ValueError, match="MCP_LOG_LEVEL"):
+        log_level_from_environment()
+    monkeypatch.setenv("MCP_HOST", "0.0.0.0")  # noqa: S104 - asserting the loopback refusal
+    with pytest.raises(ValueError, match="loopback"):
+        entrypoint.main()
 
 
 def test_asgi_authentication_and_sdk_streamable_protocol_without_network() -> None:

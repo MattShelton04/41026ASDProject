@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import partial
+from time import monotonic
 from typing import Any
 
 import anyio
@@ -22,6 +24,7 @@ from pydantic import AnyUrl
 from shared_tool_runtime import HttpToolExecutor, ToolCatalog, build_http_executor
 from shared_tool_runtime.invocation import (
     INVOCATION_META_KEY,
+    InvocationContext,
     authorize_invocation,
     validate_service_token,
     verify_invocation,
@@ -36,6 +39,7 @@ from shared_contracts import SideEffectClass, ToolOutcome
 
 RESULT_META_KEY = "propertyscope/tool-result"
 CATALOG_URI = "propertyscope://tools/catalog"
+LOGGER = logging.getLogger(__name__)
 
 
 def create_server(
@@ -115,27 +119,37 @@ def create_server(
     # Validate here so protocol failures cannot expose argument values via SDK error strings.
     @server.call_tool(validate_input=False)  # type: ignore[untyped-decorator]
     async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+        started = monotonic()
+        # Each stage names the reason category logged if that stage rejects the call.
+        stage = "unknown_tool"
+        context: InvocationContext | None = None
         try:
             definition = definitions[name]
+            stage = "missing_invocation"
             metadata = server.request_context.meta
             signed = (metadata.model_extra or {}).get(INVOCATION_META_KEY) if metadata else None
             if not isinstance(signed, str):
                 raise ValueError("signed invocation context is required")
+            stage = "invalid_invocation"
             context = verify_invocation(
                 signed, service_token=service_token, tool_name=name, arguments=arguments
             )
+            stage = "scope_mismatch"
             if (
                 context.feature_key != definition.feature_key and name not in catalog.shared_tools
             ) or context.call.tool_version != definition.version:
                 raise ValueError("tool scope mismatch")
+            stage = "invalid_arguments"
             Draft202012Validator(definition.input_schema, format_checker=FormatChecker()).validate(
                 arguments
             )
             call = context.call.model_copy(update={"arguments": arguments})
+            stage = "policy_denied"
             authorize_invocation(call, definition)
             now = time.time()
             # Consumption happens before yielding, so concurrent repeats cannot dispatch twice.
             if definition.side_effect is not SideEffectClass.READ_ONLY:
+                stage = "replay_rejected"
                 for identity, expiry in tuple(consumed.items()):
                     if expiry <= now:
                         del consumed[identity]
@@ -143,16 +157,45 @@ def create_server(
                 if identity in consumed or len(consumed) >= 10_000:
                     raise ValueError("mutation invocation replay rejected")
                 consumed[identity] = context.deadline
+            stage = "deadline_exceeded"
             timeout_ms = min(definition.timeout_ms, int((context.deadline - now) * 1000))
             if timeout_ms <= 0:
                 raise ValueError("invocation deadline exceeded")
         except (KeyError, ValueError, ValidationError):
+            _log_call(
+                # Identity fields come only from verified context, never unverified metadata.
+                context,
+                tool_name=name if name in definitions else None,
+                outcome="rejected",
+                error_code=stage,
+                started=started,
+            )
             return types.CallToolResult(
                 content=[types.TextContent(type="text", text="Tool invocation rejected")],
                 isError=True,
             )
-        result = await anyio.to_thread.run_sync(
-            partial(executor.execute, call, definition, timeout_ms=timeout_ms)
+        try:
+            result = await anyio.to_thread.run_sync(
+                partial(executor.execute, call, definition, timeout_ms=timeout_ms)
+            )
+        except Exception as exc:
+            _log_call(
+                context,
+                tool_name=name,
+                outcome="failure",
+                error_code="executor_error",
+                started=started,
+                error=exc,
+            )
+            raise
+        _log_call(
+            context,
+            tool_name=name,
+            outcome="success" if result.outcome is ToolOutcome.SUCCEEDED else "failure",
+            error_code=result.error.code if result.error is not None else None,
+            started=started,
+            tool_outcome=result.outcome,
+            retryable=result.retryable,
         )
         return types.CallToolResult(
             content=[types.TextContent(type="text", text="Tool invocation completed")],
@@ -162,6 +205,45 @@ def create_server(
         )
 
     return server
+
+
+def _log_call(
+    context: InvocationContext | None,
+    *,
+    tool_name: str | None,
+    outcome: str,
+    error_code: str | None,
+    started: float,
+    tool_outcome: ToolOutcome | None = None,
+    retryable: bool | None = None,
+    error: BaseException | None = None,
+) -> None:
+    """Write one allowlisted line per tool call; arguments and metadata are never passed."""
+    call = context.call if context is not None else None
+    if outcome == "success":
+        level = logging.INFO
+    else:
+        level = logging.ERROR if error is not None else logging.WARNING
+    LOGGER.log(
+        level,
+        "MCP tool call completed" if outcome != "rejected" else "MCP tool call rejected",
+        exc_info=error,
+        extra={
+            "event": "mcp.tool_call.completed",
+            "request_id": call.request_id if call is not None else None,
+            "run_id": call.run_id if call is not None else None,
+            "step_id": call.step_id if call is not None else None,
+            "tool_call_id": call.id if call is not None else None,
+            "feature_key": context.feature_key if context is not None else None,
+            "outcome": outcome,
+            "duration_ms": max(0, int((monotonic() - started) * 1_000)),
+            "error_code": error_code,
+            "tool_name": tool_name,
+            "tool_version": call.tool_version if call is not None else None,
+            "tool_outcome": tool_outcome,
+            "retryable": retryable,
+        },
+    )
 
 
 class ServiceAuthentication:

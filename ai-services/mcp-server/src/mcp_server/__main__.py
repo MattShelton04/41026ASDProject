@@ -6,6 +6,7 @@ from pathlib import Path
 import uvicorn
 from shared_tool_runtime import load_tool_catalogs
 
+from mcp_server.observability import configure_structured_logging, log_level_from_environment
 from mcp_server.server import create_app
 
 
@@ -14,6 +15,7 @@ def main() -> None:
     host = os.environ.get("MCP_HOST", "127.0.0.1")
     if host not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("MCP_HOST must be loopback")
+    configure_structured_logging(log_level_from_environment())
     paths = tuple(
         Path(value.strip())
         for value in os.environ.get("MCP_TOOL_CATALOG_PATHS", "").split(",")
