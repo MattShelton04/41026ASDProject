@@ -63,6 +63,11 @@ Coverage = Literal["accepted", "partial", "stale", "unavailable"]
 OperationalFilter = Literal["current", "all"]
 _SUBURB_ID = re.compile(r"^[1-9][0-9]{0,11}$")
 _POSTCODE = re.compile(r"^[0-9]{4}$")
+# The one schema version each dataset must carry to answer a suburb-map read.
+_DATASET_SCHEMAS = {
+    BOUNDARY_DATASET: BOUNDARY_SCHEMA,
+    **{category.dataset_id: category.schema_version for category in MAP_CATEGORIES},
+}
 # Accepted pointers that may contribute to any suburb-map response.
 _POINTER_KEYS = (
     (BOUNDARY_DATASET, BOUNDARY_TARGET_FEATURE),
@@ -264,11 +269,13 @@ class SuburbMapReads:
         return releases, observed_at
 
     def release_pointers(self, datasets: Iterable[str]) -> dict[str, str | None]:
+        """Compatible accepted release per dataset, exactly as a full read would use it."""
         releases, _ = self.accepted_releases()
-        return {
-            dataset: (str(releases[dataset]["dataset_release_id"]) if dataset in releases else None)
-            for dataset in datasets
-        }
+        pointers: dict[str, str | None] = {}
+        for dataset in datasets:
+            release = _compatible(releases.get(dataset), _DATASET_SCHEMAS[dataset])
+            pointers[dataset] = str(release["dataset_release_id"]) if release else None
+        return pointers
 
     # Search and detail ---------------------------------------------------------------------
 

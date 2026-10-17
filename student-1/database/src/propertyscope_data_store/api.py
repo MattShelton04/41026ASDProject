@@ -755,12 +755,14 @@ def register_error_handlers(app: Any) -> None:
 
 
 def etag_matches(header: str | None, etag: str) -> bool:
-    """RFC 9110 weak comparison for ``If-None-Match`` (``*`` or a list of entity tags)."""
+    """RFC 9110 weak comparison for an ``If-None-Match`` list of entity tags.
+
+    ``*`` is deliberately not honoured: it would answer 304 before the suburb's existence in
+    the accepted generation is checked. Clients revalidate with the ETag they received.
+    """
     if not header or len(header) > 2048:
         return False
     candidates = [item.strip() for item in header.split(",")]
-    if "*" in candidates:
-        return True
     return etag in {item[2:] if item.startswith("W/") else item for item in candidates}
 
 
