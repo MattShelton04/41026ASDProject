@@ -45,9 +45,9 @@ factory, a host process on `:5013`, no Dockerfile.
    - `multi-agent`: workflow histories and audits
    - `testing`: the security report and `ci/*.md`
    - `cloud`: the deployment report, workflow logs and smoke output
-3. Each mode starts an AI-mode run with a review prompt set (`review-multi-agent.v1`,
-   `review-testing.v1`, `review-cloud.v1`). The output schema has findings, risks,
-   recommendations and a verdict.
+3. Each mode starts an AI-mode run with a review prompt set (`review-multi-agent.v2`,
+   `review-testing.v2`, `review-cloud.v2`; v1 is kept for earlier logs). The output schema has
+   findings, risks, recommendations and a verdict.
 4. Write `reviews/<mode>-review.md` and `<mode>-validation-log.jsonl` (run ID, prompt version,
    inputs hashed, checks passed/failed). Add a `--deterministic` flag for tests.
 5. The cloud review ends with a human release decision, recorded in `cloud/release-decision.md`.

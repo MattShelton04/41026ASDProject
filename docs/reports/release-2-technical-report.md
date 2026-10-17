@@ -192,7 +192,7 @@ feature origin (:5200) and through the shared edge (:5100):
 ## 7 Testing review
 
 `dev.py ai review testing` collects the security report and each `ci/student-N.md`, builds a
-deterministic checklist and reviews it through the shared loop (`review-testing.v1`). The verdict
+deterministic checklist and reviews it through the shared loop (`review-testing.v2`). The verdict
 is the stricter of the model's and the checklist's; each review appends to the validation log.
 
 [[REVIEW_SUMMARY testing]]

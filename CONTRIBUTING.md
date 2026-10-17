@@ -99,7 +99,7 @@ only for documented, non-secret defaults.
 | Type-check canonical Python | `uv run python scripts/check.py typecheck` |
 | Syntax-check first-party browser JavaScript | `uv run python scripts/check.py compile` |
 | Run deterministic Python and frontend tests | `uv run python scripts/check.py test` |
-| Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 60% Feature 1 ratchet) |
+| Run tests with enforced coverage | `uv run python scripts/check.py` (90% core branch coverage; 72% Feature 1 ratchet) |
 | Generate contract artefacts | `uv run python scripts/generate_contracts.py` |
 | Generate or drift-check deployment projections | `uv run python scripts/generate_deployment.py` / `uv run python scripts/generate_deployment.py --check` |
 | Validate repository boundaries | `uv run python scripts/validate_architecture.py` |
