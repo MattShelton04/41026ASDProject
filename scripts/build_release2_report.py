@@ -92,13 +92,13 @@ SECTION_WORD_BUDGETS = {
     "3 ": 320,  # Design flow: shared flows plus about 40 words per student
     "4 ": 230,  # Azure reference architecture and DevOps flow
     "5 ": 210,  # Pre-commit security testing (generated summary and slice table)
-    "6 ": 440,  # Post-commit CI: generated run table plus about 70 words per student
+    "6 ": 400,  # Post-commit CI: generated run table plus about 60 words per student
     "7 ": 130,  # Testing review
     "8 ": 210,  # Local deployment and multi-terminal logs
     "9 ": 190,  # Cloud deployment report, review and human release decision
     "10 ": 400,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
     "11 ": 30,  # GitHub commit log URL
-    "12 ": 300,  # Contribution logs, about 60 words per student
+    "12 ": 340,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
     "13 ": 60,  # Bonus evidence
     "14 ": 40,  # Showcase video and participation
 }
