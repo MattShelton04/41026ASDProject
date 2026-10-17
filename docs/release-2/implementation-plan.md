@@ -14,7 +14,7 @@ This plan delivers [requirements.md](requirements.md). Each part has its own sco
 | D4 | Each feature registers **one workflow template** as a manifest in its own slice (`student-N/config/multi-agent/workflow.yaml`), as RAG corpora already do | Feature rules stay in the owning slice and the server stays domain-neutral |
 | D5 | Run the review modes through the existing loop: `dev.py ai review {multi-agent,testing,cloud}` collects evidence files, runs an AI-mode review run, and writes a report and a JSONL log | Adds the modes to the same loop that holds R0/R1 behaviour. The runs also appear in Activity history |
 | D6 | Put all evidence under `docs/release-2/evidence/` (layout below) | One place for the report builder and the review modes to read from |
-| D7 | `cloud-deployment.yml` runs on `workflow_run` after Integration CI succeeds on `main`, or manually. It uses GitHub OIDC with a federated credential and a protected `production` environment | Satisfies the brief's "after the required CI/CD validation succeeds" with no stored cloud keys. Environment approval records a human in the loop |
+| D7 | `cloud-deployment.yml` runs on `workflow_run` when Integration CI completes for a push to `main`, or manually. Its `verify-ci` job requires Integration CI and all five `student-N.yml` workflows to have passed for the deployed commit; its `build-validate` job builds every image and validates the Azure Compose model; only then does `deploy` run. It uses GitHub OIDC with a federated credential and a protected `production` environment | Satisfies the brief's "after the required CI/CD validation succeeds" and its flow (endpoint tests, then Docker build/validation, then deployment) with no stored cloud keys. Environment approval records a human in the loop |
 
 ADRs to add: **ADR-047** (Multi-Agent Server boundary) and **ADR-048** (Azure VM hosting and the
 cloud AI flag). Also update `shared-platform-design.md` and the root README.
@@ -86,5 +86,11 @@ docs/release-2/evidence/
 
 - Which member's Azure subscription and credit to use, and who has deploy rights (Matthew).
 - Public DNS label for the VM and the region (default `australiaeast`).
-- Cloud data: the seeded baseline only, or a small published real release (Feature 1).
 - Whether the tutor accepts non-cumulative bonus combinations.
+
+Closed:
+
+- Cloud data (Feature 1): the **seeded demonstration baseline**, labelled as such in the UI and
+  the reports. A real release reaches the cloud only through the normal review and publication
+  ([Feature 1 plan](parts/feature-1.md#cloud)).
+- Deployment gate (D7): `verify-ci` and `build-validate` before `deploy`.

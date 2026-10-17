@@ -84,10 +84,17 @@ factory, a host process on `:5013`, no Dockerfile.
    default.
 3. **Scripts** `deployment/azure/deploy.sh` (and a `dev.py cloud` wrapper): `provision`, `push`,
    `deploy`, `smoke`, `ai on|off`. They are idempotent and reusable from a laptop or from Actions.
-4. **`cloud-deployment.yml`:** gate on Integration CI success, then OIDC login, build and push
-   images, Bicep deploy, VM deploy through `az vm run-command`, then the public smoke test (the
-   home page plus each feature's CRUD case). Upload the logs and the report. Use the `production`
-   environment.
+4. **`cloud-deployment.yml`:** triggered when Integration CI completes for a push to `main` (or
+   by hand), in three jobs. `verify-ci` is the release gate: Integration CI must have succeeded
+   on the deployed commit, and each path-filtered `student-N.yml` on its latest run at that
+   commit or an ancestor (`scripts/verify_release_gate.py`, which waits for runs still in
+   progress). `build-validate` builds every release image and validates the Azure Compose model
+   (`scripts/validate_release_images.py`). Only then does `deploy` run in the `production`
+   environment: OIDC login, Bicep provision, push images, VM deploy through `az vm run-command`,
+   then the public smoke test (the home page plus each feature's CRUD case). Upload the gate
+   record, build record, logs and report. This follows the brief's flow: pre-commit → GitHub
+   Actions → endpoint tests → Docker build/validation → `cloud-deployment.yml` → Azure. **Done**;
+   `deploy` skips until `AZURE_SUBSCRIPTION_ID` is set.
 5. Produce the cloud deployment report automatically from the workflow outputs into
    `evidence/cloud/`.
 6. Write ADR-048 and the Azure reference architecture diagram for the report.
