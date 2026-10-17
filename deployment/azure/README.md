@@ -136,7 +136,18 @@ az account set --subscription "$SUBSCRIPTION_ID"
    ```
 
 3. **Create the GitHub deployer identity with an OIDC federated credential.** It has no client
-   secret.
+   secret. First check which subject format GitHub puts in this repository's OIDC tokens:
+
+   ```bash
+   gh api repos/MattShelton04/41026ASDProject/actions/oidc/customization/sub
+   ```
+
+   With `"use_immutable_subject": true` (as in this repository), the token subject starts with
+   the reported `sub_claim_prefix`, which carries the owner and repository IDs, so the credential
+   subject must be `<sub_claim_prefix>:environment:production`, here
+   `repo:MattShelton04@103937891/41026ASDProject@1312401450:environment:production`. Otherwise the
+   classic subject in the example below applies. A mismatch fails the workflow's Azure sign-in
+   with `AADSTS700213` (no matching federated identity record).
 
    ```bash
    APP_ID=$(az ad app create --display-name propertyscope-github-deployer --query appId -o tsv)
@@ -161,9 +172,11 @@ az account set --subscription "$SUBSCRIPTION_ID"
    rewrites the `/subscriptions/...` scope into a Windows path and az fails with
    `MissingSubscription`. `deploy.sh` and its validators already do this for every az call.
 
-   The job uses `environment: production`, so the token subject is always
-   `repo:MattShelton04/41026ASDProject:environment:production`. A credential for
-   `ref:refs/heads/main` is **not** needed and would not match.
+   The job uses `environment: production`, so the token subject always ends in
+   `:environment:production`: `repo:MattShelton04/41026ASDProject:environment:production` with
+   classic subjects, `<sub_claim_prefix>:environment:production` with immutable ones. Creating a
+   credential for each format is harmless. A credential for `ref:refs/heads/main` is **not**
+   needed and would not match.
 
    **If the tenant blocks app registrations**, a user-assigned managed identity in the resource
    group works the same way: create it with `az identity create`, add the same federated
@@ -207,7 +220,9 @@ az account set --subscription "$SUBSCRIPTION_ID"
    environment so that it never waits for an approval. Create `operations`, limited to `main`,
    with no required reviewers, and add a second federated credential to the deployer identity
    from step 3 (name `github-operations-environment`, subject
-   `repo:MattShelton04/41026ASDProject:environment:operations`).
+   `repo:MattShelton04/41026ASDProject:environment:operations`, or, with immutable subjects as in
+   step 3, `<sub_claim_prefix>:environment:operations`, here
+   `repo:MattShelton04@103937891/41026ASDProject@1312401450:environment:operations`).
 
 5. **Provision once from a laptop.** Copy `.env.azure.example` to `.env.azure` (Git-ignored) and
    fill in the same values. Put your own object ID in `AZURE_SECRET_OFFICER_IDS`. Use
