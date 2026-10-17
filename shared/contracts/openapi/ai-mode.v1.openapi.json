@@ -585,7 +585,10 @@
               "default.v9",
               "review-multi-agent.v1",
               "review-testing.v1",
-              "review-cloud.v1"
+              "review-cloud.v1",
+              "review-multi-agent.v2",
+              "review-testing.v2",
+              "review-cloud.v2"
             ],
             "title": "Prompt Set",
             "type": "string"
@@ -1156,7 +1159,8 @@
         "description": "Deterministic outcome of one checklist item.",
         "enum": [
           "passed",
-          "failed"
+          "failed",
+          "blocked"
         ],
         "title": "CheckStatus",
         "type": "string"
@@ -1583,8 +1587,23 @@
       },
       "EvidenceCheck": {
         "additionalProperties": false,
-        "description": "One deterministic checklist item with the evidence that decided it.",
+        "description": "One deterministic checklist item with the evidence that decided it.\n\n``owner`` names who supplies the evidence (for example ``shared`` or ``student-2``).\nA ``blocked`` check was not evaluated; ``blocked_by`` is the failed root check that\nstopped it, never another blocked check.",
         "properties": {
+          "blocked_by": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Blocked By"
+          },
           "detail": {
             "maxLength": 500,
             "minLength": 1,
@@ -1608,6 +1627,21 @@
             "pattern": "^[a-z0-9][a-z0-9_.-]*$",
             "title": "Id",
             "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Owner"
           },
           "required": {
             "default": true,

@@ -80,7 +80,7 @@ def _request(bundle: EvidenceReviewBundle | None = None, **changes: Any) -> dict
     payload: dict[str, Any] = {
         "feature_key": REVIEW_FEATURE_KEY,
         "objective": (bundle or _bundle()).model_dump_json(),
-        "prompt_set": "review-testing.v1",
+        "prompt_set": "review-testing.v2",
         "tool_allowlist": [REVIEW_EVIDENCE_TOOL],
         "title": "Release 2 testing evidence review",
     }
@@ -146,7 +146,7 @@ def test_api_accepts_a_review_run_and_keeps_scopes_apart(
     assert accepted.status_code == 202
     stored = app_services.store.get(accepted.get_json()["id"])
     assert stored is not None
-    assert stored.run.prompt_set == "review-testing.v1"
+    assert stored.run.prompt_set == "review-testing.v2"
     for response, text in (
         (feature_borrowing, "available only"),
         (loop_default, "available only"),
@@ -157,6 +157,19 @@ def test_api_accepts_a_review_run_and_keeps_scopes_apart(
         payload = response.get_json()
         assert_problem_detail(payload, status=422, code="review_scope_invalid")
         assert text in payload["detail"]
+
+
+def test_v1_review_prompt_sets_stay_valid_for_history(
+    app: Flask, app_services: AppServices
+) -> None:
+    response = app.test_client().post(
+        "/api/v1/agent-runs", json=_request(prompt_set="review-testing.v1")
+    )
+
+    assert response.status_code == 202
+    stored = app_services.store.get(response.get_json()["id"])
+    assert stored is not None and stored.run.prompt_set == "review-testing.v1"
+    assert bundle_for(stored.run).mode == "testing"
 
 
 def test_bundle_tool_returns_a_compact_checklist_projection() -> None:
@@ -172,18 +185,24 @@ def test_bundle_tool_returns_a_compact_checklist_projection() -> None:
     assert result.content["failed_checks"] == [
         {
             "id": "ci.student-1.run",
+            "owner": None,
             "required": True,
             "detail": "Evidence gap: ci/student-1.md is missing.",
             "evidence_refs": ["ci/student-1.md"],
+            "blocks": 0,
         }
     ]
     assert result.content["counts"] == {
         "checks": 2,
         "failed": 1,
         "failed_required": 1,
+        "blocked": 0,
+        "blocked_required": 0,
         "inputs": 2,
         "inputs_unread": 1,
     }
+    assert result.content["blocked_checks"] == []
+    assert result.content["owners"] == []
     assert result.evidence_references == (f"security/pre-commit-report.md#sha256:{'a' * 64}",)
 
 
@@ -248,19 +267,95 @@ def test_completion_validator_binds_the_review_to_its_bundle() -> None:
         bundle_for(feature_run)
 
 
-def test_review_prompt_sets_use_the_review_planner_and_mode_reviewer() -> None:
+@pytest.mark.parametrize("version", ["v1", "v2"])
+def test_review_prompt_sets_use_the_review_planner_and_mode_reviewer(version: str) -> None:
     builder = RegistryPromptBuilder(PromptRegistry(PROMPT_ROOT))
+    builder.validate_declared()
     for mode in ("multi-agent", "testing", "cloud"):
         bundle = _bundle(mode)
-        run = _run(objective=bundle.model_dump_json(), prompt_set=f"review-{mode}.v1")
+        run = _run(objective=bundle.model_dump_json(), prompt_set=f"review-{mode}.{version}")
 
         plan = builder.build_plan_request(run, (review_evidence_definition(),))
+        reviewer = PromptRegistry(PROMPT_ROOT).load(f"review-{mode}", version)
 
         assert plan.role is ModelRole.PLANNER
-        assert (plan.prompt_id, plan.prompt_version) == ("review-planner", "v1")
+        assert (plan.prompt_id, plan.prompt_version) == ("review-planner", version)
         assert "review.evidence.v1" in plan.messages[0].content
         assert "untrusted" in plan.messages[1].content
+        assert reviewer.metadata.role is ModelRole.ADAPTER
+        if version == "v2":
+            assert "blocked" in plan.messages[0].content
+            assert "one finding per root cause" in reviewer.content.lower()
+            assert "has not submitted" in reviewer.content
+            assert "The decision is about the review run, not the release." in reviewer.content
     assert project_bundle(_bundle(failed=False))["checklist_verdict"] == "pass"
+
+
+def test_bundle_projection_groups_blocked_checks_under_their_root() -> None:
+    bundle = EvidenceReviewBundle.model_validate(
+        {
+            "mode": "multi-agent",
+            "inputs": [
+                {"path": "multi-agent/student-2/workflow_history.jsonl", "status": "missing"}
+            ],
+            "checks": [
+                {
+                    "id": "student-1.evidence",
+                    "title": "Exported",
+                    "status": "passed",
+                    "detail": "2 runs.",
+                    "owner": "student-1",
+                },
+                {
+                    "id": "student-2.evidence",
+                    "title": "Exported",
+                    "status": "failed",
+                    "detail": "Evidence not submitted.",
+                    "evidence_refs": ["multi-agent/student-2/workflow_history.jsonl"],
+                    "owner": "student-2",
+                },
+                *(
+                    {
+                        "id": f"student-2.{kind}",
+                        "title": kind,
+                        "status": "blocked",
+                        "required": kind != "handoffs",
+                        "detail": "Not evaluated: blocked by student-2.evidence, which failed.",
+                        "owner": "student-2",
+                        "blocked_by": "student-2.evidence",
+                    }
+                    for kind in ("stages", "handoffs")
+                ),
+            ],
+        }
+    )
+
+    projection = project_bundle(bundle)
+
+    assert projection["checklist_verdict"] == "fail"
+    assert projection["counts"]["blocked"] == 2  # type: ignore[index,call-overload]
+    assert projection["counts"]["blocked_required"] == 1  # type: ignore[index,call-overload]
+    assert [check["id"] for check in projection["failed_checks"]] == ["student-2.evidence"]  # type: ignore[index,union-attr]
+    assert projection["failed_checks"][0]["blocks"] == 2  # type: ignore[index]
+    assert projection["blocked_checks"] == [
+        {
+            "root": "student-2.evidence",
+            "owner": "student-2",
+            "count": 2,
+            "required": 1,
+            "checks": ["student-2.stages", "student-2.handoffs"],
+        }
+    ]
+    assert projection["owners"] == [
+        {"owner": "student-1", "passed": 1, "failed": 0, "blocked": 0, "status": "complete"},
+        {
+            "owner": "student-2",
+            "passed": 0,
+            "failed": 1,
+            "blocked": 2,
+            "status": "evidence_not_submitted",
+        },
+    ]
 
 
 class _Store:

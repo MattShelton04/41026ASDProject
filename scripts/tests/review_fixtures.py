@@ -8,6 +8,7 @@ Markdown built from ``shared_testkit.junit_summary``, and the cloud smoke JSON.
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
@@ -38,6 +39,13 @@ def write_evidence(root: Path) -> Path:
     write_testing(root)
     write_cloud(root)
     return root
+
+
+def drop_student(root: Path, student: str) -> None:
+    """Remove one student's multi-agent and CI evidence, as if they had not submitted it."""
+    shutil.rmtree(root / "multi-agent" / student, ignore_errors=True)
+    shutil.rmtree(root / "ci" / student, ignore_errors=True)
+    (root / "ci" / f"{student}.md").unlink(missing_ok=True)
 
 
 def run_id_for(student: str) -> str:

@@ -73,7 +73,7 @@ class ReviewResult:
 
 
 def collect_bundle(mode: ReviewMode, evidence_dir: Path) -> EvidenceReviewBundle:
-    """Collect one mode's bounded evidence; missing evidence becomes failed checks."""
+    """Collect one mode's bounded evidence; missing evidence becomes failed or blocked checks."""
     return COLLECTORS[mode](EvidenceReader(evidence_dir))
 
 

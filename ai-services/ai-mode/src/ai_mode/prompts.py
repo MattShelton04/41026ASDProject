@@ -160,6 +160,19 @@ class RegistryPromptBuilder(PromptBuilder):
             ModelRole.PLANNER: ("review-planner", "v1"),
             ModelRole.ADAPTER: ("review-cloud", "v1"),
         },
+        # v2 reviews know blocked checks and evidence owners: one finding per root cause.
+        "review-multi-agent.v2": {
+            ModelRole.PLANNER: ("review-planner", "v2"),
+            ModelRole.ADAPTER: ("review-multi-agent", "v2"),
+        },
+        "review-testing.v2": {
+            ModelRole.PLANNER: ("review-planner", "v2"),
+            ModelRole.ADAPTER: ("review-testing", "v2"),
+        },
+        "review-cloud.v2": {
+            ModelRole.PLANNER: ("review-planner", "v2"),
+            ModelRole.ADAPTER: ("review-cloud", "v2"),
+        },
     }
 
     def __init__(self, registry: PromptRegistry) -> None:
