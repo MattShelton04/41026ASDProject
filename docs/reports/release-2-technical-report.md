@@ -120,16 +120,16 @@ host process and container-only services cannot host it.
 ![Figure 4 DevOps flow from commit to Azure](assets/release-2/devops-flow.png)
 
 A commit runs the pre-commit hooks. A push to `main` runs `integration-ci.yml` and each
-`student-N.yml`, which tests two endpoint functions. When Integration CI completes,
-`cloud-deployment.yml` gates the release: `verify-ci` waits until Integration CI and all five
-student workflows have passed for that commit, and `build-validate` builds every image and
-validates the Azure Compose model. Only then does `deploy` run the reusable
-[`deploy.sh`](../../deployment/azure/README.md) steps in the protected `production` environment.
+`student-N.yml`, which tests two endpoint functions. `cloud-deployment.yml` then gates the
+release: `verify-ci` waits until Integration CI and all five student workflows have passed for
+that commit, and `build-validate` builds every image and validates the Azure Compose model. Only
+then does `deploy` run the reusable [`deploy.sh`](../../deployment/azure/README.md) steps in the
+protected `production` environment.
 
-The deployment runs on an *Azure for Students* subscription in `newzealandnorth`, because the
-subscription's region policy blocks `australiaeast`, on a `Standard_D4as_v4` VM (4 vCPU, 16 GiB;
-the subscription has no DSv5 quota). The first deployment, [run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), passed the
-gate, started 21 of 21 containers and passed the smoke test with the AI tier off.
+The VM is a `Standard_D4as_v4` in `newzealandnorth`, because the *Azure for Students* region
+policy blocks `australiaeast`.
+
+![Figure 5 Deployed resources and inbound rules](assets/release-2/screenshots/azure-resources.png)
 
 ## 5 Pre-commit security testing
 
@@ -226,9 +226,14 @@ with `ai review decide`, which refuses if the evidence changed since the review.
 
 [[CLOUD_SUMMARY]]
 
-[[REVIEW_SUMMARY cloud]]
+The smoke test passed 37 of 37 checks, covering create, read and delete in all five features;
+AI-mode answered `503 ai_disabled`.
 
-![Figure 5 Deployed home page on Azure](assets/release-2/screenshots/azure-home.png)
+![Figure 6 Gated cloud deployment run](assets/release-2/screenshots/azure-workflow.png)
+
+![Figure 7 Deployed application with real Feature 1 data](assets/release-2/screenshots/azure-app.png)
+
+[[REVIEW_SUMMARY cloud]]
 
 ## 10 Multi-agent workflow evidence
 
@@ -255,9 +260,9 @@ published. Terminal run `c17c66cc` used the same template from the CLI.
 
 [[WORKFLOW_HISTORY multi-agent/student-1/18740ca5-ui]]
 
-![Figure 6 F1 round 1 Reviewer recommendation in the shared panel](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/04-round1-reviewer.png)
+![Figure 8 F1 round 1 Reviewer recommendation in the shared panel](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/04-round1-reviewer.png)
 
-![Figure 7 F1 recorded human decisions](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/08-final-decisions.png)
+![Figure 9 F1 recorded human decisions](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/08-final-decisions.png)
 
 ### Student 2
 
@@ -318,8 +323,10 @@ Section 12 lists each student's commits.
 
 ## 13 Bonus evidence
 
-No bonus is claimed yet. The endpoint security validation (B5) passed on Azure in the first CI
-deployment. The data security validation (B6) and the B1–B4 AI tiers have not yet run there.
+No bonus is claimed yet. Against run 39112162750, endpoint security
+([B5](../release-2/evidence/cloud/endpoint-security.txt)) and data security
+([B6](../release-2/evidence/cloud/data-security.txt)) validation passed with no failures. B1–B4
+have not yet run on Azure.
 
 [[TODO: Matthew Shelton | For each bonus claimed, link its validation output under evidence/bonus/; otherwise keep "No bonus is claimed"]]
 
@@ -361,6 +368,18 @@ evidence:
   section: 8 Local deployment evidence
   path: docs/release-2/evidence/local/local-deployment-report.md
   boundary: Running local ps-dev stack with real published data; host AI services outside Docker.
+- kind: cloud-deployment
+  section: 9 Cloud deployment report and review
+  path: docs/release-2/evidence/cloud/cloud-deployment-report.md
+  boundary: Azure production VM at 3c25c08 with the AI tier off; real accepted Feature 1 releases.
+- kind: cloud-workflow
+  section: 9 Cloud deployment report and review
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750
+  boundary: Manual dispatch on main, gate passed, production environment approved by a person.
+- kind: cloud-review
+  section: 9 Cloud deployment report and review
+  path: docs/release-2/evidence/reviews/cloud-review.md
+  boundary: Deterministic shared-loop review of the committed cloud evidence.
 - kind: testing-review
   section: 7 Testing review
   path: docs/release-2/evidence/reviews/testing-review.md

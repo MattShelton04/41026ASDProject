@@ -1,0 +1,39 @@
+PASS [shared] Site login required: anonymous HTTP 401, challenge Basic
+PASS [shared] Edge liveness stays public: anonymous HTTP 200
+PASS [shared] Shared home page: HTTP 200 text/html
+PASS [shared] Shared edge liveness: HTTP 200, status ok
+PASS [student-1] data-platform frontend: HTTP 200 text/html
+PASS [student-1] data-platform health: HTTP 200, status healthy
+PASS [student-2] market-intelligence frontend: HTTP 200 text/html
+PASS [student-2] market-intelligence health: HTTP 200, status healthy
+PASS [student-3] suburb-analytics frontend: HTTP 200 text/html
+PASS [student-3] suburb-analytics health: HTTP 200, status ready
+PASS [student-4] due-diligence frontend: HTTP 200 text/html
+PASS [student-4] due-diligence health: HTTP 200, status healthy
+PASS [student-5] buyer-workspaces frontend: HTTP 200 text/html
+PASS [student-5] buyer-workspaces health: HTTP 200, status healthy
+PASS [student-1] CRUD source definition: create: HTTP 201, id eaf86892-d331-4ef9-b0f9-3f43d0d23e23
+PASS [student-1] CRUD source definition: read: HTTP 200, name matches
+PASS [student-1] CRUD source definition: update: HTTP 200, notes changed
+PASS [student-1] CRUD source definition: confirm update: HTTP 200, notes persisted
+PASS [student-1] CRUD source definition: delete: HTTP 204
+PASS [student-1] CRUD source definition: confirm deleted: HTTP 404 after delete
+PASS [student-2] CRUD market case: create: HTTP 201, id 09b4f09c-9282-43ab-9a3f-9ca9eab28ff5
+PASS [student-2] CRUD market case: read: HTTP 200, name matches
+PASS [student-2] CRUD market case: delete: HTTP 200
+PASS [student-2] CRUD market case: confirm deleted: HTTP 404 after delete
+PASS [student-3] CRUD saved suburb comparison: create: HTTP 201, id a488b6cb-37f0-4332-bd3b-697eefcd8f6e
+PASS [student-3] CRUD saved suburb comparison: read: HTTP 200, name matches
+PASS [student-3] CRUD saved suburb comparison: delete: HTTP 200
+PASS [student-3] CRUD saved suburb comparison: confirm deleted: HTTP 404 after delete
+PASS [student-4] CRUD site review: create: HTTP 201, id 267981dc-8529-409b-b099-55c001e80ea2
+PASS [student-4] CRUD site review: read: HTTP 200, title matches
+PASS [student-4] CRUD site review: delete: HTTP 200
+PASS [student-4] CRUD site review: confirm deleted: HTTP 404 after delete
+PASS [student-5] CRUD buyer case: create: HTTP 201, id e606d05f-ed78-4d87-b07f-3457e8144332
+PASS [student-5] CRUD buyer case: read: HTTP 200, name matches
+PASS [student-5] CRUD buyer case: delete: HTTP 200
+PASS [student-5] CRUD buyer case: confirm deleted: HTTP 404 after delete
+PASS [shared] AI tier disabled by default: disabled: HTTP 503, code ai_disabled
+
+37/37 checks passed; reports in /home/runner/work/41026ASDProject/41026ASDProject/.propertyscope-runtime/cloud/smoke
