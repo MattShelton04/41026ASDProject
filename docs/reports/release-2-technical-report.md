@@ -292,18 +292,17 @@ Section 12 lists each student's commits.
 
 | Date | Commit | Release 2 work |
 |---|---|---|
-| 8 Oct | [36a4c26](https://github.com/MattShelton04/41026ASDProject/commit/36a4c26) | Requirements, implementation plan and per-part responsibilities |
-| 9 Oct | [f86f787](https://github.com/MattShelton04/41026ASDProject/commit/f86f787) | Multi-Agent Server, review modes, security scans, endpoint test kit, Azure preparation |
-| 10 Oct | [bef57da](https://github.com/MattShelton04/41026ASDProject/commit/bef57da) | Shared multi-agent panel, F1 readiness review, live UI evidence |
-| 10 Oct | [06e0ed0](https://github.com/MattShelton04/41026ASDProject/commit/06e0ed0) | Panel redesigned as a live mission relay |
-| 15 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43) | CI evidence collection, stack reliability and F1 improvements |
-| 16 Oct | [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81) | Local deployment evidence and report builder |
-| 16 Oct | [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272) | Parallel quality gate |
-| 17 Oct | [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111) | CI release gate, Azure hardening and rehearsal, owner-attributed reviews, showcase runbook |
-| 17 Oct | [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443) | First Azure switch-on in `newzealandnorth` |
-| 17 Oct | [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5) | Git Bash-safe Azure scripts, automatic-deployment toggle |
+| 8 Oct | [36a4c26](https://github.com/MattShelton04/41026ASDProject/commit/36a4c26) | Requirements and implementation plan |
+| 9 Oct | [f86f787](https://github.com/MattShelton04/41026ASDProject/commit/f86f787) | Multi-Agent Server, review modes, security scans, test kit |
+| 10 Oct | [bef57da](https://github.com/MattShelton04/41026ASDProject/commit/bef57da), [06e0ed0](https://github.com/MattShelton04/41026ASDProject/commit/06e0ed0) | Multi-agent panel, F1 readiness review |
+| 15–16 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43), [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81), [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272) | CI and local evidence, report builder, quality gate |
+| 17 Oct | [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111), [93d0f53](https://github.com/MattShelton04/41026ASDProject/commit/93d0f53) | Release gate, owner-attributed reviews, runbook, evidence refresh |
+| 17 Oct | [5e90231](https://github.com/MattShelton04/41026ASDProject/commit/5e90231), [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443), [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5), [cd8e56d](https://github.com/MattShelton04/41026ASDProject/commit/cd8e56d) | Azure switch-on, site login, security audit fixes |
+| 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6) | F1 suburb-map API, unattended acquisitions, no demonstration data on Azure |
+| 18 Oct | [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08), [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31) | Real sales data on Azure, Cloud AI Tier workflow |
+| 18 Oct | [PR #157](https://github.com/MattShelton04/41026ASDProject/pull/157) | AI-off cloud evidence, release decision |
 
-[[TODO: Matthew Shelton | Add the merged commit of the security audit fixes (PR #150)]]
+[[TODO: Matthew Shelton | Replace PR #157 with its merged commit]]
 
 ### Student 2 Burhan Naeem
 
@@ -408,5 +407,17 @@ contributions:
   - d449a43
   - 07b1c81
   - 72f3272
+  - fdc5111
+  - 93d0f53
+  - 5e90231
+  - ad2b443
+  - 71764a5
+  - cd8e56d
+  - b638c86
+  - 53a2143
+  - 65de8f6
+  - b71c49c
+  - 3c25c08
+  - c1dab31
 attendance: {}
 -->
