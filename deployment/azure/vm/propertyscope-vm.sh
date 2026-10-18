@@ -7,6 +7,7 @@
 #   propertyscope-vm.sh status          containers, AI units, listening sockets, certificate
 #   propertyscope-vm.sh logs [service]  recent Compose (or AI unit) logs
 #   propertyscope-vm.sh validate-data   on-host part of the data-security validation (R2-B6)
+#   propertyscope-vm.sh load-source-cache   copy a source-cache image from ACR into the runner's cache
 #
 # Inputs are environment variables exported by the run-command payload (deploy.sh writes them):
 #   ACR_LOGIN_SERVER IMAGE_TAG KEY_VAULT_NAME PROPERTYSCOPE_PUBLIC_HOST PROPERTYSCOPE_ACME_EMAIL
@@ -15,6 +16,7 @@
 #             PROPERTYSCOPE_SITE_AUTH (on|off, default on: the site-wide viewer login)
 #             PROPERTYSCOPE_SITE_USER (default propertyscope: the viewer login's user name)
 #             PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES
+#             PROPERTYSCOPE_SOURCE_CACHE_IMAGE (load-source-cache: <ACR>/propertyscope/source-cache:<tag>)
 #             PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS (default 12: about 8 minutes of backoff while a new
 #               managed identity, RBAC role assignment or vault firewall rule propagates)
 #             PROPERTYSCOPE_STARTUP_WAIT_SECONDS (default 900: `compose up --wait` on a first boot
@@ -36,6 +38,7 @@ readonly COMPOSE_PROJECT=ps-azure
 readonly AI_UNITS=(propertyscope-ai-mode propertyscope-mcp propertyscope-rag propertyscope-multi-agent)
 readonly IMDS='http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01'
 readonly RUNTIME_DIR=$SRC_DIR/.propertyscope-runtime
+readonly SOURCE_CACHE_VOLUME=${COMPOSE_PROJECT}_f1-source-cache
 AUTH_RETRY_ATTEMPTS=${PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS:-12}
 STARTUP_WAIT_SECONDS=${PROPERTYSCOPE_STARTUP_WAIT_SECONDS:-900}
 SITE_AUTH=${PROPERTYSCOPE_SITE_AUTH:-on}
@@ -284,8 +287,90 @@ PROPERTYSCOPE_ACME_EMAIL=${PROPERTYSCOPE_ACME_EMAIL}
 PROPERTYSCOPE_SECRETS_DIR=${SECRETS_DIR}
 PROPERTYSCOPE_EDGE_CONFIG_SHA=${digest}
 PROPERTYSCOPE_SITE_AUTH=${SITE_AUTH}
+$(psi_cache_environment)
 EOF
     umask 077
+}
+
+# --- Source cache (PSI archives) -----------------------------------------------------------------
+
+# The runner's read-only source cache is the named volume f1-source-cache. Empty until
+# load-source-cache fills it; its Mountpoint is a root-owned host path.
+source_cache_dir() {
+    docker volume inspect --format '{{ .Mountpoint }}' "$SOURCE_CACHE_VOLUME" 2>/dev/null || true
+}
+
+# f1-backend advertises cached PSI partitions so a psi-sales collection reads them instead of the
+# publisher, whose bot challenge refuses Azure addresses. Written into .env on every deploy.
+psi_cache_environment() {
+    local root years='' weeks=''
+    root=$(source_cache_dir)
+    if [[ -n $root && -d $root/psi ]]; then
+        years=$(find "$root/psi" -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9].zip' -printf '%f\n' |
+            sed 's/\.zip$//' | sort | paste -sd, -)
+        if [[ -d $root/psi/weekly ]]; then
+            weeks=$(find "$root/psi/weekly" -maxdepth 1 -type f -name '*.zip' -printf '%f\n' |
+                sed -n 's/^\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)\.zip$/\1-\2-\3/p' | sort | paste -sd, -)
+        fi
+    fi
+    printf 'PROPERTYSCOPE_PSI_CACHED_YEARS=%s\nPROPERTYSCOPE_PSI_CACHED_WEEKS=%s\n' "$years" "$weeks"
+}
+
+# Replaces the PSI lines of the deployed .env without touching the rest of it.
+refresh_psi_environment() {
+    local env_file=$APP_DIR/.env
+    umask 022
+    { grep -v '^PROPERTYSCOPE_PSI_CACHED_' "$env_file" || true; } >"$env_file.tmp"
+    psi_cache_environment >>"$env_file.tmp"
+    mv "$env_file.tmp" "$env_file"
+    umask 077
+}
+
+# deploy.sh source-cache pushes the operator's verified PSI archives (`dev.py data sync-psi`) as a
+# data-only image. Pull it with the VM identity, replace the cache's psi/ directory with its
+# content in one rename, then recreate f1-backend so it advertises the new partitions.
+load_source_cache() {
+    require_env ACR_LOGIN_SERVER PROPERTYSCOPE_SOURCE_CACHE_IMAGE
+    local image=$PROPERTYSCOPE_SOURCE_CACHE_IMAGE root container attempt=1 annual weekly
+    [[ $image == "${ACR_LOGIN_SERVER}/propertyscope/source-cache:"* &&
+        ${image##*:} =~ ^[A-Za-z0-9_.-]{1,128}$ ]] ||
+        die "PROPERTYSCOPE_SOURCE_CACHE_IMAGE must be ${ACR_LOGIN_SERVER}/propertyscope/source-cache:<tag>"
+    [[ -f $APP_DIR/.env ]] || die "nothing is deployed yet: run deploy.sh deploy first"
+    root=$(source_cache_dir)
+    [[ -n $root && -d $root ]] || die "the ${SOURCE_CACHE_VOLUME} volume does not exist yet: run deploy.sh deploy first"
+    acr_login
+    trap acr_logout EXIT
+    until docker pull --quiet "$image" >/dev/null; do
+        backoff "$attempt" "pulling ${image}" || die "could not pull ${image} (did deploy.sh source-cache push it?)"
+        attempt=$((attempt + 1))
+        acr_login
+    done
+    acr_logout
+    trap - EXIT
+    rm -rf "$root/.psi-incoming" "$root/.psi-previous"
+    install -d -m 0755 "$root/.psi-incoming"
+    container=$(docker create "$image")
+    if ! docker cp "$container:/psi/." "$root/.psi-incoming/"; then
+        docker rm "$container" >/dev/null 2>&1 || true
+        die "could not copy the archives out of ${image}"
+    fi
+    docker rm "$container" >/dev/null
+    chown -R root:root "$root/.psi-incoming"
+    chmod -R u=rwX,go=rX "$root/.psi-incoming"
+    [[ -n $(find "$root/.psi-incoming" -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9].zip' -print -quit) ]] ||
+        die "${image} holds no annual PSI archive"
+    if [[ -d $root/psi ]]; then
+        mv "$root/psi" "$root/.psi-previous"
+    fi
+    mv "$root/.psi-incoming" "$root/psi"
+    rm -rf "$root/.psi-previous"
+    docker image rm "$image" >/dev/null 2>&1 || true
+    refresh_psi_environment
+    annual=$(find "$root/psi" -maxdepth 1 -type f -name '*.zip' | wc -l)
+    weekly=$(find "$root/psi" -mindepth 2 -maxdepth 2 -path '*/weekly/*.zip' -type f | wc -l)
+    log "PSI source cache: ${annual} annual and ${weekly} weekly archives ($(du -sh "$root/psi" | cut -f1)) from ${image}"
+    compose up --detach --wait --no-build --no-deps f1-backend
+    log "f1-backend now advertises the cached PSI partitions; collect psi-sales from the Feature 1 pages"
 }
 
 verify_deployment() {
@@ -659,7 +744,8 @@ main() {
         status) status ;;
         logs) logs ;;
         validate-data) validate_data ;;
-        *) die "usage: propertyscope-vm.sh deploy|ai-on|ai-off|status|logs|validate-data" ;;
+        load-source-cache) load_source_cache ;;
+        *) die "usage: propertyscope-vm.sh deploy|ai-on|ai-off|status|logs|validate-data|load-source-cache" ;;
     esac
 }
 

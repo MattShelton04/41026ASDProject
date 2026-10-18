@@ -14,6 +14,7 @@
 #   deploy.sh status | logs [SERVICE] [LINES]  container/AI state, recent logs (through run-command)
 #   deploy.sh outputs                          print the Bicep outputs (fqdn, ACR, VM, Key Vault)
 #   deploy.sh validate-endpoint | validate-data   bonus R2-B5 / R2-B6 validation scripts
+#   deploy.sh [--dry-run] source-cache [--no-sync] [--cache-dir DIR]   ship local PSI archives to the VM's runner cache
 #   deploy.sh all                              provision, push, deploy, smoke
 #
 # Configuration: environment variables, optionally from deployment/azure/.env.azure (the shell
@@ -62,7 +63,7 @@ die() {
 }
 
 usage() {
-    sed -n '4,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '4,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # --- Configuration -----------------------------------------------------------------------------
@@ -617,7 +618,7 @@ vm_payload() {
         PROPERTYSCOPE_CLOUD_AI PROPERTYSCOPE_GIT_SHA PROPERTYSCOPE_REPO_URL PROPERTYSCOPE_EDGE_USER \
         PROPERTYSCOPE_SITE_AUTH PROPERTYSCOPE_SITE_USER \
         PROPERTYSCOPE_FORCE_RECREATE PROPERTYSCOPE_LOG_SERVICE PROPERTYSCOPE_LOG_LINES \
-        PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS PROPERTYSCOPE_STARTUP_WAIT_SECONDS; do
+        PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS PROPERTYSCOPE_STARTUP_WAIT_SECONDS PROPERTYSCOPE_SOURCE_CACHE_IMAGE; do
         if [[ -n ${!variable:-} ]]; then
             printf 'export %s=%q\n' "$variable" "${!variable}"
         fi
@@ -754,6 +755,61 @@ cmd_logs() {
     ensure_azure_context
     vm_environment
     vm_run logs
+}
+
+# --- Source cache --------------------------------------------------------------------------------
+
+# The NSW Valuer General serves PSI archives behind a bot challenge that refuses Azure addresses,
+# so a cloud psi-sales collection cannot download them. The operator's machine can: this command
+# refreshes the verified local cache (`dev.py data sync-psi --all`, which keeps files it already
+# holds), pushes its psi/ directory to ACR as a data-only image named by its content, and has the
+# VM copy it into the runner's read-only source-cache volume with its own AcrPull identity.
+cmd_source_cache() {
+    local sync=true cache=${PROPERTYSCOPE_SOURCE_CACHE_DIR:-.propertyscope-source-cache}
+    while (($#)); do
+        case $1 in
+            --no-sync)
+                sync=false
+                shift
+                ;;
+            --cache-dir)
+                [[ -n ${2:-} ]] || die "--cache-dir needs a directory"
+                cache=$2
+                shift 2
+                ;;
+            *) die "unknown source-cache option: $1" ;;
+        esac
+    done
+    # Relative paths resolve from the repository root, as dev.py and Compose resolve them.
+    [[ $cache == /* || $cache =~ ^[A-Za-z]:[\\/] ]] || cache=$REPO_ROOT/$cache
+    [[ $REHEARSAL != true ]] || die "source-cache targets Azure only"
+    ensure_azure_context
+    load_outputs
+    require_tool docker sha256sum
+    if [[ $sync == true ]]; then
+        log "Refreshing the local PSI cache in $cache (verified files are kept)"
+        PROPERTYSCOPE_SOURCE_CACHE_DIR=$cache run uv run --project "$REPO_ROOT" python \
+            "$REPO_ROOT/scripts/dev.py" data sync-psi --all
+    fi
+    [[ $DRY_RUN == true || -n $(find "$cache/psi" -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9].zip' -print -quit 2>/dev/null) ]] ||
+        die "no PSI archives in $cache/psi: run 'uv run scripts/dev.py data sync-psi --all' first"
+    local digest image
+    digest=$( (cd "$cache/psi" 2>/dev/null && find . -type f -name '*.zip' | LC_ALL=C sort | xargs -r sha256sum) |
+        sha256sum | cut -c1-16)
+    image="$ACR_LOGIN_SERVER/propertyscope/source-cache:psi-$digest"
+    run az acr login --name "$ACR_NAME" --only-show-errors
+    if [[ $DRY_RUN != true ]] && az acr repository show --name "$ACR_NAME" --image "propertyscope/source-cache:psi-$digest" --only-show-errors >/dev/null 2>&1; then
+        log "ACR already holds $image"
+    else
+        log "Building $image from $cache/psi"
+        printf '%s\n' 'FROM scratch' 'COPY . /psi/' 'CMD ["/psi"]' |
+            run docker build --quiet --tag "$image" --file - "$(native_path "$cache/psi")" >/dev/null
+        run docker push --quiet "$image"
+        log "Pushed $image"
+    fi
+    PROPERTYSCOPE_SOURCE_CACHE_IMAGE=$image
+    export PROPERTYSCOPE_SOURCE_CACHE_IMAGE
+    vm_run load-source-cache
 }
 
 # --- smoke and validation ----------------------------------------------------------------------
@@ -933,6 +989,7 @@ main() {
         outputs) cmd_outputs ;;
         validate-endpoint) cmd_validate endpoint ;;
         validate-data) cmd_validate data ;;
+        source-cache) cmd_source_cache "$@" ;;
         vm-validate-data)
             # Internal: the on-host half of validate-data-security.sh.
             ensure_azure_context

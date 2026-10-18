@@ -60,7 +60,9 @@ The runner reads a read-only host cache, by default `./.propertyscope-source-cac
   `uv run scripts/dev.py data sync-psi --all` (host download; re-runs keep verified files;
   `--current-weekly` adds only this year's new Mondays). The publisher blocks container downloads,
   so sync on the host, then run `stack up` again so the backend advertises the cached archives,
-  before collecting `psi-sales`.
+  before collecting `psi-sales`. On Azure the publisher refuses the VM's address entirely, so
+  ship your synced archives with `deployment/azure/deploy.sh source-cache` (deployment/azure/README.md)
+  before collecting `psi-sales` there.
 
 To reuse another checkout's cache instead of downloading again, set
 `PROPERTYSCOPE_SOURCE_CACHE_DIR` in `.env` (relative paths resolve from the repository root), then

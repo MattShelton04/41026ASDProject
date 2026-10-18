@@ -489,7 +489,17 @@ def test_deploy_script_offers_every_documented_subcommand() -> None:
     script = (AZURE / "deploy.sh").read_text(encoding="utf-8")
     assert script.startswith("#!/usr/bin/env bash\n")
     assert "set -euo pipefail" in script
-    for command in ("provision", "secrets", "push", "deploy", "smoke", "ai", "status", "logs"):
+    for command in (
+        "provision",
+        "secrets",
+        "push",
+        "deploy",
+        "smoke",
+        "ai",
+        "status",
+        "logs",
+        "source-cache",
+    ):
         assert re.search(rf"^\s+{command}\)", script, re.M), command
     assert "az vm run-command invoke" in script
     assert "--command-id RunShellScript" in script
@@ -969,3 +979,104 @@ def test_dry_run_deploy_payload_is_valid_bash_and_ships_the_bundle(tmp_path: Pat
         "deployment/azure/nginx/00-propertyscope-production.conf",
     ):
         assert required in names, required
+
+
+# --- PSI source cache ----------------------------------------------------------------------------
+
+
+def test_vm_advertises_exactly_the_cached_psi_partitions(tmp_path: Path) -> None:
+    cache = tmp_path / "volume"
+    (cache / "psi" / "weekly").mkdir(parents=True)
+    for name in (
+        "psi/2024.zip",
+        "psi/1990.zip",
+        "psi/weekly/20261012.zip",
+        "psi/weekly/20260105.zip",
+    ):
+        (cache / name).write_bytes(b"zip")
+    for ignored in ("psi/notes.txt", "psi/weekly/latest.zip", "psi/202.zip"):
+        (cache / ignored).write_bytes(b"x")
+    script = VM_HARNESS + (
+        f'source_cache_dir() {{ printf "%s" "{cache.as_posix()}"; }}\n'
+        "psi_cache_environment\n"
+        'source_cache_dir() { printf ""; }\n'
+        "psi_cache_environment\n"
+    )
+    completed = _run_bash(script, tmp_path, FAKE_RESPONSES="200:{}")
+    assert completed.stdout.splitlines() == [
+        "PROPERTYSCOPE_PSI_CACHED_YEARS=1990,2024",
+        "PROPERTYSCOPE_PSI_CACHED_WEEKS=2026-01-05,2026-10-12",
+        "PROPERTYSCOPE_PSI_CACHED_YEARS=",
+        "PROPERTYSCOPE_PSI_CACHED_WEEKS=",
+    ], completed.stderr
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "evil.azurecr.io/propertyscope/source-cache:psi-1",
+        "x.azurecr.io/propertyscope/f1-backend:psi-1",
+        "x.azurecr.io/propertyscope/source-cache:psi 1",
+    ],
+    ids=["other-registry", "other-repository", "bad-tag"],
+)
+def test_vm_loads_source_cache_images_only_from_its_own_registry(
+    tmp_path: Path, image: str
+) -> None:
+    script = VM_HARNESS + "(load_source_cache) && echo loaded\n"
+    completed = _run_bash(
+        script,
+        tmp_path,
+        FAKE_RESPONSES="200:{}",
+        ACR_LOGIN_SERVER="x.azurecr.io",
+        PROPERTYSCOPE_SOURCE_CACHE_IMAGE=image,
+    )
+    assert "loaded" not in completed.stdout
+    assert "must be x.azurecr.io/propertyscope/source-cache:<tag>" in completed.stderr
+
+
+def test_dry_run_source_cache_names_the_image_by_content_and_loads_it_on_the_vm(
+    tmp_path: Path,
+) -> None:
+    cache = tmp_path / "cache"
+    (cache / "psi" / "weekly").mkdir(parents=True)
+    (cache / "psi" / "2024.zip").write_bytes(b"annual")
+    (cache / "psi" / "weekly" / "20261012.zip").write_bytes(b"weekly")
+
+    def dry_run() -> str:
+        completed = subprocess.run(  # noqa: S603 - fixed bash and repository script
+            [
+                _bash(),
+                "deployment/azure/deploy.sh",
+                "--dry-run",
+                "source-cache",
+                "--no-sync",
+                "--cache-dir",
+                cache.as_posix(),
+            ],
+            cwd=ROOT,
+            env={
+                **os.environ,
+                "PROPERTYSCOPE_CLOUD_LOG_DIR": tmp_path.as_posix(),
+                "AZURE_ENV_FILE": (tmp_path / "missing.env").as_posix(),
+            },
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        match = re.search(r"source-cache:(psi-[0-9a-f]{16})", completed.stderr)
+        assert match is not None, completed.stderr
+        return match.group(1)
+
+    first = dry_run()
+    assert dry_run() == first
+    (cache / "psi" / "2025.zip").write_bytes(b"new year")
+    assert dry_run() != first
+    text = (tmp_path / "vm-load-source-cache.payload.sh").read_text(encoding="utf-8")
+    assert re.search(
+        r"^export PROPERTYSCOPE_SOURCE_CACHE_IMAGE=\S+/propertyscope/source-cache:psi-", text, re.M
+    )
+    assert "propertyscope-vm.sh load-source-cache" in text
+    assert "base64 -d" not in text  # uses the installed deployment, ships no bundle
