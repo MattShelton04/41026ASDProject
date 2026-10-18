@@ -4,17 +4,36 @@ This folder holds the reviewed evidence of the Azure deployment, for criteria 5�
 the Cloud Deployment Report Review (R2-22). Nothing here is produced by hand. Each file comes
 from a deployment run and is copied in after a person has checked it.
 
-**Current state (17 October 2026):** Azure is provisioned (*Azure for Students*,
-`newzealandnorth`, `Standard_D4as_v4`; see
+**Current state (18 October 2026): AI-off baseline captured.** Azure is provisioned (*Azure for
+Students*, `newzealandnorth`, `Standard_D4as_v4`; see
 [deployment/azure/README.md](../../../../deployment/azure/README.md) and
-[ADR-048](../../../architecture/decisions/ADR-048-azure-vm-hosting.md)). The first successful
-deployment is [Cloud Deployment run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), attempt 2, on commit `ad2b443f`: the
-gate passed, 21 of 21 containers ran, the smoke test passed 37 of 37 checks with the AI tier off,
-and the B5 validation passed 52 checks. Automatic deployments are paused
-(`AZURE_AUTO_DEPLOY=false`), and manual runs still deploy. **Nothing is copied here yet.** The
-reviewed files are captured at the 20 October evidence freeze, from that run's artifacts or a
-later run's. The B6 validation (`deploy.sh validate-data`) runs from a laptop, not the workflow,
-and is re-run then.
+[ADR-048](../../../architecture/decisions/ADR-048-azure-vm-hosting.md)). The files in this folder
+come from [Cloud Deployment run 39112162750](https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750)
+on `main` at `3c25c083`, dispatched by hand and approved for `production` on 18 October
+(deploy 08:47 UTC, smoke 08:49 UTC):
+
+| Check | Result |
+|---|---|
+| Release gate | Passed: Integration CI #424 and Student 1–5 CI all `success` at the deployed commit (`identical`) |
+| Image build | 18 images built and validated, none running as root |
+| VM | 21 of 21 containers running, every image pinned by digest, cloud AI flag `false`, host AI units inactive |
+| Public smoke test | **37 of 37 passed, 0 skipped, 0 failed**; full CRUD for all five features; AI-mode answered `503 ai_disabled` |
+| B5 endpoint security | 54 of 54 lines without failure (52 PASS, 2 INFO) |
+| B6 data security | 43 PASS, 0 FAIL (16 control-plane, 27 on-host), run from a laptop at 08:55 UTC |
+| Cloud review | `pass`, 18 of 18 checks (deterministic engine), [`../reviews/cloud-review.md`](../reviews/cloud-review.md) |
+| Human release decision | **RELEASE** by Matthew Shelton (09:37 UTC), recorded with `ai review decide` on review `44929d5d`: [`release-decision.md`](release-decision.md) |
+
+Feature 1 held five accepted real releases when the smoke test ran: G-NAF 5,224,340 addresses,
+NSW property sales 7,423,881, BOCSAR 318,804, ABS SEIFA 4,320 and NSW government schools 2,210.
+NSW suburb boundaries (4,607 suburbs) was published at 08:58 UTC, after the smoke test and before
+the screenshots, so `app/03-published-data.png` shows six. No demonstration data is loaded.
+
+An earlier run the same day, [39109808841](https://github.com/MattShelton04/41026ASDProject/actions/runs/39109808841),
+also succeeded but skipped the Feature 2 and 4 CRUD cases (29 passed, 2 skipped). Its smoke test
+ran a minute after `f1-db-api` restarted: the property search it uses to find a published property
+answered `503 read_budget_exceeded` on a cold cache, so it fell back to the purged showcase property.
+The same search answered at once a few minutes later, and run 39112162750 replaced that evidence.
+Automatic deployments stay paused (`AZURE_AUTO_DEPLOY=false`); manual runs still deploy.
 
 ## The pipeline
 
@@ -57,7 +76,13 @@ cancelled).
 | `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, accepted-release check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
 | `workflow-run.md` | person | Link to the successful *Cloud Deployment* run, its approval, and the downloaded artifact names |
 | `release-decision.md` | person, after `dev.py ai review cloud` | The human release decision: approve, approve with conditions, or reject, with reasons |
-| `../bonus/endpoint-security.txt`, `../bonus/data-security.txt` | `deploy.sh validate-endpoint` / `validate-data` | Bonus B5 and B6 validation output |
+| `endpoint-security.txt` | `cloud-deployment-<sha>` (`deploy.sh validate-endpoint`, B5) | Bonus B5 output of the AI-off deployment run, as the report cites it |
+| `data-security.txt` | `deploy.sh validate-data` from a laptop (B6) | Bonus B6 output against the same deployment |
+| `app/*.png` | person | The public site, Shared shell and Feature 1 (see "Application screenshots") |
+| `portal/*.png` | person | The Azure portal screenshots below |
+
+The bonus folder `../bonus/` is assembled with the AI-tier (B1–B4) evidence; the B5 and B6 files
+here are the AI-off baseline's own copies.
 
 The review also finds `smoke/cloud-smoke.json`, `gate/release-gate.json` and
 `build/image-build.json` one folder down, so you can copy the artifact folders unchanged.
@@ -104,6 +129,36 @@ reads it back, deletes it and confirms it is gone. Feature 1 also updates its so
 4. Run `uv run scripts/dev.py ai review cloud`. It writes `../reviews/cloud-review.md` and
    `cloud-validation-log.jsonl`. Then record the human decision in `release-decision.md`.
 
+## Application screenshots
+
+Taken on 18 October (about 09:00 UTC) through the site login, after run 39112162750. Every image
+is 1456×819 (16:9). Only the Shared shell and Feature 1 are captured here; each feature owner
+captures their own pages.
+
+| File | Page | What it shows |
+|---|---|---|
+| `app/01-home.png` | `/` | The Shared shell and research areas |
+| `app/02-property-search.png` | `/features/data-platform/#properties?q=1+George+Street` | A search over the published G-NAF release: at least 500 real NSW addresses |
+| `app/03-published-data.png` | `/features/data-platform/#releases` | Six accepted releases with their record counts and publication times |
+| `app/04-data-overview.png` | `/features/data-platform/#overview` | No update running or failing, six published sources, the latest collections |
+| `app/05-data-status.png` | `/#system-status` | Live service status: 7 ready; the 2 needing attention are the AI review history and AI provider, unavailable because the AI tier is off |
+
+### Observations made while capturing
+
+These came from the live deployment and are recorded for their owners; none affects the smoke
+test or the review.
+
+- Feature 1: a search with an address and suburb (`1 George Street Balmain`) answered "Search took
+  too long" (`503 read_budget_exceeded` from `f1-db-api`); `1 George Street` answers. This is the
+  same read budget that skipped the CRUD cases in run 39109808841.
+- Shared: Data status counts the deliberately disabled AI tier as "Unavailable" (needs attention)
+  rather than "Disabled".
+- Feature 3: Suburb context showed "Service unavailable": `/api/suburb-analytics/v1/published/suburbs`
+  answered 503 after 4–8 s (Student 3).
+- Feature 2: Sales & market lists saved cases on fixture addresses (`11 Example Street`,
+  "Property: Fixture Verified"), Feature 2's own stored records rather than Feature 1 data
+  (Student 2).
+
 ## Azure portal screenshots
 
 These show the provisioned resources and their security settings as Azure itself reports them,
@@ -129,6 +184,28 @@ running and after a successful *Cloud Deployment*.
 | `portal/14-rg-access.png` | Resource group → Access control (IAM) → Role assignments | Deployer: Contributor and the conditioned RBAC Administrator (open the condition) | B6 |
 | `portal/15-vm-metrics.png` (optional) | VM → Monitoring → Metrics | CPU and network during a smoke run or data collection | C7 |
 
+All 15 were taken on 18 October (09:05–09:16 UTC) after run 39112162750, at 1456×819 (16:9),
+with the subscription and tenant IDs blacked out. Where one blade does not show everything, the
+image stacks crops of several blades on the same 16:9 canvas:
+
+- `03`: filtered to `propertyscope-github-deployer`; it shows this run's and the earlier run's
+  *Run Command on Virtual Machine* operations and the provision operations. There is no *Start
+  Virtual Machine* entry because the VM was already running.
+- `05`: Trusted launch, secure boot and vTPM. Encryption at host is on the VM overview (`04`,
+  Disk: *Encryption at host Enabled*).
+- `06`: identity status and its two role assignments. `09`: the subnet list (NSG attached) and the
+  *Service endpoints* blade (`Microsoft.KeyVault` on `app`).
+- `11`: the registry's *Properties* blade (Admin user unchecked); the *Access keys* page was not
+  opened.
+- `12`: overview (soft delete, purge protection), access configuration (Azure RBAC) and networking
+  (selected networks, the VNet rule, no IP rule). **Secret names are not shown**: listing them
+  needs the browser's IP in the vault firewall, which was not changed for this capture.
+- `14`: filtered to the `propertyscope-github` identities, so inherited university assignments
+  (other people's names) are left out, plus the opened condition: the deployer may assign only
+  AcrPull, AcrPush, Key Vault Secrets User and Key Vault Secrets Officer.
+- `15`: the VM overview's platform metrics for the day (availability, CPU, disk bytes during the
+  data loads and deployments).
+
 Rules for these screenshots:
 
 - Never open a secret's value. Show the list of names only.
@@ -139,6 +216,15 @@ Rules for these screenshots:
 - JIT, Defender plans, Log Analytics, Backup and Bastion are not part of this deployment.
   Do not imply they are. TLS, HSTS, the site login and rate limits live in Caddy and nginx on
   the VM, so `endpoint-security.txt` is their evidence, not the portal.
+
+## Report figures
+
+The technical report uses three crops of this evidence, in
+[`docs/reports/assets/release-2/screenshots/`](../../../reports/assets/release-2/screenshots/):
+`azure-resources.png` (Figure 5: `portal/01` and `portal/08`), `azure-workflow.png` (Figure 6: the
+summary and *Deploy to Azure* step list of run 39112162750, captured on 18 October with the page
+in GitHub's light theme) and `azure-app.png` (Figure 7: `app/01` and `app/03`). They are crops
+only; nothing is redrawn except the URL label on Figure 7.
 
 ## Labelling rules
 

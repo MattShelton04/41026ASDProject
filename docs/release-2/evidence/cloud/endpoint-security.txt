@@ -1,0 +1,56 @@
+Endpoint security validation for https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com at 2026-10-18T08:49:20Z
+PASS HTTPS serves a publicly trusted certificate for propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com
+INFO certificate issuer: C=US; O=Let's Encrypt; CN=YE1
+PASS TLS 1.1 and older are refused while TLS 1.2+ is served (tls<=1.1:000 tls>=1.2:200)
+PASS HTTP permanently redirects to HTTPS (308 https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com/features/data-platform/)
+PASS HSTS for at least one year (strict-transport-security: max-age=31536000; includesubdomains)
+PASS X-Content-Type-Options nosniff (x-content-type-options: nosniff)
+PASS Framing denied (content-security-policy: default-src 'self'; connect-src 'self' https://tiles.openfreemap.org; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' x-frame-options: deny )
+PASS Content-Security-Policy present (content-security-policy: default-src 'self'; connect-src 'self' https://tiles.openfreemap.org; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self')
+PASS Referrer-Policy present (referrer-policy: same-origin)
+PASS no server version disclosed (no Server header)
+PASS anonymous / requires the site login (401)
+PASS anonymous /features/data-platform/ requires the site login (401)
+PASS anonymous /api/data-platform/v1/sources?limit=1 requires the site login (401)
+PASS the site login answers with a Basic challenge (www-authenticate: basic realm="propertyscope nsw")
+PASS the login challenge itself carries HSTS (strict-transport-security: max-age=31536000; includesubdomains)
+PASS a wrong site password is rejected (401)
+PASS edge liveness (/healthz) stays public for uptime checks (200)
+PASS the viewer login opens the site (200)
+PASS anonymous /operations/ai-mode/ requires operator credentials (401)
+PASS the viewer login does not open /operations/ai-mode/ (401)
+PASS anonymous /api/ai-mode/runs requires operator credentials (401)
+PASS the viewer login does not open /api/ai-mode/runs (401)
+PASS anonymous /api/v1/runs requires operator credentials (401)
+PASS the viewer login does not open /api/v1/runs (401)
+PASS anonymous /api/data-platform/v1/artifact-retention requires operator credentials (401)
+PASS the viewer login does not open /api/data-platform/v1/artifact-retention (401)
+PASS anonymous /api/data-platform/v1/release-reviews requires operator credentials (401)
+PASS the viewer login does not open /api/data-platform/v1/release-reviews (401)
+PASS anonymous /api/market-intelligence/v1/assistant/turns requires operator credentials (401)
+PASS the viewer login does not open /api/market-intelligence/v1/assistant/turns (401)
+PASS 401 carries a Basic challenge (www-authenticate: Basic realm="PropertyScope operations")
+PASS wrong operator credentials are rejected (401)
+PASS AI health stays readable without operator credentials (503 ai_disabled, or 200 when the bonus tier is on) (503)
+PASS ordinary feature API needs no operator credentials (200)
+PASS edge rate limit (/api/ and /fragments/ zone) answers a burst on /fragments/rate-limit-probe with 429 (     56 404      94 429 )
+PASS port 22 is closed to the internet
+PASS port 2375 is closed to the internet
+PASS port 3389 is closed to the internet
+PASS port 5005 is closed to the internet
+PASS port 5011 is closed to the internet
+PASS port 5012 is closed to the internet
+PASS port 5013 is closed to the internet
+PASS port 5100 is closed to the internet
+PASS port 5200 is closed to the internet
+PASS port 5202 is closed to the internet
+PASS port 5300 is closed to the internet
+PASS port 5400 is closed to the internet
+PASS port 5432 is closed to the internet
+PASS port 5500 is closed to the internet
+PASS port 5600 is closed to the internet
+PASS port 8080 is closed to the internet
+PASS NSG allows only 80 and 443 inbound (443 80)
+PASS NSG keeps port 80 open to the internet (certificate issuance and renewal) (Internet)
+INFO NSG HTTPS (443) sources: Internet
+ENDPOINT_SECURITY_FAILURES=0

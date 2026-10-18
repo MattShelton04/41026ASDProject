@@ -28,7 +28,7 @@ is bonus work. The showcase is on 23 October 2026 and the report (`group-20.pdf`
 
 Evidence collected for the report goes in `evidence/`, as described in the implementation plan.
 
-## Status (17 October 2026)
+## Status (18 October 2026)
 
 | Area | State | Where |
 |---|---|---|
@@ -38,20 +38,20 @@ Evidence collected for the report goes in `evidence/`, as described in the imple
 | Pre-commit security (C), endpoint testing (D) | Done. The committed report (16 October) passes, but it scanned a branch commit **with uncommitted changes** and lists 85 pending-owner Ruff findings for Students 2–5. It is regenerated on clean `main` at the freeze | `.pre-commit-config.yaml`, [`evidence/security/`](evidence/security/pre-commit-report.md), [`shared/testkit`](../../shared/testkit/README.md) |
 | Local deployment report (G1) | Done: `scripts/capture_local_deployment.py`, 109 of 109 live checks, six terminal logs and a real-provider terminal Multi-Agent run. `dev.py ai serve SERVICE` runs any host service in its own terminal. RAG and MCP now log one line per request with its request ID (after the 16 October capture) | [`evidence/local/`](evidence/local/README.md) |
 | CI release gate (E4) | Done: `cloud-deployment.yml` runs `verify-ci` (Integration CI and Student 1–5 CI green for the deployed commit, `scripts/verify_release_gate.py`) and `build-validate` (every image built and the Azure Compose model validated, `scripts/validate_release_images.py`) before its `deploy` job | [`cloud-deployment.yml`](../../.github/workflows/cloud-deployment.yml), [`evidence/cloud/`](evidence/cloud/README.md) |
-| Technical report (G2) | Builder and source done; Shared and Feature 1 content written, 1,943 of 3,000 words. Students 2–5 fill their TODOs | [`docs/reports/`](../reports/README.md), `scripts/build_release2_report.py --status` |
-| Azure (E/F) | **Provisioned and deployed** on 17 October: *Azure for Students*, `newzealandnorth`, `Standard_D4as_v4`. The first CI deployment, [run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663) (`ad2b443f`), passed the gate, 21/21 containers, smoke 37/37 and B5. Automatic deployments are paused (`AZURE_AUTO_DEPLOY=false`); the VM is deallocated nightly. Bicep compiles and lints cleanly (`deployment/azure/validate-iac.sh`, Integration CI job `iac-lint`). Evidence is captured at the freeze | [deployment/azure](../../deployment/azure/README.md) |
+| Technical report (G2) | Builder and source done; Shared and Feature 1 content written, including the cloud figures, the release decision and Student 1's contribution log to PR #157 (2,102 of 3,000 words). Matthew's remaining TODOs are the freeze refreshes, PR #157's merged commit and the bonus section. Students 2–5 fill their TODOs | [`docs/reports/`](../reports/README.md), `scripts/build_release2_report.py --status` |
+| Azure (E/F) | **Provisioned and deployed** on 17 October: *Azure for Students*, `newzealandnorth`, `Standard_D4as_v4`. **AI-off evidence captured on 18 October** from [run 39112162750](https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750) (`3c25c083`): gate passed, 21/21 containers, smoke 37/37 with 0 skipped (full CRUD for all five features against real Feature 1 releases), AI `503 ai_disabled`, B5 and B6 with no failure, `ai review cloud` pass 18/18 (deterministic), human release decision **RELEASE**, plus 15 portal and 5 app screenshots. Feature 1 holds six real accepted releases there and no demonstration data (#153, #154). The Cloud AI Tier workflow (`cloud-ai.yml`, #156) turns the AI tier on for B1–B4. Automatic deployments are paused (`AZURE_AUTO_DEPLOY=false`); the VM is deallocated nightly. Bicep compiles and lints cleanly (`deployment/azure/validate-iac.sh`, Integration CI job `iac-lint`) | [deployment/azure](../../deployment/azure/README.md), [`evidence/cloud/`](evidence/cloud/README.md) |
 | Showcase (G) | Runbook written: segments, timings, commands and fallbacks. Students 2–5 write their own segments | [showcase-runbook.md](showcase-runbook.md) |
-| Feature 1 (F-1..F-8, F-11) | Done: workflow manifest (template v2), `/release-reviews` proxy routes with input validation, "Readiness review" UI (disabled with a visible reason where the deployment has no AI tier), demonstration-data notice, endpoint tests, terminal and UI evidence, CI evidence (run #353, 34/34 endpoint tests), report sections. F-9/F-10 wait for Azure | [student-1 README](../../student-1/README.md), [`evidence/ci/student-1.md`](evidence/ci/student-1.md) |
+| Feature 1 (F-1..F-9, F-11) | Done: workflow manifest (template v2), `/release-reviews` proxy routes with input validation, "Readiness review" UI (disabled with a visible reason where the deployment has no AI tier), demonstration-data notice, endpoint tests, terminal and UI evidence, CI evidence (run #353, 34/34 endpoint tests), report sections. F-9 done on Azure: Feature 1 CRUD passes the cloud smoke test against real releases, and the suburb-map spatial API serves Feature 3 (#151). F-10 waits for the cloud AI bonus run. The CI record (15 October) is refreshed at the freeze | [student-1 README](../../student-1/README.md), [`evidence/ci/student-1.md`](evidence/ci/student-1.md) |
 
 ### Remaining work
 
 | Item | Owner | Notes |
 |---|---|---|
 | Evidence refresh at the freeze | Matthew | The [ordered checklist](#evidence-refresh-at-the-freeze-on-clean-main) below |
-| Azure evidence and release decision (R2-45) | Matthew | Provisioned and deployed (status table). Left: copy the accepted cloud report into `evidence/cloud/` at the freeze, run `ai review cloud` and `ai review decide` |
+| Azure evidence and release decision (R2-45) | Matthew | AI-off evidence, cloud review and screenshots are in [`evidence/cloud/`](evidence/cloud/README.md) (run 39112162750). Human decision recorded: **RELEASE** by Matthew Shelton on 18 October ([`release-decision.md`](evidence/cloud/release-decision.md)). The freeze refresh reruns `ai review cloud`, so record the decision again after it. Optional: rerun the review with a live AI-mode provider, and add the Key Vault secret names to `portal/12` (needs a temporary firewall rule) |
 | Cloud gate | Matthew | **Addressed** by the `verify-ci` and `build-validate` jobs (see the status table) |
 | Bicep compile | Matthew | **Done**: `deployment/azure/validate-iac.sh` builds and lints every template; Integration CI runs it with `--strict` in the `iac-lint` job |
-| Bonus B1–B6 | Matthew | B5: the endpoint validation passes in CI (run 39018442663, 52 PASS). B6: re-run once the managed-identity validator fix (PR #150) is merged. B1–B4: prepared, not yet run on Azure. No bonus is claimed until its evidence is in `evidence/bonus/` |
+| Bonus B1–B6 | Matthew | B5: passes in run 39112162750 (52 PASS, 0 FAIL). B6: passes from a laptop on 18 October (43 PASS, 0 FAIL). Both outputs are in `evidence/cloud/`. B1–B4: run by the Cloud AI Tier workflow (#156); no evidence in `evidence/bonus/` yet. No bonus is claimed until its evidence is there, and report Section 13 is updated to match |
 | Report and video (G) | All | `build_release2_report.py --status` lists each owner's TODOs; the [showcase runbook](showcase-runbook.md) holds each student's video segment |
 | Features 2–5 workflows (F-2..F-11) | Students 2–5 | Copy Feature 1: a `config/multi-agent/workflow.yaml`, proxy routes tested with `FakeMultiAgentServer`, and a panel mount (Dockerfile `COPY`, `docker-compose.dev.yml` bind mount, empty `frontend/multi-agent/README.md`). Endpoint test recipe: `shared/testkit/README.md`; then `collect_ci_evidence.py --student N`, and `multi-agent-server export <run> --out docs/release-2/evidence/multi-agent/student-N/<run> --server` |
 
@@ -110,6 +110,11 @@ they check for uncommitted changes, so one step's output never marks the next ca
   and CI evidence. Coverage by owner shows every Shared and Student 1 check passing.
 - The 16 October local capture logged `DependencyUnavailableError` from `f2-backend`'s background
   sales-import reconciliation while Feature 2's health and CRUD checks passed (Student 2).
+- On Azure (18 October): a Feature 1 property search that names a suburb ("1 George Street
+  Balmain") can exceed the read budget (`503 read_budget_exceeded`), as can the first search after
+  `f1-db-api` restarts; Feature 3's `/published/suburbs` answers 503; Feature 2 still shows fixture
+  cases; and Data status lists the deliberately disabled AI tier as needing attention. Details:
+  [`evidence/cloud/README.md`](evidence/cloud/README.md#observations-made-while-capturing).
 - Under heavy load, `test_ui_audit_browser.py::test_configured_named_flows_reach_their_response_state`
   and a Student 3 MCP socket test have each failed once and passed on rerun.
 
