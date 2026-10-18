@@ -1,0 +1,45 @@
+Data security validation for rg-propertyscope-prod at 2026-10-18T08:55:58Z
+PASS Key Vault uses RBAC authorisation (no access policies) (true)
+PASS Key Vault soft delete is enabled (true)
+PASS Key Vault purge protection is enabled (true)
+PASS Key Vault firewall denies by default (Deny)
+PASS ACR admin user is disabled (false)
+PASS ACR anonymous pull is disabled (false)
+PASS VM uses a system-assigned managed identity (SystemAssigned)
+PASS VM identity holds only AcrPull and Key Vault Secrets User (AcrPull,Key Vault Secrets User)
+PASS encryption at host is enabled (temp disk, caches and host-to-storage traffic)
+PASS OS disk is encrypted at rest (EncryptionAtRestWithPlatformKey)
+PASS OS disk cannot be exported (network access policy) (DenyAll)
+PASS Trusted Launch (secure boot + vTPM) is enabled (TrustedLaunch)
+PASS no NSG rule admits SSH, PostgreSQL or all ports (none)
+PASS GitHub Actions deploys through OIDC (managed identity propertyscope-github-deployer, federated subject: repo:MattShelton04@103937891/41026ASDProject@1312401450:environment:production)
+PASS the deployer has no client secrets (managed identity propertyscope-github-deployer) (0)
+PASS on-host checks passed (see data-security-vm.txt)
+  vm: PASS secrets directory is root-only (0700)
+  vm: PASS no secret file is group/other writable
+  vm: PASS no secret value in any container environment (docker inspect)
+  vm: PASS no secret value in any image history layer
+  vm: PASS network f1-data is internal (no internet route)
+  vm: PASS network f2-data is internal (no internet route)
+  vm: PASS network f3-data is internal (no internet route)
+  vm: PASS network f4-data is internal (no internet route)
+  vm: PASS network f5-data is internal (no internet route)
+  vm: PASS f1-postgres publishes no host port
+  vm: PASS f1-postgres is not on the shared network
+  vm: PASS f4-postgres publishes no host port
+  vm: PASS f4-postgres is not on the shared network
+  vm: PASS f1-db-api publishes no host port
+  vm: PASS f1-db-api is not on the shared network
+  vm: PASS f2-db-api publishes no host port
+  vm: PASS f2-db-api is not on the shared network
+  vm: PASS f3-database publishes no host port
+  vm: PASS f3-database is not on the shared network
+  vm: PASS f4-db-api publishes no host port
+  vm: PASS f4-db-api is not on the shared network
+  vm: PASS f5-db-api publishes no host port
+  vm: PASS f5-db-api is not on the shared network
+  vm: PASS nothing but 80/443 (and host AI entry points) listens beyond loopback
+  vm: PASS sshd is not running
+  vm: PASS Docker keeps no ACR credential after the pull
+  vm: PASS a container cannot reach the instance metadata service (IMDS guard)
+DATA_SECURITY_FAILURES=0

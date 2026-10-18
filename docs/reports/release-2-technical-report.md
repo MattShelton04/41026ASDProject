@@ -324,8 +324,9 @@ Section 12 lists each student's commits.
 
 No bonus is claimed yet. Against run 39112162750, endpoint security
 ([B5](../release-2/evidence/cloud/endpoint-security.txt)) and data security
-([B6](../release-2/evidence/cloud/data-security.txt)) validation passed with no failures. B1–B4
-have not yet run on Azure.
+([B6](../release-2/evidence/cloud/data-security.txt)) validation passed with no failures. In Cloud AI Tier run 39119158736 on 18 October, B1–B4 also
+passed through the public edge: an AI-mode turn, an MCP tool call, a grounded RAG answer, and a
+Planner → Worker → Reviewer release review ([probe report](../release-2/evidence/bonus/cloud-ai-probe.md)).
 
 [[TODO: Matthew Shelton | For each bonus claimed, link its validation output under evidence/bonus/; otherwise keep "No bonus is claimed"]]
 

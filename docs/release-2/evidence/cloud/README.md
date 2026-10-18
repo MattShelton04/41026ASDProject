@@ -81,8 +81,8 @@ cancelled).
 | `app/*.png` | person | The public site, Shared shell and Feature 1 (see "Application screenshots") |
 | `portal/*.png` | person | The Azure portal screenshots below |
 
-The bonus folder `../bonus/` is assembled with the AI-tier (B1–B4) evidence; the B5 and B6 files
-here are the AI-off baseline's own copies.
+The bonus folder [`../bonus/`](../bonus/README.md) holds the AI-tier (B1–B4) evidence and copies of
+B5 and B6; the files here are the AI-off baseline's own copies.
 
 The review also finds `smoke/cloud-smoke.json`, `gate/release-gate.json` and
 `build/image-build.json` one folder down, so you can copy the artifact folders unchanged.
