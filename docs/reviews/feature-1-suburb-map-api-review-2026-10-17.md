@@ -167,4 +167,91 @@ Feature 3 backend ──HTTP──> f1-backend /api/data-platform/v1/suburbs/...
 
 ## 5. Live validation evidence
 
-Recorded after implementation; see the PR description for the commands and outputs.
+Observed on 18 October 2026 in an isolated `ps-scratch` Compose project built from this branch
+(public API on port 6200). The developer `ps-dev` stack was only read, never changed.
+
+### Releases collected and published in scratch
+
+| Dataset | Release | Rows | Quality |
+|---|---|---|---|
+| `nsw-suburb-boundaries` | `29136b65…` | 4,607 | 0 blocking failures |
+| `nsw-government-schools` | `b5e1b211…` | 2,210 | 0 blocking failures |
+| `nsw-amenities` | `56e32ba1…` | 9,865 | 0 blocking; `geometry-evidence` warns about the invalid reserves |
+
+Publishing the boundary release ran the activation hook. That built 4,607 rows in
+`serving.suburb_boundary_display`. Only CAMBEWARRA has no display geometry, and the largest
+`medium` outline has 2,360 vertices, which matches §1.
+
+Amenities collection first failed four times with "ArcGIS metadata changed during acquisition".
+The cause is that the NSW portal serves the protected-reserve layer from nodes that disagree on
+the cosmetic `drawingInfo` colour ramp. Back-to-back reads of the layer metadata differ only
+there. The acquisition fingerprint now ignores `drawingInfo` but still compares fields, extent
+and paging metadata (commit `fix(feature-1): ignore ArcGIS cartography…`). The next run
+succeeded first time.
+
+### Endpoint behaviour
+
+Every `200` response below was validated against the published JSON Schema.
+
+| Request | Result |
+|---|---|
+| `search?q=Mayfield` | `ambiguous`: four suburbs, postcodes 2304, 2540, 2580 and 2787 |
+| `search?q=mayfield&postcode=2304` | `unique`: 108032118 |
+| `search?q=  st. leonards ` | `unique`: ST LEONARDS 2065 (punctuation and case normalised) |
+| `search?q=Parramata` (misspelt) | `none`; there is no fuzzy matching, by design |
+| `search?q=x&radius=5` | 422 `invalid_request` (unknown parameter) |
+| `GET /suburbs/108033054` (Parramatta) | 200 `accepted` with an ETag; resending `If-None-Match` gives 304 |
+| `GET /suburbs/108029947` (CAMBEWARRA) | 200, `geometry_status=invalid`, `coverage=unavailable`; bbox kept, no label point |
+| `GET /suburbs/999999999` / `/suburbs/abc` | 404 `suburb_not_found` / 422 `invalid_request` |
+| Parramatta map context (default categories) | schools 7, train stations 7, libraries 2, reserves 0; all `accepted`; 129 vertices, 17.5 KB; revalidation 304 |
+| `categories=schools&limit=1` | `truncated=true`, `schools` coverage `partial`, one feature |
+| `categories=parks` | 422 `unsupported_category`, pointing to `protected-reserve` |
+| `detail=low&zoom=10` | 422 `invalid_request` (the two are mutually exclusive) |
+| 13 categories | 422 `invalid_request` (the limit is 12) |
+| SYDNEY `categories=train-station` | 14 stations; `excluded_non_operational=3` |
+| …with `operational=all` | 17 stations; the three code-6 stations are the City Centre, Darling Park and Harbourside monorail stations, which closed in 2013 |
+| THREDBO `categories=protected-reserve` | Kosciuszko NP clipped (`display_clipped=true`), 10 KB |
+| LAKESLAND `categories=protected-reserve` | four reserves, three clipped; Thirlmere Lakes NP is wholly inside the clip box |
+| CAMBEWARRA map context | `boundary` and every layer `unavailable` with reason `boundary_geometry_unavailable` |
+
+Feature 3's own backend container reached `http://f1-backend:5201/api/data-platform/v1/suburbs/...`
+over the Compose network: search took 68 ms and returned the same ETag and `Cache-Control` headers.
+
+`pytest -m endpoint` (`student-1/tests/endpoints/test_suburb_map_endpoint.py`) passed against
+the scratch stack, 8 of 8. Without accepted boundaries the data-dependent cases skip.
+
+### Response size and latency
+
+The interactive read budget is 3.5 s.
+
+| Case | Vertices | Bytes | Time |
+|---|---|---|---|
+| LAKE MACQUARIE (99,669 source vertices), `low` / `medium` / `high` | 713 / 1,993 / 5,508 | 24 KB / 55 KB / 138 KB | 296 / 195 / 327 ms |
+| PORT STEPHENS, `low` / `medium` / `high` | 858 / 2,289 / 5,606 | 31 KB / 65 KB / 144 KB | 186 / 145 / 136 ms |
+| SYDNEY, 12 categories, `limit=1000`, `high` | 277 | 36 KB | 59 ms |
+| 20 regional and metropolitan suburbs, 12 categories each, first request | — | — | median 96 ms, worst 628 ms |
+
+No real suburb came near the 60,000-vertex or 4 MiB ceilings. Both guards are covered by the
+component tests.
+
+### Query plans
+
+On the scratch database (14,472 reference rows) the planner can answer the amenity probe from
+the existing `reference_feature_geom_idx` in under 2 ms. To reproduce ps-dev's scale, one
+transaction inserted 2.5 M unrelated point rows around Sydney into another layer and ran
+`ANALYZE`. It then ran `EXPLAIN (ANALYZE, BUFFERS)` on the Parramatta amenity probe and rolled
+everything back.
+
+| Indexes available | Plan | Rows removed by filter | Execution |
+|---|---|---|---|
+| Both (as migrated) | Index Scan using `reference_feature_map_amenity_geom_idx` | 28 | 14 ms |
+| Generation-scoped index dropped | Index Scan using `reference_feature_geom_idx` | 27,579 | 315 ms |
+
+`school_release_geom_idx` served all 30 school probes recorded in `pg_stat_user_indexes`. The
+`serving.suburb_boundary_display` primary key and name index served every lookup and search.
+
+### Not verified live
+
+- Publication in `ps-dev` itself, and the one-off index build there. On 13 GB this is expected
+  to take about a minute at db-api start. It is a deployment step after merge.
+- Concurrent load. Every timing above comes from one client making sequential requests.
