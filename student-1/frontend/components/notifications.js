@@ -13,6 +13,8 @@ export function mountNotifications(host, request, announce) {
   if (!saved || !Array.isArray(saved.items) || typeof saved.seen !== "object") saved = null;
   let timer = null;
   let pending = false;
+  // Content that changed while the inbox was open; rendered on the next open only.
+  let stale = false;
   const inbox = el("details", "notification-inbox");
   const summary = el("summary", "button secondary small", "Notifications");
   const body = el("div", "notification-body stack");
@@ -27,6 +29,9 @@ export function mountNotifications(host, request, announce) {
   };
   const persist = () => { try { localStorage.setItem(storageKey, JSON.stringify(saved)); } catch { /* In-memory operation remains available. */ } };
   const render = (warning = "") => {
+    // Rebuilding detaches every child; keep keyboard focus inside the panel if it was there.
+    const hadFocus = body.contains(document.activeElement);
+    stale = false;
     updateSummary();
     const heading = el("div", "notification-heading");
     const dismiss = button("×", "button secondary small", () => close({ restoreFocus: true }));
@@ -50,6 +55,7 @@ export function mountNotifications(host, request, announce) {
     if ("Notification" in window && Notification.permission === "default") {
       append(body, button("Enable desktop notifications", "button secondary small", async () => { await Notification.requestPermission(); render(); }));
     } else if ("Notification" in window) append(body, el("small", "", Notification.permission === "granted" ? "Desktop notifications enabled while this app is open." : "Desktop notifications are blocked in browser settings."));
+    if (hadFocus && inbox.open) dismiss.focus();
   };
   const poll = async () => {
     if (pending) return;
@@ -60,7 +66,7 @@ export function mountNotifications(host, request, announce) {
       const result = reconcileNotifications(saved, runs); saved = result.state; persist();
       // Keep an open inbox stable so polling cannot steal keyboard focus.
       if (!inbox.open) render();
-      else updateSummary();
+      else { stale = true; updateSummary(); }
       for (const item of result.added) {
         announce(notificationTitle(item));
         if ("Notification" in window && Notification.permission === "granted") {
@@ -73,7 +79,9 @@ export function mountNotifications(host, request, announce) {
     } catch { if (!inbox.open) render("Notifications could not refresh. Retrying automatically."); }
     finally { pending = false; timer = setTimeout(poll, document.hidden ? HIDDEN_POLL_MS : VISIBLE_POLL_MS); }
   };
-  inbox.addEventListener("toggle", () => { if (inbox.open) render(); });
+  // The toggle event is queued after opening, so focus may already be inside the panel;
+  // re-render only content that changed while it was open (closed polls render directly).
+  inbox.addEventListener("toggle", () => { if (inbox.open && stale) render(); });
   document.addEventListener("pointerdown", (event) => {
     if (inbox.open && !inbox.contains(event.target)) close();
   }, true);
@@ -87,6 +95,7 @@ export function mountNotifications(host, request, announce) {
     if (event.key !== storageKey) return;
     try { const incoming = JSON.parse(event.newValue); if (incoming?.items && incoming?.seen) saved = incoming; } catch { /* Ignore invalid external storage. */ }
     if (!inbox.open) render();
+    else stale = true;
   });
   render(); poll();
 }
