@@ -305,6 +305,35 @@ def test_service_status_has_one_dot_without_a_nested_section_separator(
     )
 
 
+def test_notification_focus_survives_the_open_toggle_event(page: Page, fixture_origin: str) -> None:
+    """Focus moved into the inbox before its queued toggle event must stay usable.
+
+    Opening a <details> queues its toggle event. Focusing the close button in the same task
+    reproduces, deterministically, the CI race where the toggle handler rebuilt the panel and
+    detached the focused button, so Escape reached the document instead of the inbox.
+    """
+    _open(page, fixture_origin, "releases")
+    popup = page.locator(".notification-body")
+    expect(page.locator(".notification-inbox summary")).to_be_visible()
+    # Resolve after the application's own toggle listener (registered first) has run.
+    focused = page.evaluate(
+        """() => new Promise((resolve) => {
+            const inbox = document.querySelector(".notification-inbox");
+            inbox.addEventListener(
+                "toggle",
+                () => resolve(document.activeElement?.getAttribute("aria-label") ?? null),
+                { once: true },
+            );
+            inbox.open = true;
+            inbox.querySelector('[aria-label="Close notifications"]').focus();
+        })"""
+    )
+    assert focused == "Close notifications"
+    page.keyboard.press("Escape")
+    expect(popup).to_be_hidden()
+    expect(page.locator(".notification-inbox summary")).to_be_focused()
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_notifications_dismiss_outside_and_restore_focus_for_explicit_close(
     page: Page, fixture_origin: str, width: int

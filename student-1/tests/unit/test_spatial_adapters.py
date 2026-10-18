@@ -468,6 +468,11 @@ def test_other_http_errors_do_not_trigger_smaller_feature_pages(
     monkeypatch: pytest.MonkeyPatch, status: int, content: bytes
 ) -> None:
     monkeypatch.setattr("propertyscope_data_platform.adapters.arcgis.time.sleep", lambda _: None)
+    monkeypatch.setattr(
+        arcgis,
+        "DEFAULT_RETRY_POLICY",
+        arcgis.RetryPolicy(attempts=5, sleep=lambda _: None, jitter=lambda: 0.0),
+    )
     sizes = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -483,7 +488,7 @@ def test_other_http_errors_do_not_trigger_smaller_feature_pages(
         with pytest.raises(httpx.HTTPStatusError) as error:
             list(iter_arcgis_features(client, descriptor))
     assert error.value.response.status_code == status
-    assert sizes == [2] * (1 if status == 401 else 3)
+    assert sizes == [2] * (1 if status == 401 else 5)
 
 
 @pytest.mark.parametrize(
@@ -499,6 +504,11 @@ def test_query_error_html_does_not_change_discovery_or_nonfeature_http_errors(
     monkeypatch: pytest.MonkeyPatch, params: dict[str, str]
 ) -> None:
     monkeypatch.setattr("propertyscope_data_platform.adapters.arcgis.time.sleep", lambda _: None)
+    monkeypatch.setattr(
+        arcgis,
+        "DEFAULT_RETRY_POLICY",
+        arcgis.RetryPolicy(attempts=5, sleep=lambda _: None, jitter=lambda: 0.0),
+    )
     requests = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -510,7 +520,7 @@ def test_query_error_html_does_not_change_discovery_or_nonfeature_http_errors(
         pytest.raises(httpx.HTTPStatusError),
     ):
         arcgis._read_json(client, URL + "/query", params)
-    assert len(requests) == 3
+    assert len(requests) == 5
 
 
 def test_query_error_classification_reads_only_a_bounded_error_prefix(

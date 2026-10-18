@@ -69,6 +69,7 @@ from propertyscope_data_store.persistence_support import (
     receipt_matches_values as _receipt_matches_values,
 )
 from propertyscope_data_store.persistence_support import require_source_snapshot as _source_snapshot
+from propertyscope_data_store.persistence_support import retry_wait_error as _retry_wait_run_error
 from propertyscope_data_store.persistence_support import (
     validate_artifact_replay as _validate_artifact_replay,
 )
@@ -2615,16 +2616,7 @@ class PropertyScopeStore:
                     """UPDATE ops.ingestion_run SET status='interrupted',finished_at=NULL,error_json=%s,
                     lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=%s
                     AND status NOT IN ('succeeded','failed','cancelled')""",
-                    (
-                        _json(
-                            {
-                                "code": "task_retry_wait",
-                                "message": "Retryable task failed; explicit resume is required",
-                                "retryable": True,
-                            }
-                        ),
-                        run_id,
-                    ),
+                    (_json(_retry_wait_run_error(error)), run_id),
                 )
             elif status == "failed":
                 connection.execute(

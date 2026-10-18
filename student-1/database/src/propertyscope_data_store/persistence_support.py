@@ -101,6 +101,21 @@ def lease_expired_error() -> JsonObject:
     }
 
 
+def retry_wait_error(task_error: Mapping[str, Any] | None) -> JsonObject:
+    """Run-level evidence for a resumable task failure that keeps the task's cause visible."""
+    error: JsonObject = {
+        "code": "task_retry_wait",
+        "message": "Retryable task failed; explicit resume is required",
+        "retryable": True,
+    }
+    if task_error:
+        detail = task_error.get("message")
+        if isinstance(detail, str) and detail.strip():
+            error["message"] = f"{error['message']}. {detail.strip()}"[:500]
+        error["task_error"] = dict(task_error)
+    return error
+
+
 def import_lease_expired_error() -> JsonObject:
     return {
         "code": "import_lease_expired",

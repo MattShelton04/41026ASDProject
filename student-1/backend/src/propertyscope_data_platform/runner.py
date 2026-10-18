@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import signal
 import time
 import uuid
@@ -21,6 +22,10 @@ import httpx
 import orjson
 
 from propertyscope_data_platform.acquisition_scope import acquisition_scope_error
+from propertyscope_data_platform.adapters.arcgis import (
+    ArcGISPublisherError,
+    is_transient_source_error,
+)
 from propertyscope_data_platform.adapters.bocsar import (
     CrimeCoverage,
     CrimeObservation,
@@ -277,7 +282,9 @@ class AcquisitionRunner:
             self._report_failure(task, lease_token, exc, retryable=retryable)
         except Exception as exc:
             logger.exception("Run task %s (%s) failed", task_id, task.get("stage"))
-            self._report_failure(task, lease_token, exc, retryable=False)
+            # A publisher outage that outlasted the adapter's bounded retries is resumable;
+            # malformed, incomplete or changed source data is not.
+            self._report_failure(task, lease_token, exc, retryable=is_transient_source_error(exc))
         return True
 
     def _run_consumer_import_once(self) -> bool:
@@ -1298,6 +1305,48 @@ class AcquisitionRunner:
         }
 
 
+_URL_USERINFO = re.compile(r"(?i)\b(https?://)[^/\s@'\"]+@")
+_URL_QUERY = re.compile(r"(?i)\b(https?://[^\s?#'\"]+)[?#][^\s'\"]*")
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?i)\b(token|api[_-]?key|key|password|passwd|secret|signature|sig|authorization)"
+    r"(\s*[=:]\s*)(?:bearer\s+)?[^\s&'\",;]+"
+)
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def _sanitised_message(exc: BaseException, *, limit: int = 300) -> str | None:
+    """Bound an exception message for durable evidence without leaking request secrets.
+
+    Query strings are dropped from URLs (they carry filters and could carry tokens),
+    credential-like assignments are redacted, and httpx's documentation hint is removed.
+    """
+    message = str(exc).split("\nFor more information", 1)[0]
+    message = _URL_USERINFO.sub(r"\1", message)
+    message = _URL_QUERY.sub(r"\1?[query omitted]", message)
+    message = _SECRET_ASSIGNMENT.sub(r"\1\2[redacted]", message)
+    message = re.sub(r"\s+", " ", _CONTROL_CHARACTERS.sub(" ", message)).strip()
+    if len(message) > limit:
+        message = message[: limit - 3].rstrip() + "..."
+    return message or None
+
+
+def _failure_cause(exc: BaseException) -> dict[str, object]:
+    cause: dict[str, object] = {
+        "type": type(exc).__name__,
+        "message": _sanitised_message(exc),
+        "transient": is_transient_source_error(exc),
+    }
+    if isinstance(exc, httpx.HTTPStatusError):
+        cause["http_status"] = exc.response.status_code
+    if isinstance(exc, ArcGISPublisherError) and exc.code is not None:
+        cause["publisher_code"] = exc.code
+    origin = exc.__cause__ or exc.__context__
+    # httpx re-raises httpcore errors under the same name; only a different origin informs.
+    if origin is not None and type(origin).__name__ != cause["type"]:
+        cause["origin_type"] = type(origin).__name__
+    return cause
+
+
 def _safe_task_error(
     task: Mapping[str, object], exc: Exception, *, retryable: bool = False
 ) -> dict[str, object]:
@@ -1310,16 +1359,23 @@ def _safe_task_error(
             "message": str(exc),
             "retryable": True,
         }
-    safe_code = (
-        "quality_gate_failed" if str(task.get("stage")) == "quality" else "stage_execution_failed"
-    )
+    stage = str(task.get("stage") or "registered")
+    safe_code = "quality_gate_failed" if stage == "quality" else "stage_execution_failed"
     if isinstance(exc, RuntimeError) and "Required fixture month" in str(exc):
         return {"code": safe_code, "message": str(exc), "retryable": retryable}
-    return {
+    cause = _failure_cause(exc)
+    detail = cause["message"] or "no message was recorded"
+    error: dict[str, object] = {
         "code": safe_code,
-        "message": "Registered stage failed; inspect structured run evidence",
+        "message": (
+            f"{stage.replace('_', ' ').capitalize()} stage failed ({cause['type']}): {detail}"
+        )[:500],
         "retryable": retryable,
+        "cause": cause,
     }
+    if stage in {"discover", "acquire"}:
+        error["category"] = "acquisition"
+    return error
 
 
 def _cancellation_poll_interval(lease_seconds: int) -> float:
