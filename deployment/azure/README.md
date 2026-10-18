@@ -414,7 +414,19 @@ the publishers, except PSI: the NSW Valuer General's bot challenge answers Azure
 HTTP 403 (checked from the VM on 18 October 2026; G-NAF, schools, BOCSAR, ABS and the NSW spatial
 services all answer). Ship the archives from your machine with `deploy.sh source-cache`, then
 collect `psi-sales` from the Feature 1 pages as usual: the runner reads the cached archives. Each
-deploy re-reads the cache volume, so the advertised PSI partitions survive redeployments. Features 2 and 4 create records only
+deploy re-reads the cache volume, so the advertised PSI partitions survive redeployments.
+
+The OS disk is 256 GiB because the loader refuses to materialise a release without physical
+headroom on the PostgreSQL filesystem. For PSI that is about 108 GiB: 24 GiB of table growth,
+64 GiB of WAL, the 16 GiB temporary-file limit and a 4 GiB reserve
+(`student-1/database/src/propertyscope_data_store/loader.py`). A 128 GiB disk with the other
+datasets published has about 100 GiB free, so the PSI run stops as `interrupted` with
+`insufficient_loader_database_filesystem_space` before writing anything. To grow an existing
+disk, deallocate the VM, run `az disk update --size-gb 256` on `propertyscope-prod-vm-osdisk`,
+start it (the root partition grows on boot), then resume the run from the Feature 1 pages. A
+managed disk can grow but never shrink, so keep `osDiskSizeGB` at or above the live size.
+
+Features 2 and 4 create records only
 for a property Feature 1 has published, so until a G-NAF release is published the smoke test
 reports their CRUD cases as **skipped** (with that reason) rather than failing the deployment; the
 Cloud Deployment Review still lists them as unproven.
@@ -456,7 +468,7 @@ subscription.
 |---|---|
 | `Standard_D4s_v5` VM (template default) | about US$0.25 per running hour (about US$180 per month if never stopped) |
 | `Standard_D4as_v4` VM (this deployment, `newzealandnorth`) | about US$0.23 per running hour |
-| 128 GiB Premium SSD OS disk | about US$20 per month (charged while deallocated) |
+| 256 GiB Premium SSD (P15) OS disk | about US$38 per month (charged while deallocated) |
 | ACR Basic | about US$5 per month |
 | Standard static public IP | about US$4 per month |
 | Key Vault, budget, auto-shutdown | cents |

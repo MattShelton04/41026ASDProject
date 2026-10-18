@@ -42,7 +42,7 @@ param deployVirtualMachine bool = true
 
 @minValue(64)
 @maxValue(1024)
-param osDiskSizeGB int = 128
+param osDiskSizeGB int = 256
 
 @description('Requires `az feature register --namespace Microsoft.Compute --name EncryptionAtHost` once per subscription.')
 param enableEncryptionAtHost bool = true
