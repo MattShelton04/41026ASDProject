@@ -21,7 +21,7 @@ param publicIpId string
 
 @minValue(64)
 @maxValue(1024)
-param osDiskSizeGB int = 128
+param osDiskSizeGB int = 256
 
 @allowed([
   'Premium_LRS'
