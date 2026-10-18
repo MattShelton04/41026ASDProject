@@ -54,7 +54,10 @@ Only one topology exists: the one in ADR-043.
   `stack status`, `ai status`, `ai logs` and `ai probe`.
 - CI behaviour does not change. MCP and RAG stay disabled, and no job downloads models or
   contacts a provider.
-- Release 2 cloud hosting of AI-mode is still future work. It needs its own decision and must
-  not reintroduce MCP or RAG into CI or the cloud topology without one.
+- Release 2 hosts AI-mode in the cloud only as [ADR-048](ADR-048-azure-vm-hosting.md)'s
+  optional AI tier: the same host processes, run as systemd units on the VM and switched on by an
+  operator (`deploy.sh ai on`, or the *Cloud AI Tier* workflow). CI and the required AI-off cloud
+  baseline still keep MCP and RAG disabled. (Updated 18 October 2026; this line previously called
+  cloud hosting future work.)
 
 The [local runtime guide](../../release-1/host-runtime.md) owns setup and validation commands.

@@ -1,0 +1,163 @@
+name: Cloud AI Tier
+
+# Release 2 bonus tiers B1-B4 on the Azure deployment (ADR-048, deployment/azure/README.md).
+# Run by hand only, after the AI-off Cloud Deployment evidence is captured: the cloud review's
+# required `cloud.ai-disabled` check reads that evidence, and every Cloud Deployment run turns the
+# AI tier off again.
+#
+#   on     turn the host AI tier on (deploy.sh ai on), then probe B1-B4
+#   probe  probe B1-B4 only (the tier is already on)
+#   off    turn the host AI tier off (deploy.sh ai off)
+#
+# The tooling (this workflow, deploy.sh ai-probe, scripts/cloud_ai_probe.py) comes from main, but
+# the AI tier is turned on from the commit the VM is running: the host AI services, the Compose
+# files and the images then come from the same reviewed commit, without another deployment. The
+# probe signs in as the operator with the production environment secret
+# PROPERTYSCOPE_OPERATOR_PASSWORD (the Key Vault secret edge-basic-auth-password) and makes one
+# real interaction per tier through the public edge. Its report is uploaded as an artifact and
+# belongs in docs/release-2/evidence/bonus/, never in evidence/cloud/.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "on: turn the AI tier on and probe B1-B4; probe: probe only; off: turn it off"
+        type: choice
+        options: ["on", "probe", "off"]
+        default: "on"
+
+# The runner itself never starts AI-mode, MCP or RAG: the tier runs on the VM.
+env:
+  AI_MODE_MCP_ENABLED: "false"
+  AI_MODE_RAG_ENABLED: "false"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ai-tier:
+    name: Cloud AI tier (${{ inputs.action }})
+    if: vars.AZURE_SUBSCRIPTION_ID != '' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The same reviewed environment and OIDC identity as the deployment.
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    # Never overlaps a deployment or the nightly deallocation.
+    concurrency:
+      group: cloud-deployment-production
+      cancel-in-progress: false
+    env:
+      PROPERTYSCOPE_CLOUD_LOG_DIR: ${{ github.workspace }}/.propertyscope-runtime/cloud
+      UV_NO_DEFAULT_GROUPS: "1"
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'australiaeast' }}
+      AZURE_DNS_LABEL: ${{ vars.AZURE_DNS_LABEL || 'propertyscope-nsw-g20' }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_ALLOWED_HTTPS_SOURCES: ${{ vars.AZURE_ALLOWED_HTTPS_SOURCES }}
+      PROPERTYSCOPE_SITE_AUTH: ${{ vars.PROPERTYSCOPE_SITE_AUTH || 'on' }}
+      PROPERTYSCOPE_SITE_USER: ${{ vars.PROPERTYSCOPE_SITE_USER || 'propertyscope' }}
+      # A production environment secret, so the address is masked in the public logs.
+      PROPERTYSCOPE_ACME_EMAIL: ${{ secrets.PROPERTYSCOPE_ACME_EMAIL }}
+    steps:
+      - name: Check out the tooling (main)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install the deployment tooling (root project only)
+        run: |
+          uv sync --locked
+          mkdir -p "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs"
+
+      - name: Sign in to Azure with OIDC (no stored credentials)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read the commit the VM is running
+        id: deployed
+        run: |
+          bash deployment/azure/deploy.sh status 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/status-before.log"
+          result=$(sed -n 's/^PROPERTYSCOPE_RESULT=//p' "$PROPERTYSCOPE_CLOUD_LOG_DIR/vm-status.log" | tail -n 1)
+          sha=$(jq -r '.image_tag // empty' <<<"$result")
+          if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The VM runs '${sha:-unknown}', not a reviewed commit; run Cloud Deployment first"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "cloud_ai=$(jq -r '.cloud_ai // empty' <<<"$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the deployed commit
+        if: inputs.action != 'probe'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.deployed.outputs.sha }}
+          path: deployed
+          persist-credentials: false
+
+      - name: Turn the AI tier ${{ inputs.action }}
+        id: toggle
+        if: inputs.action != 'probe'
+        working-directory: deployed
+        env:
+          # The host AI tier, the Compose files and the images all from the deployed commit.
+          IMAGE_TAG: ${{ steps.deployed.outputs.sha }}
+          PROPERTYSCOPE_GIT_SHA: ${{ steps.deployed.outputs.sha }}
+          ACTION: ${{ inputs.action }}
+        run: bash deployment/azure/deploy.sh ai "$ACTION" 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/ai-$ACTION.log"
+
+      - name: Probe B1-B4 through the public edge as the operator
+        id: probe
+        if: inputs.action != 'off'
+        env:
+          PROPERTYSCOPE_OPERATOR_PASSWORD: ${{ secrets.PROPERTYSCOPE_OPERATOR_PASSWORD }}
+          DEPLOYED_SHA: ${{ steps.deployed.outputs.sha }}
+        run: |
+          status=0
+          bash deployment/azure/deploy.sh ai-probe --output-dir "$PROPERTYSCOPE_CLOUD_LOG_DIR/ai-probe" \
+            --commit-sha "$DEPLOYED_SHA" 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/ai-probe.log" || status=$?
+          if [[ -s $PROPERTYSCOPE_CLOUD_LOG_DIR/ai-probe/cloud-ai-probe.md ]]; then
+            cat "$PROPERTYSCOPE_CLOUD_LOG_DIR/ai-probe/cloud-ai-probe.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: Collect the VM status
+        if: always() && steps.deployed.outcome == 'success'
+        continue-on-error: true
+        run: bash deployment/azure/deploy.sh status 2>&1 | tee "$PROPERTYSCOPE_CLOUD_LOG_DIR/logs/status-after.log"
+
+      - name: Upload the AI tier logs and probe report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-ai-${{ inputs.action }}-${{ steps.deployed.outputs.sha || github.sha }}
+          path: |
+            .propertyscope-runtime/cloud/
+            !.propertyscope-runtime/cloud/*.payload.sh
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Sign out of Azure
+        if: always()
+        run: az logout || true

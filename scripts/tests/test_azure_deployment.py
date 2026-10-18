@@ -499,6 +499,7 @@ def test_deploy_script_offers_every_documented_subcommand() -> None:
         "status",
         "logs",
         "source-cache",
+        "ai-probe",
     ):
         assert re.search(rf"^\s+{command}\)", script, re.M), command
     assert "az vm run-command invoke" in script
@@ -1080,3 +1081,53 @@ def test_dry_run_source_cache_names_the_image_by_content_and_loads_it_on_the_vm(
     )
     assert "propertyscope-vm.sh load-source-cache" in text
     assert "base64 -d" not in text  # uses the installed deployment, ships no bundle
+
+
+def _deploy(
+    tmp_path: Path, *arguments: str, **environment: str
+) -> subprocess.CompletedProcess[str]:
+    base = {
+        key: value for key, value in os.environ.items() if key != "PROPERTYSCOPE_OPERATOR_PASSWORD"
+    }
+    return subprocess.run(  # noqa: S603 - fixed bash and repository script
+        [_bash(), "deployment/azure/deploy.sh", *arguments],
+        cwd=ROOT,
+        env={
+            **base,
+            "PROPERTYSCOPE_CLOUD_LOG_DIR": tmp_path.as_posix(),
+            "AZURE_ENV_FILE": (tmp_path / "missing.env").as_posix(),
+            "PROPERTYSCOPE_PUBLIC_URL": "https://cloud.test",
+            **environment,
+        },
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+
+def test_ai_probe_needs_the_operator_password_from_the_environment(tmp_path: Path) -> None:
+    completed = _deploy(tmp_path, "ai-probe")
+
+    assert completed.returncode != 0
+    assert (
+        "set PROPERTYSCOPE_OPERATOR_PASSWORD to the Key Vault secret edge-basic-auth-password"
+        in (completed.stderr)
+    )
+
+
+def test_ai_probe_runs_the_probe_without_the_password_on_its_command_line(tmp_path: Path) -> None:
+    sentinel = "operator-sentinel-value"  # pragma: allowlist secret
+    completed = _deploy(
+        tmp_path,
+        "--dry-run",
+        "ai-probe",
+        "--commit-sha",
+        "0" * 40,
+        PROPERTYSCOPE_OPERATOR_PASSWORD=sentinel,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "scripts/cloud_ai_probe.py --base-url https://cloud.test" in completed.stderr
+    assert f"--commit-sha {'0' * 40}" in completed.stderr
+    assert sentinel not in completed.stderr + completed.stdout

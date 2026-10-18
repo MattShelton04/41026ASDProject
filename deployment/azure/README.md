@@ -337,7 +337,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 10. **Decide what stays on.** Choose one: keep the VM for the demonstration (it deallocates
     nightly), deallocate it now ([Costs](#costs-and-deallocation)), enable the bonus AI
-    tier with `deploy.sh ai on`, or [tear it down](#teardown). Set `AZURE_AUTO_DEPLOY=false` to
+    tier ([B1–B4](#bonus-tiers-b1b6)), or [tear it down](#teardown). Set `AZURE_AUTO_DEPLOY=false` to
     stop automatic deployments, or unset `AZURE_SUBSCRIPTION_ID` to stop every deployment and the
     nightly deallocation.
 
@@ -385,6 +385,7 @@ Docker command instead of running it. The run-command payloads are written to
 | `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, and reports the accepted Feature 1 releases (none until real data is published). Key Vault reads, the ACR login and the pull retry with backoff while new role assignments propagate |
 | `smoke [--expect-ai] [--insecure]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: with the site login on (needs `PROPERTYSCOPE_SITE_PASSWORD`), anonymous 401 and a public `/healthz`, then as the viewer: home page, each feature route and health, one self-cleaning CRUD case per feature (Feature 1 also updates its record), and the AI-off check. It passes the deployment identity (`--commit-sha`, `--image-tag`, `--registry`) and, after a deploy, `--vm-log vm-deploy.log`, so `cloud-smoke.json` records the images the VM reported running, with registry digests |
 | `ai on` / `ai off` | Bonus tiers: checks out the deployed SHA on the VM, `uv sync`s it, prepares the RAG model and corpora, starts the systemd units and applies the AI overlay. `off` reverses all of this |
+| `ai-probe [--output-dir DIR] [--commit-sha SHA]` | Bonus B1–B4 evidence with the AI tier on: `scripts/cloud_ai_probe.py` signs in as the operator (needs `PROPERTYSCOPE_OPERATOR_PASSWORD`) and makes one real interaction per tier through the public edge: a Feature 1 assistant turn answered through MCP (B1, B2), a cited RAG answer (B3) and a Feature 1 release readiness review that runs Planner, Worker and Reviewer and stops at `awaiting_human` (B4). Writes `cloud-ai-probe.json` and `.md` |
 | `status`, `logs [service] [lines]` | Container health, AI units and listening sockets. Recent Compose logs, or journal logs for `ai-mode`, `mcp`, `rag` and `multi-agent` |
 | `outputs` | FQDN, ACR login server, VM name and Key Vault name from the Bicep deployment |
 | `validate-endpoint`, `validate-data` | Bonus B5 and B6 evidence (`endpoint-security.txt`, `data-security.txt`) |
@@ -455,9 +456,38 @@ Cloud Deployment Review still lists them as unproven.
   `169.254.169.254` in Docker's `DOCKER-USER` chain. Host scripts and the host AI tier still
   reach it. Evidence: `deploy.sh validate-data`. Its control-plane half reads the deployer's
   federated credentials from an app registration or from a user-assigned managed identity.
-- **B1–B4 AI:** `deploy.sh ai on`, then exercise each tier from a feature UI. Use
-  `deploy.sh smoke --expect-ai` and the feature evidence in `docs/release-2/evidence/bonus/`.
-  Turn it off again with `deploy.sh ai off`. The workflow always deploys with AI off.
+- **B1–B4 AI:** run the *Cloud AI Tier* workflow (`.github/workflows/cloud-ai.yml`) by hand on
+  `main` with `action: on`, and approve the `production` environment. It reads the commit the VM
+  runs, turns the host AI tier on from that commit (`deploy.sh ai on`, so the AI services, Compose
+  files and images match without another deployment), then runs `deploy.sh ai-probe`: one real
+  interaction per tier through the public edge as the operator, verified against the Release 1
+  evidence rules (`scripts/release1_capture_evidence.py`). The step summary shows the result, and
+  the `cloud-ai-on-<sha>` artifact holds `ai-probe/cloud-ai-probe.json` and `.md`. Copy those into
+  `docs/release-2/evidence/bonus/`, never into `evidence/cloud/`: the cloud review's required
+  `cloud.ai-disabled` check reads the AI-off smoke document there. `action: probe` re-runs the
+  probe and `action: off` turns the tier off. Order matters: capture the AI-off *Cloud
+  Deployment* evidence first, because every Cloud Deployment run turns the AI tier off again. The
+  units are enabled under `multi-user.target`, so the tier should return after the nightly
+  deallocation (not yet observed); re-run with `action: probe` to check.
+
+  The probe signs in with the production environment secret `PROPERTYSCOPE_OPERATOR_PASSWORD`,
+  a copy of the Key Vault secret `edge-basic-auth-password`. Set it once from a laptop; the vault
+  firewall admits your address only for the read:
+
+  ```bash
+  KV=<key vault name>; IP=$(curl -fsS https://api.ipify.org)
+  az keyvault network-rule add --name "$KV" --ip-address "$IP/32" --output none
+  az keyvault secret show --vault-name "$KV" --name edge-basic-auth-password --query value -o tsv |
+    gh secret set PROPERTYSCOPE_OPERATOR_PASSWORD --env production
+  az keyvault network-rule remove --name "$KV" --ip-address "$IP/32" --output none
+  ```
+
+  The tier needs the Key Vault secret `openai-api-key` (`deploy.sh secrets` with
+  `OPENAI_API_KEY`); without it AI-mode reports its provider as not ready, the Multi-Agent Server
+  falls back to its deterministic provider and the probe fails B4. From a laptop the same steps
+  are `deploy.sh ai on`, then `PROPERTYSCOPE_OPERATOR_PASSWORD=... deploy.sh ai-probe`, from a
+  checkout of the deployed commit. `deploy.sh smoke --expect-ai` only proves that AI-mode
+  answers its health route.
 
 ## Costs and deallocation
 
