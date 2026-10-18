@@ -388,6 +388,7 @@ Docker command instead of running it. The run-command payloads are written to
 | `status`, `logs [service] [lines]` | Container health, AI units and listening sockets. Recent Compose logs, or journal logs for `ai-mode`, `mcp`, `rag` and `multi-agent` |
 | `outputs` | FQDN, ACR login server, VM name and Key Vault name from the Bicep deployment |
 | `validate-endpoint`, `validate-data` | Bonus B5 and B6 evidence (`endpoint-security.txt`, `data-security.txt`) |
+| `source-cache [--no-sync] [--cache-dir DIR]` | Laptop only. Refreshes the local PSI cache (`dev.py data sync-psi --all`, keeping verified files), pushes its `psi/` directory to ACR as the data-only image `propertyscope/source-cache:psi-<content hash>`, then through run-command the VM pulls it with its AcrPull identity, swaps it into the runner's `f1-source-cache` volume and recreates `f1-backend` so it advertises the cached years and weeks. Needs the deployed stack |
 | `all` | `provision`, then `push`, `deploy` and `smoke` |
 
 Logs and reports are written to `.propertyscope-runtime/cloud/` (Git-ignored). The workflow
@@ -409,8 +410,11 @@ deallocation, and is lost only when the VM (whose disk is deleted with it) or th
 is deleted. Real data is collected and published in the cloud only through the normal Feature 1
 review (see the `feature-1-data` skill), from the Feature 1 pages signed in as the operator:
 protected data-pipeline routes require the operator credentials. The cloud runner downloads from
-the publishers; its source cache is an empty volume, so a source that must be pre-cached (PSI
-archives, `data sync-psi`) cannot be collected there yet. Features 2 and 4 create records only
+the publishers, except PSI: the NSW Valuer General's bot challenge answers Azure addresses with
+HTTP 403 (checked from the VM on 18 October 2026; G-NAF, schools, BOCSAR, ABS and the NSW spatial
+services all answer). Ship the archives from your machine with `deploy.sh source-cache`, then
+collect `psi-sales` from the Feature 1 pages as usual: the runner reads the cached archives. Each
+deploy re-reads the cache volume, so the advertised PSI partitions survive redeployments. Features 2 and 4 create records only
 for a property Feature 1 has published, so until a G-NAF release is published the smoke test
 reports their CRUD cases as **skipped** (with that reason) rather than failing the deployment; the
 Cloud Deployment Review still lists them as unproven.
