@@ -20,7 +20,10 @@ _CANONICAL_FORWARDED_HEADERS = {
     AGENT_RUN_ID_HEADER.lower(): AGENT_RUN_ID_HEADER,
     TRACEPARENT_HEADER.lower(): TRACEPARENT_HEADER,
     IDEMPOTENCY_KEY_HEADER.lower(): IDEMPOTENCY_KEY_HEADER,
+    # Conditional reads let accepted-pointer projections answer 304 without recomputing.
+    "if-none-match": "If-None-Match",
 }
+_MAX_VALIDATOR_LENGTH = 2048
 
 
 def forwarded_headers(headers: Mapping[str, str] | Headers) -> dict[str, str]:
@@ -39,6 +42,8 @@ def forwarded_headers(headers: Mapping[str, str] | Headers) -> dict[str, str]:
         if not value:
             continue
         if canonical == REQUEST_ID_HEADER and not is_valid_request_id(value):
+            continue
+        if canonical == "If-None-Match" and len(value) > _MAX_VALIDATOR_LENGTH:
             continue
         if canonical == TRACEPARENT_HEADER:
             value = value.lower()

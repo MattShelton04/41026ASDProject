@@ -1,0 +1,450 @@
+{
+  "$defs": {
+    "DisplayLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "tolerance_degrees": {
+          "title": "Tolerance Degrees",
+          "type": "number"
+        },
+        "vertex_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Vertex Count"
+        }
+      },
+      "required": [
+        "tolerance_degrees",
+        "vertex_count"
+      ],
+      "title": "DisplayLevel",
+      "type": "object"
+    },
+    "DisplaySummary": {
+      "additionalProperties": false,
+      "properties": {
+        "source_vertex_count": {
+          "minimum": 0,
+          "title": "Source Vertex Count",
+          "type": "integer"
+        },
+        "levels": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DisplayLevel"
+          },
+          "propertyNames": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "title": "Levels",
+          "type": "object"
+        }
+      },
+      "required": [
+        "source_vertex_count",
+        "levels"
+      ],
+      "title": "DisplaySummary",
+      "type": "object"
+    },
+    "ReleaseReference": {
+      "additionalProperties": false,
+      "description": "The accepted release that answered one layer, with publisher provenance.",
+      "properties": {
+        "dataset_id": {
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "target_feature": {
+          "title": "Target Feature",
+          "type": "string"
+        },
+        "dataset_release_id": {
+          "format": "uuid",
+          "title": "Dataset Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "title": "Release Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "accepted_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Accepted At"
+        },
+        "acquired_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Acquired At"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Updated At"
+        },
+        "publisher": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Publisher"
+        },
+        "source_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Name"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Url"
+        },
+        "licence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Licence Id"
+        },
+        "licence_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Licence Url"
+        },
+        "freshness_days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Freshness Days"
+        }
+      },
+      "required": [
+        "dataset_id",
+        "target_feature",
+        "dataset_release_id",
+        "release_version",
+        "schema_version",
+        "accepted_at",
+        "acquired_at",
+        "source_updated_at",
+        "publisher",
+        "source_name",
+        "source_url",
+        "licence_id",
+        "licence_url",
+        "freshness_days"
+      ],
+      "title": "ReleaseReference",
+      "type": "object"
+    },
+    "SuburbSourceDates": {
+      "additionalProperties": false,
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Updated At"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Valid From"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start Date"
+        },
+        "last_update": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Update"
+        },
+        "urbanity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Urbanity"
+        },
+        "publisher_edition": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Publisher Edition"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_updated_at",
+        "valid_from",
+        "start_date",
+        "last_update",
+        "urbanity",
+        "publisher_edition"
+      ],
+      "title": "SuburbSourceDates",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "suburb_id": {
+      "description": "Publisher cadid",
+      "pattern": "^[1-9][0-9]{0,11}$",
+      "title": "Suburb Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "postcode": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9]{4}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Postcode"
+    },
+    "state": {
+      "const": "NSW",
+      "title": "State",
+      "type": "string"
+    },
+    "geometry_status": {
+      "enum": [
+        "valid",
+        "invalid",
+        "not_provided"
+      ],
+      "title": "Geometry Status",
+      "type": "string"
+    },
+    "centroid": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "ST_Centroid [longitude, latitude]; may fall outside a concave suburb",
+      "title": "Centroid"
+    },
+    "label_point": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "ST_PointOnSurface [longitude, latitude]; always inside the suburb",
+      "title": "Label Point"
+    },
+    "bbox": {
+      "anyOf": [
+        {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "[min_longitude, min_latitude, max_longitude, max_latitude]",
+      "title": "Bbox"
+    },
+    "schema_version": {
+      "const": "propertyscope.suburb-detail.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "geography": {
+      "const": "nsw-gazetted-suburb",
+      "title": "Geography",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SuburbSourceDates"
+    },
+    "display": {
+      "$ref": "#/$defs/DisplaySummary"
+    },
+    "coverage": {
+      "enum": [
+        "accepted",
+        "partial",
+        "stale",
+        "unavailable"
+      ],
+      "title": "Coverage",
+      "type": "string"
+    },
+    "release": {
+      "$ref": "#/$defs/ReleaseReference"
+    }
+  },
+  "required": [
+    "suburb_id",
+    "name",
+    "postcode",
+    "state",
+    "geometry_status",
+    "centroid",
+    "label_point",
+    "bbox",
+    "schema_version",
+    "geography",
+    "source",
+    "display",
+    "coverage",
+    "release"
+  ],
+  "title": "SuburbDetailV1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://propertyscope.local/contracts/suburb-detail.v1.schema.json"
+}

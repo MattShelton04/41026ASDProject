@@ -24,6 +24,9 @@ PROTOCOL_CONTRACTS = (
     "consumer-publication-request.v1.schema.json",
     "consumer-import-acknowledgement.v1.schema.json",
     "consumer-publication-receipt.v1.schema.json",
+    "suburb-search.v1.schema.json",
+    "suburb-detail.v1.schema.json",
+    "suburb-map-context.v1.schema.json",
 )
 
 

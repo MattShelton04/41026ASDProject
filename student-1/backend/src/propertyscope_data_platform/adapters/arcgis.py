@@ -175,6 +175,17 @@ def _count(client: httpx.Client, url: str, where: str = "1=1") -> int:
     return value
 
 
+def _metadata_fingerprint(metadata: dict[str, Any]) -> str:
+    """Fingerprint the layer definition that affects records, not its cartography.
+
+    The NSW portal answers from nodes that disagree on ``drawingInfo`` colour ramps
+    (observed 2026-10-18 on the protected-reserve layer), so including the renderer would
+    fail an unchanged layer about half the time.
+    """
+    content = {key: value for key, value in metadata.items() if key != "drawingInfo"}
+    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
+
+
 def discover_arcgis_layer(
     client: httpx.Client,
     url: str,
@@ -214,7 +225,7 @@ def discover_arcgis_layer(
             raise ValueError("ArcGIS standard query page limit is missing")
         query_result_type = "standard"
         application_limit = standard_page_size
-    fingerprint = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+    fingerprint = _metadata_fingerprint(metadata)
     descriptor = {
         "logical_key": logical_key,
         "url": url,
@@ -300,7 +311,7 @@ def iter_arcgis_features(
     if received != expected or _count(client, url, str(descriptor.get("where", "1=1"))) != expected:
         raise ValueError("ArcGIS acquisition is incomplete or source count changed")
     metadata = _read_json(client, url, {"f": "json"})
-    fingerprint = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+    fingerprint = _metadata_fingerprint(metadata)
     if fingerprint != descriptor["metadata_sha256"]:
         raise ValueError("ArcGIS metadata changed during acquisition")
 

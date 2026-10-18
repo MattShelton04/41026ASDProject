@@ -1374,6 +1374,10 @@ def product_schema_documents() -> dict[str, dict[str, Any]]:
         "consumer-publication-request.v1.schema.json": ConsumerPublicationRequest,
         "consumer-publication-receipt.v1.schema.json": PublicationReceiptResult,
     }
+    # Imported here: the suburb-map contracts reuse SchoolPointRecord from this module.
+    from propertyscope_data_platform.suburb_map_contracts import SUBURB_MAP_SCHEMA_MODELS
+
+    models.update(SUBURB_MAP_SCHEMA_MODELS)
     documents: dict[str, dict[str, Any]] = {}
     for filename, model in models.items():
         schema = model.model_json_schema(mode="validation")

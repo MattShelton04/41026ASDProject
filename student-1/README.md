@@ -51,6 +51,10 @@ showcase path, see [Feature 1 marking evidence](MARKING_EVIDENCE.md).
 For the implemented provider catalogue, HTTP/artifact contracts, compatibility policy,
 publication/recovery lifecycle, dataset semantics, and future-registration procedure, see
 [the Release 0 data-product consumer guide](DATA_PRODUCT_CONSUMER_GUIDE.md).
+Map consumers (Feature 3, and Feature 4 if it needs suburb maps) resolve a gazetted suburb and
+draw its accepted boundary, schools and amenities through `GET /suburbs/search`,
+`/suburbs/{suburb_id}` and `/suburbs/{suburb_id}/map-context`; see the
+[suburb-map API consumer guide](SUBURB_MAP_API_CONSUMER_GUIDE.md).
 The supported `GET /api/data-platform/v1/product-contracts/v1` discovery resource and its
 digest-bound ZIP are the consumer entry point for producer-owned record schemas; consumers do not
 read repository paths. Releases use gzip-compressed NDJSON. Producer verification queues durable
@@ -319,7 +323,7 @@ volumes are preserved.
 
 ## Endpoint tests
 
-`tests/endpoints/` tests two endpoint functions of the running Feature 1 backend over real HTTP
+`tests/endpoints/` tests three endpoint functions of the running Feature 1 backend over real HTTP
 (Release 2 checklist F-7). They are marked `endpoint` and skip unless
 `PROPERTYSCOPE_ENDPOINT_BASE_URL` is set, so `check.py` and plain `pytest` stay Docker-free and
 these tests do not count towards the slice's coverage threshold.
@@ -328,6 +332,7 @@ these tests do not count towards the slice's coverage threshold.
 |---|---|---|
 | `GET /api/data-platform/v1/properties/search` | An address held by the accepted data (the seeded `11 Example Street`, or one read from the accepted G-NAF release) returns matches that validate against `PropertySearchPage` in the OpenAPI contract; the best match contains every query term and the request ID is echoed | Missing, one-character, whitespace-padded and over-long `q` each return a 422 `invalid_request` problem that echoes the request ID |
 | Source-definition CRUD, `/api/data-platform/v1/sources[/{id}]` | Create a uniquely named draft, find it in the list, read it, update it (version 1 to 2), delete it, then get 404 `not_found` | Seven invalid payloads, a non-JSON body and an unknown `status` list filter return 422 `invalid_request`; a duplicate name returns 409 `conflict`. The list is checked afterwards, so nothing was persisted |
+| Suburb map, `/api/data-platform/v1/suburbs/search`, `/suburbs/{id}`, `/suburbs/{id}/map-context` | Search normalises the name and reports availability; when boundaries are accepted, detail and map context validate against their `suburb-*.v1` schemas and revalidate with `If-None-Match` to a 304 (these cases skip on a stack without accepted boundaries) | `parks`, `zoom` with `detail`, `limit=0`, a non-cadid ID and an unknown search parameter return 422 problems; an unknown cadid returns 404 `suburb_not_found` |
 
 Every created definition is a draft that the test deletes; a teardown fixture removes any left
 behind by a failed assertion. Payloads are validated against

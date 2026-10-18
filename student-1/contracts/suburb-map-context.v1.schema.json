@@ -1,0 +1,1091 @@
+{
+  "$defs": {
+    "BoundaryFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "Feature",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "properties": {
+          "$ref": "#/$defs/BoundaryProperties"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeoJsonGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Simplified display geometry; null when the source geometry is invalid"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "properties",
+        "geometry"
+      ],
+      "title": "BoundaryFeature",
+      "type": "object"
+    },
+    "BoundaryProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "suburb_id": {
+          "pattern": "^[1-9][0-9]{0,11}$",
+          "title": "Suburb Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "postcode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Postcode"
+        },
+        "detail": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Detail",
+          "type": "string"
+        },
+        "tolerance_degrees": {
+          "title": "Tolerance Degrees",
+          "type": "number"
+        },
+        "source_vertex_count": {
+          "minimum": 0,
+          "title": "Source Vertex Count",
+          "type": "integer"
+        },
+        "display_vertex_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Display Vertex Count"
+        }
+      },
+      "required": [
+        "suburb_id",
+        "name",
+        "postcode",
+        "detail",
+        "tolerance_degrees",
+        "source_vertex_count",
+        "display_vertex_count"
+      ],
+      "title": "BoundaryProperties",
+      "type": "object"
+    },
+    "GeoJsonGeometry": {
+      "additionalProperties": false,
+      "description": "WGS84 longitude/latitude geometry with at most six decimal places.",
+      "properties": {
+        "type": {
+          "enum": [
+            "Point",
+            "Polygon",
+            "MultiPolygon"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "coordinates": {
+          "items": {},
+          "title": "Coordinates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "coordinates"
+      ],
+      "title": "GeoJsonGeometry",
+      "type": "object"
+    },
+    "LayerDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "dataset_id": {
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "source_layer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Layer"
+        },
+        "geometry": {
+          "enum": [
+            "point",
+            "polygon"
+          ],
+          "title": "Geometry",
+          "type": "string"
+        },
+        "predicate": {
+          "enum": [
+            "ST_Covers",
+            "ST_Intersects"
+          ],
+          "title": "Predicate",
+          "type": "string"
+        },
+        "limit": {
+          "title": "Limit",
+          "type": "integer"
+        },
+        "operational_filter": {
+          "enum": [
+            "current",
+            "all"
+          ],
+          "title": "Operational Filter",
+          "type": "string"
+        },
+        "matched_count": {
+          "minimum": 0,
+          "title": "Matched Count",
+          "type": "integer"
+        },
+        "eligible_count": {
+          "minimum": 0,
+          "title": "Eligible Count",
+          "type": "integer"
+        },
+        "excluded_non_operational": {
+          "minimum": 0,
+          "title": "Excluded Non Operational",
+          "type": "integer"
+        },
+        "excluded_invalid_geometry": {
+          "minimum": 0,
+          "title": "Excluded Invalid Geometry",
+          "type": "integer"
+        },
+        "excluded_missing_geometry": {
+          "minimum": 0,
+          "title": "Excluded Missing Geometry",
+          "type": "integer"
+        },
+        "feature_count": {
+          "minimum": 0,
+          "title": "Feature Count",
+          "type": "integer"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "dataset_unavailable",
+                "unsupported_schema",
+                "layer_not_in_release",
+                "boundary_geometry_unavailable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "stale": {
+          "title": "Stale",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "dataset_id",
+        "source_layer",
+        "geometry",
+        "predicate",
+        "limit",
+        "operational_filter",
+        "matched_count",
+        "eligible_count",
+        "excluded_non_operational",
+        "excluded_invalid_geometry",
+        "excluded_missing_geometry",
+        "feature_count",
+        "truncated",
+        "reason",
+        "stale"
+      ],
+      "title": "LayerDetail",
+      "type": "object"
+    },
+    "MapContextLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_categories": {
+          "title": "Max Categories",
+          "type": "integer"
+        },
+        "default_layer_limit": {
+          "title": "Default Layer Limit",
+          "type": "integer"
+        },
+        "max_layer_limit": {
+          "title": "Max Layer Limit",
+          "type": "integer"
+        },
+        "max_response_vertices": {
+          "title": "Max Response Vertices",
+          "type": "integer"
+        },
+        "max_response_bytes": {
+          "title": "Max Response Bytes",
+          "type": "integer"
+        },
+        "coordinate_decimals": {
+          "title": "Coordinate Decimals",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_categories",
+        "default_layer_limit",
+        "max_layer_limit",
+        "max_response_vertices",
+        "max_response_bytes",
+        "coordinate_decimals"
+      ],
+      "title": "MapContextLimits",
+      "type": "object"
+    },
+    "MapContextRequestEcho": {
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Categories",
+          "type": "array"
+        },
+        "detail": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Detail",
+          "type": "string"
+        },
+        "tolerance_degrees": {
+          "title": "Tolerance Degrees",
+          "type": "number"
+        },
+        "limit": {
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "operational": {
+          "enum": [
+            "current",
+            "all"
+          ],
+          "title": "Operational",
+          "type": "string"
+        }
+      },
+      "required": [
+        "categories",
+        "detail",
+        "tolerance_degrees",
+        "limit",
+        "operational"
+      ],
+      "title": "MapContextRequestEcho",
+      "type": "object"
+    },
+    "MapFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "Feature",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SchoolPointRecord"
+            },
+            {
+              "$ref": "#/$defs/PointAmenityProperties"
+            },
+            {
+              "$ref": "#/$defs/ReserveProperties"
+            }
+          ],
+          "title": "Properties"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeoJsonGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "properties",
+        "geometry"
+      ],
+      "title": "MapFeature",
+      "type": "object"
+    },
+    "MapFeatureCollection": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "FeatureCollection",
+          "title": "Type",
+          "type": "string"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/MapFeature"
+          },
+          "title": "Features",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "features"
+      ],
+      "title": "MapFeatureCollection",
+      "type": "object"
+    },
+    "PointAmenityProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "amenity_id": {
+          "title": "Amenity Id",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "source_feature_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Feature Id"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Updated At"
+        },
+        "match": {
+          "const": "covers",
+          "title": "Match",
+          "type": "string"
+        },
+        "operational_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "operational",
+                "non-operational"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Operational Status"
+        },
+        "operational_status_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Operational Status Code"
+        }
+      },
+      "required": [
+        "amenity_id",
+        "category",
+        "name",
+        "source_feature_id",
+        "source_updated_at",
+        "match",
+        "operational_status",
+        "operational_status_code"
+      ],
+      "title": "PointAmenityProperties",
+      "type": "object"
+    },
+    "ProductProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "release_id": {
+          "format": "uuid",
+          "title": "Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "maxLength": 150,
+          "minLength": 1,
+          "title": "Release Version",
+          "type": "string"
+        },
+        "candidate_generation_id": {
+          "format": "uuid",
+          "title": "Candidate Generation Id",
+          "type": "string"
+        },
+        "source_record_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Record Sha256",
+          "type": "string"
+        },
+        "normalisation_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Normalisation Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "release_version",
+        "candidate_generation_id",
+        "source_record_sha256",
+        "normalisation_version"
+      ],
+      "title": "ProductProvenance",
+      "type": "object"
+    },
+    "ReleaseReference": {
+      "additionalProperties": false,
+      "description": "The accepted release that answered one layer, with publisher provenance.",
+      "properties": {
+        "dataset_id": {
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "target_feature": {
+          "title": "Target Feature",
+          "type": "string"
+        },
+        "dataset_release_id": {
+          "format": "uuid",
+          "title": "Dataset Release Id",
+          "type": "string"
+        },
+        "release_version": {
+          "title": "Release Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "accepted_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Accepted At"
+        },
+        "acquired_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Acquired At"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Updated At"
+        },
+        "publisher": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Publisher"
+        },
+        "source_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Name"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Url"
+        },
+        "licence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Licence Id"
+        },
+        "licence_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Licence Url"
+        },
+        "freshness_days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Freshness Days"
+        }
+      },
+      "required": [
+        "dataset_id",
+        "target_feature",
+        "dataset_release_id",
+        "release_version",
+        "schema_version",
+        "accepted_at",
+        "acquired_at",
+        "source_updated_at",
+        "publisher",
+        "source_name",
+        "source_url",
+        "licence_id",
+        "licence_url",
+        "freshness_days"
+      ],
+      "title": "ReleaseReference",
+      "type": "object"
+    },
+    "ReserveProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "amenity_id": {
+          "title": "Amenity Id",
+          "type": "string"
+        },
+        "category": {
+          "const": "protected-reserve",
+          "title": "Category",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "source_feature_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Feature Id"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Updated At"
+        },
+        "match": {
+          "const": "intersects",
+          "title": "Match",
+          "type": "string"
+        },
+        "reserve_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reserve Type"
+        },
+        "coverage_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Coverage Note"
+        },
+        "display_clipped": {
+          "title": "Display Clipped",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "amenity_id",
+        "category",
+        "name",
+        "source_feature_id",
+        "source_updated_at",
+        "match",
+        "reserve_type",
+        "coverage_note",
+        "display_clipped"
+      ],
+      "title": "ReserveProperties",
+      "type": "object"
+    },
+    "SchoolPointRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "school_code": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "School Code",
+          "type": "string"
+        },
+        "school_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "School Name",
+          "type": "string"
+        },
+        "school_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "School Type",
+          "type": "string"
+        },
+        "operational_status": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Operational Status",
+          "type": "string"
+        },
+        "locality_original": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Locality Original",
+          "type": "string"
+        },
+        "locality_normalised": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Locality Normalised",
+          "type": "string"
+        },
+        "state": {
+          "pattern": "^NSW$",
+          "title": "State",
+          "type": "string"
+        },
+        "lga": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lga"
+        },
+        "latitude": {
+          "maximum": -27,
+          "minimum": -38,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 160,
+          "minimum": 140,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProductProvenance"
+        }
+      },
+      "required": [
+        "school_code",
+        "school_name",
+        "school_type",
+        "operational_status",
+        "locality_original",
+        "locality_normalised",
+        "state",
+        "latitude",
+        "longitude",
+        "provenance"
+      ],
+      "title": "SchoolPointRecord",
+      "type": "object"
+    },
+    "SuburbWithBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "suburb_id": {
+          "description": "Publisher cadid",
+          "pattern": "^[1-9][0-9]{0,11}$",
+          "title": "Suburb Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "postcode": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9]{4}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Postcode"
+        },
+        "state": {
+          "const": "NSW",
+          "title": "State",
+          "type": "string"
+        },
+        "geometry_status": {
+          "enum": [
+            "valid",
+            "invalid",
+            "not_provided"
+          ],
+          "title": "Geometry Status",
+          "type": "string"
+        },
+        "centroid": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "ST_Centroid [longitude, latitude]; may fall outside a concave suburb",
+          "title": "Centroid"
+        },
+        "label_point": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "ST_PointOnSurface [longitude, latitude]; always inside the suburb",
+          "title": "Label Point"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "[min_longitude, min_latitude, max_longitude, max_latitude]",
+          "title": "Bbox"
+        },
+        "boundary": {
+          "$ref": "#/$defs/BoundaryFeature"
+        }
+      },
+      "required": [
+        "suburb_id",
+        "name",
+        "postcode",
+        "state",
+        "geometry_status",
+        "centroid",
+        "label_point",
+        "bbox",
+        "boundary"
+      ],
+      "title": "SuburbWithBoundary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "propertyscope.suburb-map-context.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "geography": {
+      "const": "nsw-gazetted-suburb",
+      "title": "Geography",
+      "type": "string"
+    },
+    "suburb": {
+      "$ref": "#/$defs/SuburbWithBoundary"
+    },
+    "request": {
+      "$ref": "#/$defs/MapContextRequestEcho"
+    },
+    "layers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MapFeatureCollection"
+      },
+      "title": "Layers",
+      "type": "object"
+    },
+    "coverage": {
+      "additionalProperties": {
+        "enum": [
+          "accepted",
+          "partial",
+          "stale",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "description": "'boundary' plus one entry per requested category",
+      "title": "Coverage",
+      "type": "object"
+    },
+    "layer_details": {
+      "additionalProperties": {
+        "$ref": "#/$defs/LayerDetail"
+      },
+      "title": "Layer Details",
+      "type": "object"
+    },
+    "releases": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ReleaseReference"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Releases",
+      "type": "object"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "limits": {
+      "$ref": "#/$defs/MapContextLimits"
+    },
+    "response_vertices": {
+      "minimum": 0,
+      "title": "Response Vertices",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "geography",
+    "suburb",
+    "request",
+    "layers",
+    "coverage",
+    "layer_details",
+    "releases",
+    "truncated",
+    "limits",
+    "response_vertices"
+  ],
+  "title": "SuburbMapContextV1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://propertyscope.local/contracts/suburb-map-context.v1.schema.json"
+}

@@ -50,6 +50,7 @@ from propertyscope_data_platform.release_routes import (
     release_inspection,
 )
 from propertyscope_data_platform.source_catalog import catalogue_presentation_payload
+from propertyscope_data_platform.suburb_routes import register_suburb_routes
 from propertyscope_data_platform.worker_routes import register_worker_routes
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
@@ -217,6 +218,7 @@ def create_blueprint(
     register_release_routes(api, store, consumers, artifact_root=artifact_root)
 
     register_property_routes(api, store, base=BASE, internal=INTERNAL)
+    register_suburb_routes(api, store, base=BASE, internal=INTERNAL)
 
     register_assistant_tool_routes(
         api,

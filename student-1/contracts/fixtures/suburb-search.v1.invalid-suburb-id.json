@@ -1,0 +1,76 @@
+{
+  "schema_version": "propertyscope.suburb-search.v1",
+  "geography": "nsw-gazetted-suburb",
+  "query": {
+    "q": "Mayfield",
+    "normalised": "MAYFIELD",
+    "postcode": null
+  },
+  "availability": {
+    "status": "available",
+    "reason": "Exact normalised name match within the accepted suburb release."
+  },
+  "match": "ambiguous",
+  "items": [
+    {
+      "suburb_id": "PARRAMATTA",
+      "name": "MAYFIELD",
+      "postcode": "2304",
+      "state": "NSW",
+      "geometry_status": "valid",
+      "centroid": [
+        151.205,
+        -33.795
+      ],
+      "label_point": [
+        151.205,
+        -33.795
+      ],
+      "bbox": [
+        151.2,
+        -33.8,
+        151.21,
+        -33.79
+      ]
+    },
+    {
+      "suburb_id": "1003",
+      "name": "MAYFIELD",
+      "postcode": "2540",
+      "state": "NSW",
+      "geometry_status": "valid",
+      "centroid": [
+        150.205,
+        -34.795
+      ],
+      "label_point": [
+        150.205,
+        -34.795
+      ],
+      "bbox": [
+        150.2,
+        -34.8,
+        150.21,
+        -34.79
+      ]
+    }
+  ],
+  "count": 2,
+  "has_more": false,
+  "release": {
+    "dataset_id": "nsw-suburb-boundaries",
+    "target_feature": "feature-1",
+    "dataset_release_id": "aaa55635-b2ee-4cbb-b3be-57ab1da751cb",
+    "release_version": "test-aaa55635-b2ee-4cbb-b3be-57ab1da751cb",
+    "schema_version": "propertyscope.reference-feature.v1",
+    "accepted_at": "2026-10-17T10:43:15.463650+00:00",
+    "acquired_at": "2026-10-01T00:00:00+00:00",
+    "source_updated_at": null,
+    "publisher": "NSW Spatial Services",
+    "source_name": "NSW gazetted suburb boundaries",
+    "source_url": "https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Administrative_Boundaries_Theme_multiCRS/FeatureServer/2",
+    "licence_id": "cc-by",
+    "licence_url": "https://www.spatial.nsw.gov.au/copyright",
+    "freshness_days": 400
+  }
+}
