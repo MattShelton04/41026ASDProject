@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -42,6 +43,7 @@ from propertyscope_data_store.configuration import (
     MAX_LOADER_TEMP_FILE_LIMIT_KIB,
     MIN_LOADER_TEMP_FILE_LIMIT_KIB,
 )
+from propertyscope_data_store.demonstration_data import purge_demonstration_data
 from propertyscope_data_store.errors import (
     ConflictError,
     LeaseConflictError,
@@ -83,6 +85,8 @@ from propertyscope_data_store.runtime_registry import (
     RuntimeRegistry,
     RuntimeRegistryError,
 )
+
+logger = logging.getLogger(__name__)
 
 JsonObject = dict[str, Any]
 TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled", "skipped"})
@@ -182,10 +186,22 @@ class PropertyScopeStore:
                 f"SET LOCAL temp_file_limit = '{self._loader_temp_file_limit_kib}kB'"
             )
 
-    def initialize(self) -> str:
-        """Migrate from empty, including the idempotent Release 0 showcase baseline."""
+    def initialize(self, *, demonstration_data: bool = True) -> str:
+        """Migrate from empty, including the idempotent Release 0 showcase baseline.
+
+        With ``demonstration_data=False`` (production) the baseline is purged after every
+        migration pass, so the database holds only real, reviewed releases.
+        """
         with self.connection() as connection:
             migrate(connection)
+            if not demonstration_data:
+                deleted = purge_demonstration_data(connection)
+                if deleted:
+                    logger.info(
+                        "purged the demonstration baseline: %d rows",
+                        sum(deleted.values()),
+                        extra={"deleted": deleted},
+                    )
             return schema_fingerprint(connection)
 
     def ready(self) -> bool:

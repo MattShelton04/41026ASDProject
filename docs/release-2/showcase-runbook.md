@@ -354,14 +354,14 @@ deallocation stopped it.
 2. Open each of the five features from the home page.
 3. Browser tab 7: Feature 1 on Azure. Run a property search, then create, read and delete a
    source definition (or show the smoke output's CRUD cases).
-4. Open the deployed candidate release (the deployment runs the `fixture-property` collection
-   once). **Readiness review** and **Review with AI** are visible but disabled, with the note
+4. Open a candidate release collected in the cloud (production holds no demonstration data, so
+   collect one there first, signed in as the operator). **Readiness review** and **Review with AI** are visible but disabled, with the note
    "Multi-agent review is not enabled in this deployment."
 5. Show the Cloud Deployment run's smoke step: every CRUD case passed and the AI check reports
    `ai_disabled`.
 
 **Viewer sees:** the same frontend, APIs and databases working on Azure, with the AI tier off by
-default (R2-44). The cloud data is the seeded demonstration baseline. Say so.
+default (R2-44). The cloud holds only real releases published through the Feature 1 review.
 
 > "This is one Ubuntu VM in New Zealand North, the nearest region our student subscription allows. It runs the same Compose model, with images from Azure
 > Container Registry pinned to the commit SHA, Caddy for TLS and secrets in Key Vault. AI-mode,

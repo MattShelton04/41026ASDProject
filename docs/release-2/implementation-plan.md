@@ -93,7 +93,7 @@ docs/release-2/evidence/
 
 Closed:
 
-- Cloud data (Feature 1): the **seeded demonstration baseline**, labelled as such in the UI and
-  the reports. A real release reaches the cloud only through the normal review and publication
+- Cloud data (Feature 1): **no demonstration data** (amended 18 October 2026: production purges
+  the seeded baseline; ADR-048). A real release reaches the cloud only through the normal review and publication
   ([Feature 1 plan](parts/feature-1.md#cloud)).
 - Deployment gate (D7): `verify-ci` and `build-validate` before `deploy`.

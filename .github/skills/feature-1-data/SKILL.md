@@ -22,7 +22,8 @@ releases waiting for review. **A fresh database already reports accepted `gnaf-n
 `nsw-psi-sales`, `bocsar-crime`, `nsw-government-schools` and `fixture-property` releases:** these
 are a seeded demonstration baseline of about 10 records each (IDs starting `60000000-0000-...`,
 addresses such as `FIXTURE STREET`). The script labels them `SEEDED DEMO ONLY`. Never report
-those as real data.
+those as real data. The Azure deployment is the exception: it runs with
+`PROPERTYSCOPE_DEMONSTRATION_DATA=false`, purges that baseline and starts empty.
 
 `uv run scripts/dev.py operator report` gives the broader read-only publication and health view.
 

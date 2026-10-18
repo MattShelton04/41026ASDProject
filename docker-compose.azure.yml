@@ -138,6 +138,9 @@ services:
       PROPERTYSCOPE_DATABASE_URL: ""
       PROPERTYSCOPE_INTERNAL_TOKEN: ""
       PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_DATABASE_URL=f1_database_url PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
+      # Production starts empty: the seeded demonstration baseline is purged after migrations
+      # on every start, so only real, reviewed releases are ever served.
+      PROPERTYSCOPE_DEMONSTRATION_DATA: "false"
     secrets: [f1_database_url, internal_token]
     volumes:
       - *azure-secret-shim

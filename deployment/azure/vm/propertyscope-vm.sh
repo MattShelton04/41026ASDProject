@@ -18,7 +18,7 @@
 #             PROPERTYSCOPE_AUTH_RETRY_ATTEMPTS (default 12: about 8 minutes of backoff while a new
 #               managed identity, RBAC role assignment or vault firewall rule propagates)
 #             PROPERTYSCOPE_STARTUP_WAIT_SECONDS (default 900: `compose up --wait` on a first boot
-#               also runs the Feature 1 migrations and seeds the demonstration baseline)
+#               also runs the Feature 1 migrations; production purges their demonstration baseline)
 #
 # Secrets never pass through the run-command payload: the VM's managed identity reads them from
 # Key Vault (IMDS token -> Key Vault REST) into root-only files. Nothing here enables `set -x`.
@@ -293,10 +293,12 @@ verify_deployment() {
     releases=$(compose exec -T shared-frontend wget -qO- \
         'http://127.0.0.1:8080/api/data-platform/v1/dataset-releases?status=accepted&limit=100' || echo '{}')
     accepted=$(jq '[.items[]? | select(.status == "accepted")] | length' <<<"$releases" 2>/dev/null || echo 0)
-    if [[ $accepted -gt 0 ]]; then
-        log "Feature 1 data: ${accepted} accepted releases (seeded demonstration baseline unless real releases were published)"
+    if [[ $releases == '{}' ]]; then
+        log "WARNING: Feature 1 did not answer the release query; inspect 'deploy.sh logs f1-db-api'"
+    elif [[ $accepted -gt 0 ]]; then
+        log "Feature 1 data: ${accepted} accepted releases (published through the Feature 1 review)"
     else
-        log "WARNING: Feature 1 reports no accepted releases; inspect 'deploy.sh logs f1-db-api'"
+        log "Feature 1 data: 0 accepted releases (empty production database: collect and publish real data)"
     fi
     for attempt in $(seq 1 24); do
         if curl -fsS -o /dev/null --max-time 5 --resolve "${PROPERTYSCOPE_PUBLIC_HOST}:443:127.0.0.1" \
@@ -309,59 +311,9 @@ verify_deployment() {
     log "WARNING: HTTPS is not trusted yet (first certificate issuance can take a few minutes)"
 }
 
-# The demonstration baseline (about 10 synthetic records per accepted dataset) is seeded by the
-# Feature 1 database migrations that f1-db-api applies on start (PROPERTYSCOPE_AUTO_MIGRATE).
-# Once per VM this also runs the registered `fixture-property` collection - the same job as
-# `dev.py data collect fixture-property` - so the runner -> release builder -> loader pipeline is
-# proven in the cloud. It needs no network, ends at a candidate awaiting human review and is
-# never published automatically.
-seed_fixture_candidate() {
-    if [[ ${PROPERTYSCOPE_SEED_FIXTURE:-true} != true || -f $STATE_DIR/fixture-collected ]]; then
-        return 0
-    fi
-    log "Running the fixture-property collection once (candidate release, human review required)"
-    if compose exec -T f1-backend python - <<'PY'; then
-import json, time, urllib.request, uuid
-
-BASE = "http://127.0.0.1:5201/api/data-platform/v1/"
-
-
-def call(method, path, body=None, headers=None):
-    data = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(BASE + path, data=data, method=method)
-    request.add_header("Content-Type", "application/json")
-    for key, value in (headers or {}).items():
-        request.add_header(key, value)
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
-
-
-jobs = call("GET", "jobs?limit=100")["items"]
-job = next(item for item in jobs if item.get("profile_key") == "fixture-property-full")
-scope = {"profile": "full-data", "all_records": True}
-body = {"run_mode": "full_refresh", "scope": scope}
-call("POST", f"jobs/{job['id']}/plans", body)
-operation = str(uuid.uuid4())
-run = call(
-    "POST",
-    f"jobs/{job['id']}/runs",
-    body,
-    {"Idempotency-Key": f"azure-seed-{operation}", "X-Request-ID": operation},
-)["run"]
-deadline = time.monotonic() + 240
-while time.monotonic() < deadline:
-    status = call("GET", f"ingestion-runs/{run['id']}")["run"]["status"]
-    if status in {"succeeded", "failed", "cancelled"}:
-        break
-    time.sleep(2)
-print(f"fixture-property run {run['id']}: {status}")
-raise SystemExit(0 if status == "succeeded" else 1)
-PY
-        touch "$STATE_DIR/fixture-collected"
-    else
-        log "WARNING: the fixture-property collection did not succeed; inspect 'deploy.sh logs f1-runner'"
-    fi
-}
+# Production holds no demonstration data: f1-db-api runs with PROPERTYSCOPE_DEMONSTRATION_DATA=false
+# (docker-compose.azure.yml), which purges the seeded baseline after its migrations on every start.
+# Real data arrives only through a Feature 1 collection and a human review and publish.
 
 # --- Instance metadata guard (security audit M2) -----------------------------------------------
 
@@ -408,7 +360,6 @@ deploy() {
     printf '%s\n' "$cloud_ai" >"$STATE_DIR/cloud-ai"
     printf '%s\n' "$IMAGE_TAG" >"$STATE_DIR/image-tag"
     verify_deployment
-    seed_fixture_candidate
     docker image prune --force >/dev/null || true
     summary deploy
 }

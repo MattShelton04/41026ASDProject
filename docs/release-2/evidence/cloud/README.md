@@ -54,7 +54,7 @@ cancelled).
 | `release-gate.json` / `.md` | `cloud-deployment-<sha>`: `gate/` (or `release-gate-<sha>`) | For each of Integration CI and Student 1–5 CI: state, run number and URL, head commit, relation and detail |
 | `image-build.json` / `.md` | `image-build-<sha>` | Compose models validated, the images built (ID, size, user), and any missing, unbuilt or root image |
 | `logs/*.log` | `cloud-deployment-<sha>`: `logs/`, plus `build.log` from `image-build-<sha>` | Step output of provision, push, deploy, smoke and the image build |
-| `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, seeded-baseline check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
+| `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, accepted-release check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
 | `workflow-run.md` | person | Link to the successful *Cloud Deployment* run, its approval, and the downloaded artifact names |
 | `release-decision.md` | person, after `dev.py ai review cloud` | The human release decision: approve, approve with conditions, or reject, with reasons |
 | `../bonus/endpoint-security.txt`, `../bonus/data-security.txt` | `deploy.sh validate-endpoint` / `validate-data` | Bonus B5 and B6 validation output |
@@ -103,8 +103,8 @@ reads it back, deletes it and confirms it is gone. Feature 1 also updates its so
 
 ## Labelling rules
 
-- State whether data is the **seeded demonstration baseline** (about 10 synthetic records per
-  dataset) or a published real release. The report records what the VM saw.
+- The cloud holds no demonstration data (ADR-048, 18 October amendment): name the real releases
+  that were published there, or say that none were. The report records what the VM saw.
 - The AI tier is off in the required baseline. Evidence for the bonus AI tiers goes in
   `../bonus/`, never here.
 - Never copy secrets, run-command payloads or `.env.azure` into this folder. The workflow artifact

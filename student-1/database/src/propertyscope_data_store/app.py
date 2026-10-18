@@ -22,7 +22,7 @@ def create_app(
         runtime_registry=load_runtime_registry(resolved.runtime_profile_root),
     )
     if resolved.auto_migrate:
-        repository.initialize()
+        repository.initialize(demonstration_data=resolved.demonstration_data)
     app = Flask("f1-db-api")
     app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
     app.extensions["propertyscope_store"] = repository

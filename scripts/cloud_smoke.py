@@ -64,10 +64,12 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 ENABLED_FEATURES = REPOSITORY_ROOT / "deployment" / "enabled-features.v1.json"
 SHARED_OWNER = "shared"
 SMOKE_PREFIX = "cloud-smoke"
-# Feature 1's seeded showcase property (11 Example Street); used when search finds nothing.
+# Feature 1's seeded showcase property (11 Example Street): the local fallback when search finds
+# nothing. Production purges the showcase, so the first queries match real published G-NAF
+# addresses; Features 2 and 4 cannot create a record until Feature 1 has published one.
 SHOWCASE_PROPERTY_REF = "a0000000-0000-0000-0000-000000000001"
 SHOWCASE_ADDRESS = "11 Example Street, Sydney NSW 2000"
-PROPERTY_QUERIES = ("11 Example Street", "1 Fixture Street")
+PROPERTY_QUERIES = ("1 George Street", "11 Example Street", "1 Fixture Street")
 AI_HEALTH_PATH = "/api/shared-health/ai-mode"
 # The edge liveness route, the one route the site-wide login leaves public.
 LIVENESS_PATH = "/healthz"
@@ -562,7 +564,9 @@ class Smoke:
             if state != "not_found":
                 self._property = (reference, address)
                 return self._property
-        raise ValueError("no Feature 1 property is available to reference")
+        raise ValueError(
+            "no Feature 1 property is available to reference (publish a G-NAF release first)"
+        )
 
     def run_crud(self, case: CrudCase) -> None:
         name = self.unique_name(case.owner)

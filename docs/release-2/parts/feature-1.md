@@ -41,11 +41,11 @@ workflow produces JUnit output.
 
 ## Cloud
 
-- **Decided: the cloud uses the seeded demonstration baseline**, labelled as such. While every
-  accepted release is that baseline (`coverage_json.synthetic`), the Data overview, Property
-  research, Data products and Coverage pages show a notice saying so. Any real release is
-  collected and published in the cloud only after the usual review, and publishing one removes
-  the notice.
+- **Decided (amended 18 Oct): the cloud holds no demonstration data.** `f1-db-api` runs with
+  `PROPERTYSCOPE_DEMONSTRATION_DATA=false` there, which purges the seeded baseline after every
+  migration pass (ADR-048). Real releases are collected and published in the cloud only after the
+  usual review. Local stacks keep the baseline, and its notice on the Data overview, Property
+  research, Data products and Coverage pages.
 - Feature 1 also provides the shared edge and home page, so its cloud smoke case also covers
   `/` and the feature routing.
 - `f1-runner` and `f1-db-loader` must start in the Azure override without host source-cache

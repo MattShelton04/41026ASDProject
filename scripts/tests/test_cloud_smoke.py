@@ -149,6 +149,29 @@ def test_failed_create_is_reported_and_owned_by_the_feature() -> None:
     assert "invalid_request" in failed[0].detail
 
 
+class _EmptyFeature1Edge(FakeEdge):
+    """Feature 1 holds no published property: production before its first G-NAF release."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/validate"):
+            self.requests.append((request.method, request.url.path))
+            return httpx.Response(200, json={"state": "not_found"})
+        return super().__call__(request)
+
+
+def test_an_empty_feature_1_fails_only_the_cases_that_reference_a_property() -> None:
+    edge = _EmptyFeature1Edge()
+
+    results = _run(edge)
+
+    failed = [result for result in results if not result.passed]
+    assert {result.owner for result in failed} == {"student-2", "student-4"}
+    assert all(result.operation == "create" for result in failed)
+    assert all("publish a G-NAF release first" in result.detail for result in failed)
+    searches = [path for _, path in edge.requests if path.endswith("/properties/search")]
+    assert len(searches) == 2 * len(cloud_smoke.PROPERTY_QUERIES)  # one property lookup per case
+
+
 def test_cleanup_runs_even_when_the_read_back_fails() -> None:
     edge = FakeEdge()
     original = edge.__call__
