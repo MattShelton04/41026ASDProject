@@ -226,8 +226,8 @@ with `ai review decide`, which refuses if the evidence changed since the review.
 
 [[CLOUD_SUMMARY]]
 
-The smoke test passed 37 of 37 checks, covering create, read and delete in all five features;
-AI-mode answered `503 ai_disabled`.
+The smoke test passed all 37 checks, including create, read and delete per feature; AI-mode
+answered `503 ai_disabled`.
 
 ![Figure 6 Gated cloud deployment run](assets/release-2/screenshots/azure-workflow.png)
 
@@ -380,6 +380,10 @@ evidence:
   section: 9 Cloud deployment report and review
   path: docs/release-2/evidence/reviews/cloud-review.md
   boundary: Deterministic shared-loop review of the committed cloud evidence.
+- kind: release-decision
+  section: 9 Cloud deployment report and review
+  path: docs/release-2/evidence/cloud/release-decision.md
+  boundary: Named person's decision on review 44929d5d, bound to the hashed evidence bundle.
 - kind: testing-review
   section: 7 Testing review
   path: docs/release-2/evidence/reviews/testing-review.md

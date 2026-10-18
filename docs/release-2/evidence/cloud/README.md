@@ -21,7 +21,7 @@ on `main` at `3c25c083`, dispatched by hand and approved for `production` on 18 
 | B5 endpoint security | 54 of 54 lines without failure (52 PASS, 2 INFO) |
 | B6 data security | 43 PASS, 0 FAIL (16 control-plane, 27 on-host), run from a laptop at 08:55 UTC |
 | Cloud review | `pass`, 18 of 18 checks (deterministic engine), [`../reviews/cloud-review.md`](../reviews/cloud-review.md) |
-| Human release decision | Pending: `release-decision.md` is written by `ai review decide` |
+| Human release decision | **RELEASE** by Matthew Shelton (09:37 UTC), recorded with `ai review decide` on review `44929d5d`: [`release-decision.md`](release-decision.md) |
 
 Feature 1 held five accepted real releases when the smoke test ran: G-NAF 5,224,340 addresses,
 NSW property sales 7,423,881, BOCSAR 318,804, ABS SEIFA 4,320 and NSW government schools 2,210.
