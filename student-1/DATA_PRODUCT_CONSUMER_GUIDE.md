@@ -141,6 +141,12 @@ All routes below are relative to `/api/data-platform/v1` and are described in Op
   `/properties/{property_ref}/seifa`, and `/properties/{property_ref}/report-section`. The SEIFA
   projection resolves only the accepted `propertyscope.seifa-area.v1` generation and reports a
   typed unavailable or ambiguous state instead of falling back to another generation.
+- Suburb-map consumers use `GET /suburbs/search`, `/suburbs/{suburb_id}` and
+  `/suburbs/{suburb_id}/map-context`. They serve accepted gazetted suburb boundaries, government
+  schools and registered amenities with per-layer coverage states and ETag revalidation. The
+  response schemas `suburb-search.v1`, `suburb-detail.v1` and `suburb-map-context.v1` ship in
+  the product-contract package. See the
+  [suburb-map API consumer guide](SUBURB_MAP_API_CONSUMER_GUIDE.md).
 
 ### ABS SEIFA 2021 area semantics
 

@@ -1027,6 +1027,9 @@ Internal database routes should remain on private networks and need not be expos
 | GET | `/properties/{property_ref}` | Canonical property snapshot |
 | GET | `/properties/{property_ref}/map-context` | Point plus safe display geometry metadata |
 | GET | `/properties/{property_ref}/coverage` | Dataset release/coverage summary by feature/source |
+| GET | `/suburbs/search?q=&postcode=&limit=` | Exact normalised gazetted-suburb lookup returning cadid IDs |
+| GET | `/suburbs/{suburb_id}` | Accepted suburb identity, label point, bbox and release (ETag) |
+| GET | `/suburbs/{suburb_id}/map-context` | Display boundary plus spatially matched schools/amenities with per-layer coverage (ETag) |
 | POST | `/dataset-releases/{id}/agent-runs` | Start data-quality/recovery analysis |
 | GET | `/agent-runs/{run_id}` | Feature-safe projection/proxy to AI-mode run |
 
