@@ -301,5 +301,6 @@ team collects real data there. `f1-db-api` runs with `PROPERTYSCOPE_DEMONSTRATIO
 purges the showcase rows the migrations seed (runs, releases, records, properties and any
 `fixture-property` collection) after every migration pass and keeps the source and job catalogue.
 The migrations stay unchanged, so local stacks, CI and the deterministic tests keep their
-baseline. Until a G-NAF release is published in the cloud, the smoke test's Feature 2 and Feature 4
-CRUD cases fail, because they need a Feature 1 property to reference.
+baseline. Features 2 and 4 accept a record only for a property Feature 1 has published, so until a
+G-NAF release is published in the cloud the smoke test reports their CRUD cases as skipped, with
+that reason, and the deployment still passes. The Cloud Deployment Review lists them as unproven.

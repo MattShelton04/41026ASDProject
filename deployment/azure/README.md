@@ -410,9 +410,10 @@ is deleted. Real data is collected and published in the cloud only through the n
 review (see the `feature-1-data` skill), from the Feature 1 pages signed in as the operator:
 protected data-pipeline routes require the operator credentials. The cloud runner downloads from
 the publishers; its source cache is an empty volume, so a source that must be pre-cached (PSI
-archives, `data sync-psi`) cannot be collected there yet. Until a G-NAF release is published, the
-smoke test's Feature 2 and Feature 4 CRUD cases fail: they need a Feature 1 property to
-reference.
+archives, `data sync-psi`) cannot be collected there yet. Features 2 and 4 create records only
+for a property Feature 1 has published, so until a G-NAF release is published the smoke test
+reports their CRUD cases as **skipped** (with that reason) rather than failing the deployment; the
+Cloud Deployment Review still lists them as unproven.
 
 ### Bonus tiers (B1–B6)
 

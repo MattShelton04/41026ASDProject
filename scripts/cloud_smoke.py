@@ -32,7 +32,11 @@ The JSON document is the contract the Cloud Deployment Report Review reads
 only for an explicit ``ai_disabled`` answer), ``ai_state``, ``site_login`` (``enforced``,
 ``not_enforced`` or ``not_checked``), ``started_at``/``finished_at``,
 ``passed``, ``summary`` and ``checks`` (``name``, ``owner``, ``category``, ``operation``,
-``passed``, ``detail``, ``method``, ``path``, ``status_code``, ``duration_ms``). The deployment
+``passed``, ``skipped``, ``detail``, ``method``, ``path``, ``status_code``, ``duration_ms``). A
+check is ``skipped`` (and not ``passed``) when a precondition outside the deployment is unmet:
+Features 2 and 4 create records only for a property that Feature 1 has published, so before the
+first G-NAF release their CRUD cases are skipped with that reason instead of failing the
+deployment; ``summary`` counts ``passed``, ``failed`` and ``skipped``. The deployment
 identity comes from ``--commit-sha``/``--image-tag``/``--registry``/``--image`` or, as
 ``deploy.sh smoke`` runs it, from ``PROPERTYSCOPE_DEPLOY_SHA`` (or ``PROPERTYSCOPE_GIT_SHA``),
 ``IMAGE_TAG`` and ``ACR_LOGIN_SERVER`` (``deploy.sh smoke`` passes all three as options). The
@@ -109,6 +113,16 @@ class CheckResult:
     # CRUD step: create, read, update, confirm-update, delete, confirm-deleted, cleanup-retry,
     # request (a transport failure) or missing-case; empty for page, health and AI checks.
     operation: str = ""
+    # Not run because a precondition outside the deployment is unmet (never also passed).
+    skipped: bool = False
+
+
+class PrerequisiteUnavailableError(ValueError):
+    """Data another feature must publish first is absent: the case is skipped, not failed."""
+
+
+def _verdict(passed: bool, skipped: bool) -> str:
+    return "SKIP" if skipped else "PASS" if passed else "FAIL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,7 +412,7 @@ class Smoke:
 
     def record(self, result: CheckResult) -> CheckResult:
         self.results.append(result)
-        verdict = "PASS" if result.passed else "FAIL"
+        verdict = _verdict(result.passed, result.skipped)
         print(f"{verdict} [{result.owner}] {result.name}: {result.detail}", flush=True)
         return result
 
@@ -564,8 +578,8 @@ class Smoke:
             if state != "not_found":
                 self._property = (reference, address)
                 return self._property
-        raise ValueError(
-            "no Feature 1 property is available to reference (publish a G-NAF release first)"
+        raise PrerequisiteUnavailableError(
+            "Feature 1 has published no property to reference yet (publish a G-NAF release)"
         )
 
     def run_crud(self, case: CrudCase) -> None:
@@ -592,6 +606,21 @@ class Smoke:
     def _crud_steps(self, case: CrudCase, name: str, label: str) -> None:
         try:
             body = case.body(self, name)
+        except PrerequisiteUnavailableError as exc:
+            self.record(
+                CheckResult(
+                    f"{label}: create",
+                    case.owner,
+                    "crud",
+                    False,
+                    f"skipped: {exc}",
+                    "POST",
+                    case.collection,
+                    operation="create",
+                    skipped=True,
+                )
+            )
+            return
         except ValueError as exc:
             self.record(
                 CheckResult(
@@ -926,14 +955,19 @@ def _problem(response: httpx.Response) -> str:
 def summarise(results: Sequence[CheckResult]) -> dict[str, Any]:
     owners: dict[str, dict[str, int]] = {}
     for result in results:
-        counts = owners.setdefault(result.owner, {"passed": 0, "failed": 0})
-        counts["passed" if result.passed else "failed"] += 1
+        counts = owners.setdefault(result.owner, {"passed": 0, "failed": 0, "skipped": 0})
+        counts[_outcome(result)] += 1
     return {
         "total": len(results),
-        "passed": sum(result.passed for result in results),
-        "failed": sum(not result.passed for result in results),
+        "passed": sum(_outcome(result) == "passed" for result in results),
+        "failed": sum(_outcome(result) == "failed" for result in results),
+        "skipped": sum(_outcome(result) == "skipped" for result in results),
         "by_owner": owners,
     }
+
+
+def _outcome(result: CheckResult) -> str:
+    return "skipped" if result.skipped else "passed" if result.passed else "failed"
 
 
 def ai_enabled(state: str | None) -> bool | None:
@@ -1019,13 +1053,16 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         f"- AI expectation: {'reachable (--expect-ai)' if document['expect_ai'] else 'disabled'}; "
         f"observed: {document.get('ai_state', 'not_checked')}",
         f"- Site-wide login: {document.get('site_login', 'not_checked')}",
-        f"- Result: **{verdict}**, {summary['passed']} of {summary['total']} checks passed",
+        f"- Result: **{verdict}**, {summary['passed']} of {summary['total']} checks passed"
+        + (f", {summary['skipped']} skipped" if summary.get("skipped") else ""),
         "",
-        "| Owner | Passed | Failed |",
-        "|---|---|---|",
+        "| Owner | Passed | Failed | Skipped |",
+        "|---|---|---|---|",
     ]
     for owner, counts in sorted(summary["by_owner"].items()):
-        lines.append(f"| {owner} | {counts['passed']} | {counts['failed']} |")
+        lines.append(
+            f"| {owner} | {counts['passed']} | {counts['failed']} | {counts.get('skipped', 0)} |"
+        )
     lines += [
         "",
         "| Result | Owner | Category | Check | Request | Detail | ms |",
@@ -1035,7 +1072,8 @@ def render_markdown(document: Mapping[str, Any]) -> str:
         request = f"`{check['method']} {check['path']}`" if check["path"] else ""
         detail = str(check["detail"]).replace("|", "\\|")
         lines.append(
-            f"| {'PASS' if check['passed'] else 'FAIL'} | {check['owner']} | {check['category']} "
+            f"| {_verdict(check['passed'], check.get('skipped', False))} | {check['owner']} "
+            f"| {check['category']} "
             f"| {check['name']} | {request} | {detail} | {check['duration_ms']} |"
         )
     lines += [

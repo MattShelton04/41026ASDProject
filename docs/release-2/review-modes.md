@@ -233,14 +233,19 @@ The smoke contract (`schema_version` 2):
   "images_source": "docker-compose.azure.yml with IMAGE_TAG",
   "ai_enabled": false, "ai_state": "disabled", "expect_ai": false,
   "started_at": "...", "finished_at": "...", "passed": true,
-  "summary": {"total": 0, "passed": 0, "failed": 0, "by_owner": {"student-1": {"passed": 0, "failed": 0}}},
+  "summary": {"total": 0, "passed": 0, "failed": 0, "skipped": 0,
+              "by_owner": {"student-1": {"passed": 0, "failed": 0, "skipped": 0}}},
   "checks": [{"name": "CRUD source definition: update", "owner": "student-1", "category": "crud",
-              "operation": "update", "passed": true, "detail": "HTTP 200, notes changed",
+              "operation": "update", "passed": true, "skipped": false,
+              "detail": "HTTP 200, notes changed",
               "method": "PUT", "path": "/api/data-platform/v1/sources/<id>",
               "status_code": 200, "duration_ms": 41}]
 }
 ```
 
+- `skipped` marks a check that did not run because a precondition outside the deployment is unmet
+  (Features 2 and 4 need a property Feature 1 has published). It is never also `passed`, does not
+  fail the document, and the review reports that student's CRUD as `skipped` (unproven).
 - `commit_sha`, `image_tag` and `registry` come from `--commit-sha`, `--image-tag` and `--registry`.
   Without them they come from `PROPERTYSCOPE_DEPLOY_SHA` (or `PROPERTYSCOPE_GIT_SHA`), `IMAGE_TAG`
   and `ACR_LOGIN_SERVER`, which the workflow sets. `images` comes from, in order: `--image

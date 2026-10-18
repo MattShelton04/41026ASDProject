@@ -122,6 +122,37 @@ def test_crud_cases_are_attributed_by_owner_and_need_the_full_cycle(evidence: Pa
     assert isinstance(crud, dict) and crud["student-5"] == "missing"
 
 
+def test_a_skipped_crud_case_is_reported_as_unproven_with_its_reason(evidence: Path) -> None:
+    value = fixtures.smoke()
+    checks = value["checks"]
+    assert isinstance(checks, list)
+    value["checks"] = [check for check in checks if check["owner"] != "student-2"] + [
+        {
+            "name": "CRUD market case: create",
+            "owner": "student-2",
+            "category": "crud",
+            "operation": "create",
+            "passed": False,
+            "skipped": True,
+            "detail": "skipped: Feature 1 has published no property to reference yet",
+            "method": "POST",
+            "path": "/api/market-intelligence/v1/market-cases",
+            "status_code": None,
+            "duration_ms": 0,
+        }
+    ]
+    fixtures.write_json(evidence / fixtures.SMOKE_PATH, value)
+
+    bundle = collect_bundle("cloud", evidence)
+
+    assert "cloud.crud.student-2" in _failed(bundle)
+    assert _check(bundle, "cloud.crud.student-2") == (
+        "CRUD case skipped: Feature 1 has published no property to reference yet."
+    )
+    crud = bundle.facts["crud"]
+    assert isinstance(crud, dict) and crud["student-2"] == "skipped"
+
+
 def test_an_unreachable_ai_tier_is_not_proof_that_it_is_disabled(evidence: Path) -> None:
     fixtures.write_json(
         evidence / fixtures.SMOKE_PATH, fixtures.smoke(ai_enabled=None, ai_state="unreachable")

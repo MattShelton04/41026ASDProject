@@ -9,7 +9,7 @@ import httpx
 import pytest
 from scripts import cloud_smoke
 from scripts.cloud_smoke import CRUD_CASES, Smoke, load_features, main
-from scripts.tests.cloud_fixtures import FakeEdge, run_smoke, smoke_document
+from scripts.tests.cloud_fixtures import STARTED_AT, FakeEdge, run_smoke, smoke_document
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"  # pragma: allowlist secret
 SOURCES = "/api/data-platform/v1/sources"
@@ -159,15 +159,23 @@ class _EmptyFeature1Edge(FakeEdge):
         return super().__call__(request)
 
 
-def test_an_empty_feature_1_fails_only_the_cases_that_reference_a_property() -> None:
+def test_an_empty_feature_1_skips_the_cases_that_need_its_property_without_failing() -> None:
     edge = _EmptyFeature1Edge()
 
-    results = _run(edge)
+    smoke = run_smoke(edge)
+    document = cloud_smoke.build_document(
+        base_url="https://edge", results=smoke.results, expect_ai=False, started_at=STARTED_AT
+    )
 
-    failed = [result for result in results if not result.passed]
-    assert {result.owner for result in failed} == {"student-2", "student-4"}
-    assert all(result.operation == "create" for result in failed)
-    assert all("publish a G-NAF release first" in result.detail for result in failed)
+    skipped = [result for result in smoke.results if result.skipped]
+    assert {result.owner for result in skipped} == {"student-2", "student-4"}
+    assert all(not result.passed and result.operation == "create" for result in skipped)
+    assert all("publish a G-NAF release" in result.detail for result in skipped)
+    assert document["passed"] is True
+    assert document["summary"]["failed"] == 0
+    assert document["summary"]["skipped"] == 2
+    assert document["summary"]["by_owner"]["student-2"]["skipped"] == 1
+    assert "| SKIP | student-2 |" in cloud_smoke.render_markdown(document)
     searches = [path for _, path in edge.requests if path.endswith("/properties/search")]
     assert len(searches) == 2 * len(cloud_smoke.PROPERTY_QUERIES)  # one property lookup per case
 
@@ -271,6 +279,7 @@ def test_main_writes_the_documented_contract_and_sets_the_exit_code(tmp_path: Pa
         "status_code",
         "duration_ms",
         "operation",
+        "skipped",
     }
     markdown = (tmp_path / "cloud-smoke.md").read_text(encoding="utf-8")
     assert "**PASSED**" in markdown

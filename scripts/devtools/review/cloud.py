@@ -171,7 +171,17 @@ def collect(reader: EvidenceReader) -> EvidenceReviewBundle:
         # Documents without operations (schema 1) cannot prove the cycle; judge them on outcome.
         absent = [op for op in REQUIRED_CRUD_OPERATIONS if op not in recorded] if recorded else []
         ok = bool(cases) and all(_passed(check) for check in cases) and not absent
-        crud[student] = "passed" if ok else "failed" if cases else "missing"
+        # A skipped case (a precondition outside the deployment) is unproven, not broken.
+        skipped = [check for check in cases if check.get("skipped") is True]
+        crud[student] = (
+            "passed"
+            if ok
+            else "skipped"
+            if cases and len(skipped) == len(cases)
+            else "failed"
+            if cases
+            else "missing"
+        )
         crud_operations[student] = list(dict.fromkeys(recorded))
         checklist.add(
             f"cloud.crud.{student}",
@@ -181,6 +191,12 @@ def collect(reader: EvidenceReader) -> EvidenceReviewBundle:
                 f"{len(cases)} CRUD step(s) passed"
                 + (f": {', '.join(dict.fromkeys(recorded))}." if recorded else ".")
                 if ok
+                else "CRUD case skipped: "
+                + (first_string(skipped[0], "detail") or "precondition unmet").removeprefix(
+                    "skipped: "
+                )
+                + "."
+                if crud[student] == "skipped"
                 else f"CRUD case failed: {summarise(_label(c) for c in cases if not _passed(c))}."
                 if cases and not all(_passed(check) for check in cases)
                 else f"CRUD case is missing step(s): {', '.join(absent)}."
