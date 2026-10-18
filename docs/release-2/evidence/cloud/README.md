@@ -54,7 +54,7 @@ cancelled).
 | `release-gate.json` / `.md` | `cloud-deployment-<sha>`: `gate/` (or `release-gate-<sha>`) | For each of Integration CI and Student 1–5 CI: state, run number and URL, head commit, relation and detail |
 | `image-build.json` / `.md` | `image-build-<sha>` | Compose models validated, the images built (ID, size, user), and any missing, unbuilt or root image |
 | `logs/*.log` | `cloud-deployment-<sha>`: `logs/`, plus `build.log` from `image-build-<sha>` | Step output of provision, push, deploy, smoke and the image build |
-| `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, seeded-baseline check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
+| `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, accepted-release check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
 | `workflow-run.md` | person | Link to the successful *Cloud Deployment* run, its approval, and the downloaded artifact names |
 | `release-decision.md` | person, after `dev.py ai review cloud` | The human release decision: approve, approve with conditions, or reject, with reasons |
 | `../bonus/endpoint-security.txt`, `../bonus/data-security.txt` | `deploy.sh validate-endpoint` / `validate-data` | Bonus B5 and B6 validation output |
@@ -82,7 +82,10 @@ full in [review-modes.md](../../review-modes.md#cloud).
 - `checks[]` has one entry per observation: `name`, `owner` (`shared` or `student-N`),
   `category` (`frontend`, `health`, `crud`, `cleanup`, `ai`), `operation` (for CRUD: `create`,
   `read`, `update`, `confirm-update`, `delete`, `confirm-deleted`, `cleanup-retry`, `request`),
-  `passed`, `detail`, `method`, `path`, `status_code` and `duration_ms`.
+  `passed`, `skipped`, `detail`, `method`, `path`, `status_code` and `duration_ms`. `skipped`
+  marks a case whose precondition lies outside the deployment: Features 2 and 4 accept a record
+  only for a property Feature 1 has published, so before the first cloud G-NAF release their CRUD
+  cases are skipped with that reason and the deployment still passes.
 
 Each feature's CRUD case creates a uniquely named record through that feature's public API,
 reads it back, deletes it and confirms it is gone. Feature 1 also updates its source definition
@@ -97,14 +100,50 @@ reads it back, deletes it and confirms it is gone. Feature 1 also updates its so
    `gate/release-gate.*`, `logs/` and `vm-deploy.log` from the first, and `image-build.*` (and
    `build.log` into `logs/`) from the second.
 3. Open the public URL and take screenshots of the home page and each feature for the report
-   and the video.
+   and the video, then take the Azure portal screenshots below.
 4. Run `uv run scripts/dev.py ai review cloud`. It writes `../reviews/cloud-review.md` and
    `cloud-validation-log.jsonl`. Then record the human decision in `release-decision.md`.
 
+## Azure portal screenshots
+
+These show the provisioned resources and their security settings as Azure itself reports them,
+which the CLI logs cannot. Save them in `portal/` with these names. The report uses a 2×3 montage
+of 01, 04, 08, 10, 12 and 13; the rest stay here as supporting evidence. Take them while the VM is
+running and after a successful *Cloud Deployment*.
+
+| File | Portal page | What must be visible | Criteria |
+|---|---|---|---|
+| `portal/01-resource-group.png` | Resource group `rg-propertyscope-prod` → Overview | Every resource with its type, region `newzealandnorth`, the tags | C5, C9 |
+| `portal/02-deployments.png` | Resource group → Settings → Deployments | `propertyscope-main` and its module deployments, all *Succeeded* | C5 |
+| `portal/03-activity-log.png` | Resource group → Activity log, filtered to *Run Command on Virtual Machine* and *Start Virtual Machine* | Operations by the GitHub deployer identity at the deployment time | C6 |
+| `portal/04-vm-overview.png` | VM `propertyscope-prod-vm` → Overview | *Running*, `Standard_D4as_v4`, Ubuntu 24.04, public IP and DNS name | C7 |
+| `portal/05-vm-security.png` | VM → Settings → Configuration (Security type) | Trusted Launch, secure boot, vTPM, encryption at host | B6 |
+| `portal/06-vm-identity.png` | VM → Security → Identity → Azure role assignments | System-assigned identity on; AcrPull and Key Vault Secrets User | B6 |
+| `portal/07-disk-networking.png` | Disk `propertyscope-prod-vm-osdisk` → Networking | Network access *Deny all* (no export) | B6 |
+| `portal/08-nsg-inbound.png` | NSG `propertyscope-prod-nsg` → Inbound security rules | Only 443 and 80 allowed, everything else denied; no 22, 5432 or AI ports | B5 |
+| `portal/09-subnet.png` | VNet `propertyscope-prod-vnet` → Subnets → `app` | NSG attached, `Microsoft.KeyVault` service endpoint | B5, B6 |
+| `portal/10-acr-tags.png` | Container registry → Repositories → `propertyscope/f1-backend` | Tags are commit SHAs | C6 |
+| `portal/11-acr-access.png` | Container registry → Settings → Access keys | Admin user disabled | B6 |
+| `portal/12-key-vault.png` | Key Vault → Access configuration, Networking and Secrets | Azure RBAC, purge protection, selected networks with the VNet rule, secret **names** | B6 |
+| `portal/13-federated-credentials.png` | Managed identities → deployer and `propertyscope-github-operations` → Federated credentials | GitHub issuer, environments `production` and `operations` | C6, B6 |
+| `portal/14-rg-access.png` | Resource group → Access control (IAM) → Role assignments | Deployer: Contributor and the conditioned RBAC Administrator (open the condition) | B6 |
+| `portal/15-vm-metrics.png` (optional) | VM → Monitoring → Metrics | CPU and network during a smoke run or data collection | C7 |
+
+Rules for these screenshots:
+
+- Never open a secret's value. Show the list of names only.
+- The Key Vault firewall denies the portal unless the browser's public IP is allowed. Add it
+  for the capture (`az keyvault network-rule add`), then remove it. The next `provision` also
+  removes it.
+- Crop or blur the subscription ID and tenant ID. Resource names and the public URL may stay.
+- JIT, Defender plans, Log Analytics, Backup and Bastion are not part of this deployment.
+  Do not imply they are. TLS, HSTS, the site login and rate limits live in Caddy and nginx on
+  the VM, so `endpoint-security.txt` is their evidence, not the portal.
+
 ## Labelling rules
 
-- State whether data is the **seeded demonstration baseline** (about 10 synthetic records per
-  dataset) or a published real release. The report records what the VM saw.
+- The cloud holds no demonstration data (ADR-048, 18 October amendment): name the real releases
+  that were published there, or say that none were. The report records what the VM saw.
 - The AI tier is off in the required baseline. Evidence for the bonus AI tiers goes in
   `../bonus/`, never here.
 - Never copy secrets, run-command payloads or `.env.azure` into this folder. The workflow artifact

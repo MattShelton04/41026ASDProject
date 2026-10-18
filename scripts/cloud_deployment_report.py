@@ -371,16 +371,20 @@ def render(evidence: DeploymentEvidence) -> str:
         summary = evidence.smoke.get("summary", {})
         lines += [
             f"Target `{evidence.smoke.get('base_url')}`: {summary.get('passed', 0)} of "
-            f"{summary.get('total', 0)} checks passed.",
+            f"{summary.get('total', 0)} checks passed"
+            + (f", {summary['skipped']} skipped." if summary.get("skipped") else "."),
             "",
-            "| Owner | Passed | Failed |",
-            "|---|---|---|",
+            "| Owner | Passed | Failed | Skipped |",
+            "|---|---|---|---|",
         ]
         for owner, counts in sorted(summary.get("by_owner", {}).items()):
-            lines.append(f"| {owner} | {counts.get('passed', 0)} | {counts.get('failed', 0)} |")
+            lines.append(
+                f"| {owner} | {counts.get('passed', 0)} | {counts.get('failed', 0)} "
+                f"| {counts.get('skipped', 0)} |"
+            )
         lines += ["", "| Result | Owner | Check | Detail |", "|---|---|---|---|"]
         for check in evidence.smoke.get("checks", []):
-            verdict = "PASS" if check.get("passed") else "FAIL"
+            verdict = "SKIP" if check.get("skipped") else "PASS" if check.get("passed") else "FAIL"
             lines.append(
                 f"| {verdict} | {check.get('owner')} | {_cell(check.get('name'))} "
                 f"| {_cell(check.get('detail'))} |"

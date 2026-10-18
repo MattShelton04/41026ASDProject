@@ -382,7 +382,7 @@ Docker command instead of running it. The run-command payloads are written to
 | `provision` | Creates the resource group if missing, recovers a soft-deleted PropertyScope Key Vault left by a teardown, and applies `main.bicepparam`. If the VM already exists, it converges everything else, because the VM's customData and SSH key are immutable |
 | `secrets` | Creates missing Key Vault secrets (see the table above) |
 | `push [--reuse-images]` | Builds every enabled image, then pushes `propertyscope/<service>:<git-sha>` to ACR and mirrors Caddy and PostGIS into ACR. An uncommitted tree gets the tag `<sha>-dirty`. `--reuse-images` skips the build only when this machine already built this clean commit's images (their IDs are recorded under `.propertyscope-runtime/cloud-builds/`); it never reuses a `-dirty` tag. `PROPERTYSCOPE_BUILD_TAG` builds under a local tag other than `dev` |
-| `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, checks the seeded baseline, and runs the `fixture-property` collection once. Key Vault reads, the ACR login and the pull retry with backoff while new role assignments propagate |
+| `deploy` | Starts the VM if it is deallocated, then through run-command: installs the commit's Compose and edge bundle, renders secrets from Key Vault with the managed identity, `az acr login`-equivalent token exchange, `compose pull`, `compose up -d --wait`, and reports the accepted Feature 1 releases (none until real data is published). Key Vault reads, the ACR login and the pull retry with backoff while new role assignments propagate |
 | `smoke [--expect-ai] [--insecure]` | `scripts/cloud_smoke.py` against `https://<fqdn>`: with the site login on (needs `PROPERTYSCOPE_SITE_PASSWORD`), anonymous 401 and a public `/healthz`, then as the viewer: home page, each feature route and health, one self-cleaning CRUD case per feature (Feature 1 also updates its record), and the AI-off check. It passes the deployment identity (`--commit-sha`, `--image-tag`, `--registry`) and, after a deploy, `--vm-log vm-deploy.log`, so `cloud-smoke.json` records the images the VM reported running, with registry digests |
 | `ai on` / `ai off` | Bonus tiers: checks out the deployed SHA on the VM, `uv sync`s it, prepares the RAG model and corpora, starts the systemd units and applies the AI overlay. `off` reverses all of this |
 | `status`, `logs [service] [lines]` | Container health, AI units and listening sockets. Recent Compose logs, or journal logs for `ai-mode`, `mcp`, `rag` and `multi-agent` |
@@ -396,11 +396,24 @@ uploads that directory as an artifact and runs `scripts/cloud_deployment_report.
 
 ### Data in the cloud
 
-A fresh cloud database holds the **seeded demonstration baseline** that the Feature 1 migrations
-create: about 10 synthetic records per dataset, labelled as such. `deploy` also runs the
-`fixture-property` collection once, which ends at a candidate release that a human must review.
-Real data is collected and published in the cloud only through the normal Feature 1 review (see
-the `feature-1-data` skill). Protected data-pipeline routes require the operator credentials.
+The cloud is production: its Feature 1 database holds **no demonstration data**. `f1-db-api`
+runs with `PROPERTYSCOPE_DEMONSTRATION_DATA=false` (`docker-compose.azure.yml`), so after the
+migrations on every start it purges the seeded showcase that local stacks keep (synthetic runs,
+releases, records and `Example Street` properties, and any `fixture-property` collection). The
+source and job catalogue stays, so every registered job can run. The purge removes only those
+demonstration rows and is idempotent beside real data
+(`student-1/database/src/propertyscope_data_store/demonstration_data.py`).
+
+The database is a Docker volume on the VM's OS disk. It survives redeployments, VM restarts and
+deallocation, and is lost only when the VM (whose disk is deleted with it) or the resource group
+is deleted. Real data is collected and published in the cloud only through the normal Feature 1
+review (see the `feature-1-data` skill), from the Feature 1 pages signed in as the operator:
+protected data-pipeline routes require the operator credentials. The cloud runner downloads from
+the publishers; its source cache is an empty volume, so a source that must be pre-cached (PSI
+archives, `data sync-psi`) cannot be collected there yet. Features 2 and 4 create records only
+for a property Feature 1 has published, so until a G-NAF release is published the smoke test
+reports their CRUD cases as **skipped** (with that reason) rather than failing the deployment; the
+Cloud Deployment Review still lists them as unproven.
 
 ### Bonus tiers (B1–B6)
 
@@ -508,7 +521,7 @@ rehearsal mode, and child scripts find a refusing `az` first on `PATH`.
 | prepare | `.propertyscope-runtime/cloud-rehearsal/`: the VM's `/etc/docker/daemon.json` taken from `cloud-init.yaml`, and a random value for every Key Vault secret (a directory standing in for Key Vault; never printed) |
 | infrastructure | Compose project `ps-azure-rehearsal` ([`rehearsal/compose.yml`](rehearsal/compose.yml)): `registry:2` as `ps-rehearsal-registry` in place of ACR, and a Docker-in-Docker container in place of the VM. Only 80/443 (and the registry's 5000) are published, on the host loopback |
 | push | `deploy.sh push`: builds under `propertyscope/<service>:rehearsal` (the shared `:dev` images are untouched), pushes `:<git sha>` and the Caddy/PostGIS mirrors to the registry |
-| deploy | `deploy.sh deploy`: the exact run-command payload (bundle extraction, `propertyscope-vm.sh deploy`) runs as root in the rehearsal VM through `docker exec`. The VM script renders the secrets, pulls every image from the registry into an empty engine, starts `docker-compose.azure.yml` with AI off as project `ps-azure`, checks the seeded baseline and runs the `fixture-property` collection |
+| deploy | `deploy.sh deploy`: the exact run-command payload (bundle extraction, `propertyscope-vm.sh deploy`) runs as root in the rehearsal VM through `docker exec`. The VM script renders the secrets, pulls every image from the registry into an empty engine, starts `docker-compose.azure.yml` with AI off as project `ps-azure` and reports the accepted Feature 1 releases (none: the demonstration baseline is purged) |
 | smoke | `deploy.sh smoke --insecure` against `https://localhost` (Caddy's internal CA) with the stand-in viewer password: the site-login check, then every page, health route, CRUD case (Feature 1 with its update) and the AI-disabled check |
 | endpoint_security | `deploy.sh validate-endpoint` (B5) with the stand-in operator and viewer passwords and `EDGE_CA_FILE` set to Caddy's internal root and intermediate, so the HTTP-level checks run. The publicly-trusted-certificate check fails by design; the NSG check is skipped. A port that answers on this machine's loopback but not on the VM (a developer's own Postgres, say) is probed again from inside the rehearsal network and only counts if the VM has it open |
 | data_security | `deploy.sh vm-validate-data`: the on-host half of B6 inside the rehearsal VM |

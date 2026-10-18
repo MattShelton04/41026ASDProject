@@ -15,7 +15,8 @@ and needs no Azure account:
    stay untouched) and pushes ``:<git sha>`` plus the Caddy and PostGIS mirrors. ``deploy`` runs the
    exact run-command payload in the rehearsal VM, so ``propertyscope-vm.sh`` renders the secrets,
    pulls from the registry, starts ``docker-compose.azure.yml`` (AI off) as project ``ps-azure``,
-   checks the seeded baseline and runs the ``fixture-property`` collection.
+   and reports how many Feature 1 releases are accepted (none: production purges the seeded
+   demonstration baseline).
 4. ``ai_overlay_config``: ``docker compose config`` of the AI overlay inside the VM, to prove the
    AI-mode and Multi-Agent token wiring renders. No AI service is started.
 5. ``report`` and ``review``: ``scripts/cloud_deployment_report.py`` and the deterministic Cloud
@@ -608,16 +609,12 @@ class Runbook:
         result = re.findall(r"^PROPERTYSCOPE_RESULT=(\{.*\})\s*$", text, re.M)
         vm = json.loads(result[-1]) if result else {}
         self.rehearsal.results["vm"] = vm
-        self.rehearsal.results["fixture"] = (
-            re.findall(r"^fixture-property run \S+: (\w+)$", text, re.M) or ["not run"]
-        )[-1]
         accepted = re.findall(r"Feature 1 data: (\d+) accepted releases", text)
         self.rehearsal.results["accepted_releases"] = int(accepted[-1]) if accepted else 0
         detail = (
             f"{vm.get('containers_running', '?')}/{vm.get('containers_total', '?')} containers "
             f"running, cloud AI {vm.get('cloud_ai', '?')}, "
-            f"{self.rehearsal.results['accepted_releases']} accepted releases, fixture-property "
-            f"{self.rehearsal.results['fixture']}"
+            f"{self.rehearsal.results['accepted_releases']} accepted releases"
         )
         if "trusted certificate for" not in text:
             detail += "; the VM's own HTTPS check did not pass"

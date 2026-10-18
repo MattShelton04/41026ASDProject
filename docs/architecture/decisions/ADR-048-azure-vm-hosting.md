@@ -94,10 +94,8 @@ SQLite's single-writer guidance on network file systems.
    One deployment runs at a time and is never cancelled. `dev.py cloud rehearse` exercises the
    same `deploy.sh` path locally, against a registry container and a Docker-in-Docker VM, without
    Azure (deployment/azure/README.md, "Local rehearsal").
-9. **The demonstration data is labelled.** The cloud starts from the seeded demonstration
-   baseline that Feature 1's migrations create, and runs the `fixture-property` collection once
-   to prove the runner/loader pipeline. Real releases are collected and published in the cloud
-   only through the usual human review.
+9. **The cloud holds no demonstration data** (amended 18 October 2026, below). Real releases
+   are collected and published in the cloud only through the usual human review.
 
 ## Consequences
 
@@ -296,3 +294,13 @@ immutable OIDC subjects as the GitHub deployer. The first successful *Cloud Depl
 smoke test 37 of 37 with the AI tier off, and passed the B5 validation with 52 checks.
 `AZURE_AUTO_DEPLOY=false` now pauses automatic deployments for a quiet period, and a manual run
 still deploys after the same gate. The cloud AI tier (B1–B4) has not run on Azure yet.
+
+**18 October 2026, production starts empty.** The cloud no longer serves the seeded
+demonstration baseline or runs the `fixture-property` collection on its first deployment: the
+team collects real data there. `f1-db-api` runs with `PROPERTYSCOPE_DEMONSTRATION_DATA=false`, which
+purges the showcase rows the migrations seed (runs, releases, records, properties and any
+`fixture-property` collection) after every migration pass and keeps the source and job catalogue.
+The migrations stay unchanged, so local stacks, CI and the deterministic tests keep their
+baseline. Features 2 and 4 accept a record only for a property Feature 1 has published, so until a
+G-NAF release is published in the cloud the smoke test reports their CRUD cases as skipped, with
+that reason, and the deployment still passes. The Cloud Deployment Review lists them as unproven.

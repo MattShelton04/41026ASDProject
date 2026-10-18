@@ -109,7 +109,8 @@ dependencies with `uv add --package <project-name> <dependency>` and commit `pyp
 - A fresh database contains a **seeded demonstration baseline**: accepted `gnaf-nsw`,
   `nsw-psi-sales`, `bocsar-crime` and schools releases with about 10 records each, plus a
   fixture property set. That is not real data. Check record counts before claiming a dataset is
-  loaded; the `feature-1-data` skill shows how.
+  loaded; the `feature-1-data` skill shows how. The Azure deployment purges that baseline
+  (`PROPERTYSCOPE_DEMONSTRATION_DATA=false`) and holds only real, reviewed releases.
 - Starting the stack never downloads or publishes data. Acquisition is explicit
   (`uv run scripts/dev.py data collect <job>`) and ends at a reviewable candidate.
 - Publishing makes a candidate the current data. Agents may review and publish on the user's

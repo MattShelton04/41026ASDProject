@@ -26,6 +26,8 @@ class StoreSettings:
     artifact_root: Path
     internal_token: str
     auto_migrate: bool = True
+    # False in production: the seeded demonstration baseline is purged after migrations.
+    demonstration_data: bool = True
     runtime_profile_root: Path = field(default_factory=_default_runtime_profile_root)
     loader_temp_file_limit_kib: int = DEFAULT_LOADER_TEMP_FILE_LIMIT_KIB
     loader_disk_reserve_bytes: int = DEFAULT_LOADER_DISK_RESERVE_BYTES
@@ -48,6 +50,7 @@ class StoreSettings:
             ).resolve(),
             internal_token=token,
             auto_migrate=_boolean("PROPERTYSCOPE_AUTO_MIGRATE", default=True),
+            demonstration_data=_boolean("PROPERTYSCOPE_DEMONSTRATION_DATA", default=True),
             runtime_profile_root=Path(
                 os.environ.get(
                     "PROPERTYSCOPE_RUNTIME_PROFILE_ROOT",

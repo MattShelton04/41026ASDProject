@@ -9,7 +9,7 @@ import httpx
 import pytest
 from scripts import cloud_smoke
 from scripts.cloud_smoke import CRUD_CASES, Smoke, load_features, main
-from scripts.tests.cloud_fixtures import FakeEdge, run_smoke, smoke_document
+from scripts.tests.cloud_fixtures import STARTED_AT, FakeEdge, run_smoke, smoke_document
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"  # pragma: allowlist secret
 SOURCES = "/api/data-platform/v1/sources"
@@ -149,6 +149,37 @@ def test_failed_create_is_reported_and_owned_by_the_feature() -> None:
     assert "invalid_request" in failed[0].detail
 
 
+class _EmptyFeature1Edge(FakeEdge):
+    """Feature 1 holds no published property: production before its first G-NAF release."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/validate"):
+            self.requests.append((request.method, request.url.path))
+            return httpx.Response(200, json={"state": "not_found"})
+        return super().__call__(request)
+
+
+def test_an_empty_feature_1_skips_the_cases_that_need_its_property_without_failing() -> None:
+    edge = _EmptyFeature1Edge()
+
+    smoke = run_smoke(edge)
+    document = cloud_smoke.build_document(
+        base_url="https://edge", results=smoke.results, expect_ai=False, started_at=STARTED_AT
+    )
+
+    skipped = [result for result in smoke.results if result.skipped]
+    assert {result.owner for result in skipped} == {"student-2", "student-4"}
+    assert all(not result.passed and result.operation == "create" for result in skipped)
+    assert all("publish a G-NAF release" in result.detail for result in skipped)
+    assert document["passed"] is True
+    assert document["summary"]["failed"] == 0
+    assert document["summary"]["skipped"] == 2
+    assert document["summary"]["by_owner"]["student-2"]["skipped"] == 1
+    assert "| SKIP | student-2 |" in cloud_smoke.render_markdown(document)
+    searches = [path for _, path in edge.requests if path.endswith("/properties/search")]
+    assert len(searches) == 2 * len(cloud_smoke.PROPERTY_QUERIES)  # one property lookup per case
+
+
 def test_cleanup_runs_even_when_the_read_back_fails() -> None:
     edge = FakeEdge()
     original = edge.__call__
@@ -248,6 +279,7 @@ def test_main_writes_the_documented_contract_and_sets_the_exit_code(tmp_path: Pa
         "status_code",
         "duration_ms",
         "operation",
+        "skipped",
     }
     markdown = (tmp_path / "cloud-smoke.md").read_text(encoding="utf-8")
     assert "**PASSED**" in markdown
