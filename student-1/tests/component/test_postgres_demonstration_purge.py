@@ -73,7 +73,7 @@ def database() -> Iterator[str]:
 
 
 def _count(conn: Connection, table: str) -> int:
-    row = conn.execute(f"SELECT count(*) AS n FROM {table}").fetchone()  # noqa: S608
+    row = conn.execute(f"SELECT count(*) AS n FROM {table}").fetchone()  # noqa: S608 - table names are test constants
     assert row is not None
     return int(row["n"])
 
@@ -83,7 +83,7 @@ def _copy(conn: Connection, table: str, key: str, source: str, overrides: dict[s
     conn.execute(
         f"""INSERT INTO {table}
         SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(seed) || %s::jsonb)).*
-        FROM {table} AS seed WHERE seed.{key} = %s""",  # noqa: S608
+        FROM {table} AS seed WHERE seed.{key} = %s""",  # noqa: S608 - identifiers are test constants; values are bound
         (Jsonb(overrides), source),
     )
 
