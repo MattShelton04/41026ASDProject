@@ -1,0 +1,6 @@
+B1 PASS: run 387591f0-be44-4e88-8808-404f32cde8b9 succeeded
+B2 PASS: run 387591f0-be44-4e88-8808-404f32cde8b9 called data.releases.v1 over MCP
+B3 PASS: run 56c85266-6cc9-4421-9f49-61794f55e7b3: 2 citation(s), grounding ready, confidence moderate
+B4 PASS: run 2058658b-8c85-44ee-bebc-cfc0cd8ab8b8 awaiting_human on nsw-suburb-boundaries release; recommendation correct
+
+4/4 tiers passed; reports in /home/runner/work/41026ASDProject/41026ASDProject/.propertyscope-runtime/cloud/ai-probe
