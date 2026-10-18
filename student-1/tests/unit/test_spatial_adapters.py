@@ -96,6 +96,44 @@ def test_incomplete_or_mutating_sources_never_finish(
             list(iter_arcgis_features(client, descriptor))
 
 
+@pytest.mark.parametrize(
+    ("changed_key", "message"),
+    [("drawingInfo", None), ("fields", "metadata changed")],
+)
+def test_metadata_fingerprint_ignores_cartography_but_not_layer_definition(
+    changed_key: str, message: str | None
+) -> None:
+    reads = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal reads
+        if request.url.path.endswith("/query"):
+            if request.url.params.get("returnCountOnly"):
+                return httpx.Response(200, json={"count": 1})
+            features = [_feature(1)] if "OBJECTID>" not in request.url.params["where"] else []
+            return httpx.Response(200, json={"type": "FeatureCollection", "features": features})
+        reads += 1
+        metadata = deepcopy(METADATA)
+        metadata["drawingInfo"] = {"renderer": {"colorRamp": [238, 252]}}
+        if reads > 1:
+            if changed_key == "drawingInfo":
+                metadata["drawingInfo"] = {"renderer": {"colorRamp": [252, 242]}}
+            else:
+                metadata["fields"] = [
+                    {"name": "OBJECTID", "type": "esriFieldTypeOID"},
+                    {"name": "NEW"},
+                ]
+        return httpx.Response(200, json=metadata)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        descriptor = discover_arcgis_layer(client, URL, "protected-reserve")
+        if message is None:
+            assert len(list(iter_arcgis_features(client, descriptor))) == 1
+        else:
+            with pytest.raises(ValueError, match=message):
+                list(iter_arcgis_features(client, descriptor))
+
+
 def test_flood_planning_never_infers_scenario_or_study_extent() -> None:
     with _client([[_feature(1)], []], 1) as client:
         objects = discover_spatial_sources("nsw-flood-planning", client)
