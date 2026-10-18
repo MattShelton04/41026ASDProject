@@ -380,6 +380,17 @@ and restores the deterministic operator baseline automatically.
 | `psi-sales` | Connected | Streams complete annual history and current weekly packages, including the pre-2001 root-DAT format. Stable source keys collapse identical retransmissions. |
 | `seifa-2021-sal-nsw` | Connected | Downloads the official national ABS 2021 SAL workbook, validates its fixed Table 1 headings, and imports every NSW SAL row with the four scores, Australian deciles, population, and source provenance. |
 
+ArcGIS reference and spatial layers (cadastre, planning, bushfire, flood, suburbs, strata,
+amenities, ABS geography) retry transient publisher failures per request: transport errors and
+timeouts, HTTP 408/425/429/500/502/503/504, and HTTP 200 ArcGIS error bodies with codes
+500/503/504. Backoff is exponential with jitter (0.5 s doubling to a 60 s cap) and honours
+`Retry-After`. Each request keeps retrying for up to 15 minutes of waiting, long enough for the
+multi-minute publisher database outages observed on the NSW spatial portal. Retries resend the same ordered keyset cursor and never relax count
+reconciliation or the metadata fingerprint. A failed task records its stage, exception type and a
+sanitised, bounded message in `error_json` (`cause.type`, `cause.message`, `cause.transient`,
+`cause.http_status` or `cause.publisher_code`). A transient failure that outlasts the retry budget
+leaves the run `interrupted` and resumable, with the same evidence under `error_json.task_error`.
+
 SEIFA refreshes are census-release-driven rather than periodic. The registered `full-data` scope
 means the complete NSW subset of the official national SAL workbook; it is not a sample or an
 operator-selected row cap. ABS `-` values remain explicit null score/decile pairs. Published output

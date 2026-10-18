@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
+import random
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
@@ -22,6 +24,7 @@ _HOSTS = frozenset(
     | {f"mapprod{suffix}.environment.nsw.gov.au" for suffix in ("", "1", "2", "3")}
 )
 _MAX_RESPONSE_BYTES = 64 * 1024 * 1024
+logger = logging.getLogger(__name__)
 _HOSTED_BFPL = (
     "https://portal.spatial.nsw.gov.au/server/rest/services/Hosted/"
     "NSW_BushFire_Prone_Land/FeatureServer/0"
@@ -108,14 +111,99 @@ def _validate_url(url: str) -> None:
         raise ValueError("ArcGIS layer URL is outside the official source allowlist")
 
 
-def _read_json(client: httpx.Client, url: str, params: dict[str, str]) -> dict[str, Any]:
-    for attempt in range(3):
+class ArcGISPublisherError(ValueError):
+    """The publisher answered HTTP 200 with an ArcGIS ``{"error": ...}`` object.
+
+    ``transient`` marks server-side codes (500/503/504) that ArcGIS also uses for
+    overload and timeouts; they are retried, and a run that still fails is resumable.
+    """
+
+    def __init__(self, code: object, message: object, *, transient: bool) -> None:
+        self.code = code if isinstance(code, int) and not isinstance(code, bool) else None
+        self.transient = transient
+        detail = re.sub(r"\s+", " ", str(message or "")).strip()[:200]
+        super().__init__(
+            f"ArcGIS publisher returned error {self.code if self.code is not None else 'unknown'}"
+            + (f": {detail}" if detail else "")
+        )
+
+
+_TRANSIENT_HTTP_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+_TRANSIENT_ARCGIS_CODES = frozenset({500, 503, 504})
+# The query-capacity HTML 500 is classified after this many ordinary retries so a
+# brief server error never shrinks pages, and a real capacity limit is found quickly.
+_CAPACITY_PROBE_ATTEMPTS = 3
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """Bounded exponential backoff with equal jitter for transient publisher failures.
+
+    Waits start at 0.5 s and double to a 60 s cap. One request keeps retrying while its
+    total wait stays within ``budget_seconds`` (15 minutes), up to ``attempts`` requests.
+    On 2026-10-18 the NSW spatial portal answered HTTP 200 ``{"error": {"code": 500}}``
+    ("too many clients", then "database system is shutting down") for over seven minutes.
+    A minute-long budget lost a 188k-row bushfire acquisition, and an interrupted acquire
+    restarts from its first page. A longer outage still reaches the run as retryable
+    evidence.
+    """
+
+    attempts: int = 40
+    base_seconds: float = 0.5
+    max_seconds: float = 60.0
+    budget_seconds: float = 900.0
+    sleep: Callable[[float], None] = _sleep
+    jitter: Callable[[], float] = random.random
+
+    def delay(self, attempt: int, retry_after: float | None = None) -> float:
+        ceiling = min(self.max_seconds, self.base_seconds * 2.0**attempt)
+        delay = ceiling / 2 + self.jitter() * ceiling / 2
+        if retry_after is not None:
+            delay = max(delay, min(self.max_seconds, retry_after))
+        return delay
+
+
+DEFAULT_RETRY_POLICY = RetryPolicy()
+
+
+def is_transient_source_error(exc: BaseException) -> bool:
+    """Whether a source read failed for a reason that a later attempt may not repeat."""
+    if isinstance(exc, ArcGISPublisherError):
+        return exc.transient
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _TRANSIENT_HTTP_STATUS
+    if isinstance(exc, httpx.UnsupportedProtocol):
+        return False
+    return isinstance(exc, httpx.TransportError)
+
+
+def _retry_after(exc: BaseException) -> float | None:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return None
+    value = exc.response.headers.get("Retry-After", "").strip()
+    return float(value) if value.isdigit() else None
+
+
+def _read_json(
+    client: httpx.Client,
+    url: str,
+    params: dict[str, str],
+    *,
+    retry: RetryPolicy | None = None,
+) -> dict[str, Any]:
+    policy = retry or DEFAULT_RETRY_POLICY
+    waited = 0.0
+    for attempt in range(policy.attempts):
         try:
             with client.stream(
                 "GET", url, params=params, timeout=120, follow_redirects=False
             ) as response:
                 if (
-                    attempt == 2
+                    attempt == _CAPACITY_PROBE_ATTEMPTS - 1
                     and response.status_code == 500
                     and url.endswith("/query")
                     and params.get("returnGeometry") == "true"
@@ -134,7 +222,8 @@ def _read_json(client: httpx.Client, url: str, params: dict[str, str]) -> dict[s
                         and b"error performing query operation" in error_prefix.lower()
                     ):
                         raise _ArcGISPageCapacityError(
-                            "ArcGIS HTML query operation failed after three HTTP 500 attempts"
+                            "ArcGIS HTML query operation failed after "
+                            f"{_CAPACITY_PROBE_ATTEMPTS} HTTP 500 attempts"
                         )
                 response.raise_for_status()
                 content = bytearray()
@@ -152,16 +241,35 @@ def _read_json(client: httpx.Client, url: str, params: dict[str, str]) -> dict[s
                         "ArcGIS returned an HTML page instead of source JSON"
                     ) from exc
                 raise
-            if not isinstance(result, dict) or "error" in result:
-                raise ValueError("ArcGIS publisher returned an invalid or error response")
+            if not isinstance(result, dict):
+                raise ValueError("ArcGIS publisher returned an invalid response")
+            if "error" in result:
+                error = result["error"] if isinstance(result["error"], dict) else {}
+                code = error.get("code")
+                if not isinstance(code, int) or isinstance(code, bool):
+                    code = None
+                raise ArcGISPublisherError(
+                    code, error.get("message"), transient=code in _TRANSIENT_ARCGIS_CODES
+                )
             return _ArcGISResponse(result, len(content))
-        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
-            retryable = not isinstance(exc, httpx.HTTPStatusError) or (
-                exc.response.status_code == 429 or exc.response.status_code >= 500
-            )
-            if not retryable or attempt == 2:
+        except (httpx.TransportError, httpx.HTTPStatusError, ArcGISPublisherError) as exc:
+            if not is_transient_source_error(exc) or attempt == policy.attempts - 1:
                 raise
-            time.sleep(0.25 * (2**attempt))
+            delay = policy.delay(attempt, _retry_after(exc))
+            if waited + delay > policy.budget_seconds:
+                raise
+            waited += delay
+            # Path only: query strings carry cursors and filters, not operator evidence.
+            logger.warning(
+                "ArcGIS read %s failed transiently (%s); retry %d in %.1f s (%.0f/%.0f s budget)",
+                urlsplit(url).path,
+                type(exc).__name__,
+                attempt + 1,
+                delay,
+                waited,
+                policy.budget_seconds,
+            )
+            policy.sleep(delay)
     raise AssertionError("unreachable")
 
 

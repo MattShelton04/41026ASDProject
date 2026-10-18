@@ -145,8 +145,15 @@ those limits in any answer. The full contract is
 
 ## 7. When a run fails
 
-- Read the run: `GET /ingestion-runs/{run_id}`, its `tasks`, and `activity`. Then read
-  `stack logs --no-follow f1-runner` or `f1-db-loader`.
+- Read the run: `GET /ingestion-runs/{run_id}`, its `tasks`, and `activity`. A failed task's
+  `error_json.message` names the stage and cause, and `error_json.cause` records the exception
+  `type`, a sanitised `message`, `transient`, and `http_status` or ArcGIS `publisher_code` when
+  known. An interrupted run's `error_json.task_error` carries the same evidence. Then read
+  `stack logs --no-follow f1-runner` or `f1-db-loader` for the traceback.
+- ArcGIS reads retry transport errors, HTTP 408/425/429/500/502/503/504 and ArcGIS error bodies
+  with codes 500/503/504 for up to 15 minutes of waiting per request. A failure that outlasts that budget
+  leaves the run `interrupted` and `retryable: true`. Malformed, incomplete or changed source data
+  fails the run immediately and is not retried.
 - `POST /ingestion-runs/{run_id}/resume` retries a retryable failed import after its cause is
   fixed. `reprocess-cached` rebuilds from the verified artifact without downloading again. Both are
   routine in a local stack; on a shared environment, confirm with the user first.
