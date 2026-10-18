@@ -2,7 +2,7 @@
 
 - Status: Accepted (provisioned and deployed 17 October 2026 in `newzealandnorth`, see
   [Amendments](#amendments))
-- Date: 9 October 2026 (amended 17 October 2026, see [Amendments](#amendments))
+- Date: 9 October 2026 (amended 17 and 18 October 2026, see [Amendments](#amendments))
 - Owner: Shared platform (Matthew Shelton)
 - Reaffirms: [ADR-046](ADR-046-non-containerised-ai-tier.md) (AI services are host processes)
 - Plan: [Release 2 implementation plan](../../release-2/implementation-plan.md), decisions D1, D2
@@ -304,3 +304,16 @@ The migrations stay unchanged, so local stacks, CI and the deterministic tests k
 baseline. Features 2 and 4 accept a record only for a property Feature 1 has published, so until a
 G-NAF release is published in the cloud the smoke test reports their CRUD cases as skipped, with
 that reason, and the deployment still passes. The Cloud Deployment Review lists them as unproven.
+
+**18 October 2026, the AI tier gets its own workflow.** Decision 7 stands: Cloud Deployment
+still deploys only with AI off. A separate, manually dispatched *Cloud AI Tier* workflow
+(`.github/workflows/cloud-ai.yml`, `on`/`probe`/`off`) shares the `production` environment and the
+deployment's concurrency group. It reads the commit the VM runs and turns the tier on from that
+commit, so the host AI services, Compose files and images match without another deployment, while
+the workflow and its tooling come from `main`. It then runs `deploy.sh ai-probe`
+(`scripts/cloud_ai_probe.py`), which signs in as the operator with the production environment
+secret `PROPERTYSCOPE_OPERATOR_PASSWORD` and makes one real interaction per bonus tier through the
+public edge: a Feature 1 assistant turn answered through MCP (B1, B2), a cited RAG answer (B3) and
+a Feature 1 release readiness review through Planner, Worker and Reviewer to `awaiting_human`
+(B4). Its report is bonus evidence (`docs/release-2/evidence/bonus/`) and never replaces the
+AI-off cloud evidence.

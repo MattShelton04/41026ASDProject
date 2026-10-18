@@ -203,6 +203,7 @@ def test_codeowners_cover_only_the_sensitive_cloud_setup() -> None:
         "/deployment/azure/": "@MattShelton04",
         "/.github/workflows/cloud-deployment.yml": "@MattShelton04",
         "/.github/workflows/cloud-auto-deallocate.yml": "@MattShelton04",
+        "/.github/workflows/cloud-ai.yml": "@MattShelton04",
         "/docker-compose.azure.yml": "@MattShelton04",
         "/docker-compose.azure-ai.yml": "@MattShelton04",
         "/.github/CODEOWNERS": "@MattShelton04",

@@ -11,6 +11,7 @@
 #   deploy.sh [--dry-run] deploy               converge the VM through `az vm run-command` (no SSH)
 #   deploy.sh smoke [--output-dir DIR] [--expect-ai] [--insecure]   public smoke test (home, routes, health, CRUD, AI off)
 #   deploy.sh [--dry-run] ai on|off            toggle the systemd host AI tier (bonus R2-B1..B4)
+#   deploy.sh ai-probe [--output-dir DIR] [--commit-sha SHA]   one real B1-B4 interaction each, as the operator
 #   deploy.sh status | logs [SERVICE] [LINES]  container/AI state, recent logs (through run-command)
 #   deploy.sh outputs                          print the Bicep outputs (fqdn, ACR, VM, Key Vault)
 #   deploy.sh validate-endpoint | validate-data   bonus R2-B5 / R2-B6 validation scripts
@@ -35,6 +36,7 @@ readonly REQUIRED_SECRETS=(internal-token runner-token f1-postgres-password f4-p
 # The site-wide viewer login (PROPERTYSCOPE_SITE_AUTH=on) and the temporary NSG rule that lets this
 # machine reach HTTPS for the smoke test and endpoint validation when 443 is limited to a list.
 readonly SITE_PASSWORD_SECRET=edge-site-password
+readonly OPERATOR_PASSWORD_SECRET=edge-basic-auth-password
 readonly TEMPORARY_HTTPS_RULE=AllowDeployerHttpsTemporary
 readonly AI_SECRETS=(ai-mode-service-token mcp-service-token rag-service-token multi-agent-service-token)
 readonly MIRROR_IMAGES=("docker.io/library/caddy:2.10.2-alpine=propertyscope/mirror/caddy:2.10.2-alpine" "docker.io/postgis/postgis:16-3.4=propertyscope/mirror/postgis:16-3.4")
@@ -63,7 +65,7 @@ die() {
 }
 
 usage() {
-    sed -n '4,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '4,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # --- Configuration -----------------------------------------------------------------------------
@@ -934,6 +936,47 @@ cmd_smoke() {
     run $runner scripts/cloud_smoke.py --base-url "$base_url" --output-dir "$output_dir" "${extra[@]}"
 }
 
+# Bonus B1-B4 evidence with the AI tier on (scripts/cloud_ai_probe.py): one real interaction per
+# tier through the public edge, signed in as the operator, because the AI routes sit behind the
+# operator realm. Like the site password for smoke, the operator password comes only from the
+# caller's environment (PROPERTYSCOPE_OPERATOR_PASSWORD; in GitHub Actions the production
+# environment secret of the same name) and reaches only the probe process.
+cmd_ai_probe() {
+    local output_dir="$LOG_DIR/ai-probe" runner base_url
+    local extra=()
+    while (($#)); do
+        case $1 in
+            --output-dir)
+                output_dir=$2
+                shift 2
+                ;;
+            --commit-sha)
+                extra+=(--commit-sha "$2")
+                shift 2
+                ;;
+            --insecure | --allow-deterministic)
+                extra+=("$1")
+                shift
+                ;;
+            *) die "unknown ai-probe option: $1" ;;
+        esac
+    done
+    [[ -n ${PROPERTYSCOPE_OPERATOR_PASSWORD:-} || $DRY_RUN == true ]] ||
+        die "set PROPERTYSCOPE_OPERATOR_PASSWORD to the Key Vault secret $OPERATOR_PASSWORD_SECRET (GitHub Actions: the production environment secret of the same name)"
+    if [[ -z ${PROPERTYSCOPE_PUBLIC_URL:-} && $REHEARSAL != true ]]; then
+        if ! outputs_known; then
+            ensure_azure_context
+        fi
+        load_outputs
+        open_https_for_this_client
+    fi
+    base_url=$(public_base_url)
+    runner=$(python_runner)
+    cd "$REPO_ROOT"
+    # shellcheck disable=SC2086 # the runner is a fixed, trusted command prefix
+    run $runner scripts/cloud_ai_probe.py --base-url "$base_url" --output-dir "$output_dir" "${extra[@]}"
+}
+
 cmd_validate() {
     local which=$1
     ensure_azure_context
@@ -984,6 +1027,7 @@ main() {
         deploy) cmd_deploy ;;
         smoke) cmd_smoke "$@" ;;
         ai) cmd_ai "$@" ;;
+        ai-probe) cmd_ai_probe "$@" ;;
         status) cmd_status ;;
         logs) cmd_logs "$@" ;;
         outputs) cmd_outputs ;;
