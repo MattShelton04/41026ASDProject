@@ -15,8 +15,11 @@ WorkingDirectory=/opt/propertyscope/src
 EnvironmentFile=/opt/propertyscope/secrets/host-ai.env
 LoadCredential=openai-api-key:/opt/propertyscope/secrets/openai-api-key
 Environment=OPENAI_API_KEY_FILE=%d/openai-api-key
-# The package CLI (decision D3); containers reach it through host.docker.internal:5013.
-ExecStart=/opt/propertyscope/src/.venv/bin/multi-agent-server serve
+# The package CLI (decision D3); containers reach it through host.docker.internal:5013, so it
+# binds every interface like `dev.py ai serve multi-agent` (host_runtime.bind_host). The CLI's
+# default 127.0.0.1 left Feature 1's release review answering 503 multi_agent_unavailable. The NSG
+# never admits 5013, and the server authenticates every non-liveness request with its token.
+ExecStart=/opt/propertyscope/src/.venv/bin/multi-agent-server serve --host 0.0.0.0
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=35

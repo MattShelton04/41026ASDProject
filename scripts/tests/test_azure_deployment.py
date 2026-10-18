@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 import yaml
-from scripts.devtools import cloud
+from scripts.devtools import cloud, host_runtime
 
 ROOT = Path(__file__).resolve().parents[2]
 AZURE = ROOT / "deployment" / "azure"
@@ -384,8 +384,11 @@ def test_systemd_units_match_the_host_runtime_and_run_unprivileged() -> None:
             "ExecStart=/opt/propertyscope/src/.venv/bin/python -m scripts.devtools.host_runtime "
             f"serve {service}"
         ) in units[f"propertyscope-{service}"]
+    # Containers reach the Multi-Agent Server through the host gateway, as they do locally: the
+    # unit must bind the same interface as the local launcher, not the CLI's loopback default.
+    assert host_runtime.bind_host("multi-agent") == "0.0.0.0"  # noqa: S104 - asserted, not bound
     assert (
-        "ExecStart=/opt/propertyscope/src/.venv/bin/multi-agent-server serve"
+        "ExecStart=/opt/propertyscope/src/.venv/bin/multi-agent-server serve --host 0.0.0.0\n"
         in units["propertyscope-multi-agent"]
     )
     for name, unit in units.items():
