@@ -330,11 +330,11 @@ We claim B1–B6. B1–B4 ran through the public edge in Cloud AI Tier run
 | B1 AI-mode | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | AI-mode run `387591f0` |
 | B2 MCP | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | `data.releases.v1` over MCP, same run |
 | B3 RAG | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `56c85266`, 2 citations |
-| B4 Multi-Agent | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Planner → Worker → Reviewer run `2058658b`, `awaiting_human` |
+| B4 Multi-Agent | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Planner → Worker → Reviewer run `2058658b`, rejected in the UI |
 | B5 Endpoint security | [52 PASS, 0 FAIL](../release-2/evidence/bonus/endpoint-security.txt) | Cloud Deployment run 39112162750 |
 | B6 Data security | [43 PASS, 0 FAIL](../release-2/evidence/bonus/data-security.txt) | Laptop, 18 October |
 
-The showcase video also demonstrates each claimed bonus through the Azure UI.
+[UI captures](../release-2/evidence/bonus/README.md#ui-captures-19-october) and the video show each bonus through the Azure UI.
 
 ## 14 Showcase video
 
