@@ -29,19 +29,18 @@ and your outstanding TODOs. Replace each TODO with your content; stay inside you
 ## 1 Project overview
 
 PropertyScope NSW helps buyers research NSW property. Each student owns a containerised frontend,
-backend/API and database slice behind a shared home page, and Matthew also leads the shared
-platform. Release 1 added host MCP and RAG servers to the Release 0 AI-mode and its
-Plan/Act/Observe/Adapt loop. Release 2 keeps all of these and adds:
+backend/API and database slice; Matthew also leads the shared platform. Release 2 keeps the
+Release 0–1 AI-mode, agentic loop, MCP and RAG servers, and adds:
 
-- a shared host Multi-Agent Server (Planner → Worker → Reviewer → human review) that each feature
-  calls through its own backend;
-- three agentic-loop review modes: multi-agent workflow, testing report and cloud deployment;
-- pre-commit security scans, and post-commit tests of two endpoint functions per student;
-- an Azure deployment workflow with the AI tier disabled by default.
+- a host Multi-Agent Server (Planner → Worker → Reviewer → human review), called through a
+  feature's backend;
+- three review modes: multi-agent workflow, testing report and cloud deployment;
+- pre-commit security scans, and a `student-N.yml` per student for post-commit endpoint tests;
+- Azure deployment with the AI tier disabled by default.
 
 | Student | Feature | Release 2 responsibility |
 |---|---|---|
-| 1 Matthew Shelton (24763373) | F1 Data platform and property discovery | Shared platform: Multi-Agent Server, review modes, security scans, endpoint test kit, Azure. F1 readiness-review workflow and endpoint tests |
+| 1 Matthew Shelton (24763373) | F1 Data platform and property discovery | Shared platform (Multi-Agent Server, review modes, security scans, test kit, Azure); F1 workflow and endpoint tests |
 | 2 Burhan Naeem (24764134) | F2 Property sales and market cases | F2 workflow, endpoint tests and evidence |
 | 3 James Huang (24970865) | F3 Suburb, crime and liveability analytics | F3 workflow, endpoint tests and evidence |
 | 4 Michael White (24846267) | F4 Site, planning and building due diligence | F4 workflow, endpoint tests and evidence |
@@ -51,11 +50,12 @@ Plan/Act/Observe/Adapt loop. Release 2 keeps all of these and adds:
 
 | Path | Contents | Release |
 |---|---|---|
-| `student-1/` … `student-5/` | Feature slices: UI, API, database service, tools, corpus; `config/multi-agent/` and `tests/endpoints/` | 0–2 |
+| `student-1/` … `student-5/` | Feature slices: UI, API, database service, tools, corpus | 0–1 |
+| `student-1/config/multi-agent/`, `student-1/tests/endpoints/` | F1 workflow template and endpoint tests | 2 |
 | `ai-services/ai-mode/`, `agent-core/` | AI-mode run API and the shared agentic loop | 0 |
 | `ai-services/mcp-server/`, `rag-server/` | Tool transport and local retrieval | 1 |
-| `ai-services/multi-agent-server/` | Planner, Worker, Reviewer, human decisions, JSONL audit, CLI | 2 |
-| `scripts/devtools/review/` | `ai review` modes and the release decision | 2 |
+| `ai-services/multi-agent-server/` | Planner, Worker, Reviewer, decisions, JSONL audit, CLI | 2 |
+| `scripts/devtools/review/` | Review modes and release decision | 2 |
 | `shared/frontend/multi-agent/`, `shared/testkit/` | Shared workflow panel; endpoint client, JUnit summary, `FakeMultiAgentServer` | 2 |
 | `.pre-commit-config.yaml`, `scripts/security/` | Security hooks and report | 2 |
 | `.github/workflows/` | `student-N.yml`, `integration-ci.yml`; `cloud-deployment.yml` | 0–2 |
@@ -66,13 +66,11 @@ Plan/Act/Observe/Adapt loop. Release 2 keeps all of these and adds:
 
 ![Figure 1 Release 2 integrated architecture](assets/release-2/release-2-architecture.png)
 
-CRUD requests go from the browser through the shared edge to a feature frontend, its backend/API
-and the database service it owns. The Release 1 flows are unchanged: an assistant turn goes from
-the backend to AI-mode, which calls that feature's MCP tools and retrieves from its RAG corpus. In
-Release 2 each backend also proxies the Multi-Agent Server over HTTP with `MULTI_AGENT_BASE_URL`
-and a service token. The Planner plans read-only steps, the Worker gathers evidence through MCP,
-the Reviewer checks it, and only a human decision ends the run. The shared panel shows every
-stage. No AI service opens a feature database or runs in Docker.
+CRUD requests pass from the browser through the shared edge to a feature frontend, its backend/API
+and its own database service. Assistant turns keep the Release 1 path through AI-mode to the
+feature's MCP tools and RAG corpus. A backend with a workflow also proxies the Multi-Agent Server
+over HTTP with a service token, and the shared panel shows each stage up to the human decision.
+No AI service opens a feature database or runs in Docker.
 
 [[FEATURE_FLOWS]]
 
@@ -80,10 +78,10 @@ stage. No AI service opens a feature database or runs in Docker.
 
 ### Student 1
 
-The `f1-release-readiness-review` workflow recommends whether a candidate dataset release is ready
-to publish. Seven proxy routes under `/api/data-platform/v1/release-reviews` fix the template
-server-side and hide other features' runs. Its allowlist omits `data.release_publish.v1`, so a
-review never publishes (Figure 2).
+`f1-release-readiness-review` recommends whether a candidate dataset release is ready to publish.
+Seven proxy routes under `/api/data-platform/v1/release-reviews` fix the template server-side and
+hide other features' runs. The allowlist omits `data.release_publish.v1`, so a review never
+publishes.
 
 ### Student 2
 
@@ -105,44 +103,44 @@ review never publishes (Figure 2).
 
 ![Figure 3 Azure reference architecture](assets/release-2/azure-reference-architecture.png)
 
-We chose Azure ([ADR-048](../architecture/decisions/ADR-048-azure-vm-hosting.md)). One Ubuntu VM
-runs the unchanged Compose model with a production override, because the AI tier must stay a
-host process and container-only services cannot host it.
-
-- **Hosting:** images are built once per commit, pushed to Azure Container Registry tagged with
-  the Git SHA and pulled by the VM's managed identity.
-- **Endpoints:** a public IP with a DNS label; the NSG admits only 80 and 443. Caddy terminates TLS
-  in front of the nginx edge; databases stay on internal networks.
-- **Secrets:** Key Vault, read by the managed identity. GitHub signs in with OIDC.
-- **AI tier:** AI-mode, MCP, RAG and Multi-Agent are systemd units, off unless
-  `PROPERTYSCOPE_CLOUD_AI=true`.
+We chose Azure ([ADR-048](../architecture/decisions/ADR-048-azure-vm-hosting.md)): one Ubuntu VM
+(`Standard_D4as_v4`, `newzealandnorth`) runs the Compose model with a production override, because
+the AI tier must stay a host process. Its managed identity reads Container Registry and Key Vault;
+GitHub signs in with OIDC. The NSG admits only 80 and 443, Caddy terminates TLS, and the four AI
+systemd units stay off unless `PROPERTYSCOPE_CLOUD_AI=true`.
 
 ![Figure 4 DevOps flow from commit to Azure](assets/release-2/devops-flow.png)
 
-A commit runs the pre-commit hooks. A push to `main` runs `integration-ci.yml` and each
-`student-N.yml`, which tests two endpoint functions. `cloud-deployment.yml` then gates the
-release: `verify-ci` waits until Integration CI and all five student workflows have passed for
-that commit, and `build-validate` builds every image and validates the Azure Compose model. Only
-then does `deploy` run the reusable [`deploy.sh`](../../deployment/azure/README.md) steps in the
-protected `production` environment.
+A commit runs the pre-commit hooks; a push to `main` runs `integration-ci.yml` and the five
+`student-N.yml` workflows, whose endpoint tests are each owner's deliverable. `cloud-deployment.yml`
+gates the release: `verify-ci` waits until all six pass for the commit and `build-validate` builds
+and validates every image. Only then does `deploy` run these reusable
+[scripts](../../deployment/azure/README.md) in the protected `production` environment:
 
-The VM is a `Standard_D4as_v4` in `newzealandnorth`, because the *Azure for Students* region
-policy blocks `australiaeast`.
+| Script or template | Role |
+|---|---|
+| `deploy.sh provision`, `secrets` | Resource group, `main.bicep`, missing Key Vault secrets |
+| `deploy.sh push`, `deploy` | Images to ACR; VM converged through `az vm run-command` |
+| `deploy.sh smoke`, `status`, `logs` | Public smoke test and VM state |
+| `deploy.sh ai on`/`off`, `ai-probe` | Bonus AI tier and its B1–B4 probe |
+| `deploy.sh validate-endpoint`, `validate-data` | B5 and B6 checks |
+| `main.bicep`, `modules/` | Network, registry, Key Vault, VM, RBAC, shutdown, budget |
+| `validate-iac.sh` | Offline Bicep, shell, Caddy and nginx checks (CI `iac-lint`) |
 
 ![Figure 5 Deployed resources and inbound rules](assets/release-2/screenshots/azure-resources.png)
 
 ## 5 Pre-commit security testing
 
-`.pre-commit-config.yaml` runs three security hooks on every `git commit`, beside Ruff, formatting
-and mypy: Ruff `S` (flake8-bandit) rules, detect-secrets against the reviewed `.secrets.baseline`,
+`.pre-commit-config.yaml` runs three security hooks on every `git commit`: Ruff `S`
+(flake8-bandit) rules, detect-secrets against the reviewed `.secrets.baseline`,
 and pip-audit of `uv.lock`. `integration-ci.yml` repeats them on every push.
 `dev.py security report` records results per slice and owner:
 
 [[SECURITY_SUMMARY]]
 
 In the recorded [commit run](../release-2/evidence/security/pre-commit-commit-run.txt),
-detect-secrets first blocked a commit. After seven false positives were reviewed into the
-baseline, the same commit passed:
+detect-secrets first blocked the commit; after seven false positives were reviewed into the
+baseline, it passed:
 
 ```text
 security: Ruff flake8-bandit rules (S)..........................Passed
@@ -162,22 +160,23 @@ security: pip-audit of locked dependencies (uv.lock)............Passed
 
 ## 6 Post-commit CI/CD testing
 
-Each `student-N.yml` starts its feature's Compose stack in GitHub Actions with the AI tier
-disabled and runs `pytest -m endpoint` against two endpoint functions of its backend/API. A JUnit
-step summary requires at least two passes and the XML is uploaded. `collect_ci_evidence.py`
-retains each run's record, reports and log under `evidence/ci/`.
+Each owner's `student-N.yml` should start the feature's Compose stack with AI disabled, run
+`pytest -m endpoint` on two endpoint functions and publish the Shared test kit's JUnit summary (at
+least two passes). `collect_ci_evidence.py` keeps each run's record, reports and log.
 
 [[CI_EVIDENCE]]
 
 ### Student 1
 
-`student-1.yml` loads fixture data with the acquisition pipeline, then runs the tests on the
-feature origin (:5200) and through the shared edge (:5100):
+`student-1.yml` loads fixture data, then tests the feature origin (:5200) and the shared edge
+(:5100):
 
 1. `GET /api/data-platform/v1/properties/search`: contract-valid ranked matches for an accepted
    address; invalid queries return structured problems.
 2. `/api/data-platform/v1/sources`: create, list, read, update and delete a source definition;
    invalid, duplicate and non-JSON bodies are rejected and not persisted.
+
+Suburb-map tests also run; two skip without a suburb-boundaries release.
 
 ### Student 2
 
@@ -197,9 +196,9 @@ feature origin (:5200) and through the shared edge (:5100):
 
 ## 7 Testing review
 
-`dev.py ai review testing` collects the security report and each `ci/student-N.md`, builds a
-deterministic checklist and reviews it through the shared loop (`review-testing.v2`). The verdict
-is the stricter of the model's and the checklist's; each review appends to the validation log.
+`dev.py ai review testing` checks the security report and each `ci/student-N.md` against a
+deterministic checklist and reviews them through the shared loop. The stricter verdict wins, and
+each review appends to the validation log.
 
 [[REVIEW_SUMMARY testing]]
 
@@ -207,10 +206,10 @@ is the stricter of the model's and the checklist's; each review appends to the v
 
 ## 8 Local deployment evidence
 
-`uv run scripts/dev.py stack up` starts the host AI tier (AI-mode, MCP, RAG and the Multi-Agent
-Server) and then the Compose application. Backends reach the host services through
-`host.docker.internal`. `scripts/capture_local_deployment.py` checks the running system, including
-that each AI service listens from a host process, not a container. Each server logs to its own
+`dev.py stack up` starts the four host AI services, then the Compose application; backends reach
+them through `host.docker.internal`. `capture_local_deployment.py` checks the running system,
+including that each AI service is a host process, not a container. The committed capture recorded
+the host services through managed log files; the freeze recapture runs each in its own foreground
 terminal.
 
 [[LOCAL_EVIDENCE]]
@@ -219,15 +218,19 @@ terminal.
 
 ## 9 Cloud deployment report and review
 
-`cloud-deployment.yml` writes the deployment report. `deploy.sh smoke` checks the home page, every
-feature route, one create, read and delete case per feature, and that the AI tier is disabled.
-`dev.py ai review cloud` reviews this evidence; a named person then records the release decision
-with `ai review decide`, which refuses if the evidence changed since the review.
+`deploy.sh smoke` checks the home page, every feature route, create, read and delete per feature,
+and that AI-mode answers `503 ai_disabled`; all 37 checks passed. `dev.py ai review cloud`
+reviews the evidence, then a named person records the release decision with `ai review decide`,
+which refuses if the evidence changed.
 
 [[CLOUD_SUMMARY]]
 
-The smoke test passed all 37 checks, including create, read and delete per feature; AI-mode
-answered `503 ai_disabled`.
+Run 39112162750 job timings: `verify-ci` 15 s, `build-validate` 42 s, `deploy` 10 min 39 s
+([run record](../release-2/evidence/cloud/workflow-run.md),
+[step logs](../release-2/evidence/cloud/logs/),
+[`vm-deploy.log`](../release-2/evidence/cloud/vm-deploy.log)). Run
+[39098352903](https://github.com/MattShelton04/41026ASDProject/actions/runs/39098352903) also
+ran the Bicep provision step (1 min 29 s).
 
 ![Figure 6 Gated cloud deployment run](assets/release-2/screenshots/azure-workflow.png)
 
@@ -237,9 +240,9 @@ answered `503 ai_disabled`.
 
 ## 10 Multi-agent workflow evidence
 
-The server stores runs in SQLite and appends state transitions to `workflow_history.jsonl` and
-handoffs, model and tool calls and decisions, with actor and time, to `coordination_audit.jsonl`.
-`multi-agent-server export` copies a run into the evidence folder.
+The server keeps runs in SQLite, state transitions in `workflow_history.jsonl`, and handoffs,
+model and tool calls and decisions, with actor and time, in `coordination_audit.jsonl`;
+`multi-agent-server export` copies a run into the evidence.
 
 [[MULTI_AGENT_RUNS]]
 
@@ -252,15 +255,15 @@ attributed human decisions and allowlisted tool calls.
 
 ### Student 1
 
-UI run `18740ca5` reviewed a real 680-record ABS CPI candidate on 10 October with the model
-provider. In round 1 the Reviewer recommended approve; the human chose correct, asking for
-completeness against the ABS source. In round 2 the Reviewer recommended correct, because the
-read-only tools cannot fetch ABS totals, and the human accepted step `release` only. Nothing was
-published. Terminal run `c17c66cc` used the same template from the CLI.
+UI run `18740ca5` (10 October, model provider) reviewed a real 680-record ABS CPI candidate.
+Round 1: the Reviewer recommended approve; the human chose correct, asking for completeness against
+ABS. Round 2: the Reviewer recommended correct, as read-only tools cannot fetch ABS totals; the
+human accepted step `release` only, publishing nothing. Terminal run `c17c66cc` used the same
+template.
 
 [[WORKFLOW_HISTORY multi-agent/student-1/18740ca5-ui]]
 
-![Figure 8 F1 round 1 Reviewer recommendation in the shared panel](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/04-round1-reviewer.png)
+![Figure 8 F1 Reviewer recommendation, round 1](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/04-round1-reviewer.png)
 
 ![Figure 9 F1 recorded human decisions](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/08-final-decisions.png)
 
@@ -284,7 +287,9 @@ published. Terminal run `c17c66cc` used the same template from the CLI.
 
 Commit history:
 [https://github.com/MattShelton04/41026ASDProject/commits/main](https://github.com/MattShelton04/41026ASDProject/commits/main).
-Section 12 lists each student's commits.
+Matthew's commits:
+[https://github.com/MattShelton04/41026ASDProject/commits/main?author=MattShelton04](https://github.com/MattShelton04/41026ASDProject/commits/main?author=MattShelton04);
+each student's GitHub username filters the same way, and Section 12 lists their commits.
 
 ## 12 Contribution logs
 
@@ -292,17 +297,11 @@ Section 12 lists each student's commits.
 
 | Date | Commit | Release 2 work |
 |---|---|---|
-| 8 Oct | [36a4c26](https://github.com/MattShelton04/41026ASDProject/commit/36a4c26) | Requirements and implementation plan |
-| 9 Oct | [f86f787](https://github.com/MattShelton04/41026ASDProject/commit/f86f787) | Multi-Agent Server, review modes, security scans, test kit |
-| 10 Oct | [bef57da](https://github.com/MattShelton04/41026ASDProject/commit/bef57da), [06e0ed0](https://github.com/MattShelton04/41026ASDProject/commit/06e0ed0) | Multi-agent panel, F1 readiness review |
-| 15–16 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43), [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81), [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272) | CI and local evidence, report builder, quality gate |
-| 17 Oct | [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111), [93d0f53](https://github.com/MattShelton04/41026ASDProject/commit/93d0f53) | Release gate, owner-attributed reviews, runbook, evidence refresh |
-| 17 Oct | [5e90231](https://github.com/MattShelton04/41026ASDProject/commit/5e90231), [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443), [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5), [cd8e56d](https://github.com/MattShelton04/41026ASDProject/commit/cd8e56d) | Azure switch-on, site login, security audit fixes |
-| 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6) | F1 suburb-map API, unattended acquisitions, no demonstration data on Azure |
-| 18 Oct | [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08), [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31) | Real sales data on Azure, Cloud AI Tier workflow |
-| 18 Oct | [PR #157](https://github.com/MattShelton04/41026ASDProject/pull/157) | AI-off cloud evidence, release decision |
-
-[[TODO: Matthew Shelton | Replace PR #157 with its merged commit]]
+| 8–10 Oct | [36a4c26](https://github.com/MattShelton04/41026ASDProject/commit/36a4c26), [f86f787](https://github.com/MattShelton04/41026ASDProject/commit/f86f787), [bef57da](https://github.com/MattShelton04/41026ASDProject/commit/bef57da), [06e0ed0](https://github.com/MattShelton04/41026ASDProject/commit/06e0ed0) | Multi-Agent Server, review modes, security scans, test kit, panel, F1 review |
+| 15–17 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43), [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81), [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272), [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111), [93d0f53](https://github.com/MattShelton04/41026ASDProject/commit/93d0f53) | CI and local evidence, report builder, release gate |
+| 17 Oct | [5e90231](https://github.com/MattShelton04/41026ASDProject/commit/5e90231), [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443), [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5), [cd8e56d](https://github.com/MattShelton04/41026ASDProject/commit/cd8e56d) | Azure switch-on, site login, security fixes |
+| 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6), [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08) | F1 suburb-map API, real data on Azure |
+| 18 Oct | [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31), [3ea2932](https://github.com/MattShelton04/41026ASDProject/commit/3ea2932), [817ef77](https://github.com/MattShelton04/41026ASDProject/commit/817ef77), [0cf5e3f](https://github.com/MattShelton04/41026ASDProject/commit/0cf5e3f) | Cloud AI Tier, cloud and bonus evidence, release decision |
 
 ### Student 2 Burhan Naeem
 
@@ -322,13 +321,20 @@ Section 12 lists each student's commits.
 
 ## 13 Bonus evidence
 
-No bonus is claimed yet. Against run 39112162750, endpoint security
-([B5](../release-2/evidence/cloud/endpoint-security.txt)) and data security
-([B6](../release-2/evidence/cloud/data-security.txt)) validation passed with no failures. In Cloud AI Tier run 39119158736 on 18 October, B1–B4 also
-passed through the public edge: an AI-mode turn, an MCP tool call, a grounded RAG answer, and a
-Planner → Worker → Reviewer release review ([probe report](../release-2/evidence/bonus/cloud-ai-probe.md)).
+We claim B1–B6. B1–B4 ran through the public edge in Cloud AI Tier run
+[39119158736](https://github.com/MattShelton04/41026ASDProject/actions/runs/39119158736)
+(`817ef779`, 18 October).
 
-[[TODO: Matthew Shelton | For each bonus claimed, link its validation output under evidence/bonus/; otherwise keep "No bonus is claimed"]]
+| Tier | Result and evidence | Run or source |
+|---|---|---|
+| B1 AI-mode | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | AI-mode run `387591f0` |
+| B2 MCP | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | `data.releases.v1` over MCP, same run |
+| B3 RAG | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `56c85266`, 2 citations |
+| B4 Multi-Agent | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Planner → Worker → Reviewer run `2058658b`, `awaiting_human` |
+| B5 Endpoint security | [52 PASS, 0 FAIL](../release-2/evidence/bonus/endpoint-security.txt) | Cloud Deployment run 39112162750 |
+| B6 Data security | [43 PASS, 0 FAIL](../release-2/evidence/bonus/data-security.txt) | Laptop, 18 October |
+
+The showcase video also demonstrates each claimed bonus through the Azure UI.
 
 ## 14 Showcase video
 
@@ -363,7 +369,7 @@ evidence:
   student: 1
   section: 6 Post-commit CI/CD testing
   path: docs/release-2/evidence/ci/student-1.md
-  boundary: Successful student-1.yml push run on main at d449a43; AI tier disabled in CI.
+  boundary: Successful student-1.yml push run on main at 817ef77; AI tier disabled in CI.
 - kind: local-deployment
   section: 8 Local deployment evidence
   path: docs/release-2/evidence/local/local-deployment-report.md
@@ -420,5 +426,8 @@ contributions:
   - b71c49c
   - 3c25c08
   - c1dab31
+  - 3ea2932
+  - 817ef77
+  - 0cf5e3f
 attendance: {}
 -->

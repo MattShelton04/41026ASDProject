@@ -32,20 +32,20 @@ of them with `--help` (for example `uv run scripts/dev.py ai review decide --hel
 |---:|---|---|---:|---:|
 | 1 | Introduction: team, what Release 2 adds, architecture figure | Matthew | 0:20 | 0:20 |
 | 2 | Local deployment: six terminals, Compose plus four host services | Matthew | 0:45 | 1:05 |
-| 3 | Feature 1 Readiness review in the UI: Planner → Worker → Reviewer → Human Review | Matthew | 1:20 | 2:25 |
-| 4 | Terminal Multi-Agent run with a human decision | Matthew | 0:25 | 2:50 |
-| 5 | Pre-commit security scans during `git commit` | Matthew | 0:35 | 3:25 |
-| 6 | Post-commit CI: `student-1.yml` endpoint tests, JUnit summary, Cloud Deployment gate | Matthew | 0:35 | 4:00 |
-| 7 | Review modes: `ai review multi-agent`, `testing`, `cloud`, then `ai review decide` | Matthew | 0:45 | 4:45 |
-| 8 | Azure: the public URL, CRUD, AI tier off | Matthew | 0:35 | 5:20 |
-| 9 | Feature 2 | Burhan Naeem | 1:00 | 6:20 |
-| 10 | Feature 3 | James Huang | 1:00 | 7:20 |
-| 11 | Feature 4 | Michael White | 1:00 | 8:20 |
-| 12 | Feature 5 | Derek Song | 1:00 | 9:20 |
-| 13 | Bonus (optional, only for a claimed bonus) | Matthew | 0:00–0:20 | 9:40 |
+| 3 | Feature 1 Readiness review in the UI: Planner → Worker → Reviewer → Human Review | Matthew | 1:10 | 2:15 |
+| 4 | Terminal Multi-Agent run with a human decision | Matthew | 0:25 | 2:40 |
+| 5 | Pre-commit security scans during `git commit` | Matthew | 0:35 | 3:15 |
+| 6 | Post-commit CI: `student-1.yml` endpoint tests, JUnit summary, Cloud Deployment gate | Matthew | 0:35 | 3:50 |
+| 7 | Review modes: `ai review multi-agent`, `testing`, `cloud`, then `ai review decide` | Matthew | 0:35 | 4:25 |
+| 8 | Azure: the public URL, CRUD, AI tier off | Matthew | 0:35 | 5:00 |
+| 9 | Feature 2 | Burhan Naeem | 1:00 | 6:00 |
+| 10 | Feature 3 | James Huang | 1:00 | 7:00 |
+| 11 | Feature 4 | Michael White | 1:00 | 8:00 |
+| 12 | Feature 5 | Derek Song | 1:00 | 9:00 |
+| 13 | Bonus B1–B6 (claimed in report Section 13) | Matthew | 0:40 | 9:40 |
 | 14 | Close: repository, report, decision | Matthew | 0:10 | 9:50 |
 
-"Ends at" assumes the full 20-second bonus segment. The total is 9:30 without it and 9:50 with it. The remaining 10 seconds are a
+The total is 9:50. The report claims all six bonus tiers, so segment 13 is no longer optional. The remaining 10 seconds are a
 buffer for transitions. If a segment overruns in rehearsal, cut it back to its budget. Do not take
 time from another student's segment. Segments 9–12 can be recorded separately and spliced in.
 
@@ -169,7 +169,7 @@ time from another student's segment. Segments 9–12 can be recorded separately 
 | AI-mode review fails or times out | `uv run scripts/dev.py ai review <mode> --fallback-deterministic --evidence-dir tmp/showcase/evidence` writes a labelled deterministic review with the failed run ID | "AI-mode failed, so this is the labelled deterministic review" |
 | No Docker stack | Splice in the rehearsal clip. For layout only, `uv run scripts/dev.py ui serve` serves deterministic fixture pages at <http://127.0.0.1:5990> | Fixture pages are not live integration. Say so if you show them |
 | The Multi-Agent Server is unavailable for segment 4 | Offline in-process run with fixture tools and its own scratch state (never the running server's state directory): `uv run multi-agent-server run --deterministic --state-dir tmp/showcase/ma-state --template-path ai-services/multi-agent-server/tests/fixtures/workflow.yaml --tool-fixtures ai-services/multi-agent-server/tests/fixtures/tools.json --template example-readiness-review --input '{"record_id": "8c0d7e0e-4a3b-4c55-9a62-0d7c5f0f9a11"}' --review` ([Multi-Agent README](../../ai-services/multi-agent-server/README.md#cli)) | "This uses the example template and fixture tool results, not Feature 1" |
-| GitHub Actions is slow | Show the completed green run (`#353` or the freeze run) instead of a live one | — |
+| GitHub Actions is slow | Show the completed green run (`#387` or the freeze run) instead of a live one | — |
 | The pre-commit hooks are slow (mypy) | Cut the wait in the edit. Supplementary shot: `uv run pre-commit run --all-files` | — |
 | The Azure VM is down or unreachable (contingency only: Azure is provisioned) | Start the VM (`az vm start`) and wait a few minutes. Otherwise splice in a clip recorded earlier against the real Azure URL, or show the green Cloud Deployment run 39018442663 and its smoke step | Never present a local page as Azure |
 
@@ -201,7 +201,7 @@ and the Multi-Agent Server (:5013) as separate `foreground` host processes.
 > Multi-Agent Server never run in a container. Each one is a host process with its own terminal,
 > and the backends reach them through `host.docker.internal`."
 
-### 3 Feature 1 Readiness review through the UI (Matthew, 1:20)
+### 3 Feature 1 Readiness review through the UI (Matthew, 1:10)
 
 The reference workflow for every feature: Frontend → Feature 1 backend → Multi-Agent Server →
 Planner → Worker → Reviewer → Human Review → response.
@@ -314,7 +314,7 @@ Supplementary shot, if time allows: `uv run pre-commit run --all-files`. Mention
 
 Optional terminal shot: `gh run list --workflow student-1.yml --branch main --limit 3`.
 
-### 7 Review modes and the human release decision (Matthew, 0:45)
+### 7 Review modes and the human release decision (Matthew, 0:35)
 
 Terminal 6. Use the scratch evidence copy, so that a retake never overwrites the committed
 evidence. Drop `--evidence-dir` only for the real freeze run, which is then committed.
@@ -415,25 +415,43 @@ Each student's workflow uses the shared panel and proxy contract that Feature 1 
 After recording, each student exports their decided run with
 `uv run multi-agent-server export <run ID> --out docs/release-2/evidence/multi-agent/student-N/<run ID> --server`.
 
-### 13 Bonus (optional, Matthew, up to 0:20)
+### 13 Bonus B1–B6 (Matthew, 0:40)
 
-Include this only for a bonus the report claims. The rubric scores the AI tiers cumulatively
-(AI-mode → MCP → RAG → Multi-Agent) and security as endpoint, then endpoint plus data.
+The report claims all six tiers (Section 13), and the brief awards a bonus only when it is also
+demonstrated. The rubric scores the AI tiers cumulatively (AI-mode → MCP → RAG → Multi-Agent) and
+security as endpoint, then endpoint plus data. B1–B4 already passed on Azure in Cloud AI Tier run
+[39119158736](https://github.com/MattShelton04/41026ASDProject/actions/runs/39119158736)
+([`evidence/bonus/`](evidence/bonus/README.md)); this segment shows the same tiers through the UI.
 
-- **B5 and B6 (no AI needed):** show `uv run scripts/dev.py cloud validate endpoint` (closed ports,
-  HTTP → HTTPS redirect, 401 on protected routes, 429 from the rate limit), then
-  `uv run scripts/dev.py cloud validate data`.
-- **B1–B4 (AI tier enabled in Azure):** `uv run scripts/dev.py cloud ai on`, then
-  `uv run scripts/dev.py cloud smoke --expect-ai`. Show an assistant answer (B1), a tool call (B2),
-  a cited answer (B3) and a Feature 1 Readiness review reaching a human decision on Azure (B4).
-  The protected routes ask for the operator credentials. Type them off camera. Turn the tier off
-  again afterwards with `uv run scripts/dev.py cloud ai off`.
-  **Turn the tier on before recording, not on camera** (it prepares the RAG model and corpora).
-  Keep `AZURE_AUTO_DEPLOY=false` until the segment is recorded, and do not run *Cloud
-  Deployment*: the workflow always redeploys with the AI tier off. B1–B4 have not run on Azure
-  yet, so dry-run them first.
+**Before recording, off camera:** turn the tier on with the *Cloud AI Tier* workflow
+(`action=on`) or `uv run scripts/dev.py cloud ai on` (it prepares the RAG model and corpora), then
+`uv run scripts/dev.py cloud smoke --expect-ai`. Keep `AZURE_AUTO_DEPLOY=false` until the segment
+is recorded, and do not run *Cloud Deployment*: the workflow always redeploys with the AI tier off.
+The protected routes ask for the operator credentials; type them off camera.
 
-If the video runs long with this segment, shorten segment 7 or 8, never a student segment.
+UI shots on the Azure URL with the tier on (about 0:25):
+
+1. **Data status:** AI review history, MCP, RAG and the Multi-Agent Server all *Ready* (with the
+   tier off they read *Disabled*).
+2. **B1 AI-mode:** ask the Feature 1 assistant about the published releases and show the answer.
+3. **B2 MCP:** open that run in AI-mode **Activity history** and point at the `data.releases.v1`
+   tool call.
+4. **B3 RAG:** ask the assistant a publishing-guidance question and show the citations from the
+   `operator-guidance` corpus.
+5. **B4 Multi-Agent:** start a **Readiness review** on a release, let Planner → Worker → Reviewer
+   reach *awaiting human*, and record a decision with your name.
+
+B5 and B6 checks (about 0:15), in a terminal:
+
+- `uv run scripts/dev.py cloud validate endpoint`: HTTPS only, HSTS and security headers, 401 on
+  protected routes, closed ports, NSG 80/443 only, ending `ENDPOINT_SECURITY_FAILURES=0`.
+- `uv run scripts/dev.py cloud validate data`: Key Vault RBAC and firewall, disk encryption, the
+  least-privilege VM identity, root-only secrets on the VM and the IMDS guard, ending
+  `DATA_SECURITY_FAILURES=0`. If time is short, show the end of the committed
+  [`evidence/bonus/data-security.txt`](evidence/bonus/data-security.txt) instead and say so.
+
+Turn the tier off again afterwards (`action=off` or `uv run scripts/dev.py cloud ai off`). If the
+video runs long, shorten segment 8, never a student segment.
 
 ### 14 Close (Matthew, 0:10)
 

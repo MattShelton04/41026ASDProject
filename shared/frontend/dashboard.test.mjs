@@ -8,7 +8,10 @@ import { parseShellRoute } from "./core.js";
 import { featureRegistry, findFeature, researchAreaLabel } from "./features.js";
 import { loadFeature1Bridge, validateFeature1Adapter } from "./feature-1-bridge.js";
 import { resolveResearchAreaContext } from "./operations/ai-mode/contexts.js";
-import { classifyHealth, overallReadiness, researchServiceComponents } from "./routes/status.js";
+import { HttpProblem } from "./browser/index.js";
+import {
+  check, classifyHealth, dependencyComponent, disabledCapabilitySnapshot, isDeliberatelyDisabled, overallReadiness, researchServiceComponents,
+} from "./routes/status.js";
 import { SHARED_ASSISTANT_SCOPES, sharedAssistantSuggestions } from "./routes/assistant.js";
 import { loadEvidenceAdapter, projectEvidenceRows, validateEvidenceAdapter } from "./routes/evidence.js";
 
@@ -203,6 +206,28 @@ test("status aggregation ignores deliberate capability gates", () => {
     { enabled: false, readiness: "unavailable" },
   ]), "ready");
   assert.equal(overallReadiness([{ enabled: true, readiness: "unknown" }]), "degraded");
+});
+
+test("a deliberately disabled AI tier reads as Disabled, not Unavailable", async () => {
+  const aiDisabled = new HttpProblem("AI-mode, MCP, RAG and the Multi-Agent Server are disabled in this cloud deployment.", {
+    status: 503, problem: { status: 503, code: "ai_disabled" },
+  });
+  assert.equal(isDeliberatelyDisabled(aiDisabled), true);
+  assert.equal(isDeliberatelyDisabled(new HttpProblem("Bad gateway", { status: 502 })), false);
+  const history = await check(async () => { throw aiDisabled; }, "AI review history", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Recorded AI reviews.");
+  assert.equal(history.enabled, false);
+  assert.equal(history.readiness, "disabled");
+  assert.equal(history.label, "Disabled");
+  const provider = dependencyComponent(history, { name: "AI provider", kind: "AI dependency", owner: "Shared platform" });
+  assert.equal(provider.enabled, false);
+  assert.equal(provider.label, "Disabled");
+  const research = researchServiceComponents(disabledCapabilitySnapshot(aiDisabled.message));
+  assert.ok(research.every((item) => item.enabled === false && item.label === "Disabled by configuration"));
+  assert.equal(overallReadiness([{ enabled: true, readiness: "ready" }, history, provider, ...research]), "ready");
+  const down = await check(async () => { throw new HttpProblem("Bad gateway", { status: 502 }); }, "AI review history", "Shared API", "Shared platform", "/api/shared-health/ai-mode", "Recorded AI reviews.");
+  assert.equal(down.enabled, true);
+  assert.equal(down.readiness, "unavailable");
+  assert.equal(dependencyComponent(down, { name: "AI provider", kind: "AI dependency", owner: "Shared platform" }).label, "Unavailable");
 });
 
 test("research area labels come from the bounded registry", () => {

@@ -46,7 +46,7 @@ The Markdown supports a few extras on top of the Release 0 syntax:
 | Syntax | Effect |
 |---|---|
 | `[[TODO: Owner \| what is needed]]` | Amber "to complete" callout in drafts; listed by `--status`; blocks `--final` |
-| `![Figure N caption](path.png)` for a missing file | "Image pending" placeholder in drafts; blocks `--final` |
+| An image, `![Figure N caption]` then its path in parentheses, whose file is missing | "Image pending" placeholder in drafts; blocks `--final` |
 | `<!-- ... -->` at the start of a line | Writing guidance for authors; never rendered |
 | `[[TOOL_TABLE]]`, `[[TOOL_DETAIL]]` | Registered MCP tools, generated from every enabled feature's `tool-catalog.yaml` |
 | `[[CORPUS_TABLE]]` | RAG knowledge sources, generated from each registered `config/rag/corpus.json` |

@@ -6,7 +6,7 @@ Recorded with `uv run scripts/dev.py ai review decide`. The agentic loop's Cloud
 |---|---|
 | Decision | **RELEASE** |
 | Decided by | Matthew Shelton |
-| Decided at | 2026-10-18T09:37:49Z |
+| Decided at | 2026-10-19T06:44:36Z |
 | Cloud review | [cloud-review.md](../reviews/cloud-review.md) |
 | Review ID | `44929d5d-ed8d-4e0f-b7f7-2097d391e640` |
 | Loop run ID | `22a7614b-f8b3-4a14-8e41-cedd265ce2cb` (deterministic) |
@@ -17,7 +17,7 @@ Recorded with `uv run scripts/dev.py ai review decide`. The agentic loop's Cloud
 
 ## Rationale
 
-Cloud review passed 18 of 18 checks on run 39112162750 (main at 3c25c083): release gate passed, 21 of 21 containers running, public smoke test 37 of 37 with 0 skipped including create, read and delete for all five features, AI tier disabled (503 ai_disabled), and B5 and B6 validation with no failures. Known issues are non-blocking and recorded for their owners in evidence/cloud/README.md (Feature 1 suburb-qualified search read budget, Feature 3 published suburbs 503, Feature 2 fixture cases). Recorded by Claude Code at Matthew Shelton's request.
+Cloud review passed 18 of 18 checks on run 39112162750 (main at 3c25c083): release gate passed, 21 of 21 containers running, public smoke test 37 of 37 with 0 skipped including create, read and delete for all five features, AI tier disabled (503 ai_disabled), and B5 and B6 validation with no failures. Known issues are non-blocking and recorded for their owners in evidence/cloud/README.md (Feature 1 suburb-qualified search read budget, Feature 3 published suburbs 503, Feature 2 fixture cases).
 
 ## Evidence reviewed
 
