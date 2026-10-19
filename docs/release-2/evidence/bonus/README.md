@@ -10,7 +10,7 @@ release decision are in [`../cloud/`](../cloud/README.md). The cloud review's re
 | B1 AI-mode interaction through the app | **PASS** | [`cloud-ai-probe.md`](cloud-ai-probe.md), run `387591f0-be44-4e88-8808-404f32cde8b9` |
 | B2 MCP tool call | **PASS** | Same run: `data.releases.v1` called over MCP |
 | B3 Grounded RAG answer | **PASS** | Run `56c85266-6cc9-4421-9f49-61794f55e7b3`: 2 citations from the `operator-guidance` corpus, grounding ready |
-| B4 Planner → Worker → Reviewer workflow | **PASS** | Run `2058658b-8c85-44ee-bebc-cfc0cd8ab8b8`: Feature 1 release review of the accepted `nsw-suburb-boundaries` release, all three roles completed with model providers, now `awaiting_human` |
+| B4 Planner → Worker → Reviewer workflow | **PASS** | Run `2058658b-8c85-44ee-bebc-cfc0cd8ab8b8`: Feature 1 release review of the accepted `nsw-suburb-boundaries` release, all three roles completed with model providers. Decided in the Azure UI on 19 October: **rejected** by Matthew Shelton ([`ui/`](#ui-captures-19-october)) |
 | B5 Endpoint security | **PASS** (52 PASS, 0 FAIL) | [`endpoint-security.txt`](endpoint-security.txt) |
 | B6 Data security | **PASS** (43 PASS, 0 FAIL) | [`data-security.txt`](data-security.txt) |
 
@@ -53,6 +53,28 @@ port 5013 stays private. This run is the evidence on the fixed commit.
 | `vm-ai-on.log` | `deploy.sh ai on` on the VM: host units started, Compose recreated with AI on |
 | `vm-status.log` | VM status after the run, including the `PROPERTYSCOPE_RESULT` summary |
 | `logs/ai-on.log`, `logs/ai-probe.log`, `logs/status-{before,after}.log` | Workflow step output |
+
+## UI captures (19 October)
+
+Nine screenshots in [`ui/`](ui/) show B1–B4 through the application, taken in a browser signed in as
+the operator. The AI tier was on from *Cloud AI Tier* run
+[39215189074](https://github.com/MattShelton04/41026ASDProject/actions/runs/39215189074) on the
+deployed commit, and that run's own B1–B4 probe passed again.
+
+| File | Shows |
+|---|---|
+| `01-b1-assistant-answer.jpg` | B1: a Feature 1 assistant turn on Azure, answered with "Confidence: Moderate" |
+| `02-b2-b3-findings-and-guidance-citations.jpg` | B2, B3: findings from current records (MCP) and cited guidance passages (RAG) |
+| `03-b1-activity-grounded-answer.jpg` | B1: the same run (`c804271a`) in Activity history as a grounded answer |
+| `04-b2-b3-tool-calls-rag-and-mcp.jpg` | B2, B3: the run's `context.retrieve.v1` (RAG) and `data.releases.v1` (MCP) calls, both succeeded |
+| `05-b4-readiness-review-lanes.jpg` | B4: run `2058658b` with the Planner, Worker and Reviewer lanes done and the run waiting for a person |
+| `06-b4-reviewer-suggestion-and-decision.jpg` | B4: the Reviewer's suggestion (send back once; 3 findings, 11 checks passed) and the four human choices |
+| `07-b4-human-reject-with-reason.jpg` | Human review: the reject decision with its reason and the decider's name |
+| `08-b4-outcome-rejected.jpg` | Human review: the recorded outcome. Nothing was published |
+| `09-data-status-ai-on.jpg` | Data status with the AI tier on: 12 services ready |
+
+The decision on `2058658b` is **reject**: the run reviewed a release that was already accepted, so a
+pre-publication readiness recommendation does not apply (the Reviewer's high finding).
 
 ## B5 and B6
 
