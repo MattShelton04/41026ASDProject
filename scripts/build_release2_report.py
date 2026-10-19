@@ -84,22 +84,23 @@ SHARED_EVIDENCE = (
 STUDENT_EVIDENCE = ("ci", "multi-agent")
 URL_KINDS = {"ci", "cloud-workflow"}
 
-# Targets that add up to the 3,000-word limit, cover included. Chapters are matched by their
-# number prefix. Each student-owned chapter reserves room for Students 2-5.
+# Targets that, with the cover, add up to no more than the 3,000-word limit. Chapters are matched
+# by their number prefix. Each student-owned chapter reserves room for Students 2-5's TODOs and
+# for their generated table rows growing from "Pending" to a recorded run.
 SECTION_WORD_BUDGETS = {
-    "1 ": 220,  # Project overview, team, allocation, Release 1 to Release 2
-    "2 ": 160,  # Final repository structure
-    "3 ": 320,  # Design flow: shared flows plus about 40 words per student
-    "4 ": 230,  # Azure reference architecture and DevOps flow
-    "5 ": 210,  # Pre-commit security testing (generated summary and slice table)
-    "6 ": 400,  # Post-commit CI: generated run table plus about 60 words per student
-    "7 ": 130,  # Testing review
-    "8 ": 210,  # Local deployment and multi-terminal logs
-    "9 ": 190,  # Cloud deployment report, review and human release decision
-    "10 ": 400,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
-    "11 ": 30,  # GitHub commit log URL
+    "1 ": 180,  # Project overview, team, allocation, Release 1 to Release 2
+    "2 ": 110,  # Final repository structure
+    "3 ": 360,  # Design flow: shared flows plus about 40 words per student
+    "4 ": 220,  # Azure reference architecture, DevOps flow and deployment scripts
+    "5 ": 195,  # Pre-commit security testing (generated summary and slice table)
+    "6 ": 405,  # Post-commit CI: generated run table plus about 60 words per student
+    "7 ": 105,  # Testing review and its latest validation-log entry
+    "8 ": 185,  # Local deployment and multi-terminal logs
+    "9 ": 195,  # Cloud deployment report, job timings, review and human release decision
+    "10 ": 490,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
+    "11 ": 25,  # GitHub commit log and author-filtered URLs
     "12 ": 340,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
-    "13 ": 60,  # Bonus evidence
+    "13 ": 95,  # Bonus claim table B1-B6
     "14 ": 40,  # Showcase video and participation
 }
 
@@ -323,8 +324,77 @@ def ci_evidence(_: str) -> list[str]:
     return rows + (["", *issues] if issues else [])
 
 
+SUMMARY_WORD_CAP = 30
+
+
+def _leading_sentences(text: str, cap: int = SUMMARY_WORD_CAP) -> str:
+    """Whole sentences from the start of ``text`` up to ``cap`` words, and at least the first."""
+    kept: list[str] = []
+    words = 0
+    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+        count = len(sentence.split())
+        if kept and words + count > cap:
+            break
+        kept.append(sentence)
+        words += count
+    return " ".join(kept)
+
+
+def _log_entries(text: str) -> list[dict[str, Any]]:
+    """Validation-log entries in order; a line that is not a JSON object is skipped."""
+    entries: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
+
+
+def latest_log_entry(text: str) -> str | None:
+    """One line for the newest validation-log entry of a review mode.
+
+    A human decision entry carries no prompt set or checks, so those come from the newest entry
+    for the same review ID (the review it decided on).
+    """
+    entries = [entry for entry in _log_entries(text) if entry.get("event")]
+    if not entries:
+        return None
+    latest = entries[-1]
+    review = next(
+        (
+            entry
+            for entry in reversed(entries)
+            if entry.get("review_id") == latest.get("review_id") and "checks_passed" in entry
+        ),
+        latest,
+    )
+    parts = [f"`{_cell(latest['event'])}`"]
+    if latest.get("decision"):
+        parts[0] += f" (**{_cell(latest['decision'])}**)"
+    if latest.get("review_id"):
+        parts.append(f"review `{_cell(str(latest['review_id'])[:8])}`")
+    if review.get("prompt_set"):
+        parts.append(f"`{_cell(review['prompt_set'])}`")
+    if latest.get("bundle_sha256"):
+        parts.append(f"bundle `{_cell(str(latest['bundle_sha256'])[:8])}`")
+    if "checks_passed" in review:
+        parts.append(
+            f"{review.get('checks_passed', 0)} passed / {review.get('checks_failed', 0)} failed"
+        )
+    verdict = latest.get("verdict") or latest.get("review_verdict")
+    if verdict:
+        parts.append(f"verdict **{_cell(verdict)}**")
+    when = str(latest.get("decided_at") or latest.get("finished_at") or latest.get("at") or "")
+    if when[:10]:
+        parts.append(when[:10])
+    return "Latest validation-log entry: " + ", ".join(parts) + "."
+
+
 def review_summary(argument: str) -> list[str]:
-    """Verdict, checklist, engine, loop run and summary of one agentic-loop review mode."""
+    """Verdict, checklist, engine, loop run, latest log entry and summary of one review mode."""
     mode = argument.strip()
     if mode not in REVIEW_MODES:
         raise ValueError(f"unknown review mode {mode!r}")
@@ -345,15 +415,19 @@ def review_summary(argument: str) -> list[str]:
     if log_text is not None:
         entries = sum(1 for line in log_text.splitlines() if line.strip())
     rows = [
-        "| Verdict | Checklist | Engine and model | Loop run | Date | Validation log |",
+        "| Verdict | Checklist | Engine | Loop run | Date | Validation log |",
         "|---|---|---|---|---|---|",
         f"| **{_plain(fields.get('Verdict', 'unknown'))}** "
         f"| {f'{checklist[1]}/{checklist[2]} passed' if checklist else '-'} "
         f"| {engine}, {_cell(model) if model else '-'} | `{run[1] if run else '-'}` | {when} "
         f"| [{entries} {'entry' if entries == 1 else 'entries'}]({_link(log)}) |",
     ]
+    latest = latest_log_entry(log_text) if log_text is not None else None
+    if latest:
+        rows += ["", latest]
     if summary:
-        rows += ["", f"> {_cell(' '.join(summary[1].split()))} ([full review]({_link(path)}))"]
+        quote = _leading_sentences(" ".join(summary[1].split()))
+        rows += ["", f"> {_cell(quote)} ([full review]({_link(path)}))"]
     if log_text is None:
         rows.append(_todo(SHARED_OWNER, f"Commit the validation log `{_shown(log)}`"))
     return rows

@@ -10,6 +10,18 @@ export function classifyHealth(payload) {
   return { readiness: "unknown", label: "Unknown", tone: "unknown" };
 }
 
+// The cloud edge answers the shared AI routes with 503 `ai_disabled` while the AI tier is
+// deliberately off (the required Azure baseline). That is configuration, not a failure.
+export function isDeliberatelyDisabled(error) {
+  return error?.code === "ai_disabled" || error?.problem?.code === "ai_disabled";
+}
+
+export function disabledCapabilitySnapshot(detail) {
+  return { services: LOCAL_RESEARCH_SERVICES.map((id) => ({ id, enabled: false, status: "disabled", detail })) };
+}
+
+const DISABLED = { enabled: false, latency: null, readiness: "disabled", label: "Disabled", tone: "unknown" };
+
 export function researchServiceComponents(snapshot, config = {}) {
   return capabilityManifest(config, snapshot).services.filter((item) => LOCAL_RESEARCH_SERVICES.includes(item.id)).map((item) => {
     const state = capabilityState(item);
@@ -52,7 +64,10 @@ export function healthCard(component) {
   return card;
 }
 
-function dependencyComponent(base, { name, kind, owner, rawStatus, detail }) {
+export function dependencyComponent(base, { name, kind, owner, rawStatus, detail }) {
+  if (base.enabled === false) {
+    return { name, kind, owner, detail: "Not checked: its service is disabled in this deployment.", requestId: base.requestId, ...DISABLED };
+  }
   const health = rawStatus === true
     ? classifyHealth({ status: "healthy" })
     : rawStatus === false
@@ -72,7 +87,7 @@ function dependencyComponent(base, { name, kind, owner, rawStatus, detail }) {
   };
 }
 
-async function check(request, name, kind, owner, path, detail, href = "") {
+export async function check(request, name, kind, owner, path, detail, href = "") {
   const started = performance.now();
   try {
     const result = await request(path);
@@ -80,6 +95,7 @@ async function check(request, name, kind, owner, path, detail, href = "") {
     return { name, kind, owner, detail, href, enabled: true, latency: Math.round(performance.now() - started), requestId: result.requestId, ...health, payload: result.body };
   } catch (error) {
     if (error.name === "AbortError") throw error;
+    if (isDeliberatelyDisabled(error)) return { name, kind, owner, detail: `${detail} ${error.message}`, href, requestId: error.requestId, ...DISABLED };
     return { name, kind, owner, detail: `${detail} The live check failed: ${error.message}.`, href, enabled: true, latency: null, requestId: error.requestId, readiness: "unavailable", label: "Unavailable", tone: "partial", error };
   }
 }
@@ -124,7 +140,7 @@ export function createStatusRoute({
       });
       const capabilityCheck = requestJsonFn("/api/ai-mode/capabilities").then((result) => result.body).catch((error) => {
         if (error.name === "AbortError") throw error;
-        return null;
+        return isDeliberatelyDisabled(error) ? disabledCapabilitySnapshot(error.message) : null;
       });
       const [primaryComponents, capabilitySnapshot] = await Promise.all([Promise.all([
         shellCheck,

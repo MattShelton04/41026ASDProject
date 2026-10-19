@@ -6,7 +6,7 @@
 | `ruff-security.json` | Every Ruff `S` finding with its slice, status and justification | same |
 | `detect-secrets.json` | Every secret candidate compared with `.secrets.baseline` | same |
 | `pip-audit.json` | Raw pip-audit output for the locked dependencies, with no ignores applied | same |
-| `pre-commit-commit-run.txt` | Hook output from a real commit, showing the security hooks running | `uv run pre-commit run --hook-stage pre-commit --files <staged files>` |
+| `pre-commit-commit-run.txt` | Hook output from real commits, showing the security hooks running: a `git commit` that detect-secrets blocked, the same commit passing after the baseline review, two later commits, and one run of every commit hook on the workstream's files | `git commit` through the hook script that `uv run pre-commit install` creates; run 4 is `uv run pre-commit run --hook-stage pre-commit --files <changed files>` (captured 9 October; see the file's header) |
 
 Regenerate the report after any change to security findings, `.secrets.baseline`,
 `scripts/security/accepted-risks.toml` or `uv.lock`. The report records the commit it scanned.

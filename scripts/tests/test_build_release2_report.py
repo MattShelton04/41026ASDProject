@@ -65,8 +65,9 @@ def test_status_prints_the_word_limit_budgets_and_todos_by_owner(
 
 
 def test_budgets_fit_the_limit_and_cover_every_chapter_of_the_brief() -> None:
-    assert sum(report.SECTION_WORD_BUDGETS.values()) <= report.WORD_LIMIT - 40  # cover text
     words = report_pdf.count_words(report.SOURCE, report.SPEC)
+    cover = dict(words.sections)["Cover"]
+    assert sum(report.SECTION_WORD_BUDGETS.values()) + cover <= report.WORD_LIMIT
     chapters = [title for title, _ in words.sections if title != "Cover"]
     assert len(chapters) == len(report.REQUIRED_SECTIONS) == len(report.SECTION_WORD_BUDGETS)
     for title in chapters:
@@ -171,6 +172,58 @@ def test_review_summary_shows_verdict_checklist_run_log_and_summary(evidence: Pa
     assert "`7d700a5f`" in lines[2] and "2026-10-09" in lines[2] and "2 entries" in lines[2]
     assert lines[-1].startswith("> Every student's endpoints passed. ([full review](")
     assert not _todos(lines)
+
+
+def test_review_summary_prints_the_latest_validation_log_entry(evidence: Path) -> None:
+    reviews = evidence / "reviews"
+    reviews.mkdir()
+    (reviews / "cloud-review.md").write_text(
+        "# Cloud Deployment Report Review\n\n| Field | Value |\n|---|---|\n"
+        "| Verdict | **pass** |\n\n## Summary\n\nDeployed.\n\n",
+        encoding="utf-8",
+    )
+    review = {
+        "event": "review_completed",
+        "review_id": "44929d5d-ed8d-4e0f-b7f7-2097d391e640",
+        "prompt_set": "review-cloud.v2",
+        "bundle_sha256": "b0362e89" + "0" * 56,
+        "checks_passed": 18,
+        "checks_failed": 0,
+        "verdict": "pass",
+        "finished_at": "2026-10-18T08:57:52Z",
+    }
+    decision = {
+        "event": "human_release_decision",
+        "review_id": review["review_id"],
+        "bundle_sha256": review["bundle_sha256"],
+        "decision": "release",
+        "review_verdict": "pass",
+        "decided_at": "2026-10-19T06:44:36Z",
+    }
+    log = reviews / "cloud-validation-log.jsonl"
+    log.write_text(f"{json.dumps(review)}\nnot json\n", encoding="utf-8")
+
+    line = next(item for item in report.review_summary("cloud") if item.startswith("Latest"))
+    assert line == (
+        "Latest validation-log entry: `review_completed`, review `44929d5d`, "
+        "`review-cloud.v2`, bundle `b0362e89`, 18 passed / 0 failed, verdict **pass**, 2026-10-18."
+    )
+
+    log.write_text(f"{json.dumps(review)}\n{json.dumps(decision)}\n", encoding="utf-8")
+    line = next(item for item in report.review_summary("cloud") if item.startswith("Latest"))
+    assert line.startswith("Latest validation-log entry: `human_release_decision` (**release**)")
+    assert "`review-cloud.v2`" in line and "18 passed / 0 failed" in line
+    assert line.endswith("verdict **pass**, 2026-10-19.")
+
+    long = "One two three. " + "word " * 40 + "end. Never shown."
+    assert report._leading_sentences(long) == "One two three."
+    assert report._leading_sentences("word " * 40 + "end.") == ("word " * 40 + "end.").strip()
+
+    unavailable = {"event": "review_unavailable", "review_id": "383ceb6f-38fd", "at": "2026-10-10"}
+    assert report.latest_log_entry(json.dumps(unavailable)) == (
+        "Latest validation-log entry: `review_unavailable`, review `383ceb6f`, 2026-10-10."
+    )
+    assert report.latest_log_entry('{"a": 1}\n[]\n') is None
 
 
 def test_multi_agent_runs_and_history_come_from_the_export(evidence: Path) -> None:
