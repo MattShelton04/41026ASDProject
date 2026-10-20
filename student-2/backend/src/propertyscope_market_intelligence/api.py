@@ -23,6 +23,7 @@ from propertyscope_market_intelligence.domain import (
     summarize_sales,
 )
 from propertyscope_market_intelligence.import_worker import public_import
+from propertyscope_market_intelligence.market_review_routes import register_market_review_routes
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
 
 _SERVICE = "propertyscope-market-intelligence"
@@ -172,8 +173,10 @@ def register_health(app: Flask, store: Any) -> None:
         return jsonify(projection.model_dump(mode="json")), projection.http_status
 
 
-def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
+def create_blueprint(store: Any, feature1: Any, ai_mode: Any, multi_agent: Any = None) -> Blueprint:
     blueprint = Blueprint("market_intelligence", __name__)
+    if multi_agent is not None:
+        register_market_review_routes(blueprint, multi_agent, base=_API)
 
     @blueprint.get(f"{_API}/market-cases")
     def list_cases() -> Response:
@@ -352,7 +355,8 @@ def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
         value, error = _case_evidence(store, str(case_id))
         if error is not None:
             return error
-        assert value is not None
+        if value is None:  # pragma: no cover - evidence returns a value or an error
+            raise RuntimeError("case evidence returned neither a value nor an error")
         return jsonify(
             {
                 "summary": _agent_summary(value["summary"]),

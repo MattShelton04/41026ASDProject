@@ -12,11 +12,22 @@ from propertyscope_market_intelligence.api import (
     register_error_handlers,
     register_health,
 )
-from propertyscope_market_intelligence.clients import AiModeClient, Feature1Client, StoreClient
+from propertyscope_market_intelligence.clients import (
+    AiModeClient,
+    Feature1Client,
+    MultiAgentClient,
+    StoreClient,
+)
 from propertyscope_market_intelligence.import_worker import SalesImportWorker
 
 
-def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) -> Flask:
+def create_app(
+    *,
+    store: Any = None,
+    feature1: Any = None,
+    ai_mode: Any = None,
+    multi_agent: Any = None,
+) -> Flask:
     start_worker = store is None
     if store is None:
         store = StoreClient(
@@ -32,10 +43,17 @@ def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) 
             os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"),
             service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", ""),
         )
+    if multi_agent is None:
+        # The cloud baseline supplies an empty token on purpose; the client then refuses to send
+        # and the brief routes answer 503 multi_agent_unavailable instead of probing the server.
+        multi_agent = MultiAgentClient(
+            os.environ.get("MULTI_AGENT_BASE_URL", "http://host.docker.internal:5013"),
+            service_token=os.environ.get("MULTI_AGENT_SERVICE_TOKEN", ""),
+        )
     app = Flask("propertyscope-market-intelligence")
     app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
     register_health(app, store)
-    app.register_blueprint(create_blueprint(store, feature1, ai_mode))
+    app.register_blueprint(create_blueprint(store, feature1, ai_mode, multi_agent))
     register_error_handlers(app)
     if start_worker:
         worker = SalesImportWorker(store, feature1)
