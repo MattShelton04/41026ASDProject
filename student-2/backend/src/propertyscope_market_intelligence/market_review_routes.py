@@ -46,20 +46,23 @@ _RELAYED_RESPONSE_HEADERS = (REQUEST_ID_HEADER, WORKFLOW_RUN_ID_HEADER)
 RouteHandler = Callable[..., Response]
 JsonObject = dict[str, Any]
 
-MARKET_BRIEF_DISABLED_DETAIL = "Multi-agent market briefs are not enabled in this deployment."
+# True of both causes: the AI tier is off, or the host server is not running.
+MARKET_BRIEF_DISABLED_DETAIL = "Multi-agent market briefs are not available in this deployment."
 
 
-def brief_capabilities(*, multi_agent_configured: bool) -> JsonObject:
-    """Whether this deployment enables market briefs, from configuration alone (no network).
+def brief_capabilities(*, multi_agent_available: bool) -> JsonObject:
+    """Whether a market brief could run now: the server is configured and answering.
 
-    ``enabled`` is false only when the deployment gave the backend no service token, as in the
-    required cloud baseline with the AI tier off. An enabled server can still be temporarily
-    unreachable; the routes then answer 503 as usual.
+    Configuration alone is not enough to decide this. Every stack `dev.py` starts is issued a
+    service token, but the Multi-Agent Server is a host process that CI never starts, so a
+    configured backend can still have nothing to reach. The page asks this before it mounts the
+    panel, so a deployment without the server shows one plain sentence instead of a panel whose
+    first request answers 503.
     """
     return {
         "market_brief": {
-            "enabled": multi_agent_configured,
-            "detail": None if multi_agent_configured else MARKET_BRIEF_DISABLED_DETAIL,
+            "enabled": multi_agent_available,
+            "detail": None if multi_agent_available else MARKET_BRIEF_DISABLED_DETAIL,
         }
     }
 
@@ -226,12 +229,12 @@ def register_market_review_routes(
             return detail, _problem(404, "market_brief_not_found", "Market brief does not exist")
         return detail, None
 
-    # Deliberately not wrapped in _review_route: this answers from configuration alone, never
-    # the network, so a deployment with the AI tier off gets 200 and a clear "disabled" rather
-    # than the 503 every other route gives. The page asks this before it mounts the panel.
+    # Deliberately not wrapped in _review_route: a deployment with no reachable server must
+    # get 200 and a clear "disabled" here, not the 503 every other brief route gives. The probe
+    # is bounded and liveness-only; the page asks this before it mounts the panel.
     @api.get(f"{collection}/capabilities")
     def market_brief_capabilities() -> Response:
-        return jsonify(brief_capabilities(multi_agent_configured=multi_agent.configured))
+        return jsonify(brief_capabilities(multi_agent_available=multi_agent.available()))
 
     @api.get(f"{collection}/template")
     @_review_route

@@ -159,6 +159,8 @@ class MultiAgentClient:
     API_PREFIX = MULTI_AGENT_API_PREFIX
     CONNECT_TIMEOUT_SECONDS = 3.0
     READ_TIMEOUT_SECONDS = 10.0
+    # The page waits on this before painting the card, so it is far shorter than a run's.
+    PROBE_TIMEOUT_SECONDS = 1.5
     UNAVAILABLE_DETAIL = (
         "The Multi-Agent Server is unavailable; saved market cases and their evidence still work"
     )
@@ -180,6 +182,28 @@ class MultiAgentClient:
     @property
     def configured(self) -> bool:
         return bool(self._token)
+
+    def available(self) -> bool:
+        """Whether a brief could actually run now: configured and the server answering.
+
+        Configuration alone is not enough. `dev.py` issues a service token to every stack it
+        starts, but the Multi-Agent Server is a host process that CI never starts, so a
+        configured backend there still has nothing to reach. The page asks this before it mounts
+        a panel whose first request would otherwise be a 503 the reader cannot act on.
+
+        Liveness only, on a short timeout: a server that is up but degraded still answers its own
+        routes, and this must never become a second way for a run to fail.
+        """
+        if not self._token:
+            return False
+        try:
+            response = self._client.get(
+                f"{self._origin}/health",
+                timeout=httpx.Timeout(self.PROBE_TIMEOUT_SECONDS),
+            )
+        except httpx.HTTPError:
+            return False
+        return response.status_code < 400
 
     def template(self, template_id: str, headers: Mapping[str, str] | Headers) -> httpx.Response:
         return self._send("GET", f"/templates/{template_id}", headers)

@@ -263,10 +263,10 @@ def test_without_a_service_token_the_feature_degrades_to_503(
 
 
 def test_capabilities_report_configuration_without_a_network_call() -> None:
-    assert brief_capabilities(multi_agent_configured=True) == {
+    assert brief_capabilities(multi_agent_available=True) == {
         "market_brief": {"enabled": True, "detail": None}
     }
-    disabled = brief_capabilities(multi_agent_configured=False)
+    disabled = brief_capabilities(multi_agent_available=False)
     assert disabled["market_brief"]["enabled"] is False
     assert disabled["market_brief"]["detail"]
 
@@ -294,10 +294,12 @@ def test_capabilities_report_enabled_when_a_token_is_configured(
     assert response.get_json() == {"market_brief": {"enabled": True, "detail": None}}
 
 
-def test_capabilities_do_not_depend_on_the_server_being_reachable(
-    fake: FakeMultiAgentServer,
-) -> None:
-    """It answers from configuration alone, so an unreachable server is still `enabled`."""
+def test_capabilities_report_disabled_when_a_configured_server_cannot_be_reached() -> None:
+    """A token is not enough: CI issues one to a stack whose Multi-Agent Server never starts.
+
+    Reporting `enabled` there mounted a panel whose first request could only answer 503, which
+    is what failed the Feature 2 visual captures.
+    """
     unreachable = MultiAgentClient(
         "http://multi-agent",
         service_token=FAKE_MULTI_AGENT_TOKEN,
@@ -307,6 +309,8 @@ def test_capabilities_do_not_depend_on_the_server_being_reachable(
     http = create_app(
         store=offline, feature1=offline, ai_mode=offline, multi_agent=unreachable
     ).test_client()
-    assert http.get(f"{BASE}/capabilities").get_json()["market_brief"]["enabled"] is True
-    # The routes that do need the server still answer 503.
+    capability = http.get(f"{BASE}/capabilities")
+    assert capability.status_code == 200
+    assert capability.get_json()["market_brief"]["enabled"] is False
+    # The routes that do need the server still answer 503 rather than pretending.
     assert http.get(f"{BASE}/template").status_code == 503
