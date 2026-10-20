@@ -102,7 +102,8 @@
           "propertyscope_market_store"
         ],
         "node_test_files": [
-          "student-2/tests/frontend/core.test.mjs"
+          "student-2/tests/frontend/core.test.mjs",
+          "student-2/tests/frontend/market-brief.test.mjs"
         ],
         "python_test_paths": [
           "student-2/tests"

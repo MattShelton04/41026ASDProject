@@ -1,0 +1,128 @@
+# Feature 2 multi-agent workflow: market case brief (Release 2, F-2).
+#
+# The Planner chooses which evidence to gather, the Worker summarises the recorded sale
+# observations for one saved market case using the two read-only Feature 2 tools, the Reviewer
+# checks that summary against the evidence, and a human accepts, corrects or rejects the brief.
+#
+# The brief explains recorded evidence. It never values a property, forecasts a price or
+# recommends a purchase: market.sales.summary.v1 says so in its own contract, and the reviewer
+# checks and human guidance below repeat it because a brief is prose a person may act on.
+#
+# Case scoping carries over from Release 1: both steps read the one case the run was started
+# for, and the proxy refuses a run belonging to another feature or template.
+schema_version: 1
+id: f2-market-case-brief
+version: v1
+feature_id: student-2-market-intelligence
+title: Market case brief
+objective: >-
+  Summarise the recorded sale observations saved in one market case, with the exclusions, source
+  coverage and limitations that bound them. Do not estimate a property value, forecast a price or
+  recommend whether to buy.
+inputs:
+  - name: market_case_id
+    type: string
+    title: Market case
+    format: uuid
+  - name: reviewer_note
+    title: Optional context for the reviewers
+    required: false
+    max_length: 500
+planner_guidance: >-
+  Inspect the saved case first for its name, address, date window, status and filters, then
+  calculate its deterministic sales summary. Plan only these two read-only steps. Never plan a
+  write, and never plan a step that estimates value, forecasts a price or recommends a purchase.
+allowed_tools:
+  - market.cases.inspect.v1
+  - market.sales.summary.v1
+steps:
+  - id: case
+    title: Inspect the saved market case
+    purpose: Collect the case name, property address, date window, status and match filters.
+    tool: market.cases.inspect.v1
+    arguments:
+      market_case_id: "{{input.market_case_id}}"
+  - id: sales
+    title: Calculate the deterministic sales summary
+    purpose: >-
+      Collect the eligible sale count, median recorded price, transaction volume, exclusion
+      counts and reasons, source coverage and the limitations the data service reports.
+    tool: market.sales.summary.v1
+    arguments:
+      market_case_id: "{{input.market_case_id}}"
+reviewer_checks:
+  - id: case-inspected
+    description: The requested market case was inspected.
+    severity: critical
+    recommendation: Check the market case identifier and run the brief again.
+    rule: {kind: step_succeeded, step: case}
+  - id: summary-calculated
+    description: The deterministic sales summary was calculated.
+    severity: critical
+    recommendation: Without the summary there is no evidence to brief; run it again.
+    rule: {kind: step_succeeded, step: sales}
+  - id: case-named
+    description: The brief can name the case rather than an internal identifier.
+    severity: high
+    recommendation: Give the case a descriptive name before briefing it.
+    rule: {kind: field_present, step: case, path: market_case.name}
+  - id: property-addressed
+    description: The case resolves to a property address the brief can refer to.
+    severity: high
+    recommendation: Re-select the property so the brief can name an address instead of a reference.
+    rule: {kind: field_present, step: case, path: market_case.address_display}
+  # Seeded demonstration cases carry fixture_verified; cases created against a live Feature 1
+  # property carry verified. Both are attributable; unavailable and not_found are not.
+  - id: property-attributable
+    description: The property reference was checked against the Property data research area.
+    severity: high
+    recommendation: >-
+      Do not brief a case whose property could not be verified; re-select the property and retry.
+    rule:
+      kind: field_compare
+      step: case
+      path: market_case.property_validation_state
+      operator: in
+      value: [verified, fixture_verified]
+  - id: has-eligible-sales
+    description: At least one sale observation is eligible under the case filters.
+    severity: high
+    recommendation: Widen the date window or lower the match tier; an empty brief states nothing.
+    rule: {kind: field_compare, step: sales, path: summary.eligible_sale_count, operator: gt, value: 0}
+  - id: limitations-stated
+    description: The summary reports the limitations that bound its figures.
+    severity: high
+    recommendation: >-
+      The brief must carry the data service's limitations; do not accept a summary without them.
+    rule: {kind: min_items, step: sales, path: summary.limitations, value: 1}
+  - id: sources-recorded
+    description: The eligible sales are attributed to at least one source release.
+    severity: medium
+    recommendation: Import a published sales release before briefing the case.
+    rule: {kind: field_compare, step: sales, path: summary.source_release_count, operator: gt, value: 0}
+  - id: exclusions-reported
+    description: The summary reports how many observations it excluded.
+    severity: medium
+    recommendation: >-
+      Read the exclusion counts beside the median; a median drawn from a narrow sample is weak.
+    rule: {kind: field_present, step: sales, path: summary.excluded_sale_count}
+  - id: match-threshold-recorded
+    description: The minimum match tier that filtered the evidence is recorded.
+    severity: low
+    recommendation: State the match threshold in the brief so the reader can judge attribution.
+    rule: {kind: field_present, step: sales, path: summary.minimum_match_tier}
+  - id: median-available
+    description: A median recorded price could be calculated from the eligible sales.
+    severity: low
+    recommendation: >-
+      Without a median, brief the transaction volume and exclusions and say the median is absent.
+    rule: {kind: field_present, step: sales, path: summary.median_price_aud}
+human_review_guidance: >-
+  You are deciding on a brief about recorded evidence, not on a property's worth. Reject any brief
+  that states or implies a valuation, a price forecast or a buy recommendation, however hedged.
+  Approve only when every critical and high check passed and the prose matches the figures: the
+  eligible count, the median, the exclusions and the limitations must all be reported together,
+  because a median without its exclusions overstates the evidence. Where the case carries
+  synthetic showcase data, the brief must say so. Use "correct" to send the Worker and Reviewer
+  back once with a note, "partial" to accept only the steps that hold, and "reject" when the
+  brief should not be used.

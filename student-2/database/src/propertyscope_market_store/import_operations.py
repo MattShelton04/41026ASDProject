@@ -95,7 +95,8 @@ class SalesImportOperations:
                 )
             connection.commit()
         result = self.get(operation_id)
-        assert result is not None
+        if result is None:  # pragma: no cover - the row was committed above
+            raise RuntimeError("the sales import operation disappeared after it was recorded")
         return result
 
     def claim(self) -> dict[str, Any] | None:

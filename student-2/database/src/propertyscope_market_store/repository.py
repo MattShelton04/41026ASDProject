@@ -61,12 +61,17 @@ class MarketStore:
         except sqlite3.Error:
             return False
 
+    # SQLite cannot bind a table name as a parameter. These names are this fixed tuple and
+    # never reach the statement from a caller, so the interpolation below carries no input.
+    COUNTED_TABLES = ("market_case", "sale_observation")
+
     def table_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
         with self._connect() as connection:
-            return {
-                table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
-                for table in ("market_case", "sale_observation")
-            }
+            for table in self.COUNTED_TABLES:
+                sql = f"SELECT COUNT(*) FROM {table}"  # noqa: S608 - only COUNTED_TABLES literals
+                counts[table] = int(connection.execute(sql).fetchone()[0])
+        return counts
 
     def list_cases(self, *, limit: int = 100) -> list[dict[str, Any]]:
         with self._connect() as connection:
@@ -112,7 +117,8 @@ class MarketStore:
             )
             connection.commit()
         created = self.get_case(case_id)
-        assert created is not None
+        if created is None:  # pragma: no cover - the row was committed above
+            raise RuntimeError("the market case disappeared immediately after creation")
         return created
 
     def update_case(
@@ -140,8 +146,8 @@ class MarketStore:
         parameters = [*values.values(), _now(), case_id, expected_version]
         with self._connect() as connection:
             cursor = connection.execute(
-                f"UPDATE market_case SET {assignments}, updated_at = ?, "
-                "version = version + 1 WHERE id = ? AND version = ?",
+                f"UPDATE market_case SET {assignments}, "  # noqa: S608 - allowlisted columns only
+                "updated_at = ?, version = version + 1 WHERE id = ? AND version = ?",
                 parameters,
             )
             if cursor.rowcount == 0:

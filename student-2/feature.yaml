@@ -29,6 +29,7 @@ onboarding:
       - student-2/tests
     node_test_files:
       - student-2/tests/frontend/core.test.mjs
+      - student-2/tests/frontend/market-brief.test.mjs
     coverage_packages:
       - propertyscope_market_intelligence
       - propertyscope_market_store

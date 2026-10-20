@@ -1,0 +1,215 @@
+{
+  "allowed_tools": [
+    "market.cases.inspect.v1",
+    "market.sales.summary.v1"
+  ],
+  "description": null,
+  "feature_id": "student-2-market-intelligence",
+  "human_review_guidance": "You are deciding on a brief about recorded evidence, not on a property's worth. Reject any brief that states or implies a valuation, a price forecast or a buy recommendation, however hedged. Approve only when every critical and high check passed and the prose matches the figures: the eligible count, the median, the exclusions and the limitations must all be reported together, because a median without its exclusions overstates the evidence. Where the case carries synthetic showcase data, the brief must say so. Use \"correct\" to send the Worker and Reviewer back once with a note, \"partial\" to accept only the steps that hold, and \"reject\" when the brief should not be used.",
+  "id": "f2-market-case-brief",
+  "inputs": [
+    {
+      "description": null,
+      "enum": null,
+      "format": "uuid",
+      "max_length": null,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "market_case_id",
+      "pattern": null,
+      "required": true,
+      "title": "Market case",
+      "type": "string"
+    },
+    {
+      "description": null,
+      "enum": null,
+      "format": null,
+      "max_length": 500,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "reviewer_note",
+      "pattern": null,
+      "required": false,
+      "title": "Optional context for the reviewers",
+      "type": "string"
+    }
+  ],
+  "objective": "Summarise the recorded sale observations saved in one market case, with the exclusions, source coverage and limitations that bound them. Do not estimate a property value, forecast a price or recommend whether to buy.",
+  "planner_guidance": "Inspect the saved case first for its name, address, date window, status and filters, then calculate its deterministic sales summary. Plan only these two read-only steps. Never plan a write, and never plan a step that estimates value, forecasts a price or recommends a purchase.",
+  "reviewer_checks": [
+    {
+      "description": "The requested market case was inspected.",
+      "id": "case-inspected",
+      "recommendation": "Check the market case identifier and run the brief again.",
+      "rule": {
+        "kind": "step_succeeded",
+        "operator": null,
+        "path": null,
+        "step": "case",
+        "value": null
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The deterministic sales summary was calculated.",
+      "id": "summary-calculated",
+      "recommendation": "Without the summary there is no evidence to brief; run it again.",
+      "rule": {
+        "kind": "step_succeeded",
+        "operator": null,
+        "path": null,
+        "step": "sales",
+        "value": null
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The brief can name the case rather than an internal identifier.",
+      "id": "case-named",
+      "recommendation": "Give the case a descriptive name before briefing it.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "market_case.name",
+        "step": "case",
+        "value": null
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The case resolves to a property address the brief can refer to.",
+      "id": "property-addressed",
+      "recommendation": "Re-select the property so the brief can name an address instead of a reference.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "market_case.address_display",
+        "step": "case",
+        "value": null
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The property reference was checked against the Property data research area.",
+      "id": "property-attributable",
+      "recommendation": "Do not brief a case whose property could not be verified; re-select the property and retry.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "in",
+        "path": "market_case.property_validation_state",
+        "step": "case",
+        "value": [
+          "verified",
+          "fixture_verified"
+        ]
+      },
+      "severity": "high"
+    },
+    {
+      "description": "At least one sale observation is eligible under the case filters.",
+      "id": "has-eligible-sales",
+      "recommendation": "Widen the date window or lower the match tier; an empty brief states nothing.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "gt",
+        "path": "summary.eligible_sale_count",
+        "step": "sales",
+        "value": 0
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The summary reports the limitations that bound its figures.",
+      "id": "limitations-stated",
+      "recommendation": "The brief must carry the data service's limitations; do not accept a summary without them.",
+      "rule": {
+        "kind": "min_items",
+        "operator": null,
+        "path": "summary.limitations",
+        "step": "sales",
+        "value": 1
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The eligible sales are attributed to at least one source release.",
+      "id": "sources-recorded",
+      "recommendation": "Import a published sales release before briefing the case.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "gt",
+        "path": "summary.source_release_count",
+        "step": "sales",
+        "value": 0
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The summary reports how many observations it excluded.",
+      "id": "exclusions-reported",
+      "recommendation": "Read the exclusion counts beside the median; a median drawn from a narrow sample is weak.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "summary.excluded_sale_count",
+        "step": "sales",
+        "value": null
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The minimum match tier that filtered the evidence is recorded.",
+      "id": "match-threshold-recorded",
+      "recommendation": "State the match threshold in the brief so the reader can judge attribution.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "summary.minimum_match_tier",
+        "step": "sales",
+        "value": null
+      },
+      "severity": "low"
+    },
+    {
+      "description": "A median recorded price could be calculated from the eligible sales.",
+      "id": "median-available",
+      "recommendation": "Without a median, brief the transaction volume and exclusions and say the median is absent.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "summary.median_price_aud",
+        "step": "sales",
+        "value": null
+      },
+      "severity": "low"
+    }
+  ],
+  "schema_version": 1,
+  "steps": [
+    {
+      "arguments": {
+        "market_case_id": "{{input.market_case_id}}"
+      },
+      "id": "case",
+      "purpose": "Collect the case name, property address, date window, status and match filters.",
+      "required": true,
+      "title": "Inspect the saved market case",
+      "tool": "market.cases.inspect.v1"
+    },
+    {
+      "arguments": {
+        "market_case_id": "{{input.market_case_id}}"
+      },
+      "id": "sales",
+      "purpose": "Collect the eligible sale count, median recorded price, transaction volume, exclusion counts and reasons, source coverage and the limitations the data service reports.",
+      "required": true,
+      "title": "Calculate the deterministic sales summary",
+      "tool": "market.sales.summary.v1"
+    }
+  ],
+  "title": "Market case brief",
+  "version": "v1"
+}
