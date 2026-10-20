@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "baseSha": "7fc9b29742bad932849c7b237e178c9ad1562401",
-  "headSha": "3f55220af88ca0190fecc04b6acc2d77108ef230",
+  "baseSha": "70f3b9a916e6ea8418b2963c945c8efb2d642fa2",
+  "headSha": "b853248d68eb13675a62be3d1d9925b5d9c5c49b",
   "viewport": {
     "width": 1440,
     "height": 1000,
     "fixedTime": "2026-09-01T10:00:00+10:00"
   },
   "summary": {
-    "changed": 0,
+    "changed": 2,
     "subtle": 0,
-    "unchanged": 42,
+    "unchanged": 40,
     "incomplete": 0,
     "baseUnavailable": 0,
     "total": 42
@@ -70,14 +70,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1738,
-        "after": 1738
+        "before": 1733,
+        "after": 1733
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
-        "after": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
+        "before": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
+        "after": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
         "difference": null
       },
       "limitations": []
@@ -136,14 +136,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1824,
-        "after": 1824
+        "before": 1902,
+        "after": 1902
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
-        "after": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
+        "before": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
+        "after": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
         "difference": null
       },
       "limitations": []
@@ -202,14 +202,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1738,
-        "after": 1738
+        "before": 1733,
+        "after": 1733
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
-        "after": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
+        "before": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
+        "after": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
         "difference": null
       },
       "limitations": []
@@ -450,8 +450,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
-        "after": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
+        "before": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
+        "after": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
         "difference": null
       },
       "limitations": []
@@ -560,8 +560,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
-        "after": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "before": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
+        "after": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
         "difference": null
       },
       "limitations": []
@@ -604,8 +604,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
-        "after": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "before": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
+        "after": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
         "difference": null
       },
       "limitations": []
@@ -682,19 +682,27 @@
       "provider": "stack",
       "path": "/features/market-intelligence/",
       "state": "seeded cases with the first case selected",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "changed",
+      "changedPixels": 321454,
+      "percent": 10.2447,
       "heights": {
         "before": 1982,
-        "after": 1982
+        "after": 2179
       },
-      "areas": [],
+      "areas": [
+        {
+          "x": 0,
+          "y": 1906,
+          "width": 1440,
+          "height": 273,
+          "pixels": 321454
+        }
+      ],
       "sameAreasAs": null,
       "images": {
         "before": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
-        "after": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
-        "difference": null
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "difference": "../../img/cbd15148010c128661d5c3b3df35b32ccd9ec3ffa18b1264f496f037eb42be63.png"
       },
       "limitations": []
     },
@@ -704,19 +712,27 @@
       "provider": "stack",
       "path": "/features/market-intelligence/",
       "state": "new market case dialog",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "changed",
+      "changedPixels": 321454,
+      "percent": 10.2447,
       "heights": {
         "before": 1982,
-        "after": 1982
+        "after": 2179
       },
-      "areas": [],
-      "sameAreasAs": null,
+      "areas": [
+        {
+          "x": 0,
+          "y": 1906,
+          "width": 1440,
+          "height": 273,
+          "pixels": 321454
+        }
+      ],
+      "sameAreasAs": "f2-market-cases",
       "images": {
         "before": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
-        "after": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
-        "difference": null
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "difference": "../../img/3bc354648e23e6d789d230bbabf33216628663c115c6d306dd4b7484a83da699.png"
       },
       "limitations": []
     },
