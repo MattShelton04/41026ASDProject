@@ -1,0 +1,1153 @@
+{
+  "available_actions": [],
+  "completed_at": "2026-10-20T11:31:23.904095Z",
+  "created_at": "2026-10-20T11:23:58.993194Z",
+  "decisions": [
+    {
+      "accepted_step_ids": [],
+      "actor": "claude-code (for Burhan Naeem)",
+      "decided_at": "2026-10-20T11:30:21.534480Z",
+      "decision": "correct",
+      "note": "The summary must state that this case includes deterministic synthetic showcase data, alongside the eligible count, median, exclusions and the other limitations. Report them together so the median is not read as real market evidence.",
+      "request_id": "605e468a-d935-4c1d-aad6-65c03a15400b",
+      "resulting_state": "working",
+      "round": 1
+    },
+    {
+      "accepted_step_ids": [],
+      "actor": "claude-code (for Burhan Naeem)",
+      "decided_at": "2026-10-20T11:31:23.904095Z",
+      "decision": "approve",
+      "note": "Checked on Burhan Naeem's behalf as a local Release 2 verification run. Round 2 now states the synthetic showcase data alongside the 10 eligible sales, AUD 992,500 median, 2 exclusions with reasons, the B match tier and the source limitations. No valuation, forecast or buy recommendation. All 11 checks pass.",
+      "request_id": "b0f20436-26d1-43b0-8d46-4d5798451f71",
+      "resulting_state": "approved",
+      "round": 2
+    }
+  ],
+  "error": null,
+  "feature_id": "student-2-market-intelligence",
+  "id": "68c410ca-cdd9-4268-bbaa-30de64d0b50c",
+  "input": {
+    "market_case_id": "60000000-0000-4000-8000-000000000001",
+    "reviewer_note": "Release 2 F-5 demonstration: brief this case's recorded evidence for the showcase."
+  },
+  "plan": {
+    "evidence_needed": [
+      "Market case metadata including address, date window, status, and filters",
+      "Deterministic sales summary including counts, median price, exclusions, source coverage, and limitations"
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gemini-3.5-flash-lite",
+      "prompt_hash": "a2e5469ac7219707f115fb2e4251b7523d3f9cad844e59d0dc54e2ffefcfb374",
+      "prompt_id": "planner",
+      "prompt_version": "v1",
+      "provider": "gemini",
+      "role": "planner"
+    },
+    "steps": [
+      {
+        "arguments": {
+          "market_case_id": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected_evidence": "Case name, property address, date window, status, and match filters.",
+        "id": "case",
+        "index": 1,
+        "purpose": "Collect the case name, property address, date window, status and match filters.",
+        "required": true,
+        "title": "Inspect the saved market case",
+        "tool": "market.cases.inspect.v1"
+      },
+      {
+        "arguments": {
+          "market_case_id": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected_evidence": "Eligible sale count, median recorded price, transaction volume, exclusion counts and reasons, source coverage, and limitations.",
+        "id": "sales",
+        "index": 2,
+        "purpose": "Collect the eligible sale count, median recorded price, transaction volume, exclusion counts and reasons, source coverage and the limitations the data service reports.",
+        "required": true,
+        "title": "Calculate the deterministic sales summary",
+        "tool": "market.sales.summary.v1"
+      }
+    ],
+    "summary": "This plan inspects the saved market case to gather its metadata and then calculates the deterministic sales summary using the allowed read-only tools."
+  },
+  "provider_mode": "model",
+  "request_id": "f6414940-b95b-49f8-a0d6-378ec963f78f",
+  "requested_by": "market-intelligence-case-brief",
+  "review": {
+    "findings": [
+      {
+        "check_id": "case-inspected",
+        "evidence_ids": [
+          "ev-case-r2"
+        ],
+        "id": "f-case-inspected",
+        "message": "Passed: The requested market case was inspected. (market.cases.inspect.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "case"
+        ]
+      },
+      {
+        "check_id": "summary-calculated",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-summary-calculated",
+        "message": "Passed: The deterministic sales summary was calculated. (market.sales.summary.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      },
+      {
+        "check_id": "case-named",
+        "evidence_ids": [
+          "ev-case-r2"
+        ],
+        "id": "f-case-named",
+        "message": "Passed: The brief can name the case rather than an internal identifier. (market_case.name is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "case"
+        ]
+      },
+      {
+        "check_id": "property-addressed",
+        "evidence_ids": [
+          "ev-case-r2"
+        ],
+        "id": "f-property-addressed",
+        "message": "Passed: The case resolves to a property address the brief can refer to. (market_case.address_display is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "case"
+        ]
+      },
+      {
+        "check_id": "property-attributable",
+        "evidence_ids": [
+          "ev-case-r2"
+        ],
+        "id": "f-property-attributable",
+        "message": "Passed: The property reference was checked against the Property data research area. (market_case.property_validation_state = 'fixture_verified'; expected in ['verified', 'fixture_verified'])",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "case"
+        ]
+      },
+      {
+        "check_id": "has-eligible-sales",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-has-eligible-sales",
+        "message": "Passed: At least one sale observation is eligible under the case filters. (summary.eligible_sale_count = 10; expected gt 0)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      },
+      {
+        "check_id": "limitations-stated",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-limitations-stated",
+        "message": "Passed: The summary reports the limitations that bound its figures. (summary.limitations has 3 item(s); at least 1 required)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      },
+      {
+        "check_id": "sources-recorded",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-sources-recorded",
+        "message": "Passed: The eligible sales are attributed to at least one source release. (summary.source_release_count = 1; expected gt 0)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      },
+      {
+        "check_id": "exclusions-reported",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-exclusions-reported",
+        "message": "Passed: The summary reports how many observations it excluded. (summary.excluded_sale_count is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      },
+      {
+        "check_id": "match-threshold-recorded",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-match-threshold-recorded",
+        "message": "Passed: The minimum match tier that filtered the evidence is recorded. (summary.minimum_match_tier is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      },
+      {
+        "check_id": "median-available",
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "id": "f-median-available",
+        "message": "Passed: A median recorded price could be calculated from the eligible sales. (summary.median_price_aud is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "sales"
+        ]
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gemini-3.6-flash",
+      "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+      "prompt_id": "reviewer",
+      "prompt_version": "v1",
+      "provider": "gemini",
+      "role": "reviewer"
+    },
+    "recommendation": "approve",
+    "round": 2,
+    "summary": "The worker output accurately incorporates all required elements specified in the human review guidance and correction note: the synthetic nature of the showcase data, eligible sales count (10), median price (992,500 AUD), exclusions (2 records), and data limitations are all reported together. All authoritative declarative checks passed."
+  },
+  "round": 2,
+  "stages": [
+    {
+      "completed_at": "2026-10-20T11:24:07.104305Z",
+      "detail": null,
+      "round": 1,
+      "stage": "planner",
+      "started_at": "2026-10-20T11:23:58.993194Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-20T11:24:11.048797Z",
+      "detail": null,
+      "round": 1,
+      "stage": "worker",
+      "started_at": "2026-10-20T11:24:07.104305Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-20T11:24:17.174422Z",
+      "detail": null,
+      "round": 1,
+      "stage": "reviewer",
+      "started_at": "2026-10-20T11:24:11.048797Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-20T11:30:21.534480Z",
+      "detail": "correct",
+      "round": 1,
+      "stage": "human",
+      "started_at": "2026-10-20T11:24:17.174422Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-20T11:30:24.872515Z",
+      "detail": null,
+      "round": 2,
+      "stage": "worker",
+      "started_at": "2026-10-20T11:30:21.534480Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-20T11:30:26.639751Z",
+      "detail": null,
+      "round": 2,
+      "stage": "reviewer",
+      "started_at": "2026-10-20T11:30:24.872515Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-20T11:31:23.904095Z",
+      "detail": "approve",
+      "round": 2,
+      "stage": "human",
+      "started_at": "2026-10-20T11:30:26.639751Z",
+      "status": "completed"
+    }
+  ],
+  "state": "approved",
+  "superseded": [
+    {
+      "review": {
+        "findings": [
+          {
+            "check_id": "case-inspected",
+            "evidence_ids": [
+              "ev-case-r1"
+            ],
+            "id": "f-case-inspected",
+            "message": "Passed: The requested market case was inspected. (market.cases.inspect.v1 succeeded)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "case"
+            ]
+          },
+          {
+            "check_id": "summary-calculated",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-summary-calculated",
+            "message": "Passed: The deterministic sales summary was calculated. (market.sales.summary.v1 succeeded)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": "case-named",
+            "evidence_ids": [
+              "ev-case-r1"
+            ],
+            "id": "f-case-named",
+            "message": "Passed: The brief can name the case rather than an internal identifier. (market_case.name is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "case"
+            ]
+          },
+          {
+            "check_id": "property-addressed",
+            "evidence_ids": [
+              "ev-case-r1"
+            ],
+            "id": "f-property-addressed",
+            "message": "Passed: The case resolves to a property address the brief can refer to. (market_case.address_display is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "case"
+            ]
+          },
+          {
+            "check_id": "property-attributable",
+            "evidence_ids": [
+              "ev-case-r1"
+            ],
+            "id": "f-property-attributable",
+            "message": "Passed: The property reference was checked against the Property data research area. (market_case.property_validation_state = 'fixture_verified'; expected in ['verified', 'fixture_verified'])",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "case"
+            ]
+          },
+          {
+            "check_id": "has-eligible-sales",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-has-eligible-sales",
+            "message": "Passed: At least one sale observation is eligible under the case filters. (summary.eligible_sale_count = 10; expected gt 0)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": "limitations-stated",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-limitations-stated",
+            "message": "Passed: The summary reports the limitations that bound its figures. (summary.limitations has 3 item(s); at least 1 required)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": "sources-recorded",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-sources-recorded",
+            "message": "Passed: The eligible sales are attributed to at least one source release. (summary.source_release_count = 1; expected gt 0)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": "exclusions-reported",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-exclusions-reported",
+            "message": "Passed: The summary reports how many observations it excluded. (summary.excluded_sale_count is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": "match-threshold-recorded",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-match-threshold-recorded",
+            "message": "Passed: The minimum match tier that filtered the evidence is recorded. (summary.minimum_match_tier is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": "median-available",
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-median-available",
+            "message": "Passed: A median recorded price could be calculated from the eligible sales. (summary.median_price_aud is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "sales"
+            ]
+          },
+          {
+            "check_id": null,
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "id": "f-model-1",
+            "message": "The worker summary and findings omit the explicitly required limitation stating that the case includes synthetic showcase data.",
+            "outcome": "fail",
+            "recommendation": "Update the brief summary to mention that the dataset includes deterministic synthetic showcase data as noted in the evidence limitations.",
+            "severity": "medium",
+            "source": "model",
+            "step_ids": [
+              "sales"
+            ]
+          }
+        ],
+        "produced_by": {
+          "fallback": false,
+          "invocations": 1,
+          "model": "gemini-3.6-flash",
+          "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+          "prompt_id": "reviewer",
+          "prompt_version": "v1",
+          "provider": "gemini",
+          "role": "reviewer"
+        },
+        "recommendation": "correct",
+        "round": 1,
+        "summary": "All declarative checks passed and figures match the tool output. However, human review guidance requires explicit disclosure when a case contains synthetic showcase data, which the worker omitted from both step findings and the final summary."
+      },
+      "round": 1,
+      "worker_output": {
+        "correction_note": null,
+        "evidence": [
+          {
+            "arguments": {
+              "market_case_id": "60000000-0000-4000-8000-000000000001"
+            },
+            "duration_ms": 0,
+            "error_code": null,
+            "error_message": null,
+            "excerpt": {
+              "market_case": {
+                "address_display": "11 Example Street, Sydney NSW 2000",
+                "date_from": "2019-01-01",
+                "date_to": "2026-12-31",
+                "filters": {
+                  "minimum_match_tier": "B"
+                },
+                "name": "Sydney example \u2013 full history",
+                "notes": "Showcase case with two deliberately excluded records.",
+                "property_validation_state": "fixture_verified",
+                "status": "active",
+                "version": 1
+              }
+            },
+            "excerpt_truncated": false,
+            "id": "ev-case-r1",
+            "outcome": "succeeded",
+            "result_digest": "986817ec0ea5909c73c03a4e4f990341153a10ef81e9c9185857a22662f6f0c9",
+            "step_id": "case",
+            "tool_call_id": "07737230-e756-4ca7-a6b9-e2dc62f365cf",
+            "tool_name": "market.cases.inspect.v1",
+            "tool_version": "v1",
+            "transport": "mcp"
+          },
+          {
+            "arguments": {
+              "market_case_id": "60000000-0000-4000-8000-000000000001"
+            },
+            "duration_ms": 0,
+            "error_code": null,
+            "error_message": null,
+            "excerpt": {
+              "sales": [
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2025-12-01",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 0.45,
+                  "match_tier": "D",
+                  "postcode": "2000",
+                  "price_aud": 1195000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2025-12-31",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2025-10-01",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 0,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2025-10-31",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2025-09-01",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 0.99,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 1165000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2025-10-01",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2025-01-16",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 1120000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2025-02-15",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2024-05-27",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 1085000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2024-06-26",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2023-12-05",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 0.95,
+                  "match_tier": "B",
+                  "postcode": "2000",
+                  "price_aud": 1040000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2024-01-04",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2023-04-10",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 1015000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2023-05-10",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2022-08-19",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 970000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2022-09-18",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2021-11-26",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 0.93,
+                  "match_tier": "B",
+                  "postcode": "2000",
+                  "price_aud": 925000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2021-12-26",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2021-02-02",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 0.99,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 880000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2021-03-04",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2020-06-18",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 835000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2020-07-18",
+                  "synthetic": 1
+                },
+                {
+                  "address_display": "11 Example Street, Sydney NSW 2000",
+                  "area_square_metres": 500.0,
+                  "contract_date": "2019-03-14",
+                  "geographic_precision": "exact_address",
+                  "locality": "SYDNEY",
+                  "match_confidence": 1.0,
+                  "match_tier": "A",
+                  "postcode": "2000",
+                  "price_aud": 790000,
+                  "release_version": "fixture-2026-r1",
+                  "settlement_date": "2019-04-13",
+                  "synthetic": 1
+                }
+              ],
+              "summary": {
+                "date_from": "2019-01-01",
+                "date_to": "2026-12-31",
+                "eligible_sale_count": 10,
+                "excluded_sale_count": 2,
+                "exclusion_reasons": {
+                  "below_match_threshold": 1,
+                  "missing_or_zero_price": 1
+                },
+                "limitations": [
+                  "Some source records were excluded by the case window or quality rules.",
+                  "This case currently includes deterministic synthetic showcase data.",
+                  "Recorded sales are historical evidence, not a valuation or buying recommendation."
+                ],
+                "median_price_aud": 992500,
+                "minimum_match_tier": "B",
+                "source_release_count": 1,
+                "transaction_volume": [
+                  {
+                    "period": "2019",
+                    "transactions": 1
+                  },
+                  {
+                    "period": "2020",
+                    "transactions": 1
+                  },
+                  {
+                    "period": "2021",
+                    "transactions": 2
+                  },
+                  {
+                    "period": "2022",
+                    "transactions": 1
+                  },
+                  {
+                    "period": "2023",
+                    "transactions": 2
+                  },
+                  {
+                    "period": "2024",
+                    "transactions": 1
+                  },
+                  {
+                    "period": "2025",
+                    "transactions": 2
+                  }
+                ]
+              }
+            },
+            "excerpt_truncated": false,
+            "id": "ev-sales-r1",
+            "outcome": "succeeded",
+            "result_digest": "a8519aa35613cc18e9b110355efc8cc7a0f33950b540842ca741ad74513318a3",
+            "step_id": "sales",
+            "tool_call_id": "22f533a3-b90e-49f3-924e-97b7ff20dd70",
+            "tool_name": "market.sales.summary.v1",
+            "tool_version": "v1",
+            "transport": "mcp"
+          }
+        ],
+        "produced_by": {
+          "fallback": false,
+          "invocations": 1,
+          "model": "gemini-3.6-flash",
+          "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+          "prompt_id": "worker",
+          "prompt_version": "v1",
+          "provider": "gemini",
+          "role": "worker"
+        },
+        "round": 1,
+        "steps": [
+          {
+            "evidence_ids": [
+              "ev-case-r1"
+            ],
+            "findings": [
+              "Market case name is 'Sydney example \u2013 full history' for '11 Example Street, Sydney NSW 2000' with status 'active'.",
+              "The case date window spans from '2019-01-01' to '2026-12-31' with a minimum match tier filter set to 'B'.",
+              "Property validation state is 'fixture_verified' with notes indicating two deliberately excluded records."
+            ],
+            "status": "completed",
+            "step_id": "case"
+          },
+          {
+            "evidence_ids": [
+              "ev-sales-r1"
+            ],
+            "findings": [
+              "Eligible sale count is 10 and excluded sale count is 2.",
+              "Exclusion reasons comprise 1 'missing_or_zero_price' and 1 'below_match_threshold'.",
+              "Median recorded price across eligible sales is 992,500 AUD.",
+              "Transaction volumes per period are: 2019 (1), 2020 (1), 2021 (2), 2022 (1), 2023 (2), 2024 (1), 2025 (2).",
+              "Source coverage count is 1 release ('fixture-2026-r1'), and limitations note that recorded sales are historical evidence, not a valuation or buying recommendation."
+            ],
+            "status": "completed",
+            "step_id": "sales"
+          }
+        ],
+        "summary": "The evidence details the market case for '11 Example Street, Sydney NSW 2000' spanning 2019-01-01 to 2026-12-31, which is in an active state. Out of 12 total recorded sales, 10 are eligible while 2 were excluded due to zero price and being below the match threshold. The median recorded price for eligible sales is $992,500 AUD across the dataset."
+      }
+    }
+  ],
+  "template_id": "f2-market-case-brief",
+  "template_version": "v1",
+  "updated_at": "2026-10-20T11:31:23.904095Z",
+  "worker_output": {
+    "correction_note": "The summary must state that this case includes deterministic synthetic showcase data, alongside the eligible count, median, exclusions and the other limitations. Report them together so the median is not read as real market evidence.",
+    "evidence": [
+      {
+        "arguments": {
+          "market_case_id": "60000000-0000-4000-8000-000000000001"
+        },
+        "duration_ms": 0,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "market_case": {
+            "address_display": "11 Example Street, Sydney NSW 2000",
+            "date_from": "2019-01-01",
+            "date_to": "2026-12-31",
+            "filters": {
+              "minimum_match_tier": "B"
+            },
+            "name": "Sydney example \u2013 full history",
+            "notes": "Showcase case with two deliberately excluded records.",
+            "property_validation_state": "fixture_verified",
+            "status": "active",
+            "version": 1
+          }
+        },
+        "excerpt_truncated": false,
+        "id": "ev-case-r2",
+        "outcome": "succeeded",
+        "result_digest": "986817ec0ea5909c73c03a4e4f990341153a10ef81e9c9185857a22662f6f0c9",
+        "step_id": "case",
+        "tool_call_id": "8431cc35-366d-4d05-99d3-6be23df908b5",
+        "tool_name": "market.cases.inspect.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      },
+      {
+        "arguments": {
+          "market_case_id": "60000000-0000-4000-8000-000000000001"
+        },
+        "duration_ms": 0,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "sales": [
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2025-12-01",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 0.45,
+              "match_tier": "D",
+              "postcode": "2000",
+              "price_aud": 1195000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2025-12-31",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2025-10-01",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 0,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2025-10-31",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2025-09-01",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 0.99,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 1165000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2025-10-01",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2025-01-16",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 1120000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2025-02-15",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2024-05-27",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 1085000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2024-06-26",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2023-12-05",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 0.95,
+              "match_tier": "B",
+              "postcode": "2000",
+              "price_aud": 1040000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2024-01-04",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2023-04-10",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 1015000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2023-05-10",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2022-08-19",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 970000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2022-09-18",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2021-11-26",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 0.93,
+              "match_tier": "B",
+              "postcode": "2000",
+              "price_aud": 925000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2021-12-26",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2021-02-02",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 0.99,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 880000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2021-03-04",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2020-06-18",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 835000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2020-07-18",
+              "synthetic": 1
+            },
+            {
+              "address_display": "11 Example Street, Sydney NSW 2000",
+              "area_square_metres": 500.0,
+              "contract_date": "2019-03-14",
+              "geographic_precision": "exact_address",
+              "locality": "SYDNEY",
+              "match_confidence": 1.0,
+              "match_tier": "A",
+              "postcode": "2000",
+              "price_aud": 790000,
+              "release_version": "fixture-2026-r1",
+              "settlement_date": "2019-04-13",
+              "synthetic": 1
+            }
+          ],
+          "summary": {
+            "date_from": "2019-01-01",
+            "date_to": "2026-12-31",
+            "eligible_sale_count": 10,
+            "excluded_sale_count": 2,
+            "exclusion_reasons": {
+              "below_match_threshold": 1,
+              "missing_or_zero_price": 1
+            },
+            "limitations": [
+              "Some source records were excluded by the case window or quality rules.",
+              "This case currently includes deterministic synthetic showcase data.",
+              "Recorded sales are historical evidence, not a valuation or buying recommendation."
+            ],
+            "median_price_aud": 992500,
+            "minimum_match_tier": "B",
+            "source_release_count": 1,
+            "transaction_volume": [
+              {
+                "period": "2019",
+                "transactions": 1
+              },
+              {
+                "period": "2020",
+                "transactions": 1
+              },
+              {
+                "period": "2021",
+                "transactions": 2
+              },
+              {
+                "period": "2022",
+                "transactions": 1
+              },
+              {
+                "period": "2023",
+                "transactions": 2
+              },
+              {
+                "period": "2024",
+                "transactions": 1
+              },
+              {
+                "period": "2025",
+                "transactions": 2
+              }
+            ]
+          }
+        },
+        "excerpt_truncated": false,
+        "id": "ev-sales-r2",
+        "outcome": "succeeded",
+        "result_digest": "a8519aa35613cc18e9b110355efc8cc7a0f33950b540842ca741ad74513318a3",
+        "step_id": "sales",
+        "tool_call_id": "9af7f21c-91a2-4c64-87cb-3d2fba39763f",
+        "tool_name": "market.sales.summary.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gemini-3.6-flash",
+      "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+      "prompt_id": "worker",
+      "prompt_version": "v1",
+      "provider": "gemini",
+      "role": "worker"
+    },
+    "round": 2,
+    "steps": [
+      {
+        "evidence_ids": [
+          "ev-case-r2"
+        ],
+        "findings": [
+          "Market case 60000000-0000-4000-8000-000000000001 is named 'Sydney example \u2013 full history' with status 'active'.",
+          "The property address display is '11 Example Street, Sydney NSW 2000' with property validation state 'fixture_verified'.",
+          "The date window spans from '2019-01-01' to '2026-12-31' with minimum_match_tier filter set to 'B'."
+        ],
+        "status": "completed",
+        "step_id": "case"
+      },
+      {
+        "evidence_ids": [
+          "ev-sales-r2"
+        ],
+        "findings": [
+          "Eligible sale count is 10 and median price is 992,500 AUD.",
+          "There are 2 excluded sales due to 'below_match_threshold' (1) and 'missing_or_zero_price' (1).",
+          "Limitations explicitly state that 'This case currently includes deterministic synthetic showcase data.' and 'Recorded sales are historical evidence, not a valuation or buying recommendation.'"
+        ],
+        "status": "completed",
+        "step_id": "sales"
+      }
+    ],
+    "summary": "This case includes deterministic synthetic showcase data for 11 Example Street, Sydney NSW 2000, reporting an eligible sale count of 10, a median price of 992,500 AUD, and 2 excluded sales (1 below match threshold and 1 missing or zero price). These figures are bounded by data service limitations, including window/quality rule exclusions and historical recorded sales notice, and must be read alongside them rather than as real market evidence."
+  }
+}
