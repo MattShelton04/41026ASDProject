@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   addressClaimsMarketBrief,
   forgetMarketBrief,
+  marketBriefEnabled,
+  MARKET_BRIEF_CAPABILITIES_PATH,
   MARKET_BRIEF_MEMORY_LIMIT,
   MARKET_BRIEF_STORAGE_KEY,
   marketBriefCaseId,
@@ -162,4 +164,29 @@ test("an address that claims a brief is recognised even when the value is unusab
   assert.equal(addressClaimsMarketBrief("#market-cases"), false);
   assert.equal(addressClaimsMarketBrief(""), false);
   assert.equal(addressClaimsMarketBrief(), false);
+});
+
+test("briefs are treated as disabled unless the feature clearly says otherwise", async () => {
+  // The Multi-Agent Server is a host process, so a Compose-only stack has none to reach. The
+  // page asks this instead of mounting a panel whose first request could only answer 503.
+  const asked = [];
+  const answering = (body) => async (path) => { asked.push(path); return body; };
+
+  assert.equal(await marketBriefEnabled({ request: answering({ market_brief: { enabled: true } }) }), true);
+  assert.equal(asked[0], MARKET_BRIEF_CAPABILITIES_PATH);
+
+  assert.equal(await marketBriefEnabled({ request: answering({ market_brief: { enabled: false } }) }), false);
+  // A deployment too old to publish the route, or any other refusal, is disabled too.
+  assert.equal(await marketBriefEnabled({
+    request: async () => { throw Object.assign(new Error("gone"), { status: 404 }); },
+  }), false);
+  assert.equal(await marketBriefEnabled({ request: answering({}) }), false);
+  // Truthy-but-not-true must not count as enabled.
+  assert.equal(await marketBriefEnabled({ request: answering({ market_brief: { enabled: "yes" } }) }), false);
+});
+
+test("a cancelled capability lookup is not mistaken for a disabled deployment", async () => {
+  await assert.rejects(() => marketBriefEnabled({
+    request: async () => { throw Object.assign(new Error("aborted"), { name: "AbortError" }); },
+  }), /aborted/);
 });

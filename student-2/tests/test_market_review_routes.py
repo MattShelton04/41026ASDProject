@@ -20,6 +20,7 @@ from flask.testing import FlaskClient
 from propertyscope_market_intelligence.app import create_app
 from propertyscope_market_intelligence.clients import MultiAgentClient
 from propertyscope_market_intelligence.market_review_routes import (
+    MARKET_BRIEF_DISABLED_DETAIL,
     MARKET_BRIEF_FEATURE_ID,
     MARKET_BRIEF_TEMPLATE_ID,
     brief_capabilities,
@@ -65,6 +66,10 @@ class _Offline:
 
     def cancel(self, _run_id: str) -> httpx.Response:
         return httpx.Response(503, json={"status": 503})
+
+
+def _refuse(_request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("multi-agent server is not listening")
 
 
 def _client_for(fake: FakeMultiAgentServer, *, token: str = FAKE_MULTI_AGENT_TOKEN) -> FlaskClient:
@@ -264,3 +269,44 @@ def test_capabilities_report_configuration_without_a_network_call() -> None:
     disabled = brief_capabilities(multi_agent_configured=False)
     assert disabled["market_brief"]["enabled"] is False
     assert disabled["market_brief"]["detail"]
+
+
+def test_capabilities_answer_200_when_the_server_is_not_configured(
+    fake: FakeMultiAgentServer,
+) -> None:
+    """A deployment with the AI tier off must get a clear answer, not the 503 other routes give.
+
+    CI's visual-capture stack and the required cloud baseline both run Compose without a
+    Multi-Agent Server, so the page asks this before it mounts the panel.
+    """
+    response = _client_for(fake, token="").get(f"{BASE}/capabilities")
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "market_brief": {"enabled": False, "detail": MARKET_BRIEF_DISABLED_DETAIL}
+    }
+
+
+def test_capabilities_report_enabled_when_a_token_is_configured(
+    fake: FakeMultiAgentServer,
+) -> None:
+    response = _client_for(fake).get(f"{BASE}/capabilities")
+    assert response.status_code == 200
+    assert response.get_json() == {"market_brief": {"enabled": True, "detail": None}}
+
+
+def test_capabilities_do_not_depend_on_the_server_being_reachable(
+    fake: FakeMultiAgentServer,
+) -> None:
+    """It answers from configuration alone, so an unreachable server is still `enabled`."""
+    unreachable = MultiAgentClient(
+        "http://multi-agent",
+        service_token=FAKE_MULTI_AGENT_TOKEN,
+        client=httpx.Client(transport=httpx.MockTransport(_refuse)),
+    )
+    offline = _Offline()
+    http = create_app(
+        store=offline, feature1=offline, ai_mode=offline, multi_agent=unreachable
+    ).test_client()
+    assert http.get(f"{BASE}/capabilities").get_json()["market_brief"]["enabled"] is True
+    # The routes that do need the server still answer 503.
+    assert http.get(f"{BASE}/template").status_code == 503

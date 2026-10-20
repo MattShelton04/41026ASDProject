@@ -226,6 +226,13 @@ def register_market_review_routes(
             return detail, _problem(404, "market_brief_not_found", "Market brief does not exist")
         return detail, None
 
+    # Deliberately not wrapped in _review_route: this answers from configuration alone, never
+    # the network, so a deployment with the AI tier off gets 200 and a clear "disabled" rather
+    # than the 503 every other route gives. The page asks this before it mounts the panel.
+    @api.get(f"{collection}/capabilities")
+    def market_brief_capabilities() -> Response:
+        return jsonify(brief_capabilities(multi_agent_configured=multi_agent.configured))
+
     @api.get(f"{collection}/template")
     @_review_route
     def market_brief_template() -> Response:

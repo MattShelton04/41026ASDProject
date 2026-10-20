@@ -4,6 +4,7 @@ import { createMultiAgentClient, createMultiAgentPanel } from "../multi-agent/in
 export const MARKET_BRIEF_API_ROOT = "/api/market-intelligence/v1/market-briefs";
 // Runs record which surface asked for them; each human decision records its own actor.
 export const MARKET_BRIEF_REQUESTER = "market-intelligence-case-brief";
+export const MARKET_BRIEF_CAPABILITIES_PATH = "/market-briefs/capabilities";
 
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -84,6 +85,27 @@ export async function resumableMarketBrief(marketCaseId, { request, preferredRun
     // The proxy answers 404 for a deleted run and for one that is not this feature's brief.
     if (error?.status === 404) forgetMarketBrief(marketCaseId, runId, storage);
     return null;
+  }
+}
+
+/**
+ * Whether this deployment enables market briefs, asked once before the panel is mounted.
+ *
+ * The Multi-Agent Server is a host process, so a Compose-only stack - CI's visual capture, and
+ * the required cloud baseline with the AI tier off - has no server to reach. Mounting the panel
+ * there made the page request a workflow template that could only answer 503. Asking first keeps
+ * the page quiet and tells the reader why the card is empty.
+ *
+ * Anything other than a clear "enabled" is treated as disabled, including a deployment old
+ * enough not to publish this route at all.
+ */
+export async function marketBriefEnabled({ request }) {
+  try {
+    const body = await request(`${MARKET_BRIEF_CAPABILITIES_PATH}`);
+    return body?.market_brief?.enabled === true;
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    return false;
   }
 }
 

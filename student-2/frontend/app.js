@@ -3,6 +3,7 @@ import { createFeatureAssistant } from "./ai-chat/index.js";
 import {
   addressClaimsMarketBrief,
   marketBriefCaseId,
+  marketBriefEnabled,
   marketBriefHash,
   marketBriefRunId,
   mountMarketBrief,
@@ -20,7 +21,7 @@ const money = new Intl.NumberFormat("en-AU", {
   maximumFractionDigits: 0,
 });
 
-const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false, assistant: null, brief: null, boundCaseId: null, boundCaseName: null, pendingBrief: null };
+const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false, assistant: null, brief: null, boundCaseId: null, boundCaseName: null, pendingBrief: null, briefEnabled: true };
 const evidenceTask = createLatestTask();
 const briefResumeTask = createLatestTask();
 let saving = false;
@@ -322,8 +323,9 @@ function syncCaseSurfaces() {
   const item = selectedCase();
   byId("assistant-requires-case").hidden = Boolean(item);
   byId("assistant-root").hidden = !item;
-  byId("brief-requires-case").hidden = Boolean(item);
-  byId("brief-root").hidden = !item;
+  byId("brief-unavailable").hidden = state.briefEnabled;
+  byId("brief-requires-case").hidden = Boolean(item) || !state.briefEnabled;
+  byId("brief-root").hidden = !item || !state.briefEnabled;
   if (!item) {
     teardownCaseSurfaces();
     // No case is bound, so no brief is on screen for the address to name.
@@ -350,6 +352,7 @@ function syncCaseSurfaces() {
   const resumed = keepRun
     || (state.pendingBrief?.caseId === item.id ? state.pendingBrief.runId : null);
   state.pendingBrief = null;
+  if (!state.briefEnabled) return;
   state.brief = mountMarketBrief({
     root: byId("brief-root"),
     marketCaseId: item.id,
@@ -416,8 +419,11 @@ function initialiseAssistant() {
  * opens normally rather than reporting an error the reader cannot act on.
  */
 async function startMarketCases() {
+  // Asked before the first mount: a deployment with no Multi-Agent Server must not be made to
+  // answer 503 for a panel the reader cannot use anyway.
+  state.briefEnabled = await marketBriefEnabled({ request: (path) => api(path) });
   const hash = globalThis.location?.hash || "";
-  const runId = marketBriefRunId(hash);
+  const runId = state.briefEnabled ? marketBriefRunId(hash) : null;
   if (!runId) {
     // A `brief` the page cannot read must not stay in the address claiming a run is open.
     if (addressClaimsMarketBrief(hash)) showBriefInAddress(null);

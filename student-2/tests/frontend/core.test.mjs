@@ -120,3 +120,15 @@ test("starting a brief outranks reopening a remembered one", () => {
   assert.match(app, /byId\("brief-root"\)\.addEventListener\(/);
   assert.match(app, /briefResumeTask\.cancel\(\)/);
 });
+
+test("the panel is withheld entirely where this deployment has no Multi-Agent Server", () => {
+  // The server is a host process, so a Compose-only stack has none. Mounting anyway made the
+  // page request a workflow template that could only answer 503, which failed visual capture.
+  assert.match(page, /id="brief-unavailable"/);
+  assert.match(page, /not enabled in this deployment/i);
+  assert.match(app, /state\.briefEnabled = await marketBriefEnabled\(/);
+  assert.match(app, /if \(!state\.briefEnabled\) return;/);
+  assert.match(app, /byId\("brief-root"\)\.hidden = !item \|\| !state\.briefEnabled;/);
+  // A brief that cannot run is not addressable either.
+  assert.match(app, /state\.briefEnabled \? marketBriefRunId\(hash\) : null/);
+});
