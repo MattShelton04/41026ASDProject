@@ -1,5 +1,13 @@
 import { el, requestJsonResponse, createLatestTask } from "./browser/index.js";
 import { createFeatureAssistant } from "./ai-chat/index.js";
+import {
+  addressClaimsMarketBrief,
+  marketBriefCaseId,
+  marketBriefHash,
+  marketBriefRunId,
+  mountMarketBrief,
+  resumableMarketBrief,
+} from "./integration/market-brief.js";
 
 const API = "/api/market-intelligence/v1";
 const EXAMPLE_PROPERTY = {
@@ -12,8 +20,9 @@ const money = new Intl.NumberFormat("en-AU", {
   maximumFractionDigits: 0,
 });
 
-const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false, assistant: null };
+const state = { cases: [], selectedId: null, evidence: null, evidenceLoading: false, evidenceError: null, editing: false, assistant: null, brief: null, boundCaseId: null, boundCaseName: null, pendingBrief: null };
 const evidenceTask = createLatestTask();
+const briefResumeTask = createLatestTask();
 let saving = false;
 let deleting = false;
 const byId = (id) => document.getElementById(id);
@@ -178,7 +187,7 @@ async function loadEvidence() {
   state.evidence = null;
   state.evidenceError = null;
   state.evidenceLoading = Boolean(id);
-  syncAssistantContext();
+  syncCaseSurfaces();
   renderCases();
   renderEvidence();
   if (!id) return;
@@ -293,15 +302,90 @@ function selectedCase() {
   return state.cases.find((item) => item.id === state.selectedId) || null;
 }
 
-function syncAssistantContext() {
-  // The backend answers one saved case, so the composer must not exist before a case is bound;
-  // an unscoped turn is rejected as a missing case_id, which reads like a fault to the user.
+function teardownCaseSurfaces() {
+  state.assistant?.controller.destroy();
+  state.brief?.destroy();
+  state.assistant = null;
+  state.brief = null;
+  state.boundCaseId = null;
+  state.boundCaseName = null;
+}
+
+function syncCaseSurfaces() {
+  // Both surfaces answer one saved case, so neither may exist before a case is bound: an
+  // unscoped turn is rejected as a missing case_id, which reads like a fault to the user.
+  //
+  // Switching cases rebuilds them rather than re-pointing them. setContext alone is not enough:
+  // the shared chat controller ignores it while a turn is active and never clears completed
+  // turns, so case A's transcript would carry into case B, and an in-flight brief would keep
+  // polling A's run. Release 2 requires the scope to be rebound including any active run.
   const item = selectedCase();
   byId("assistant-requires-case").hidden = Boolean(item);
   byId("assistant-root").hidden = !item;
-  if (!item) return;
-  if (!state.assistant) initialiseAssistant();
+  byId("brief-requires-case").hidden = Boolean(item);
+  byId("brief-root").hidden = !item;
+  if (!item) {
+    teardownCaseSurfaces();
+    // No case is bound, so no brief is on screen for the address to name.
+    showBriefInAddress(null);
+    return;
+  }
+  if (state.boundCaseId === item.id && state.boundCaseName === item.name) {
+    state.assistant?.controller.setContext({ market_case_id: item.id, display_label: item.name });
+    return;
+  }
+  // A rename reaches the brief heading only by remounting: the shared panel fixes its title at
+  // construction and exposes no setter, so the card would otherwise keep the old name.
+  const keepRun = state.boundCaseId === item.id ? state.brief?.run?.id || null : null;
+  teardownCaseSurfaces();
+  // Rebinding abandons any brief on screen unless it is being carried across a rename.
+  if (!keepRun) showBriefInAddress(null);
+  state.boundCaseId = item.id;
+  state.boundCaseName = item.name;
+  initialiseAssistant();
   state.assistant.controller.setContext({ market_case_id: item.id, display_label: item.name });
+  // A run named in the address wins once, and only for the case it belongs to: loadCases()
+  // falls back to another case when the addressed one is gone, and that case must not inherit
+  // the run. After that the remembered run for the case is used.
+  const resumed = keepRun
+    || (state.pendingBrief?.caseId === item.id ? state.pendingBrief.runId : null);
+  state.pendingBrief = null;
+  state.brief = mountMarketBrief({
+    root: byId("brief-root"),
+    marketCaseId: item.id,
+    caseName: item.name,
+    runId: resumed,
+    announce: (message) => notify(message),
+    onRunChange: (run) => showBriefInAddress(run.id),
+  });
+  if (!resumed) resumeMarketBrief(item.id);
+}
+
+/** Point the address at this brief so a reload, a bookmark or a shared link reopens it. */
+function showBriefInAddress(runId) {
+  const next = marketBriefHash(runId);
+  // replaceState: reopening a run is not a navigation, and it must not add history entries
+  // on every poll-driven state change.
+  if (globalThis.location?.hash !== next) globalThis.history?.replaceState(null, "", next);
+}
+
+/**
+ * Reopen the newest brief remembered for this case. It runs after the panel is mounted, so a
+ * fresh "Start a review" form is shown immediately and is replaced only once the server
+ * confirms the run still exists and belongs to this case.
+ */
+function resumeMarketBrief(marketCaseId) {
+  const task = briefResumeTask.start();
+  resumableMarketBrief(marketCaseId, { request: (path) => api(path) })
+    .then((runId) => {
+      // The case may have changed, or the reader may have started a brief of their own, while
+      // the lookup was in flight. Neither may be replaced by a remembered run.
+      if (!task.isCurrent() || !runId) return;
+      if (state.boundCaseId !== marketCaseId || state.brief?.run) return;
+      state.brief?.open(runId);
+      showBriefInAddress(runId);
+    })
+    .catch(() => { /* Reopening is a convenience; the start form stays usable. */ });
 }
 
 function initialiseAssistant() {
@@ -326,6 +410,34 @@ function initialiseAssistant() {
   });
 }
 
+/**
+ * Open the page, reopening the brief named in the address when there is one. The run names its
+ * own case, so a single link restores both; an unknown or foreign run is ignored and the page
+ * opens normally rather than reporting an error the reader cannot act on.
+ */
+async function startMarketCases() {
+  const hash = globalThis.location?.hash || "";
+  const runId = marketBriefRunId(hash);
+  if (!runId) {
+    // A `brief` the page cannot read must not stay in the address claiming a run is open.
+    if (addressClaimsMarketBrief(hash)) showBriefInAddress(null);
+    return loadCases();
+  }
+  const caseId = await marketBriefCaseId(runId, { request: (path) => api(path) }).catch(() => null);
+  if (!caseId) {
+    showBriefInAddress(null);
+    return loadCases();
+  }
+  state.pendingBrief = { caseId, runId };
+  await loadCases(caseId);
+  // loadCases falls back to the first case when the addressed one is gone; the run is bound to
+  // its own case, so the address simply stops naming it.
+  if (state.selectedId !== caseId) {
+    state.pendingBrief = null;
+    showBriefInAddress(null);
+  }
+}
+
 function initialise() {
 byId("retry-evidence").addEventListener("click", () => loadEvidence());
 byId("case-list").addEventListener("click", async (event) => {
@@ -335,6 +447,13 @@ byId("case-list").addEventListener("click", async (event) => {
   notify("");
   await loadEvidence().catch((error) => notify(error.message, true));
 });
+byId("brief-root").addEventListener(
+  "submit",
+  // Starting a brief outranks reopening a remembered one, and the panel exposes no run
+  // id until its POST returns, so the lookup is dropped the moment the reader submits.
+  () => briefResumeTask.cancel(),
+  true,
+);
 byId("new-case").addEventListener("click", openCreate);
 byId("edit-case").addEventListener("click", openEdit);
 byId("form-property-choice").addEventListener("change", syncSelectedProperty);
@@ -343,7 +462,7 @@ byId("close-dialog").addEventListener("click", () => byId("case-dialog").close()
 byId("cancel-dialog").addEventListener("click", () => byId("case-dialog").close());
 byId("case-form").addEventListener("submit", (event) => saveCase(event).catch((error) => notify(error.message, true)));
 
-loadCases().catch((error) => {
+startMarketCases().catch((error) => {
   notify(`Sales & market could not be loaded: ${error.message}`, true);
   state.evidenceLoading = false;
   state.evidenceError = error.message;
@@ -351,7 +470,7 @@ loadCases().catch((error) => {
   renderEvidence();
 });
 
-  window.addEventListener("pagehide", () => { evidenceTask.cancel(); state.assistant?.controller.destroy(); }, { once: true });
+  window.addEventListener("pagehide", () => { evidenceTask.cancel(); teardownCaseSurfaces(); }, { once: true });
 }
 
 if (typeof document !== "undefined") initialise();
