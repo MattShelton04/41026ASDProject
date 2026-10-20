@@ -85,7 +85,10 @@ publishes.
 
 ### Student 2
 
-[[TODO: Burhan Naeem | Describe F2's multi-agent design flow in about 40 words: template, read-only tools and proxy routes]]
+`f2-market-case-brief` summarises one saved market case's recorded sale observations. Seven
+proxy routes under `/api/market-intelligence/v1/market-briefs` fix the template server-side
+and hide other features' runs. Both allowlisted tools, `market.cases.inspect.v1` and
+`market.sales.summary.v1`, are read-only, so a brief never alters the case it describes.
 
 ### Student 3
 
@@ -150,8 +153,6 @@ security: pip-audit of locked dependencies (uv.lock)............Passed
 
 [[TODO: Matthew Shelton | Regenerate the security report on main at the evidence freeze; the committed one scanned a release-2/wrap-up-shared-f1 branch commit]]
 
-[[TODO: Burhan Naeem | Fix or justify F2's pending-owner Ruff S findings, then regenerate the report]]
-
 [[TODO: James Huang | Fix or justify F3's pending-owner Ruff S findings, then regenerate the report]]
 
 [[TODO: Michael White | Fix or justify F4's pending-owner Ruff S findings, then regenerate the report]]
@@ -180,7 +181,16 @@ Suburb-map tests also run; two skip without a suburb-boundaries release.
 
 ### Student 2
 
-[[TODO: Burhan Naeem | Name F2's two endpoint functions and what each test checks (about 60 words)]]
+`student-2.yml` tests two endpoint functions on the feature origin (:5300):
+
+1. `POST /api/market-intelligence/v1/market-cases`: a valid case is persisted at version 1
+   and readable at its own URL; a window that ends before it starts is refused `422
+   invalid_market_case` and writes nothing.
+2. `PUT /api/market-intelligence/v1/market-cases/{id}`: the current version applies the
+   change and advances the version; a stale version is refused `409 version_conflict` and
+   leaves the first writer's value in place.
+
+Both are answered by Feature 2 alone, so the job stays green when another feature is down.
 
 ### Student 3
 
@@ -269,7 +279,10 @@ template.
 
 ### Student 2
 
-[[TODO: Burhan Naeem | Summarise F2's exported run in about 50 words: input, recommendation and human decision]]
+Run `f1c290a2` briefed `Sydney example - full history`. The Reviewer recommended approve on
+all eleven checks passing. I sent it back: the checks read the tool results, while the prose
+summary reported the figures without the limitations. Round two restated them with the
+synthetic-data disclosure, and I approved it, 0 failed and 11 passed.
 
 ### Student 3
 
@@ -305,7 +318,12 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 
 ### Student 2 Burhan Naeem
 
-[[TODO: Burhan Naeem | Add a Date / Commit / Release 2 work table of your identifiable commits (about 60 words)]]
+| Date | Commit | Release 2 work |
+|---|---|---|
+| 21 Oct 2026 | [`4162bbd`](https://github.com/MattShelton04/41026ASDProject/commit/4162bbdc2d2614cbf6c5f2dd74d8a6fdb23b0ab2) (#162) | Multi-agent market case brief: workflow manifest, seven proxy routes, the panel and its addressable runs, two endpoint functions in CI, and Feature 2's Ruff security findings cleared to 0 open and 0 pending-owner |
+| 21 Oct 2026 | #163 | CI evidence for the green `student-2.yml` run on main, and this chapter's Feature 2 sections |
+
+Commits are the squash merges of each pull request; #163 is assigned its hash on merge.
 
 ### Student 3 James Huang
 
@@ -372,6 +390,11 @@ evidence:
   section: 6 Post-commit CI/CD testing
   path: docs/release-2/evidence/ci/student-1.md
   boundary: Successful student-1.yml push run on main at 817ef77; AI tier disabled in CI.
+- kind: ci
+  student: 2
+  section: 6 Post-commit CI/CD testing
+  path: docs/release-2/evidence/ci/student-2.md
+  boundary: Successful student-2.yml push run on main at 4162bbd; AI tier disabled in CI.
 - kind: local-deployment
   section: 8 Local deployment evidence
   path: docs/release-2/evidence/local/local-deployment-report.md
@@ -405,7 +428,16 @@ evidence:
   section: 10 Multi-agent workflow evidence
   path: docs/release-2/evidence/multi-agent/student-1/18740ca5-ui/summary.md
   boundary: Live local stack, model provider, real ABS CPI candidate; nothing published.
+- kind: multi-agent
+  student: 2
+  section: 10 Multi-agent workflow evidence
+  path: docs/release-2/evidence/multi-agent/student-2/f1c290a2-ui/summary.md
+  boundary: Live local stack, model provider, seeded market case; read-only tools, nothing written.
 contributions:
+- student: 2
+  section: Student 2 Burhan Naeem
+  commits:
+  - 4162bbd
 - student: 1
   section: Student 1 Matthew Shelton
   commits:
