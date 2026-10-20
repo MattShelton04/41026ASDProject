@@ -1,7 +1,7 @@
 {
   "tool": "ruff",
   "version": "0.16.1",
-  "commit": "1a68f0ad11a727e445b9ac453f501f7204112401",
+  "commit": "70f3b9a916e6ea8418b2963c945c8efb2d642fa2",
   "command": "ruff check . --select S --ignore-noqa --isolated --config 'target-version = \"py312\"' --config 'extend-exclude = [\"Temp\", \"temp\", \"tmp\"]' --config 'lint.per-file-ignores = { \"**/tests/**\" = [\"S101\", \"S105\", \"S106\", \"S107\", \"S108\", \"S311\"], \"scripts/ui_feature_smoke.py\" = [\"S101\"], \"shared/testkit/**\" = [\"S101\"] }' --output-format json --exit-zero --no-cache",
   "findings": [
     {
@@ -62,6 +62,16 @@
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "node test argv without a shell",
+      "count": 1
+    },
+    {
+      "path": "ai-services/mcp-server/tests/test_mcp_server.py",
+      "row": 377,
+      "code": "S104",
+      "message": "Possible binding to all interfaces",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "asserting the loopback refusal",
       "count": 1
     },
     {
@@ -186,7 +196,7 @@
     },
     {
       "path": "scripts/build_release1_report.py",
-      "row": 391,
+      "row": 407,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -196,7 +206,7 @@
     },
     {
       "path": "scripts/build_release1_report.py",
-      "row": 392,
+      "row": 408,
       "code": "S607",
       "message": "Starting a process with a partial executable path",
       "slice": "shared",
@@ -206,7 +216,7 @@
     },
     {
       "path": "scripts/build_release2_report.py",
-      "row": 584,
+      "row": 662,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -216,7 +226,7 @@
     },
     {
       "path": "scripts/build_release2_report.py",
-      "row": 585,
+      "row": 663,
       "code": "S607",
       "message": "Starting a process with a partial executable path",
       "slice": "shared",
@@ -226,7 +236,7 @@
     },
     {
       "path": "scripts/capture_local_deployment.py",
-      "row": 200,
+      "row": 201,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -306,12 +316,62 @@
     },
     {
       "path": "scripts/check.py",
-      "row": 243,
+      "row": 378,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "fixed quality-gate argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/check.py",
+      "row": 393,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed quality-gate argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/check.py",
+      "row": 513,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/check.py",
+      "row": 514,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git is resolved from PATH like every hook",
+      "count": 1
+    },
+    {
+      "path": "scripts/cloud_ai_probe.py",
+      "row": 57,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"OPERATOR_PASSWORD_ENV\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "name",
+      "count": 1
+    },
+    {
+      "path": "scripts/cloud_smoke.py",
+      "row": 82,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"SITE_PASSWORD_ENV\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "name",
       "count": 1
     },
     {
@@ -366,12 +426,72 @@
     },
     {
       "path": "scripts/devtools/cloud.py",
-      "row": 163,
+      "row": 191,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "argv from argparse choices and the fixed deploy.sh path, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud_rehearsal.py",
+      "row": 83,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"EDGE_PASSWORD_SECRET\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "name",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud_rehearsal.py",
+      "row": 84,
+      "code": "S105",
+      "message": "Possible hardcoded password assigned to: \"SITE_PASSWORD_SECRET\"",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "name",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud_rehearsal.py",
+      "row": 425,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this module, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud_rehearsal.py",
+      "row": 441,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "argv built by this module, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud_rehearsal.py",
+      "row": 918,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed docker argv",
+      "count": 1
+    },
+    {
+      "path": "scripts/devtools/cloud_rehearsal.py",
+      "row": 919,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "docker on PATH",
       "count": 1
     },
     {
@@ -396,7 +516,7 @@
     },
     {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 329,
+      "row": 370,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -406,7 +526,7 @@
     },
     {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 330,
+      "row": 371,
       "code": "S607",
       "message": "Starting a process with a partial executable path",
       "slice": "shared",
@@ -416,7 +536,7 @@
     },
     {
       "path": "scripts/devtools/host_runtime.py",
-      "row": 648,
+      "row": 689,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -465,8 +585,38 @@
       "count": 1
     },
     {
+      "path": "scripts/refresh_release2_evidence.py",
+      "row": 138,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed argv built by this script",
+      "count": 1
+    },
+    {
+      "path": "scripts/refresh_release2_evidence.py",
+      "row": 151,
+      "code": "S101",
+      "message": "Use of `assert` detected",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "set by stdout=PIPE",
+      "count": 1
+    },
+    {
+      "path": "scripts/refresh_release2_evidence.py",
+      "row": 164,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed argv built by this script",
+      "count": 1
+    },
+    {
       "path": "scripts/release1_probe.py",
-      "row": 27,
+      "row": 28,
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"AI_TOKEN_HEADER\"",
       "slice": "shared",
@@ -496,7 +646,7 @@
     },
     {
       "path": "scripts/security/scans.py",
-      "row": 69,
+      "row": 71,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -506,7 +656,7 @@
     },
     {
       "path": "scripts/security/scans.py",
-      "row": 235,
+      "row": 237,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -676,12 +826,82 @@
     },
     {
       "path": "scripts/tests/test_azure_deployment.py",
-      "row": 224,
+      "row": 229,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "fixed docker compose argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 389,
+      "code": "S104",
+      "message": "Possible binding to all interfaces",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "asserted, not bound",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 742,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed bash and a harness written by this test",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 944,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed bash and repository script",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 969,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed bash and the payload just written",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 1051,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed bash and repository script",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_deployment.py",
+      "row": 1095,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed bash and repository script",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_azure_rehearsal_shell.py",
+      "row": 54,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed bash and a harness written by this test",
       "count": 1
     },
     {
@@ -706,7 +926,7 @@
     },
     {
       "path": "scripts/tests/test_build_release2_report.py",
-      "row": 273,
+      "row": 332,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -716,12 +936,42 @@
     },
     {
       "path": "scripts/tests/test_build_release2_report.py",
-      "row": 274,
+      "row": 333,
       "code": "S607",
       "message": "Starting a process with a partial executable path",
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "git is resolved from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_check.py",
+      "row": 355,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_check.py",
+      "row": 356,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git from the developer PATH",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_cloud_rehearsal.py",
+      "row": 178,
+      "code": "S506",
+      "message": "Probable use of unsafe loader `_ComposeLoader` with `yaml.load`. Allows instantiation of arbitrary objects. Consider `yaml.safe_load`.",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "a SafeLoader subclass that tolerates Compose tags",
       "count": 1
     },
     {
@@ -762,6 +1012,66 @@
       "slice": "shared",
       "status": "noqa-justified",
       "justification": "fixed tool argv in a temporary directory",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_security_report.py",
+      "row": 826,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_security_report.py",
+      "row": 826,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_security_report.py",
+      "row": 831,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_security_report.py",
+      "row": 831,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_security_report.py",
+      "row": 832,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed git argv",
+      "count": 1
+    },
+    {
+      "path": "scripts/tests/test_security_report.py",
+      "row": 833,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "git from PATH",
       "count": 1
     },
     {
@@ -1015,6 +1325,36 @@
       "count": 1
     },
     {
+      "path": "scripts/validate_release_images.py",
+      "row": 58,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed docker argv built by this script, no shell",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_release_images.py",
+      "row": 59,
+      "code": "S607",
+      "message": "Starting a process with a partial executable path",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "docker is resolved from PATH like in deploy.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_release_gate.py",
+      "row": 94,
+      "code": "S603",
+      "message": "`subprocess` call: check for execution of untrusted input",
+      "slice": "shared",
+      "status": "noqa-justified",
+      "justification": "fixed gh argv built by this script, no shell",
+      "count": 1
+    },
+    {
       "path": "scripts/visual/capture.py",
       "row": 127,
       "code": "S603",
@@ -1176,7 +1516,7 @@
     },
     {
       "path": "shared/contracts/python/shared_contracts/evidence_review.py",
-      "row": 56,
+      "row": 70,
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"PASS\"",
       "slice": "shared",
@@ -1186,7 +1526,7 @@
     },
     {
       "path": "shared/contracts/python/shared_contracts/evidence_review.py",
-      "row": 57,
+      "row": 71,
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"PASS_WITH_RISKS\"",
       "slice": "shared",
@@ -1386,12 +1726,42 @@
     },
     {
       "path": "student-1/database/src/propertyscope_data_store/_release_records.py",
-      "row": 81,
+      "row": 83,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-1",
       "status": "noqa-justified",
       "justification": "fixed column projection; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_suburb_map_reads.py",
+      "row": 249,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "placeholders only; values are bound",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_suburb_map_reads.py",
+      "row": 571,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed column names",
+      "count": 1
+    },
+    {
+      "path": "student-1/database/src/propertyscope_data_store/_suburb_map_reads.py",
+      "row": 645,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "fixed integer precision only",
       "count": 1
     },
     {
@@ -1446,7 +1816,7 @@
     },
     {
       "path": "student-1/database/src/propertyscope_data_store/repository.py",
-      "row": 499,
+      "row": 525,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-1",
@@ -1485,6 +1855,26 @@
       "count": 1
     },
     {
+      "path": "student-1/tests/component/test_postgres_demonstration_purge.py",
+      "row": 76,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "table names are test constants",
+      "count": 1
+    },
+    {
+      "path": "student-1/tests/component/test_postgres_demonstration_purge.py",
+      "row": 84,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-1",
+      "status": "noqa-justified",
+      "justification": "identifiers are test constants; values are bound",
+      "count": 1
+    },
+    {
       "path": "student-1/tests/component/test_postgres_import_reliability.py",
       "row": null,
       "code": "S324",
@@ -1515,83 +1905,23 @@
       "count": 1
     },
     {
-      "path": "student-2/backend/src/propertyscope_market_intelligence/api.py",
-      "row": 355,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-2/database/src/propertyscope_market_store/api.py",
-      "row": 191,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-2/database/src/propertyscope_market_store/api.py",
-      "row": 206,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-2/database/src/propertyscope_market_store/api.py",
-      "row": 218,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-2/database/src/propertyscope_market_store/import_operations.py",
-      "row": 98,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
       "path": "student-2/database/src/propertyscope_market_store/repository.py",
-      "row": 67,
+      "row": 72,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "only COUNTED_TABLES literals",
       "count": 1
     },
     {
       "path": "student-2/database/src/propertyscope_market_store/repository.py",
-      "row": 115,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-2/database/src/propertyscope_market_store/repository.py",
-      "row": 143,
+      "row": 149,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-2",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted columns only",
       "count": 1
     },
     {

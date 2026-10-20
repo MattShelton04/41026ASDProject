@@ -188,7 +188,8 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
         payload, error = _validate_create(request.get_json(silent=True))
         if error:
             return _problem(422, "invalid_market_case", error)
-        assert payload is not None
+        if payload is None:  # pragma: no cover - validation returns a payload or an error
+            raise RuntimeError("case validation returned neither a payload nor an error")
         return jsonify(store.create_case(payload)), 201
 
     @blueprint.get(f"{_API}/market-cases/<uuid:case_id>")
@@ -203,7 +204,8 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
         changes, version, error = _validate_update(request.get_json(silent=True))
         if error:
             return _problem(422, "invalid_market_case", error)
-        assert changes is not None and version is not None
+        if changes is None or version is None:  # pragma: no cover - validated above
+            raise RuntimeError("case update validation returned no changes or version")
         current = store.get_case(str(case_id))
         if current is None:
             return _problem(404, "market_case_not_found", "No market case with that id")
@@ -215,7 +217,8 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
             updated = store.update_case(str(case_id), changes, expected_version=version)
         except VersionConflictError:
             return _problem(409, "version_conflict", "Refresh this case before saving again")
-        assert updated is not None
+        if updated is None:  # pragma: no cover - a missing row raises VersionConflictError
+            raise RuntimeError("the market case disappeared while it was being updated")
         return jsonify(updated)
 
     @blueprint.delete(f"{_API}/market-cases/<uuid:case_id>")

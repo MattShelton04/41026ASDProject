@@ -142,10 +142,6 @@ select = ["B", "C4", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 # Each entry lists only the rules found in that file when the scan was adopted. Remove an entry
 # once the owner has fixed the findings or added a justified `# noqa`.
 [tool.ruff.lint.extend-per-file-ignores]
-"student-2/backend/src/propertyscope_market_intelligence/api.py" = ["S101"]
-"student-2/database/src/propertyscope_market_store/api.py" = ["S101"]
-"student-2/database/src/propertyscope_market_store/import_operations.py" = ["S101"]
-"student-2/database/src/propertyscope_market_store/repository.py" = ["S101", "S608"]
 "student-3/backend/src/propertyscope_suburb_analytics/app.py" = ["S104"]
 "student-3/backend/src/propertyscope_suburb_analytics/clients.py" = ["S310"]
 "student-3/database/src/propertyscope_suburb_store/app.py" = ["S104"]
