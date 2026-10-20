@@ -8,9 +8,11 @@ on:
       - "**/pyproject.toml"
       - "student-2/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
+      - "ai-services/multi-agent-server/**"
       - "shared/frontend/**"
       - "deployment/**"
       - "docker-compose*.yml"
@@ -27,9 +29,11 @@ on:
       - ".github/workflows/student-2.yml"
       - "student-2/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
+      - "ai-services/multi-agent-server/**"
       - "shared/frontend/**"
       - "deployment/**"
       - "docker-compose*.yml"
@@ -90,7 +94,8 @@ jobs:
       - name: Check browser JavaScript
         run: |
           node --check student-2/frontend/app.js
-          node --import ./scripts/frontend-test-bootstrap.mjs --test student-2/tests/frontend/core.test.mjs
+          node --check student-2/frontend/integration/market-brief.js
+          node --import ./scripts/frontend-test-bootstrap.mjs --test student-2/tests/frontend/core.test.mjs student-2/tests/frontend/market-brief.test.mjs
       - name: Build Feature 2 containers
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f2-db-api f2-backend f2-frontend
       - name: Start Feature 2 fixture stack
@@ -101,6 +106,37 @@ jobs:
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5300/api/market-intelligence/v1/market-cases --output /tmp/cases.json
           python -c "import json; value=json.load(open('/tmp/cases.json', encoding='utf-8')); assert len(value['items']) >= 10, value"
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f2-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5302/internal/market-intelligence/v1/seed-report',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=2)); assert min(value['tables'].values()) >= 10, value"
+      # Release 2 F-7: two endpoint functions of the Feature 2 backend/API against the running
+      # service - POST /market-cases (create) and PUT /market-cases/{id} (optimistic update) -
+      # each with a happy path and a failure case. They run against the feature origin, which
+      # is the only origin this job starts; both cases are answered by Feature 2 alone, so the
+      # job stays green when another student's service is down.
+      - name: Run Feature 2 endpoint tests on the feature origin
+        env:
+          PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5300
+          PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+        run: uv run --locked pytest student-2/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-2-feature-origin.xml
+      - name: Publish endpoint test summary
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        run: |
+          status=0
+          for origin in feature-origin; do
+            report="endpoint-results/student-2-${origin}.xml"
+            if [ -f "$report" ]; then
+              uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 2 endpoint tests (${origin})" --output "endpoint-results/student-2-${origin}.md" --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY" || status=1
+            else
+              echo "::error::Missing $report" && status=1
+            fi
+          done
+          exit "$status"
+      - name: Upload endpoint test results
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: student-2-endpoint-tests
+          path: endpoint-results/
+          if-no-files-found: error
+          retention-days: 30
       - name: Capture service logs
         if: failure()
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 200 f2-db-api f2-backend f2-frontend
