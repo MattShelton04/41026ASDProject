@@ -128,7 +128,8 @@ def create_blueprint(store: Any, *, internal_token: str) -> Blueprint:
         payload, error = _validate_new_review(request.get_json(silent=True))
         if error is not None:
             return _problem(422, "invalid_site_review", error)
-        assert payload is not None
+        if payload is None:  # pragma: no cover - validation returns a payload or an error
+            raise RuntimeError("site review validation returned neither a payload nor an error")
         return jsonify(store.create_site_review(payload)), 201
 
     @blueprint.get(f"{_API}/site-reviews/<review_id>")

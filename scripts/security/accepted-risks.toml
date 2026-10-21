@@ -31,16 +31,24 @@ ids = [
     "PYSEC-2026-3494",
     "PYSEC-2026-3495",
     "PYSEC-2026-3496",
+    "CVE-2026-112395",
+    "CVE-2026-112397",
+    "CVE-2026-112400",
+    "CVE-2026-112404",
+    "CVE-2026-112895",
+    "CVE-2026-112896",
+    "CVE-2026-112897",
+    "CVE-2026-112899",
 ]
 reason = """\
-Image-decoding flaws fixed in Pillow 12.x. The lock cannot move past 11.3.0 because \
+Image-decoding flaws fixed in Pillow 12.x and 13.0. The lock cannot move past 11.3.0 because \
 rag-server pins fastembed==0.7.4, which requires pillow<12. PropertyScope never decodes \
 untrusted images: RAG embeds text only, and the dev-only report/visual tools open screenshots \
 the project captured itself. No feature service imports Pillow."""
 follow_up = """\
-Shared: move rag-server to fastembed>=0.9 (allows pillow 12.3) together with a RAG re-ingest \
+Shared: move rag-server to fastembed>=0.9 (allows pillow 12.3+) together with a RAG re-ingest \
 and the retrieval evaluation, then delete this entry."""
-reviewed = "2026-10-09"
+reviewed = "2026-10-21"
 
 [[pip_audit]]
 package = "pytest"

@@ -18,6 +18,9 @@ from psycopg_pool import ConnectionPool
 
 from propertyscope_due_diligence_store.migrations import migrate
 
+# PostgreSQL cannot bind column names as parameters, so these fixed column lists and the
+# _UPDATABLE_FIELDS allowlist are interpolated into SQL. No caller input ever reaches them;
+# every value is bound as a %s parameter. That is why the S608 findings below are suppressed.
 _SITE_REVIEW_COLUMNS = (
     "id, property_ref, address_display, title, status, disposition, checklist, "
     "verification_questions, notes, ai_run_ref, created_at, updated_at, version"
@@ -87,7 +90,7 @@ class DueDiligenceStore:
     def list_site_reviews(self, *, limit: int = 50) -> list[dict[str, Any]]:  # pragma: no cover
         with self._pool.connection() as connection:
             rows = connection.execute(
-                f"SELECT {_SITE_REVIEW_COLUMNS} FROM due_diligence.site_review "
+                f"SELECT {_SITE_REVIEW_COLUMNS} FROM due_diligence.site_review "  # noqa: S608 - constant columns
                 "ORDER BY created_at DESC, id LIMIT %s",
                 (limit,),
             ).fetchall()
@@ -96,7 +99,8 @@ class DueDiligenceStore:
     def get_site_review(self, review_id: str) -> dict[str, Any] | None:  # pragma: no cover
         with self._pool.connection() as connection:
             row = connection.execute(
-                f"SELECT {_SITE_REVIEW_COLUMNS} FROM due_diligence.site_review WHERE id = %s",
+                f"SELECT {_SITE_REVIEW_COLUMNS} FROM due_diligence.site_review "  # noqa: S608 - constant columns
+                "WHERE id = %s",
                 (review_id,),
             ).fetchone()
         return _row(row) if row else None
@@ -105,7 +109,7 @@ class DueDiligenceStore:
         review_id = str(uuid.uuid4())
         with self._pool.connection() as connection:
             row = connection.execute(
-                "INSERT INTO due_diligence.site_review "
+                "INSERT INTO due_diligence.site_review "  # noqa: S608 - constant RETURNING columns
                 "(id, property_ref, address_display, title, status, disposition, checklist, "
                 "verification_questions, notes, ai_run_ref) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
@@ -123,7 +127,8 @@ class DueDiligenceStore:
                     payload.get("ai_run_ref"),
                 ),
             ).fetchone()
-        assert row is not None
+        if row is None:
+            raise RuntimeError("INSERT ... RETURNING produced no site review row")
         return _row(row)
 
     def update_site_review(
@@ -143,7 +148,7 @@ class DueDiligenceStore:
         values.append(review_id)
         with self._pool.connection() as connection:
             row = connection.execute(
-                f"UPDATE due_diligence.site_review SET {', '.join(assignments)} "
+                f"UPDATE due_diligence.site_review SET {', '.join(assignments)} "  # noqa: S608 - allowlisted columns only
                 f"WHERE id = %s RETURNING {_SITE_REVIEW_COLUMNS}",
                 values,
             ).fetchone()
@@ -162,7 +167,7 @@ class DueDiligenceStore:
     ) -> list[dict[str, Any]]:  # pragma: no cover
         with self._pool.connection() as connection:
             rows = connection.execute(
-                f"SELECT {_CONSTRAINT_COLUMNS} FROM due_diligence.constraint_observation "
+                f"SELECT {_CONSTRAINT_COLUMNS} FROM due_diligence.constraint_observation "  # noqa: S608 - constant columns
                 "WHERE property_ref = %s ORDER BY constraint_type, id LIMIT %s",
                 (property_ref, limit),
             ).fetchall()
@@ -173,7 +178,7 @@ class DueDiligenceStore:
     ) -> list[dict[str, Any]]:  # pragma: no cover
         with self._pool.connection() as connection:
             rows = connection.execute(
-                f"SELECT {_BUILDING_COLUMNS} FROM due_diligence.building_observation "
+                f"SELECT {_BUILDING_COLUMNS} FROM due_diligence.building_observation "  # noqa: S608 - constant columns
                 "WHERE property_ref = %s ORDER BY record_type, id LIMIT %s",
                 (property_ref, limit),
             ).fetchall()
