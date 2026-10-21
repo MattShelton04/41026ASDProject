@@ -51,8 +51,6 @@ Copy this list for your own feature. Feature 1 is the reference example.
   only recommends; publishing stays a separate operator action.
 - **Endpoint tests:** `GET /properties/search` and source-definition CRUD (`/sources`).
 - **CRUD:** create, edit and delete a source definition.
-- **Search caveat:** search with `1 George Street` locally and on Azure. A search that adds the
-  suburb can return `503` on Azure.
 
 ## Before recording
 
