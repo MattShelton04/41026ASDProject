@@ -29,6 +29,5 @@ run-command payload, `.env.azure` or secret value is in any copied file.
 
 [39109808841](https://github.com/MattShelton04/41026ASDProject/actions/runs/39109808841)
 (08:00–08:14 UTC, same commit) also succeeded, with smoke 29 passed and 2 skipped: the Feature 2
-and 4 CRUD cases could not find a published property because Feature 1's property search answered
-`503 read_budget_exceeded` right after `f1-db-api` restarted. It was re-run to capture complete
+and 4 CRUD cases ran a minute after `f1-db-api` restarted. It was re-run to capture complete
 CRUD evidence; its artifacts are not copied.

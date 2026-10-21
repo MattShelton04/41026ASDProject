@@ -85,10 +85,10 @@ publishes.
 
 ### Student 2
 
-`f2-market-case-brief` summarises one saved market case's recorded sale observations. Seven
-proxy routes under `/api/market-intelligence/v1/market-briefs` fix the template server-side
-and hide other features' runs. Both allowlisted tools, `market.cases.inspect.v1` and
-`market.sales.summary.v1`, are read-only, so a brief never alters the case it describes.
+`f2-market-case-brief` summarises one saved market case's sale observations. Eight proxy routes
+under `/api/market-intelligence/v1/market-briefs` fix the template server-side and hide other
+features' runs. Both allowlisted tools, `market.cases.inspect.v1` and `market.sales.summary.v1`,
+are read-only.
 
 ### Student 3
 
@@ -96,11 +96,10 @@ and hide other features' runs. Both allowlisted tools, `market.cases.inspect.v1`
 
 ### Student 4
 
-`f4-evidence-readiness-review` decides whether one saved site review has enough planning and
-building evidence to hand to a qualified professional, and drafts the questions to ask. Eight
-proxy routes under `/api/due-diligence/v1/evidence-reviews` fix the template server-side and hide
-other features' runs. Both allowlisted tools, `duediligence.review.inspect.v1` and
-`duediligence.evidence.summary.v1`, are read-only, so a review never alters the site review.
+`f4-evidence-readiness-review` drafts a professional's verification questions from one saved
+site review's evidence. Eight proxy routes under `/api/due-diligence/v1/evidence-reviews` fix the
+template server-side and hide other features' runs. Both allowlisted tools,
+`duediligence.review.inspect.v1` and `duediligence.evidence.summary.v1`, are read-only.
 
 ### Student 5
 
@@ -192,8 +191,6 @@ Suburb-map tests also run; two skip without a suburb-boundaries release.
    change and advances the version; a stale version is refused `409 version_conflict` and
    leaves the first writer's value in place.
 
-Both are answered by Feature 2 alone, so the job stays green when another feature is down.
-
 ### Student 3
 
 [[TODO: James Huang | Name F3's two endpoint functions and what each test checks (about 60 words)]]
@@ -208,8 +205,6 @@ Both are answered by Feature 2 alone, so the job stays green when another featur
 2. `GET /api/due-diligence/v1/site-reviews/{id}/evidence`: a seeded review returns schema-valid
    constraint and building records for its own property only; an unknown or deleted review
    returns `404 site_review_not_found`.
-
-All ten cases passed in the recorded run.
 
 ### Student 5
 
@@ -291,9 +286,9 @@ template.
 ### Student 2
 
 Run `f1c290a2` briefed `Sydney example - full history`. The Reviewer recommended approve on
-all eleven checks passing. I sent it back: the checks read the tool results, while the prose
+all eleven checks passing. Burhan sent it back: the checks read the tool results, while the prose
 summary reported the figures without the limitations. Round two restated them with the
-synthetic-data disclosure, and I approved it, 0 failed and 11 passed.
+synthetic-data disclosure, and Burhan approved it, 0 failed and 11 passed.
 
 ### Student 3
 
@@ -302,9 +297,9 @@ synthetic-data disclosure, and I approved it, 0 failed and 11 passed.
 ### Student 4
 
 Run `2956e465` reviewed seeded review 1 (11 Example Street, Sydney). The Reviewer recommended
-approve on all ten checks passing. I sent it back: the draft referred to the saved question list,
-missed two conflicting records and did not plainly disclose seeded data. Round two fixed all three,
-and I approved it, noting three questions still to write.
+approve on all ten checks passing. Michael sent it back: the draft referred to the saved question
+list, missed two conflicting records and did not plainly disclose seeded data. Round two fixed all
+three, and Michael approved it, noting three questions still to write.
 
 ### Student 5
 
@@ -329,15 +324,14 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 | 17 Oct | [5e90231](https://github.com/MattShelton04/41026ASDProject/commit/5e90231), [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443), [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5), [cd8e56d](https://github.com/MattShelton04/41026ASDProject/commit/cd8e56d) | Azure switch-on, site login, security fixes |
 | 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6), [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08) | F1 suburb-map API, real data on Azure |
 | 18 Oct | [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31), [3ea2932](https://github.com/MattShelton04/41026ASDProject/commit/3ea2932), [817ef77](https://github.com/MattShelton04/41026ASDProject/commit/817ef77), [0cf5e3f](https://github.com/MattShelton04/41026ASDProject/commit/0cf5e3f) | Cloud AI Tier, cloud and bonus evidence, release decision |
+| 19–21 Oct | [daee27d](https://github.com/MattShelton04/41026ASDProject/commit/daee27d), [70f3b9a](https://github.com/MattShelton04/41026ASDProject/commit/70f3b9a), [cb71215](https://github.com/MattShelton04/41026ASDProject/commit/cb71215) | Report against the rubric, B1–B4 UI captures, edge protection for F2 and F4 workflows |
 
 ### Student 2 Burhan Naeem
 
 | Date | Commit | Release 2 work |
 |---|---|---|
-| 21 Oct 2026 | [`4162bbd`](https://github.com/MattShelton04/41026ASDProject/commit/4162bbdc2d2614cbf6c5f2dd74d8a6fdb23b0ab2) (#162) | Multi-agent market case brief: workflow manifest, seven proxy routes, the panel and its addressable runs, two endpoint functions in CI, and Feature 2's Ruff security findings cleared to 0 open and 0 pending-owner |
-| 21 Oct 2026 | #163 | CI evidence for the green `student-2.yml` run on main, and this chapter's Feature 2 sections |
-
-Commits are the squash merges of each pull request; #163 is assigned its hash on merge.
+| 21 Oct | [4162bbd](https://github.com/MattShelton04/41026ASDProject/commit/4162bbd) | Market case brief: workflow template, eight proxy routes, panel; endpoint tests in `student-2.yml`; Ruff `S` findings cleared |
+| 21 Oct | [24e6025](https://github.com/MattShelton04/41026ASDProject/commit/24e6025) | CI evidence and Feature 2 report sections |
 
 ### Student 3 James Huang
 
@@ -347,11 +341,9 @@ Commits are the squash merges of each pull request; #163 is assigned its hash on
 
 | Date | Commit | Release 2 work |
 |---|---|---|
-| 21 Oct 2026 | [`58def77`](https://github.com/MattShelton04/41026ASDProject/commit/58def77f180a557253c5fdb590a71a128e5e861c) (#164) | Endpoint tests for site-review creation and review evidence, run in `student-4.yml` with a JUnit summary; Feature 4's Ruff security findings cleared to 0 open and 0 pending-owner |
-| 21 Oct 2026 | [`aa9b866`](https://github.com/MattShelton04/41026ASDProject/commit/aa9b8667ffda2429e7db4fc5c8a3b2820bd163bd) (#165) | Evidence readiness review: workflow manifest, eight proxy routes, the review-page panel, and the Release 1 question-extraction carry-over fix |
-| 21 Oct 2026 | This PR | CI, security and multi-agent evidence, and this chapter's Feature 4 sections |
-
-Commits are the squash merges of each pull request.
+| 21 Oct | [58def77](https://github.com/MattShelton04/41026ASDProject/commit/58def77) | Endpoint tests in `student-4.yml`; Ruff `S` findings cleared |
+| 21 Oct | [aa9b866](https://github.com/MattShelton04/41026ASDProject/commit/aa9b866) | Evidence readiness review: workflow template, eight proxy routes, review-page panel; Release 1 question-extraction fix |
+| 21 Oct | [37b2ffc](https://github.com/MattShelton04/41026ASDProject/commit/37b2ffc) | CI, security and multi-agent evidence; Feature 4 report sections |
 
 ### Student 5 Derek Song
 
@@ -464,15 +456,6 @@ evidence:
   path: docs/release-2/evidence/multi-agent/student-4/2956e465-ui/summary.md
   boundary: Live local stack, model provider with a deterministic round-2 Reviewer fallback, seeded site review; read-only tools, nothing written.
 contributions:
-- student: 2
-  section: Student 2 Burhan Naeem
-  commits:
-  - 4162bbd
-- student: 4
-  section: Student 4 Michael White
-  commits:
-  - 58def77
-  - aa9b866
 - student: 1
   section: Student 1 Matthew Shelton
   commits:
@@ -498,5 +481,19 @@ contributions:
   - 3ea2932
   - 817ef77
   - 0cf5e3f
+  - daee27d
+  - 70f3b9a
+  - cb71215
+- student: 2
+  section: Student 2 Burhan Naeem
+  commits:
+  - 4162bbd
+  - 24e6025
+- student: 4
+  section: Student 4 Michael White
+  commits:
+  - 58def77
+  - aa9b866
+  - 37b2ffc
 attendance: {}
 -->

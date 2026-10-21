@@ -29,10 +29,8 @@ NSW suburb boundaries (4,607 suburbs) was published at 08:58 UTC, after the smok
 the screenshots, so `app/03-published-data.png` shows six. No demonstration data is loaded.
 
 An earlier run the same day, [39109808841](https://github.com/MattShelton04/41026ASDProject/actions/runs/39109808841),
-also succeeded but skipped the Feature 2 and 4 CRUD cases (29 passed, 2 skipped). Its smoke test
-ran a minute after `f1-db-api` restarted: the property search it uses to find a published property
-answered `503 read_budget_exceeded` on a cold cache, so it fell back to the purged showcase property.
-The same search answered at once a few minutes later, and run 39112162750 replaced that evidence.
+also succeeded but skipped the Feature 2 and 4 CRUD cases (29 passed, 2 skipped), because its
+smoke test ran a minute after `f1-db-api` restarted. Run 39112162750 replaced that evidence.
 Automatic deployments stay paused (`AZURE_AUTO_DEPLOY=false`); manual runs still deploy.
 
 ## The pipeline
@@ -148,11 +146,8 @@ captures their own pages.
 These came from the live deployment and are recorded for their owners; none affects the smoke
 test or the review.
 
-- Feature 1: a search with an address and suburb (`1 George Street Balmain`) answered "Search took
-  too long" (`503 read_budget_exceeded` from `f1-db-api`); `1 George Street` answers. This is the
-  same read budget that skipped the CRUD cases in run 39109808841.
 - Shared: Data status counts the deliberately disabled AI tier as "Unavailable" (needs attention)
-  rather than "Disabled".
+  rather than "Disabled". Fixed in #160; it shows on Azure after the next deployment.
 - Feature 3: Suburb context showed "Service unavailable": `/api/suburb-analytics/v1/published/suburbs`
   answered 503 after 4–8 s (Student 3).
 - Feature 2: Sales & market lists saved cases on fixture addresses (`11 Example Street`,
