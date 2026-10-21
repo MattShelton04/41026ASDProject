@@ -152,8 +152,11 @@ else
 fi
 
 # --- Authentication on operations and AI routes ----------------------------------------------
+# Every feature's Multi-Agent proxy collection is probed: each starts paid runs and records human
+# decisions, and the edge protects them by name (see the Caddyfile's @protected matcher).
 for path in /operations/ai-mode/ /api/ai-mode/runs /api/v1/runs /api/data-platform/v1/artifact-retention \
-    /api/data-platform/v1/release-reviews /api/market-intelligence/v1/assistant/turns; do
+    /api/data-platform/v1/release-reviews /api/market-intelligence/v1/market-briefs \
+    /api/due-diligence/v1/evidence-reviews /api/market-intelligence/v1/assistant/turns; do
     code=$(status_of "$BASE$path")
     expect "anonymous $path requires operator credentials" "$code" '^401$'
     if [[ $SITE_AUTH == on ]]; then
@@ -174,6 +177,11 @@ code=$(viewer_status_of "$BASE/api/shared-health/ai-mode")
 expect "AI health stays readable without operator credentials (503 ai_disabled, or 200 when the bonus tier is on)" "$code" '^(200|503)$'
 code=$(viewer_status_of "$BASE/api/data-platform/v1/sources?limit=1")
 expect "ordinary feature API needs no operator credentials" "$code" '^200$'
+# The one exemption: a proxy's read-only capabilities probe, which each page calls on load.
+for path in /api/market-intelligence/v1/market-briefs/capabilities /api/due-diligence/v1/evidence-reviews/capabilities; do
+    code=$(viewer_status_of "$BASE$path")
+    expect "the Multi-Agent capabilities probe $path needs no operator credentials" "$code" '^200$'
+done
 
 # --- Rate limiting ---------------------------------------------------------------------------
 # A burst well above the edge zone (20 r/s, burst 40) from one client must see 429s. The probe is

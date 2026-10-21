@@ -74,7 +74,12 @@ and domain-neutral. Each feature still supplies its own task, tools and review r
    polled stage timeline, the plan, the Worker evidence, the Reviewer findings and the decision
    controls allowed by `available_actions`. Feature 1's release readiness review
    (`/api/data-platform/v1/release-reviews` and the "Readiness review" action) is the reference
-   integration. (Added 10 October 2026, Release 2 Phase 2.)
+   integration. (Added 10 October 2026, Release 2 Phase 2.) The Azure edge protects these routes
+   by collection name, so a proxy under a new name (Feature 2 `market-briefs`, Feature 4
+   `evidence-reviews`) must also be added to the Caddyfile's `@protected` matcher and the nginx
+   sensitive limit map; `scripts/tests/test_azure_deployment.py` finds every proxy and fails
+   until both list it. Only `{root}/capabilities`, a read-only probe each page calls on load,
+   stays public. (Added 21 October 2026.)
 10. **Live progress is read from the evidence, not invented.** `GET /runs/{id}/history` accepts
     `after_history` and `after_audit` cursors (the two sequences are numbered separately), so a
     panel can poll only new transitions and audit events while agents work. The Worker's

@@ -154,6 +154,10 @@ def register_release_review_routes(
     api: Blueprint, multi_agent: MultiAgentClient, *, base: str
 ) -> None:
     """Register the release-review proxy family on Feature 1's public Blueprint."""
+    # The Azure edge protects Multi-Agent proxies by collection NAME, not by route. This name must
+    # be listed in deployment/azure/Caddyfile (@protected) and the nginx sensitive limit map, or
+    # anyone with the viewer login can start paid runs and record decisions in the cloud.
+    # scripts/tests/test_azure_deployment.py finds this line and fails until both list it.
     collection = f"{base}/release-reviews"
 
     def owned_run(run_id: uuid.UUID) -> tuple[httpx.Response, Response | None]:

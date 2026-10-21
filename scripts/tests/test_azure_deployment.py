@@ -417,19 +417,89 @@ def test_imds_guard_unit_drops_container_traffic_to_the_metadata_service() -> No
     assert "validate_imds_guard" in validate
 
 
+def _caddy_requires_operator(path: str) -> bool:
+    """The Caddyfile's @protected matcher: the protected regex minus its `not` exemption."""
+    caddyfile = (AZURE / "Caddyfile").read_text(encoding="utf-8")
+    protected = re.search(r"\tpath_regexp protected (\S+)", caddyfile)
+    exempt = re.search(r"\tnot path_regexp capabilities (\S+)", caddyfile)
+    assert protected is not None and exempt is not None
+    return bool(re.search(protected.group(1), path)) and not re.search(exempt.group(1), path)
+
+
+def _nginx_sensitive_limit_applies(path: str) -> bool:
+    """The nginx sensitive limit map: the first matching regex line decides, "" means unlimited."""
+    nginx = (AZURE / "nginx" / "00-propertyscope-production.conf").read_text(encoding="utf-8")
+    block = nginx.split("map $uri $propertyscope_sensitive_limit_key {", 1)[1]
+    block = block.split("}\n", 1)[0]
+    for line in block.splitlines():
+        if not line.strip().startswith("~"):
+            continue
+        pattern, value = line.split()[0][1:], line.split()[1].rstrip(";")
+        if re.search(pattern, path):
+            return value != '""'
+    return False
+
+
+def _multi_agent_proxy_collections() -> dict[str, str]:
+    """Every feature backend's Multi-Agent proxy collection, as {collection path: module}.
+
+    Fail-closed on purpose: a backend module that starts Multi-Agent runs must declare its
+    collection as ``collection = f"{base}/<name>"`` under a package that defines its API root, or
+    this raises instead of quietly leaving the new routes off the edge's protected list.
+    """
+    collections: dict[str, str] = {}
+    for module in sorted(ROOT.glob("student-*/backend/src/*/*.py")):
+        source = module.read_text(encoding="utf-8")
+        if ".create_run(" not in source or not re.search(r"\bMultiAgent\w*Client\b", source):
+            continue
+        name = module.relative_to(ROOT).as_posix()
+        declared = re.findall(r'collection = f"\{base\}/([a-z][a-z/-]*)"', source)
+        assert len(declared) == 1, (
+            f"{name} starts Multi-Agent runs but does not declare exactly one "
+            'collection = f"{base}/<name>"'
+        )
+        roots = {
+            root
+            for sibling in module.parent.glob("*.py")
+            for root in re.findall(
+                r'^(?:_API|BASE) = "(/api/[a-z-]+/v1)"$',
+                sibling.read_text(encoding="utf-8"),
+                re.MULTILINE,
+            )
+        }
+        assert len(roots) == 1, f"{name}: cannot resolve the feature's API root"
+        collections[f"{roots.pop()}/{declared[0]}"] = name
+    return collections
+
+
+def test_every_multi_agent_proxy_requires_operator_credentials_at_the_edge() -> None:
+    """A feature's Multi-Agent proxy starts paid runs and records human decisions.
+
+    The edge protects collections by name, so a new proxy under a new name is public until the
+    Caddyfile and the nginx sensitive limit map both list it (Features 2 and 4 shipped that way
+    in #162 and #165). Only the read-only capabilities probe, which every page calls on load,
+    stays public.
+    """
+    collections = _multi_agent_proxy_collections()
+    assert {
+        "/api/data-platform/v1/release-reviews",
+        "/api/market-intelligence/v1/market-briefs",
+        "/api/due-diligence/v1/evidence-reviews",
+    } <= set(collections)
+    for collection, module in collections.items():
+        for suffix in ("", "/template", f"/{RUN_ID}", f"/{RUN_ID}/decision", f"/{RUN_ID}/cancel"):
+            path = collection + suffix
+            hint = f"{path} ({module}): add the collection to the Caddyfile and nginx map"
+            assert _caddy_requires_operator(path), hint
+            assert _nginx_sensitive_limit_applies(path), hint
+        probe = f"{collection}/capabilities"
+        assert not _caddy_requires_operator(probe), probe
+        assert not _nginx_sensitive_limit_applies(probe), probe
+
+
 def test_edge_protects_operations_and_ai_routes_consistently() -> None:
     caddyfile = (AZURE / "Caddyfile").read_text(encoding="utf-8")
     nginx = (AZURE / "nginx" / "00-propertyscope-production.conf").read_text(encoding="utf-8")
-    protected = re.search(r"path_regexp protected (\S+)", caddyfile)
-    assert protected is not None
-    caddy_pattern = re.compile(protected.group(1))
-    sensitive_block = nginx.split("map $uri $propertyscope_sensitive_limit_key {", 1)[1]
-    sensitive_block = sensitive_block.split("}\n", 1)[0]
-    nginx_patterns = [
-        re.compile(line.split()[0][1:])
-        for line in sensitive_block.splitlines()
-        if line.strip().startswith("~")
-    ]
     sensitive = [
         "/operations/ai-mode/",
         "/api/ai-mode/runs",
@@ -463,13 +533,15 @@ def test_edge_protects_operations_and_ai_routes_consistently() -> None:
         "/api/due-diligence/v1/site-reviews/x",
         "/features/data-platform/",
         "/fragments/rate-limit-probe",
+        "/api/market-intelligence/v1/market-briefs/capabilities",
+        "/api/due-diligence/v1/evidence-reviews/capabilities",
     ]
     for path in sensitive:
-        assert caddy_pattern.search(path), path
-        assert any(pattern.search(path) for pattern in nginx_patterns), path
+        assert _caddy_requires_operator(path), path
+        assert _nginx_sensitive_limit_applies(path), path
     for path in public:
-        assert not caddy_pattern.search(path), path
-        assert not any(pattern.search(path) for pattern in nginx_patterns), path
+        assert not _caddy_requires_operator(path), path
+        assert not _nginx_sensitive_limit_applies(path), path
     assert 'Strict-Transport-Security "max-age=31536000; includeSubDomains"' in caddyfile
     assert caddyfile.index("basic_auth @protected") < caddyfile.index(
         "import /etc/caddy/propertyscope-ai.caddy"

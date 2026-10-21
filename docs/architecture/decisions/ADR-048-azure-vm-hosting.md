@@ -49,7 +49,8 @@ SQLite's single-writer guidance on network file systems.
 4. **Caddy terminates TLS** on the DNS label (Let's Encrypt), redirects HTTP to HTTPS, adds HSTS
    and security headers, and requires operator credentials on operations, AI, data-pipeline and
    Multi-Agent proxy routes (any feature's `assistant/turns`, `agent-runs`,
-   `case-summary-runs`, `multi-agent` or `release-reviews` collection). It is the only
+   `case-summary-runs`, `multi-agent`, `release-reviews`, `market-briefs` or `evidence-reviews`
+   collection, except a proxy's read-only `capabilities` probe). It is the only
    container that publishes ports. It proxies to the unchanged nginx edge, which gains a
    production-only `conf.d` include with rate limits (`limit_req`) but no change to local
    behaviour.
@@ -155,6 +156,12 @@ SQLite's single-writer guidance on network file systems.
   `/fragments/rate-limit-probe`. The catch-all `location /api/` answers with `return`, which runs
   in nginx's rewrite phase, before `limit_req`, so it could never produce a 429. A throwaway
   nginx container with the production include now proves the 429.
+- **Feature 2 and 4 proxies (21 October).** `market-briefs` (Feature 2) and `evidence-reviews`
+  (Feature 4) shipped under new collection names that the edge did not list, so with the AI tier
+  on a viewer could start paid runs and record decisions. Both joined the protected collections
+  in Caddy and nginx; their `capabilities` probe stays public because each page calls it on load.
+  A deployment test now discovers every feature's Multi-Agent proxy from its source and fails
+  until the edge covers it, and `validate-endpoint-security.sh` probes both.
 
 **17 October 2026, local rehearsal (still not provisioned).** `uv run scripts/dev.py cloud
 rehearse` runs the real `deploy.sh` push, deploy, smoke and validate commands against a
