@@ -8,6 +8,7 @@ on:
       - "**/pyproject.toml"
       - "student-4/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -27,6 +28,7 @@ on:
       - ".github/workflows/student-4.yml"
       - "student-4/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -107,6 +109,24 @@ jobs:
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5400/api/due-diligence/v1/site-reviews --output /tmp/reviews.json
           python -c "import json; value=json.load(open('/tmp/reviews.json', encoding='utf-8')); assert len(value['items']) >= 10, value"
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f4-postgres psql -U due_diligence -d due_diligence -t -A -c "SELECT bool_and(c >= 10) FROM (SELECT count(*) AS c FROM due_diligence.site_review UNION ALL SELECT count(*) FROM due_diligence.constraint_observation UNION ALL SELECT count(*) FROM due_diligence.building_observation) AS counts" | tr -d '[:space:]' | grep -qx t
+      # Two endpoint functions (site-review creation; review evidence) against the
+      # running Feature 4 backend, each with a success and a failure path.
+      - name: Run Feature 4 endpoint tests
+        env:
+          PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5400
+          PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+        run: uv run --locked pytest student-4/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-4-endpoints.xml
+      - name: Publish endpoint test summary
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        run: uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-4-endpoints.xml --title "Feature 4 endpoint tests" --output endpoint-results/student-4-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload endpoint test results
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: student-4-endpoint-tests
+          path: endpoint-results/
+          if-no-files-found: error
+          retention-days: 30
       - name: Capture service logs
         if: failure()
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 200 f4-postgres f4-db-api f4-backend f4-frontend

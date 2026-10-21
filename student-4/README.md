@@ -104,6 +104,27 @@ Gunicorn workers automatically; frontend edits appear on browser refresh. Use
 `uv run scripts/dev.py stack rebuild f4-backend f4-db-api f4-frontend --offline` only after changing
 dependencies or Docker build inputs.
 
+## Endpoint tests
+
+`tests/endpoints/` holds the two CI-tested endpoint functions. They send real HTTP requests to a
+running Feature 4 origin:
+
+| Endpoint | Success | Failure |
+|---|---|---|
+| `POST /api/due-diligence/v1/site-reviews` | `201` with the persisted review, which is then readable, listed and deletable | `422 invalid_site_review` for each invalid payload, with nothing persisted |
+| `GET /api/due-diligence/v1/site-reviews/<id>/evidence` | `200` with schema-valid constraints and buildings for the review's property | `404 site_review_not_found` for an unknown or deleted review |
+
+The tests skip unless `PROPERTYSCOPE_ENDPOINT_BASE_URL` is set. They remove every review they
+create. Against the running stack:
+
+```
+$env:PROPERTYSCOPE_ENDPOINT_BASE_URL = 'http://127.0.0.1:5400'
+uv run pytest student-4/tests/endpoints -m endpoint --no-cov -q
+```
+
+`.github/workflows/student-4.yml` runs them against the fixture stack. It publishes a summary to
+the job page and uploads the JUnit XML as the `student-4-endpoint-tests` artifact.
+
 ## Design decision: evidence sourcing
 
 The approved backend boundary lists "versioned evidence-release import". Feature 1's published
