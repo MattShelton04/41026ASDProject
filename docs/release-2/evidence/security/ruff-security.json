@@ -1,7 +1,7 @@
 {
   "tool": "ruff",
   "version": "0.16.1",
-  "commit": "70f3b9a916e6ea8418b2963c945c8efb2d642fa2",
+  "commit": "7af681c64f4dd4cb6c3128bfde6f422b0cc7788e",
   "command": "ruff check . --select S --ignore-noqa --isolated --config 'target-version = \"py312\"' --config 'extend-exclude = [\"Temp\", \"temp\", \"tmp\"]' --config 'lint.per-file-ignores = { \"**/tests/**\" = [\"S101\", \"S105\", \"S106\", \"S107\", \"S108\", \"S311\"], \"scripts/ui_feature_smoke.py\" = [\"S101\"], \"shared/testkit/**\" = [\"S101\"] }' --output-format json --exit-zero --no-cache",
   "findings": [
     {
@@ -2025,83 +2025,63 @@
       "count": 1
     },
     {
-      "path": "student-4/database/src/propertyscope_due_diligence_store/api.py",
-      "row": 131,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
       "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 90,
+      "row": 93,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "constant columns",
       "count": 1
     },
     {
       "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 99,
+      "row": 102,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "constant columns",
       "count": 1
     },
     {
       "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 108,
+      "row": 112,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "constant RETURNING columns",
       "count": 1
     },
     {
       "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 126,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 146,
+      "row": 151,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted columns only",
       "count": 1
     },
     {
       "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 165,
+      "row": 170,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "constant columns",
       "count": 1
     },
     {
       "path": "student-4/database/src/propertyscope_due_diligence_store/repository.py",
-      "row": 176,
+      "row": 181,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-4",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "constant columns",
       "count": 1
     },
     {
