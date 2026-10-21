@@ -96,7 +96,11 @@ and hide other features' runs. Both allowlisted tools, `market.cases.inspect.v1`
 
 ### Student 4
 
-[[TODO: Michael White | Describe F4's multi-agent design flow in about 40 words: template, read-only tools and proxy routes]]
+`f4-evidence-readiness-review` decides whether one saved site review has enough planning and
+building evidence to hand to a qualified professional, and drafts the questions to ask. Eight
+proxy routes under `/api/due-diligence/v1/evidence-reviews` fix the template server-side and hide
+other features' runs. Both allowlisted tools, `duediligence.review.inspect.v1` and
+`duediligence.evidence.summary.v1`, are read-only, so a review never alters the site review.
 
 ### Student 5
 
@@ -155,8 +159,6 @@ security: pip-audit of locked dependencies (uv.lock)............Passed
 
 [[TODO: James Huang | Fix or justify F3's pending-owner Ruff S findings, then regenerate the report]]
 
-[[TODO: Michael White | Fix or justify F4's pending-owner Ruff S findings, then regenerate the report]]
-
 [[TODO: Derek Song | Fix or justify F5's pending-owner Ruff S findings, then regenerate the report]]
 
 ## 6 Post-commit CI/CD testing
@@ -198,7 +200,16 @@ Both are answered by Feature 2 alone, so the job stays green when another featur
 
 ### Student 4
 
-[[TODO: Michael White | Name F4's two endpoint functions and what each test checks (about 60 words)]]
+`student-4.yml` tests two endpoint functions on the feature origin (:5400):
+
+1. `POST /api/due-diligence/v1/site-reviews`: a valid review is persisted as a version 1 draft,
+   readable at its own URL and then deleted; five invalid bodies and a non-JSON body are refused
+   `422 invalid_site_review` and write nothing.
+2. `GET /api/due-diligence/v1/site-reviews/{id}/evidence`: a seeded review returns schema-valid
+   constraint and building records for its own property only; an unknown or deleted review
+   returns `404 site_review_not_found`.
+
+All ten cases passed in the recorded run.
 
 ### Student 5
 
@@ -290,7 +301,10 @@ synthetic-data disclosure, and I approved it, 0 failed and 11 passed.
 
 ### Student 4
 
-[[TODO: Michael White | Summarise F4's exported run in about 50 words: input, recommendation and human decision]]
+Run `2956e465` reviewed seeded review 1 (11 Example Street, Sydney). The Reviewer recommended
+approve on all ten checks passing. I sent it back: the draft referred to the saved question list,
+missed two conflicting records and did not plainly disclose seeded data. Round two fixed all three,
+and I approved it, noting three questions still to write.
 
 ### Student 5
 
@@ -331,7 +345,13 @@ Commits are the squash merges of each pull request; #163 is assigned its hash on
 
 ### Student 4 Michael White
 
-[[TODO: Michael White | Add a Date / Commit / Release 2 work table of your identifiable commits (about 60 words)]]
+| Date | Commit | Release 2 work |
+|---|---|---|
+| 21 Oct 2026 | [`58def77`](https://github.com/MattShelton04/41026ASDProject/commit/58def77f180a557253c5fdb590a71a128e5e861c) (#164) | Endpoint tests for site-review creation and review evidence, run in `student-4.yml` with a JUnit summary; Feature 4's Ruff security findings cleared to 0 open and 0 pending-owner |
+| 21 Oct 2026 | [`aa9b866`](https://github.com/MattShelton04/41026ASDProject/commit/aa9b8667ffda2429e7db4fc5c8a3b2820bd163bd) (#165) | Evidence readiness review: workflow manifest, eight proxy routes, the review-page panel, and the Release 1 question-extraction carry-over fix |
+| 21 Oct 2026 | This PR | CI, security and multi-agent evidence, and this chapter's Feature 4 sections |
+
+Commits are the squash merges of each pull request.
 
 ### Student 5 Derek Song
 
@@ -395,6 +415,11 @@ evidence:
   section: 6 Post-commit CI/CD testing
   path: docs/release-2/evidence/ci/student-2.md
   boundary: Successful student-2.yml push run on main at 4162bbd; AI tier disabled in CI.
+- kind: ci
+  student: 4
+  section: 6 Post-commit CI/CD testing
+  path: docs/release-2/evidence/ci/student-4.md
+  boundary: Successful student-4.yml push run on main at aa9b866; AI tier disabled in CI.
 - kind: local-deployment
   section: 8 Local deployment evidence
   path: docs/release-2/evidence/local/local-deployment-report.md
@@ -433,11 +458,21 @@ evidence:
   section: 10 Multi-agent workflow evidence
   path: docs/release-2/evidence/multi-agent/student-2/f1c290a2-ui/summary.md
   boundary: Live local stack, model provider, seeded market case; read-only tools, nothing written.
+- kind: multi-agent
+  student: 4
+  section: 10 Multi-agent workflow evidence
+  path: docs/release-2/evidence/multi-agent/student-4/2956e465-ui/summary.md
+  boundary: Live local stack, model provider with a deterministic round-2 Reviewer fallback, seeded site review; read-only tools, nothing written.
 contributions:
 - student: 2
   section: Student 2 Burhan Naeem
   commits:
   - 4162bbd
+- student: 4
+  section: Student 4 Michael White
+  commits:
+  - 58def77
+  - aa9b866
 - student: 1
   section: Student 1 Matthew Shelton
   commits:

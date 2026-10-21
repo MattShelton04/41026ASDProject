@@ -391,14 +391,30 @@ default (R2-44). The cloud holds only real releases published through the Featur
 
 ### 11 Feature 4 (Michael White, 1:00)
 
-`<Student 4: segment script, written by Michael>`. It must show, in Michael's own words:
+Open <http://localhost:5400/#site-reviews/d4000000-0000-0000-0000-000000000001>.
 
-- `<Student 4: Feature 4 frontend running locally (http://localhost:5400), with one CRUD action>`
-- `<Student 4: Feature 4's Multi-Agent workflow started from the Feature 4 UI, through Planner, Worker and Reviewer, to a human decision made on camera>`
-- `<Student 4: the green student-4.yml run in GitHub Actions and its two endpoint tests (JUnit summary)>`
-- `<Student 4: how Feature 4's pending Ruff S findings were fixed or justified>`
-- `<Student 4: Feature 4 on Azure, or the agreed fallback>`
-- `<Student 4: what Michael built for Release 2 and why (contribution explanation)>`
+1. **CRUD (0:08).** Tick one checklist item and save; the version number goes up.
+2. **Workflow (0:30).** In "Evidence readiness review", click "Start another review". While the
+   Planner, Worker and Reviewer lanes fill, say what each one does. Open "Worker evidence", read
+   one drafted question, then make the decision on camera: "Send back once" with a note if the
+   draft misses an unavailable or partial item, otherwise "Approve".
+3. **CI (0:10).** Show run [39547301902](https://github.com/MattShelton04/41026ASDProject/actions/runs/39547301902):
+   `feature-4-quality` green and the "Feature 4 endpoint tests" summary, 10 passed.
+4. **Security and Azure (0:12).** Show Student 4 at 0 open and 0 pending-owner in
+   `docs/release-2/evidence/security/pre-commit-report.md`, then
+   `https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com/features/due-diligence/`
+   (if the VM is down, use the Troubleshooting fallback; never present a local page as Azure).
+
+**Viewer sees:** a saved review change, all four lanes reach "Your turn", a human decision
+recorded under Michael's name, a green `student-4.yml` run, and Feature 4 on the public URL.
+
+> "Feature 4 helps a buyer prepare due diligence on one property. For Release 2 I added an
+> evidence readiness review: the Planner picks two read-only tools, the Worker drafts questions
+> for a professional from the recorded planning and building evidence, the Reviewer runs ten
+> checks, and I decide. The checks are structural, so the human reads the questions. In my
+> recorded run I sent back a draft that passed every check because it missed two conflicting
+> records. I also added endpoint tests for creating a review and reading its evidence, and
+> cleared Feature 4's eight Ruff security findings by replacing asserts and justifying the SQL."
 
 ### 12 Feature 5 (Derek Song, 1:00)
 

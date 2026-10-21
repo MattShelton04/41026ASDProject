@@ -1,0 +1,201 @@
+{
+  "allowed_tools": [
+    "duediligence.review.inspect.v1",
+    "duediligence.evidence.summary.v1"
+  ],
+  "description": null,
+  "feature_id": "student-4-due-diligence",
+  "human_review_guidance": "You are deciding whether these questions are ready to hand to a qualified professional, not whether the property is suitable. Reject any draft that certifies compliance, safety or legal suitability, or gives legal advice, however hedged. Approve only when every critical and high check passed and each question names a recorded evidence record and its state; unavailable and partial-coverage records must come first, because they are the gaps a professional must close. Where the review carries seeded demonstration data, the draft must say so. Use \"correct\" to send the Worker and Reviewer back once with a note, \"partial\" to accept only the steps that hold, and \"reject\" when the draft should not be used.",
+  "id": "f4-evidence-readiness-review",
+  "inputs": [
+    {
+      "description": null,
+      "enum": null,
+      "format": "uuid",
+      "max_length": null,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "site_review_id",
+      "pattern": null,
+      "required": true,
+      "title": "Site review",
+      "type": "string"
+    },
+    {
+      "description": null,
+      "enum": null,
+      "format": null,
+      "max_length": 500,
+      "maximum": null,
+      "min_length": null,
+      "minimum": null,
+      "name": "reviewer_note",
+      "pattern": null,
+      "required": false,
+      "title": "Optional context for the reviewers",
+      "type": "string"
+    }
+  ],
+  "objective": "Decide whether one saved site review has enough planning, environmental, strata and building evidence to hand to a qualified professional, and draft the verification questions they should answer. Prioritise evidence that is unavailable or only partially covered. Where the review's notes show it carries seeded demonstration data, say so in the summary. Do not certify compliance, safety or legal suitability, and do not give legal advice.",
+  "planner_guidance": "Inspect the saved site review first for its address, property reference, status and checklist, then read the evidence summary for its property. Plan only these two read-only steps. Never plan a write, and never plan a step that certifies compliance, safety or legal suitability.",
+  "reviewer_checks": [
+    {
+      "description": "The requested site review was inspected.",
+      "id": "review-inspected",
+      "recommendation": "Check the site review identifier and run the review again.",
+      "rule": {
+        "kind": "step_succeeded",
+        "operator": null,
+        "path": null,
+        "step": "review",
+        "value": null
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The evidence summary for the review's property was read.",
+      "id": "evidence-read",
+      "recommendation": "Without the evidence there is nothing to ground questions in; run it again.",
+      "rule": {
+        "kind": "step_succeeded",
+        "operator": null,
+        "path": null,
+        "step": "evidence",
+        "value": null
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The inspected site review is the one the run was started for.",
+      "id": "review-matches",
+      "recommendation": "Investigate why a different site review was returned before using the draft.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "eq",
+        "path": "site_review.id",
+        "step": "review",
+        "value": "{{input.site_review_id}}"
+      },
+      "severity": "critical"
+    },
+    {
+      "description": "The review resolves to a property address the questions can refer to.",
+      "id": "property-addressed",
+      "recommendation": "Re-select the property so the questions name an address instead of a reference.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "site_review.address_display",
+        "step": "review",
+        "value": null
+      },
+      "severity": "high"
+    },
+    {
+      "description": "At least one planning or environmental constraint record exists.",
+      "id": "planning-evidence-recorded",
+      "recommendation": "Load planning and environmental evidence for the property before drafting questions.",
+      "rule": {
+        "kind": "min_items",
+        "operator": null,
+        "path": "constraints",
+        "step": "evidence",
+        "value": 1
+      },
+      "severity": "high"
+    },
+    {
+      "description": "At least one strata or building record exists.",
+      "id": "building-evidence-recorded",
+      "recommendation": "Load strata and building evidence for the property before drafting questions.",
+      "rule": {
+        "kind": "min_items",
+        "operator": null,
+        "path": "buildings",
+        "step": "evidence",
+        "value": 1
+      },
+      "severity": "high"
+    },
+    {
+      "description": "The planning evidence names the source that recorded it.",
+      "id": "planning-evidence-attributed",
+      "recommendation": "Do not ask a professional to confirm a record with no named source; re-import the evidence.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "constraints.0.source_name",
+        "step": "evidence",
+        "value": null
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The building evidence names the source that recorded it.",
+      "id": "building-evidence-attributed",
+      "recommendation": "Do not ask a professional to confirm a record with no named source; re-import the evidence.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "buildings.0.source_name",
+        "step": "evidence",
+        "value": null
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The site review has not been archived.",
+      "id": "review-active",
+      "recommendation": "Reopen the review, or start a new one, before preparing questions for it.",
+      "rule": {
+        "kind": "field_compare",
+        "operator": "not_in",
+        "path": "site_review.status",
+        "step": "review",
+        "value": [
+          "archived"
+        ]
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The review records at least one checklist item to verify.",
+      "id": "checklist-recorded",
+      "recommendation": "Add the checks the buyer cares about so the questions can follow them.",
+      "rule": {
+        "kind": "min_items",
+        "operator": null,
+        "path": "site_review.checklist",
+        "step": "review",
+        "value": 1
+      },
+      "severity": "low"
+    }
+  ],
+  "schema_version": 1,
+  "steps": [
+    {
+      "arguments": {
+        "site_review_id": "{{input.site_review_id}}"
+      },
+      "id": "review",
+      "purpose": "Collect the address, property reference, status, disposition, checklist and notes.",
+      "required": true,
+      "title": "Inspect the saved site review",
+      "tool": "duediligence.review.inspect.v1"
+    },
+    {
+      "arguments": {
+        "site_review_id": "{{input.site_review_id}}"
+      },
+      "id": "evidence",
+      "purpose": "Collect every planning, environmental, strata and building record for the review's property with its evidence state, source and match confidence.",
+      "required": true,
+      "title": "Read the planning and building evidence",
+      "tool": "duediligence.evidence.summary.v1"
+    }
+  ],
+  "title": "Evidence readiness review",
+  "version": "v1"
+}

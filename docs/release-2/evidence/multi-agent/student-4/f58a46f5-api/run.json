@@ -1,0 +1,1085 @@
+{
+  "available_actions": [],
+  "completed_at": "2026-10-21T04:42:02.705393Z",
+  "created_at": "2026-10-21T04:39:55.294548Z",
+  "decisions": [
+    {
+      "accepted_step_ids": [],
+      "actor": "Michael White",
+      "decided_at": "2026-10-21T04:41:11.923354Z",
+      "decision": "correct",
+      "note": "State in the summary that this review carries seeded demonstration data.",
+      "request_id": "48ca86ab-305a-44ee-ba8f-d13214c94cdb",
+      "resulting_state": "working",
+      "round": 1
+    },
+    {
+      "accepted_step_ids": [],
+      "actor": "Michael White",
+      "decided_at": "2026-10-21T04:42:02.705393Z",
+      "decision": "approve",
+      "note": "Round 2 states the seeded data; questions are ready for a professional.",
+      "request_id": "51057fbf-fe65-49a3-b433-54f87ac2d4d2",
+      "resulting_state": "approved",
+      "round": 2
+    }
+  ],
+  "error": null,
+  "feature_id": "student-4-due-diligence",
+  "id": "f58a46f5-1af0-4be7-a8bb-91b6e1518dca",
+  "input": {
+    "site_review_id": "d4000000-0000-0000-0000-000000000001"
+  },
+  "plan": {
+    "evidence_needed": [
+      "Site review metadata, status, and checklist",
+      "Planning, environmental, strata, and building evidence summary records"
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gemini-3.5-flash-lite",
+      "prompt_hash": "a2e5469ac7219707f115fb2e4251b7523d3f9cad844e59d0dc54e2ffefcfb374",
+      "prompt_id": "planner",
+      "prompt_version": "v1",
+      "provider": "gemini",
+      "role": "planner"
+    },
+    "steps": [
+      {
+        "arguments": {
+          "site_review_id": "d4000000-0000-0000-0000-000000000001"
+        },
+        "expected_evidence": "Site review details including property reference, address, status, disposition, and checklist.",
+        "id": "review",
+        "index": 1,
+        "purpose": "Collect the address, property reference, status, disposition, checklist and notes.",
+        "required": true,
+        "title": "Inspect the saved site review",
+        "tool": "duediligence.review.inspect.v1"
+      },
+      {
+        "arguments": {
+          "site_review_id": "d4000000-0000-0000-0000-000000000001"
+        },
+        "expected_evidence": "Planning, environmental, strata and building records with evidence states, sources and match confidence.",
+        "id": "evidence",
+        "index": 2,
+        "purpose": "Collect every planning, environmental, strata and building record for the review's property with its evidence state, source and match confidence.",
+        "required": true,
+        "title": "Read the planning and building evidence",
+        "tool": "duediligence.evidence.summary.v1"
+      }
+    ],
+    "summary": "This plan inspects the saved site review to retrieve its address, property reference, status, and checklist, then retrieves the planning, environmental, strata, and building evidence summary for the property to evaluate evidence readiness."
+  },
+  "provider_mode": "model",
+  "request_id": "e60fee0f-6c22-4dcd-b9fd-59375bd289d3",
+  "requested_by": "Michael White",
+  "review": {
+    "findings": [
+      {
+        "check_id": "review-inspected",
+        "evidence_ids": [
+          "ev-review-r2"
+        ],
+        "id": "f-review-inspected",
+        "message": "Passed: The requested site review was inspected. (duediligence.review.inspect.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "review"
+        ]
+      },
+      {
+        "check_id": "evidence-read",
+        "evidence_ids": [
+          "ev-evidence-r2"
+        ],
+        "id": "f-evidence-read",
+        "message": "Passed: The evidence summary for the review's property was read. (duediligence.evidence.summary.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      },
+      {
+        "check_id": "review-matches",
+        "evidence_ids": [
+          "ev-review-r2"
+        ],
+        "id": "f-review-matches",
+        "message": "Passed: The inspected site review is the one the run was started for. (site_review.id = 'd4000000-0000-0000-0000-000000000001'; expected eq 'd4000000-0000-0000-0000-000000000001')",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "review"
+        ]
+      },
+      {
+        "check_id": "property-addressed",
+        "evidence_ids": [
+          "ev-review-r2"
+        ],
+        "id": "f-property-addressed",
+        "message": "Passed: The review resolves to a property address the questions can refer to. (site_review.address_display is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "review"
+        ]
+      },
+      {
+        "check_id": "planning-evidence-recorded",
+        "evidence_ids": [
+          "ev-evidence-r2"
+        ],
+        "id": "f-planning-evidence-recorded",
+        "message": "Passed: At least one planning or environmental constraint record exists. (constraints has 7 item(s); at least 1 required)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      },
+      {
+        "check_id": "building-evidence-recorded",
+        "evidence_ids": [
+          "ev-evidence-r2"
+        ],
+        "id": "f-building-evidence-recorded",
+        "message": "Passed: At least one strata or building record exists. (buildings has 5 item(s); at least 1 required)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      },
+      {
+        "check_id": "planning-evidence-attributed",
+        "evidence_ids": [
+          "ev-evidence-r2"
+        ],
+        "id": "f-planning-evidence-attributed",
+        "message": "Passed: The planning evidence names the source that recorded it. (constraints.0.source_name is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      },
+      {
+        "check_id": "building-evidence-attributed",
+        "evidence_ids": [
+          "ev-evidence-r2"
+        ],
+        "id": "f-building-evidence-attributed",
+        "message": "Passed: The building evidence names the source that recorded it. (buildings.0.source_name is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      },
+      {
+        "check_id": "review-active",
+        "evidence_ids": [
+          "ev-review-r2"
+        ],
+        "id": "f-review-active",
+        "message": "Passed: The site review has not been archived. (site_review.status = 'draft'; expected not_in ['archived'])",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "review"
+        ]
+      },
+      {
+        "check_id": "checklist-recorded",
+        "evidence_ids": [
+          "ev-review-r2"
+        ],
+        "id": "f-checklist-recorded",
+        "message": "Passed: The review records at least one checklist item to verify. (site_review.checklist has 3 item(s); at least 1 required)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "review"
+        ]
+      }
+    ],
+    "produced_by": {
+      "fallback": true,
+      "invocations": 2,
+      "model": "deterministic-rules-v1",
+      "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+      "prompt_id": "reviewer",
+      "prompt_version": "v1",
+      "provider": "deterministic",
+      "role": "reviewer"
+    },
+    "recommendation": "approve",
+    "round": 2,
+    "summary": "10 of 10 reviewer check(s) passed. Reviewed after the human correction: State in the summary that this review carries seeded demonstration data."
+  },
+  "round": 2,
+  "stages": [
+    {
+      "completed_at": "2026-10-21T04:39:59.514452Z",
+      "detail": null,
+      "round": 1,
+      "stage": "planner",
+      "started_at": "2026-10-21T04:39:55.294548Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-21T04:40:08.861470Z",
+      "detail": null,
+      "round": 1,
+      "stage": "worker",
+      "started_at": "2026-10-21T04:39:59.514452Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-21T04:40:17.849289Z",
+      "detail": null,
+      "round": 1,
+      "stage": "reviewer",
+      "started_at": "2026-10-21T04:40:08.861470Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-21T04:41:11.923354Z",
+      "detail": "correct",
+      "round": 1,
+      "stage": "human",
+      "started_at": "2026-10-21T04:40:17.849289Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-21T04:41:37.496019Z",
+      "detail": null,
+      "round": 2,
+      "stage": "worker",
+      "started_at": "2026-10-21T04:41:11.923354Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-21T04:41:47.748665Z",
+      "detail": null,
+      "round": 2,
+      "stage": "reviewer",
+      "started_at": "2026-10-21T04:41:37.496019Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-21T04:42:02.705393Z",
+      "detail": "approve",
+      "round": 2,
+      "stage": "human",
+      "started_at": "2026-10-21T04:41:47.748665Z",
+      "status": "completed"
+    }
+  ],
+  "state": "approved",
+  "superseded": [
+    {
+      "review": {
+        "findings": [
+          {
+            "check_id": "review-inspected",
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "id": "f-review-inspected",
+            "message": "Passed: The requested site review was inspected. (duediligence.review.inspect.v1 succeeded)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "review"
+            ]
+          },
+          {
+            "check_id": "evidence-read",
+            "evidence_ids": [
+              "ev-evidence-r1"
+            ],
+            "id": "f-evidence-read",
+            "message": "Passed: The evidence summary for the review's property was read. (duediligence.evidence.summary.v1 succeeded)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "evidence"
+            ]
+          },
+          {
+            "check_id": "review-matches",
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "id": "f-review-matches",
+            "message": "Passed: The inspected site review is the one the run was started for. (site_review.id = 'd4000000-0000-0000-0000-000000000001'; expected eq 'd4000000-0000-0000-0000-000000000001')",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "review"
+            ]
+          },
+          {
+            "check_id": "property-addressed",
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "id": "f-property-addressed",
+            "message": "Passed: The review resolves to a property address the questions can refer to. (site_review.address_display is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "review"
+            ]
+          },
+          {
+            "check_id": "planning-evidence-recorded",
+            "evidence_ids": [
+              "ev-evidence-r1"
+            ],
+            "id": "f-planning-evidence-recorded",
+            "message": "Passed: At least one planning or environmental constraint record exists. (constraints has 7 item(s); at least 1 required)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "evidence"
+            ]
+          },
+          {
+            "check_id": "building-evidence-recorded",
+            "evidence_ids": [
+              "ev-evidence-r1"
+            ],
+            "id": "f-building-evidence-recorded",
+            "message": "Passed: At least one strata or building record exists. (buildings has 5 item(s); at least 1 required)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "evidence"
+            ]
+          },
+          {
+            "check_id": "planning-evidence-attributed",
+            "evidence_ids": [
+              "ev-evidence-r1"
+            ],
+            "id": "f-planning-evidence-attributed",
+            "message": "Passed: The planning evidence names the source that recorded it. (constraints.0.source_name is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "evidence"
+            ]
+          },
+          {
+            "check_id": "building-evidence-attributed",
+            "evidence_ids": [
+              "ev-evidence-r1"
+            ],
+            "id": "f-building-evidence-attributed",
+            "message": "Passed: The building evidence names the source that recorded it. (buildings.0.source_name is present)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "evidence"
+            ]
+          },
+          {
+            "check_id": "review-active",
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "id": "f-review-active",
+            "message": "Passed: The site review has not been archived. (site_review.status = 'draft'; expected not_in ['archived'])",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "review"
+            ]
+          },
+          {
+            "check_id": "checklist-recorded",
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "id": "f-checklist-recorded",
+            "message": "Passed: The review records at least one checklist item to verify. (site_review.checklist has 3 item(s); at least 1 required)",
+            "outcome": "pass",
+            "recommendation": null,
+            "severity": "info",
+            "source": "check",
+            "step_ids": [
+              "review"
+            ]
+          },
+          {
+            "check_id": null,
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "id": "f-model-1",
+            "message": "The worker summary fails to mention that the site review carries seeded demonstration data, as explicitly required by the human review guidance when notes indicate seed records.",
+            "outcome": "fail",
+            "recommendation": "Update the summary to explicitly disclose that the review contains seeded demonstration data ('Seed record 1 - replace with real due-diligence content').",
+            "severity": "medium",
+            "source": "model",
+            "step_ids": [
+              "review"
+            ]
+          }
+        ],
+        "produced_by": {
+          "fallback": false,
+          "invocations": 1,
+          "model": "gemini-3.6-flash",
+          "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+          "prompt_id": "reviewer",
+          "prompt_version": "v1",
+          "provider": "gemini",
+          "role": "reviewer"
+        },
+        "recommendation": "correct",
+        "round": 1,
+        "summary": "The site review inspection and evidence summary completed successfully with all automated checks passing. However, the human review guidance explicitly requires the output to state when a review carries seeded demonstration data (as noted in the site review notes: 'Seed record 1 - replace with real due-diligence content.'), which was omitted from the worker summary."
+      },
+      "round": 1,
+      "worker_output": {
+        "correction_note": null,
+        "evidence": [
+          {
+            "arguments": {
+              "site_review_id": "d4000000-0000-0000-0000-000000000001"
+            },
+            "duration_ms": 31,
+            "error_code": null,
+            "error_message": null,
+            "excerpt": {
+              "site_review": {
+                "address_display": "11 Example Street, Sydney NSW 2000",
+                "ai_run_ref": null,
+                "checklist": [
+                  {
+                    "done": false,
+                    "item": "Confirm zoning permits the intended use"
+                  },
+                  {
+                    "done": false,
+                    "item": "Check flood and bushfire exposure"
+                  },
+                  {
+                    "done": false,
+                    "item": "Review strata and building orders"
+                  }
+                ],
+                "created_at": "2026-09-01T13:05:44.410781+00:00",
+                "disposition": "undecided",
+                "id": "d4000000-0000-0000-0000-000000000001",
+                "notes": "Seed record 1 - replace with real due-diligence content.",
+                "property_ref": "a0000000-0000-0000-0000-000000000001",
+                "status": "draft",
+                "title": "Due-diligence review 1",
+                "updated_at": "2026-09-03T14:04:06.206793+00:00",
+                "verification_questions": [
+                  "[Unavailable / High Priority] What is the full strata scheme registration and management status given that NSW Strata Hub records are unavailable (REF-0011)?",
+                  "[Unavailable / High Priority] What is the official bushfire-prone land mapping status for Vegetation Category 1 from NSW RFS (c4000002-0000-0000-0000-000000000016)?",
+                  "[Unavailable / High Priority] What is the confirmed heritage listing status for the parcel from the NSW Heritage Register (c4000002-0000-0000-0000-000000000012)?",
+                  "[Partial Coverage / High Priority] What specific written undertakings are recorded against the building with NSW Fair Trading (REF-0013)?",
+                  "[Partial Coverage / High Priority] How does the 9.5m maximum building height limit apply across the entire site boundary (c4000002-0000-0000-0000-000000000014)?",
+                  "[Non-Intersection] Are there any unrecorded tribunal matters at NCAT concerning the building (REF-0014)?",
+                  "[Non-Intersection] What is the local council flood mapping assessment for the 1% AEP flood planning area (c4000002-0000-0000-0000-000000000015)?",
+                  "[Confirmed] Can a qualified professional verify the details of building orders/rectification notices with NSW Fair Trading (REF-0012)?",
+                  "[Confirmed] Can a conveyancer confirm the active managing agent details on the registered strata scheme (REF-00001)?",
+                  "[Confirmed] Can a planning consultant verify the R2 Low Density Residential zoning and FSR 0.5:1 development standards (c4000000-0000-0000-0000-000000000001, c4000002-0000-0000-0000-000000000013)?",
+                  "Provide these prioritized verification questions to a qualified conveyancer, town planner, or legal professional for formal review."
+                ],
+                "version": 10
+              }
+            },
+            "excerpt_truncated": false,
+            "id": "ev-review-r1",
+            "outcome": "succeeded",
+            "result_digest": "86dd162bc826b18fc530d154ed1923f249d2e5c99d89cc932bec1dd97e681f53",
+            "step_id": "review",
+            "tool_call_id": "22f4c460-7f20-42ab-b216-a26125f4d33b",
+            "tool_name": "duediligence.review.inspect.v1",
+            "tool_version": "v1",
+            "transport": "mcp"
+          },
+          {
+            "arguments": {
+              "site_review_id": "d4000000-0000-0000-0000-000000000001"
+            },
+            "duration_ms": 16,
+            "error_code": null,
+            "error_message": null,
+            "excerpt": {
+              "buildings": [
+                {
+                  "confidence": 0.94,
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "evidence_state": "confirmed",
+                  "id": "b4000002-0000-0000-0000-000000000012",
+                  "match_method": "address_match",
+                  "observed_on": "2026-02-04",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "record_type": "building_order",
+                  "reference_code": "REF-00012",
+                  "source_name": "NSW Fair Trading",
+                  "source_url": "https://www.nsw.gov.au/",
+                  "summary": "Building orders or rectification notices recorded against the building."
+                },
+                {
+                  "confidence": 0.96,
+                  "created_at": "2026-09-01T13:05:44.410781+00:00",
+                  "evidence_state": "confirmed",
+                  "id": "b4000000-0000-0000-0000-000000000001",
+                  "match_method": "address_match",
+                  "observed_on": "2026-01-08",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "record_type": "strata",
+                  "reference_code": "REF-00001",
+                  "source_name": "NSW Strata Hub",
+                  "source_url": "https://www.nsw.gov.au/",
+                  "summary": "Registered strata scheme with an active managing agent."
+                },
+                {
+                  "confidence": 0.9,
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "evidence_state": "unavailable",
+                  "id": "b4000002-0000-0000-0000-000000000011",
+                  "match_method": "address_match",
+                  "observed_on": "2026-02-04",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "record_type": "strata",
+                  "reference_code": "REF-00011",
+                  "source_name": "NSW Strata Hub",
+                  "source_url": "https://www.nsw.gov.au/",
+                  "summary": "Strata scheme registration and management status."
+                },
+                {
+                  "confidence": 0.86,
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "evidence_state": "non_intersection",
+                  "id": "b4000002-0000-0000-0000-000000000014",
+                  "match_method": "address_match",
+                  "observed_on": "2026-02-04",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "record_type": "tribunal",
+                  "reference_code": "REF-00014",
+                  "source_name": "NCAT",
+                  "source_url": "https://www.ncat.nsw.gov.au/",
+                  "summary": "Tribunal matters concerning the building."
+                },
+                {
+                  "confidence": 0.82,
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "evidence_state": "partial_coverage",
+                  "id": "b4000002-0000-0000-0000-000000000013",
+                  "match_method": "address_match",
+                  "observed_on": "2026-02-04",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "record_type": "undertaking",
+                  "reference_code": "REF-00013",
+                  "source_name": "NSW Fair Trading",
+                  "source_url": "https://www.nsw.gov.au/",
+                  "summary": "Written undertakings recorded against the building."
+                }
+              ],
+              "constraints": [
+                {
+                  "confidence": 0.8,
+                  "constraint_type": "building_height",
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "dataset_release_id": "evidence-release-2026-02",
+                  "evidence_state": "partial_coverage",
+                  "id": "c4000002-0000-0000-0000-000000000014",
+                  "match_method": "property_centroid",
+                  "observed_value": "Maximum 9.5 m",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW Planning Portal",
+                  "source_url": "https://www.planningportal.nsw.gov.au/",
+                  "summary": "Maximum building height development standard."
+                },
+                {
+                  "confidence": 0.88,
+                  "constraint_type": "bushfire",
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "dataset_release_id": "evidence-release-2026-02",
+                  "evidence_state": "unavailable",
+                  "id": "c4000002-0000-0000-0000-000000000016",
+                  "match_method": "property_centroid",
+                  "observed_value": "Vegetation Category 1",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW RFS bushfire prone land",
+                  "source_url": "https://www.rfs.nsw.gov.au/",
+                  "summary": "Bushfire prone land mapping category."
+                },
+                {
+                  "confidence": 0.84,
+                  "constraint_type": "flood",
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "dataset_release_id": "evidence-release-2026-02",
+                  "evidence_state": "non_intersection",
+                  "id": "c4000002-0000-0000-0000-000000000015",
+                  "match_method": "property_centroid",
+                  "observed_value": "1% AEP flood planning area",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW SES and council flood mapping",
+                  "source_url": "https://www.ses.nsw.gov.au/",
+                  "summary": "Flood planning area exposure for the parcel."
+                },
+                {
+                  "confidence": 0.96,
+                  "constraint_type": "floor_space_ratio",
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "dataset_release_id": "evidence-release-2026-02",
+                  "evidence_state": "confirmed",
+                  "id": "c4000002-0000-0000-0000-000000000013",
+                  "match_method": "property_centroid",
+                  "observed_value": "FSR 0.5:1",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW Planning Portal",
+                  "source_url": "https://www.planningportal.nsw.gov.au/",
+                  "summary": "Maximum floor space ratio development standard."
+                },
+                {
+                  "confidence": 0.92,
+                  "constraint_type": "heritage",
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "dataset_release_id": "evidence-release-2026-02",
+                  "evidence_state": "unavailable",
+                  "id": "c4000002-0000-0000-0000-000000000012",
+                  "match_method": "property_centroid",
+                  "observed_value": "Not a listed heritage item",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW Heritage Register",
+                  "source_url": "https://www.hms.heritage.nsw.gov.au/",
+                  "summary": "Heritage listing status recorded for the parcel."
+                },
+                {
+                  "confidence": 0.98,
+                  "constraint_type": "zoning",
+                  "created_at": "2026-09-01T13:05:44.410781+00:00",
+                  "dataset_release_id": "evidence-release-2026-01",
+                  "evidence_state": "confirmed",
+                  "id": "c4000000-0000-0000-0000-000000000001",
+                  "match_method": "property_centroid",
+                  "observed_value": "R2 Low Density Residential",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW Planning Portal",
+                  "source_url": "https://www.planningportal.nsw.gov.au/",
+                  "summary": "Zoned R2 Low Density Residential under the local environmental plan."
+                },
+                {
+                  "confidence": 0.88,
+                  "constraint_type": "zoning",
+                  "created_at": "2026-09-02T12:48:42.757141+00:00",
+                  "dataset_release_id": "evidence-release-2026-02",
+                  "evidence_state": "non_intersection",
+                  "id": "c4000002-0000-0000-0000-000000000011",
+                  "match_method": "property_centroid",
+                  "observed_value": "R2 Low Density Residential",
+                  "property_ref": "a0000000-0000-0000-0000-000000000001",
+                  "source_name": "NSW Planning Portal",
+                  "source_url": "https://www.planningportal.nsw.gov.au/",
+                  "summary": "Land zoning control from the local environmental plan."
+                }
+              ]
+            },
+            "excerpt_truncated": false,
+            "id": "ev-evidence-r1",
+            "outcome": "succeeded",
+            "result_digest": "661d3ce28f8d1a3e153a246be743e9a7249534fb5090546b4929da59401af130",
+            "step_id": "evidence",
+            "tool_call_id": "e4d8e330-8d1f-40d5-9804-9474b66d5921",
+            "tool_name": "duediligence.evidence.summary.v1",
+            "tool_version": "v1",
+            "transport": "mcp"
+          }
+        ],
+        "produced_by": {
+          "fallback": false,
+          "invocations": 1,
+          "model": "gemini-3.6-flash",
+          "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+          "prompt_id": "worker",
+          "prompt_version": "v1",
+          "provider": "gemini",
+          "role": "worker"
+        },
+        "round": 1,
+        "steps": [
+          {
+            "evidence_ids": [
+              "ev-review-r1"
+            ],
+            "findings": [
+              "Site review 'd4000000-0000-0000-0000-000000000001' has address '11 Example Street, Sydney NSW 2000' and status 'draft' with disposition 'undecided'.",
+              "The checklist contains 3 items, all marked as 'done: false'.",
+              "10 verification questions are generated prioritizing unavailable, partial coverage, non-intersection, and confirmed evidence items."
+            ],
+            "status": "completed",
+            "step_id": "review"
+          },
+          {
+            "evidence_ids": [
+              "ev-evidence-r1"
+            ],
+            "findings": [
+              "Zoning 'R2 Low Density Residential' (c4000000-0000-0000-0000-000000000001) and FSR 'FSR 0.5:1' (c4000002-0000-0000-0000-000000000013) are 'confirmed' with confidence 0.98 and 0.96.",
+              "Building orders (REF-00012) and active managing agent status (REF-00001) are 'confirmed' with confidence 0.94 and 0.96.",
+              "Bushfire mapping (c4000002-0000-0000-0000-000000000016), heritage status (c4000002-0000-0000-0000-000000000012), and strata status (b4000002-0000-0000-0000-000000000011) are marked 'unavailable'.",
+              "Maximum building height 9.5m (c4000002-0000-0000-0000-000000000014) and written undertakings (b4000002-0000-0000-0000-000000000013) are marked 'partial_coverage'."
+            ],
+            "status": "completed",
+            "step_id": "evidence"
+          }
+        ],
+        "summary": "The site review for '11 Example Street, Sydney NSW 2000' (ID: d4000000-0000-0000-0000-000000000001) is currently in 'draft' status with an 'undecided' disposition. Evidence gathered shows confirmed R2 Low Density Residential zoning, FSR 0.5:1, and an active strata managing agent, but also highlights unavailable items (NSW Strata Hub status, bushfire category, heritage listing) and partial coverage items (written undertakings, 9.5m building height limit)."
+      }
+    }
+  ],
+  "template_id": "f4-evidence-readiness-review",
+  "template_version": "v1",
+  "updated_at": "2026-10-21T04:42:02.705393Z",
+  "worker_output": {
+    "correction_note": "State in the summary that this review carries seeded demonstration data.",
+    "evidence": [
+      {
+        "arguments": {
+          "site_review_id": "d4000000-0000-0000-0000-000000000001"
+        },
+        "duration_ms": 15,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "site_review": {
+            "address_display": "11 Example Street, Sydney NSW 2000",
+            "ai_run_ref": null,
+            "checklist": [
+              {
+                "done": false,
+                "item": "Confirm zoning permits the intended use"
+              },
+              {
+                "done": false,
+                "item": "Check flood and bushfire exposure"
+              },
+              {
+                "done": false,
+                "item": "Review strata and building orders"
+              }
+            ],
+            "created_at": "2026-09-01T13:05:44.410781+00:00",
+            "disposition": "undecided",
+            "id": "d4000000-0000-0000-0000-000000000001",
+            "notes": "Seed record 1 - replace with real due-diligence content.",
+            "property_ref": "a0000000-0000-0000-0000-000000000001",
+            "status": "draft",
+            "title": "Due-diligence review 1",
+            "updated_at": "2026-09-03T14:04:06.206793+00:00",
+            "verification_questions": [
+              "[Unavailable / High Priority] What is the full strata scheme registration and management status given that NSW Strata Hub records are unavailable (REF-0011)?",
+              "[Unavailable / High Priority] What is the official bushfire-prone land mapping status for Vegetation Category 1 from NSW RFS (c4000002-0000-0000-0000-000000000016)?",
+              "[Unavailable / High Priority] What is the confirmed heritage listing status for the parcel from the NSW Heritage Register (c4000002-0000-0000-0000-000000000012)?",
+              "[Partial Coverage / High Priority] What specific written undertakings are recorded against the building with NSW Fair Trading (REF-0013)?",
+              "[Partial Coverage / High Priority] How does the 9.5m maximum building height limit apply across the entire site boundary (c4000002-0000-0000-0000-000000000014)?",
+              "[Non-Intersection] Are there any unrecorded tribunal matters at NCAT concerning the building (REF-0014)?",
+              "[Non-Intersection] What is the local council flood mapping assessment for the 1% AEP flood planning area (c4000002-0000-0000-0000-000000000015)?",
+              "[Confirmed] Can a qualified professional verify the details of building orders/rectification notices with NSW Fair Trading (REF-0012)?",
+              "[Confirmed] Can a conveyancer confirm the active managing agent details on the registered strata scheme (REF-00001)?",
+              "[Confirmed] Can a planning consultant verify the R2 Low Density Residential zoning and FSR 0.5:1 development standards (c4000000-0000-0000-0000-000000000001, c4000002-0000-0000-0000-000000000013)?",
+              "Provide these prioritized verification questions to a qualified conveyancer, town planner, or legal professional for formal review."
+            ],
+            "version": 10
+          }
+        },
+        "excerpt_truncated": false,
+        "id": "ev-review-r2",
+        "outcome": "succeeded",
+        "result_digest": "86dd162bc826b18fc530d154ed1923f249d2e5c99d89cc932bec1dd97e681f53",
+        "step_id": "review",
+        "tool_call_id": "0adf3d01-e1c4-4f94-9159-24830290554f",
+        "tool_name": "duediligence.review.inspect.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      },
+      {
+        "arguments": {
+          "site_review_id": "d4000000-0000-0000-0000-000000000001"
+        },
+        "duration_ms": 16,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "buildings": [
+            {
+              "confidence": 0.94,
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "evidence_state": "confirmed",
+              "id": "b4000002-0000-0000-0000-000000000012",
+              "match_method": "address_match",
+              "observed_on": "2026-02-04",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "record_type": "building_order",
+              "reference_code": "REF-00012",
+              "source_name": "NSW Fair Trading",
+              "source_url": "https://www.nsw.gov.au/",
+              "summary": "Building orders or rectification notices recorded against the building."
+            },
+            {
+              "confidence": 0.96,
+              "created_at": "2026-09-01T13:05:44.410781+00:00",
+              "evidence_state": "confirmed",
+              "id": "b4000000-0000-0000-0000-000000000001",
+              "match_method": "address_match",
+              "observed_on": "2026-01-08",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "record_type": "strata",
+              "reference_code": "REF-00001",
+              "source_name": "NSW Strata Hub",
+              "source_url": "https://www.nsw.gov.au/",
+              "summary": "Registered strata scheme with an active managing agent."
+            },
+            {
+              "confidence": 0.9,
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "evidence_state": "unavailable",
+              "id": "b4000002-0000-0000-0000-000000000011",
+              "match_method": "address_match",
+              "observed_on": "2026-02-04",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "record_type": "strata",
+              "reference_code": "REF-00011",
+              "source_name": "NSW Strata Hub",
+              "source_url": "https://www.nsw.gov.au/",
+              "summary": "Strata scheme registration and management status."
+            },
+            {
+              "confidence": 0.86,
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "evidence_state": "non_intersection",
+              "id": "b4000002-0000-0000-0000-000000000014",
+              "match_method": "address_match",
+              "observed_on": "2026-02-04",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "record_type": "tribunal",
+              "reference_code": "REF-00014",
+              "source_name": "NCAT",
+              "source_url": "https://www.ncat.nsw.gov.au/",
+              "summary": "Tribunal matters concerning the building."
+            },
+            {
+              "confidence": 0.82,
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "evidence_state": "partial_coverage",
+              "id": "b4000002-0000-0000-0000-000000000013",
+              "match_method": "address_match",
+              "observed_on": "2026-02-04",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "record_type": "undertaking",
+              "reference_code": "REF-00013",
+              "source_name": "NSW Fair Trading",
+              "source_url": "https://www.nsw.gov.au/",
+              "summary": "Written undertakings recorded against the building."
+            }
+          ],
+          "constraints": [
+            {
+              "confidence": 0.8,
+              "constraint_type": "building_height",
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "dataset_release_id": "evidence-release-2026-02",
+              "evidence_state": "partial_coverage",
+              "id": "c4000002-0000-0000-0000-000000000014",
+              "match_method": "property_centroid",
+              "observed_value": "Maximum 9.5 m",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW Planning Portal",
+              "source_url": "https://www.planningportal.nsw.gov.au/",
+              "summary": "Maximum building height development standard."
+            },
+            {
+              "confidence": 0.88,
+              "constraint_type": "bushfire",
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "dataset_release_id": "evidence-release-2026-02",
+              "evidence_state": "unavailable",
+              "id": "c4000002-0000-0000-0000-000000000016",
+              "match_method": "property_centroid",
+              "observed_value": "Vegetation Category 1",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW RFS bushfire prone land",
+              "source_url": "https://www.rfs.nsw.gov.au/",
+              "summary": "Bushfire prone land mapping category."
+            },
+            {
+              "confidence": 0.84,
+              "constraint_type": "flood",
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "dataset_release_id": "evidence-release-2026-02",
+              "evidence_state": "non_intersection",
+              "id": "c4000002-0000-0000-0000-000000000015",
+              "match_method": "property_centroid",
+              "observed_value": "1% AEP flood planning area",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW SES and council flood mapping",
+              "source_url": "https://www.ses.nsw.gov.au/",
+              "summary": "Flood planning area exposure for the parcel."
+            },
+            {
+              "confidence": 0.96,
+              "constraint_type": "floor_space_ratio",
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "dataset_release_id": "evidence-release-2026-02",
+              "evidence_state": "confirmed",
+              "id": "c4000002-0000-0000-0000-000000000013",
+              "match_method": "property_centroid",
+              "observed_value": "FSR 0.5:1",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW Planning Portal",
+              "source_url": "https://www.planningportal.nsw.gov.au/",
+              "summary": "Maximum floor space ratio development standard."
+            },
+            {
+              "confidence": 0.92,
+              "constraint_type": "heritage",
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "dataset_release_id": "evidence-release-2026-02",
+              "evidence_state": "unavailable",
+              "id": "c4000002-0000-0000-0000-000000000012",
+              "match_method": "property_centroid",
+              "observed_value": "Not a listed heritage item",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW Heritage Register",
+              "source_url": "https://www.hms.heritage.nsw.gov.au/",
+              "summary": "Heritage listing status recorded for the parcel."
+            },
+            {
+              "confidence": 0.98,
+              "constraint_type": "zoning",
+              "created_at": "2026-09-01T13:05:44.410781+00:00",
+              "dataset_release_id": "evidence-release-2026-01",
+              "evidence_state": "confirmed",
+              "id": "c4000000-0000-0000-0000-000000000001",
+              "match_method": "property_centroid",
+              "observed_value": "R2 Low Density Residential",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW Planning Portal",
+              "source_url": "https://www.planningportal.nsw.gov.au/",
+              "summary": "Zoned R2 Low Density Residential under the local environmental plan."
+            },
+            {
+              "confidence": 0.88,
+              "constraint_type": "zoning",
+              "created_at": "2026-09-02T12:48:42.757141+00:00",
+              "dataset_release_id": "evidence-release-2026-02",
+              "evidence_state": "non_intersection",
+              "id": "c4000002-0000-0000-0000-000000000011",
+              "match_method": "property_centroid",
+              "observed_value": "R2 Low Density Residential",
+              "property_ref": "a0000000-0000-0000-0000-000000000001",
+              "source_name": "NSW Planning Portal",
+              "source_url": "https://www.planningportal.nsw.gov.au/",
+              "summary": "Land zoning control from the local environmental plan."
+            }
+          ]
+        },
+        "excerpt_truncated": false,
+        "id": "ev-evidence-r2",
+        "outcome": "succeeded",
+        "result_digest": "661d3ce28f8d1a3e153a246be743e9a7249534fb5090546b4929da59401af130",
+        "step_id": "evidence",
+        "tool_call_id": "08715933-a83f-4898-8174-b03f982d0a64",
+        "tool_name": "duediligence.evidence.summary.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 2,
+      "model": "gemini-3.6-flash",
+      "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+      "prompt_id": "worker",
+      "prompt_version": "v1",
+      "provider": "gemini",
+      "role": "worker"
+    },
+    "round": 2,
+    "steps": [
+      {
+        "evidence_ids": [
+          "ev-review-r2"
+        ],
+        "findings": [
+          "Site review d4000000-0000-0000-0000-000000000001 is titled \"Due-diligence review 1\" for address \"11 Example Street, Sydney NSW 2000\".",
+          "The review status is \"draft\", disposition is \"undecided\", and version is 10.",
+          "Review notes state: \"Seed record 1 - replace with real due-diligence content.\"",
+          "The checklist contains 3 items, all marked with done: false."
+        ],
+        "status": "completed",
+        "step_id": "review"
+      },
+      {
+        "evidence_ids": [
+          "ev-evidence-r2"
+        ],
+        "findings": [
+          "Collected 5 building records, including confirmed records REF-00012 (building_order) and REF-00001 (strata), unavailable record REF-00011, partial_coverage record REF-00013, and non_intersection record REF-00014.",
+          "Collected 7 planning constraint records, including confirmed zoning R2 Low Density Residential (c4000000-0000-0000-0000-000000000001) and FSR 0.5:1 (c4000002-0000-0000-0000-000000000013).",
+          "Constraint records identified unavailable states for heritage listing status (c4000002-0000-0000-0000-000000000012) and bushfire prone land mapping Category 1 (c4000002-0000-0000-0000-000000000016).",
+          "Constraint record c4000002-0000-0000-0000-000000000014 for maximum building height (Maximum 9.5 m) has an evidence state of partial_coverage."
+        ],
+        "status": "completed",
+        "step_id": "evidence"
+      }
+    ],
+    "summary": "The site review for 11 Example Street, Sydney NSW 2000 (ID d4000000-0000-0000-0000-000000000001) is currently in status \"draft\" with disposition \"undecided\". This review carries seeded demonstration data, as noted in the record's notes (\"Seed record 1 - replace with real due-diligence content.\"). The associated planning and building evidence includes 5 building records and 7 constraint records across various evidence states including confirmed, partial_coverage, unavailable, and non_intersection."
+  }
+}
