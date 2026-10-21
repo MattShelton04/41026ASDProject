@@ -1,0 +1,130 @@
+# Feature 4 multi-agent workflow: evidence readiness review (Release 2, F-2).
+#
+# The Planner chooses which records to read, the Worker drafts professional-verification
+# questions for one saved site review using the two read-only Feature 4 tools, the Reviewer
+# checks that the draft is grounded in the recorded evidence, and a human accepts, corrects,
+# partially accepts or rejects it.
+#
+# The review prepares questions for a qualified professional. It never certifies compliance,
+# safety or legal suitability: duediligence.evidence.summary.v1 says so in its own contract, and
+# the reviewer checks and human guidance below repeat it because the draft is prose a buyer may
+# act on. Accepted questions are not written back to the site review; saving questions stays a
+# separate action on the review page.
+#
+# Review scoping carries over from Release 1: both steps read the one review the run was started
+# for, and the proxy refuses a run belonging to another feature or template.
+schema_version: 1
+id: f4-evidence-readiness-review
+version: v1
+feature_id: student-4-due-diligence
+title: Evidence readiness review
+objective: >-
+  Decide whether one saved site review has enough planning, environmental, strata and building
+  evidence to hand to a qualified professional, and draft the verification questions they should
+  answer. Prioritise evidence that is unavailable or only partially covered. Where the review's
+  notes show it carries seeded demonstration data, say so in the summary. Do not certify
+  compliance, safety or legal suitability, and do not give legal advice.
+inputs:
+  - name: site_review_id
+    type: string
+    title: Site review
+    format: uuid
+  - name: reviewer_note
+    title: Optional context for the reviewers
+    required: false
+    max_length: 500
+planner_guidance: >-
+  Inspect the saved site review first for its address, property reference, status and checklist,
+  then read the evidence summary for its property. Plan only these two read-only steps. Never plan
+  a write, and never plan a step that certifies compliance, safety or legal suitability.
+allowed_tools:
+  - duediligence.review.inspect.v1
+  - duediligence.evidence.summary.v1
+steps:
+  - id: review
+    title: Inspect the saved site review
+    purpose: Collect the address, property reference, status, disposition, checklist and notes.
+    tool: duediligence.review.inspect.v1
+    arguments:
+      site_review_id: "{{input.site_review_id}}"
+  - id: evidence
+    title: Read the planning and building evidence
+    purpose: >-
+      Collect every planning, environmental, strata and building record for the review's
+      property with its evidence state, source and match confidence.
+    tool: duediligence.evidence.summary.v1
+    arguments:
+      site_review_id: "{{input.site_review_id}}"
+reviewer_checks:
+  - id: review-inspected
+    description: The requested site review was inspected.
+    severity: critical
+    recommendation: Check the site review identifier and run the review again.
+    rule: {kind: step_succeeded, step: review}
+  - id: evidence-read
+    description: The evidence summary for the review's property was read.
+    severity: critical
+    recommendation: Without the evidence there is nothing to ground questions in; run it again.
+    rule: {kind: step_succeeded, step: evidence}
+  - id: review-matches
+    description: The inspected site review is the one the run was started for.
+    severity: critical
+    recommendation: Investigate why a different site review was returned before using the draft.
+    rule:
+      kind: field_compare
+      step: review
+      path: site_review.id
+      operator: eq
+      value: "{{input.site_review_id}}"
+  - id: property-addressed
+    description: The review resolves to a property address the questions can refer to.
+    severity: high
+    recommendation: Re-select the property so the questions name an address instead of a reference.
+    rule: {kind: field_present, step: review, path: site_review.address_display}
+  - id: planning-evidence-recorded
+    description: At least one planning or environmental constraint record exists.
+    severity: high
+    recommendation: >-
+      Load planning and environmental evidence for the property before drafting questions.
+    rule: {kind: min_items, step: evidence, path: constraints, value: 1}
+  - id: building-evidence-recorded
+    description: At least one strata or building record exists.
+    severity: high
+    recommendation: Load strata and building evidence for the property before drafting questions.
+    rule: {kind: min_items, step: evidence, path: buildings, value: 1}
+  - id: planning-evidence-attributed
+    description: The planning evidence names the source that recorded it.
+    severity: medium
+    recommendation: >-
+      Do not ask a professional to confirm a record with no named source; re-import the evidence.
+    rule: {kind: field_present, step: evidence, path: constraints.0.source_name}
+  - id: building-evidence-attributed
+    description: The building evidence names the source that recorded it.
+    severity: medium
+    recommendation: >-
+      Do not ask a professional to confirm a record with no named source; re-import the evidence.
+    rule: {kind: field_present, step: evidence, path: buildings.0.source_name}
+  - id: review-active
+    description: The site review has not been archived.
+    severity: medium
+    recommendation: Reopen the review, or start a new one, before preparing questions for it.
+    rule:
+      kind: field_compare
+      step: review
+      path: site_review.status
+      operator: not_in
+      value: [archived]
+  - id: checklist-recorded
+    description: The review records at least one checklist item to verify.
+    severity: low
+    recommendation: Add the checks the buyer cares about so the questions can follow them.
+    rule: {kind: min_items, step: review, path: site_review.checklist, value: 1}
+human_review_guidance: >-
+  You are deciding whether these questions are ready to hand to a qualified professional, not
+  whether the property is suitable. Reject any draft that certifies compliance, safety or legal
+  suitability, or gives legal advice, however hedged. Approve only when every critical and high
+  check passed and each question names a recorded evidence record and its state; unavailable and
+  partial-coverage records must come first, because they are the gaps a professional must close.
+  Where the review carries seeded demonstration data, the draft must say so. Use "correct" to send
+  the Worker and Reviewer back once with a note, "partial" to accept only the steps that hold, and
+  "reject" when the draft should not be used.

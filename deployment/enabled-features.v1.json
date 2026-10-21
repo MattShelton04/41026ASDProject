@@ -220,7 +220,8 @@
           "propertyscope_due_diligence_store"
         ],
         "node_test_files": [
-          "student-4/tests/frontend/core.test.mjs"
+          "student-4/tests/frontend/core.test.mjs",
+          "student-4/tests/frontend/evidence-review.test.mjs"
         ],
         "python_test_paths": [
           "student-4/tests"

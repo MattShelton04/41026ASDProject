@@ -126,8 +126,10 @@ export function toggleChecklist(checklist, index, done) {
 }
 
 // Extract a clean question / verification-point list from an AI-mode final_result (pure).
-// Prefers an explicit `questions` array; otherwise uses the default.v7 `findings` list
-// (plus the recommended next step); otherwise pulls question-like lines from the text.
+// Prefers an explicit `questions` array; otherwise uses the `findings` list - plain strings
+// (default.v7) or grounded finding objects with a `text` field (grounded-answer.v1) - plus the
+// recommended next step (`recommended_next_step` or `next_step`); otherwise pulls question-like
+// lines from the text.
 export function extractQuestions(finalResult) {
   if (!finalResult || typeof finalResult !== "object") return [];
   if (Array.isArray(finalResult.questions)) {
@@ -139,11 +141,13 @@ export function extractQuestions(finalResult) {
   }
   if (Array.isArray(finalResult.findings)) {
     const points = finalResult.findings
+      .map((f) => (typeof f === "string" ? f : f && f.text))
       .filter((f) => typeof f === "string" && f.trim())
       .map((f) => f.trim());
-    if (typeof finalResult.recommended_next_step === "string" && finalResult.recommended_next_step.trim()) {
-      points.push(finalResult.recommended_next_step.trim());
-    }
+    const nextStep = [finalResult.recommended_next_step, finalResult.next_step].find(
+      (value) => typeof value === "string" && value.trim(),
+    );
+    if (nextStep) points.push(nextStep.trim());
     if (points.length) return points;
   }
   const text = [finalResult.summary, finalResult.answer]

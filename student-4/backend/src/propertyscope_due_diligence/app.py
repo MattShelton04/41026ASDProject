@@ -16,14 +16,17 @@ from propertyscope_due_diligence.clients import (
     AiModeClient,
     DueDiligenceStoreClient,
     Feature1Client,
+    MultiAgentClient,
 )
 
 
-def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) -> Flask:
+def create_app(
+    *, store: Any = None, feature1: Any = None, ai_mode: Any = None, multi_agent: Any = None
+) -> Flask:
     """Create the credential-free due-diligence backend.
 
-    Tests inject fake ``store``, ``feature1`` and ``ai_mode`` clients; the container
-    constructs real HTTP clients from the environment.
+    Tests inject fake ``store``, ``feature1``, ``ai_mode`` and ``multi_agent`` clients; the
+    container constructs real HTTP clients from the environment.
     """
     if store is None:  # pragma: no cover - constructs a real network client
         store = DueDiligenceStoreClient(
@@ -39,11 +42,17 @@ def create_app(*, store: Any = None, feature1: Any = None, ai_mode: Any = None) 
             os.environ.get("AI_MODE_BASE_URL", "http://shared-ai-mode:5005"),
             service_token=os.environ.get("AI_MODE_SERVICE_TOKEN", ""),
         )
+    if multi_agent is None:  # pragma: no cover - constructs a real network client
+        # The Multi-Agent Server runs on the host; an empty token disables the review routes.
+        multi_agent = MultiAgentClient(
+            os.environ.get("MULTI_AGENT_BASE_URL", "http://host.docker.internal:5013"),
+            service_token=os.environ.get("MULTI_AGENT_SERVICE_TOKEN", ""),
+        )
     app = Flask("propertyscope-due-diligence")
     app.config["MAX_CONTENT_LENGTH"] = int(
         os.environ.get("PROPERTYSCOPE_MAX_REQUEST_BYTES", "262144")
     )
     register_health(app, store)
-    app.register_blueprint(create_blueprint(store, feature1, ai_mode))
+    app.register_blueprint(create_blueprint(store, feature1, ai_mode, multi_agent))
     register_error_handlers(app)
     return app

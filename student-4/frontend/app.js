@@ -1,5 +1,10 @@
 import { el, requestJsonResponse, createLatestTask, pollUntilSettled } from "./browser/index.js";
 import { createFeatureAssistant } from "./ai-chat/index.js";
+import {
+  evidenceReviewEnabled,
+  mountEvidenceReview,
+  resumableEvidenceReview,
+} from "./integration/evidence-review.js";
 
 // Student 4 - Site, Planning & Building Due Diligence frontend.
 // Dependency-free ES module with a tiny hash router (#site-reviews list,
@@ -14,8 +19,12 @@ async function requestResponse(path, options = {}) {
 const routeTask = createLatestTask();
 const questionTask = createLatestTask();
 const propertySearchTask = createLatestTask();
+const evidenceReviewTask = createLatestTask();
 let activeMap = null;
 let activeAssistant = null;
+let activeEvidenceReview = null;
+// Asked once per page load: whether the host Multi-Agent Server can run a review at all.
+let evidenceReviewAvailability = null;
 
 export const API_BASE = "/api/due-diligence/v1";
 
@@ -514,9 +523,83 @@ async function renderDetailView(view, id, task) {
   if (review.notes) stack.append(notesCard(review.notes));
   view.append(stack, questionsCard(review));
 
+  const evidenceReviewRoot = el("div", "evidence-review-root");
+  view.append(evidenceReviewSection(evidenceReviewRoot));
+  mountReviewWorkflow(evidenceReviewRoot, review);
+
   const assistantRoot = el("div", "review-assistant");
   view.append(assistantSection(assistantRoot));
   mountReviewAssistant(assistantRoot, review);
+}
+
+async function apiJson(path, { signal } = {}) {
+  const response = await requestResponse(`${API_BASE}${path}`, { signal });
+  const body = await response.json();
+  if (!response.ok) {
+    const error = new Error((body && body.detail) || `Unexpected status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return body;
+}
+
+function evidenceReviewSection(root) {
+  const card = el("article", "ps-card evidence-review-card");
+  const body = el("div", "ps-card__body");
+  body.append(el("p", "ps-eyebrow", "Multi-agent workflow"));
+  body.append(el("h2", "card-title", "Evidence readiness review"));
+  body.append(
+    el(
+      "p",
+      "questions-help",
+      "A Planner, a Worker and a Reviewer check whether this review\u2019s evidence is ready to "
+        + "hand to a qualified professional and draft the questions to ask, then you approve, "
+        + "correct or reject the result. It never changes the saved review.",
+    ),
+  );
+  body.append(root);
+  card.append(body);
+  return card;
+}
+
+async function mountReviewWorkflow(root, review) {
+  const task = evidenceReviewTask.start();
+  activeEvidenceReview?.destroy();
+  activeEvidenceReview = null;
+  root.replaceChildren(el("p", "empty", "Checking whether multi-agent reviews are available\u2026"));
+  try {
+    evidenceReviewAvailability ??= evidenceReviewEnabled({ request: (path) => apiJson(path) });
+    const enabled = await evidenceReviewAvailability;
+    if (!task.isCurrent() || !root.isConnected) return;
+    if (!enabled) {
+      root.replaceChildren(
+        el(
+          "p",
+          "empty",
+          "Multi-agent evidence reviews are not available in this deployment. "
+            + "The review, its evidence and its saved questions are unaffected.",
+        ),
+      );
+      return;
+    }
+    activeEvidenceReview = mountEvidenceReview({
+      root,
+      siteReviewId: review.id,
+      reviewLabel: review.address_display || review.title || "",
+      announce: (message) => showToast(message),
+    });
+    const runId = await resumableEvidenceReview(review.id, {
+      request: (path) => apiJson(path, { signal: task.signal }),
+    });
+    // The reader may have left, or started a review of their own, while the run was checked.
+    if (runId && task.isCurrent() && activeEvidenceReview && !activeEvidenceReview.run) {
+      activeEvidenceReview.open(runId);
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError" && task.isCurrent()) {
+      root.replaceChildren(el("p", "empty", "The evidence readiness review could not be loaded."));
+    }
+  }
 }
 
 function assistantSection(root) {
@@ -858,6 +941,9 @@ async function route(options) {
   activeMap = null;
   activeAssistant?.destroy();
   activeAssistant = null;
+  evidenceReviewTask.cancel();
+  activeEvidenceReview?.destroy();
+  activeEvidenceReview = null;
   const view = document.querySelector("#view");
   if (!view) return;
   const parsed = parseRoute(location.hash);
@@ -884,7 +970,7 @@ function initialise() {
     });
   }
   window.addEventListener("hashchange", () => route({ focus: true }));
-  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); activeAssistant?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
+  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); activeAssistant?.destroy(); evidenceReviewTask.cancel(); activeEvidenceReview?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
 
   const dialog = document.querySelector("#review-dialog");
   if (dialog) {

@@ -29,6 +29,7 @@ onboarding:
       - student-4/tests
     node_test_files:
       - student-4/tests/frontend/core.test.mjs
+      - student-4/tests/frontend/evidence-review.test.mjs
     coverage_packages:
       - propertyscope_due_diligence
       - propertyscope_due_diligence_store
