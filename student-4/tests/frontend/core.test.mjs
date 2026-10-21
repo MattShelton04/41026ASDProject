@@ -186,6 +186,25 @@ test("extractQuestions uses default.v7 findings plus the recommended next step",
   ]);
 });
 
+test("extractQuestions keeps grounded finding objects and the next step", () => {
+  // grounded-answer.v1: findings are claim objects, and the next step is `next_step`.
+  const result = {
+    summary: "Two evidence gaps need professional confirmation.",
+    findings: [
+      { text: "Ask a planner to confirm the unavailable heritage listing.", kind: "tool_fact", tool_call_ids: ["c1"] },
+      { text: "Ask a conveyancer about the partial undertaking record.", kind: "guidance", citation_ids: ["g1"] },
+      { kind: "tool_fact" },
+      "  ",
+    ],
+    next_step: "Send these questions to a qualified professional.",
+  };
+  assert.deepEqual(extractQuestions(result), [
+    "Ask a planner to confirm the unavailable heritage listing.",
+    "Ask a conveyancer about the partial undertaking record.",
+    "Send these questions to a qualified professional.",
+  ]);
+});
+
 test("extractQuestions falls back to question-like lines in text", () => {
   const result = {
     summary: "1. Confirm the zoning permits your use?\n- Is the property flood affected?\nNot a question.",
