@@ -1,0 +1,66 @@
+feature-4-quality	Run Feature 4 endpoint tests	﻿2026-10-21T05:03:45.4243922Z ##[group]Run uv run --locked pytest student-4/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-4-endpoints.xml
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4244936Z ^[[36;1muv run --locked pytest student-4/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-4-endpoints.xml^[[0m
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4312291Z shell: /usr/bin/bash -e {0}
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4312570Z env:
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4312799Z   AI_MODE_MCP_ENABLED: false
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4313084Z   AI_MODE_RAG_ENABLED: false
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4313429Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4313795Z   UV_PYTHON: 3.12
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4314070Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4314483Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5400
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4314903Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:45.4315221Z ##[endgroup]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5038866Z ..........                                                               [100%]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5039870Z ==================================== PASSES ====================================
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5041079Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-4-endpoints.xml -
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5042517Z =========================== short test summary info ============================
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5043883Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_create_site_review_persists_a_draft_that_can_be_read_and_deleted
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5045610Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_invalid_site_review_is_rejected_and_not_persisted[missing-title]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5047316Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_invalid_site_review_is_rejected_and_not_persisted[blank-ref]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5049047Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_invalid_site_review_is_rejected_and_not_persisted[unknown-status]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5050835Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_invalid_site_review_is_rejected_and_not_persisted[unknown-disposition]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5052774Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_invalid_site_review_is_rejected_and_not_persisted[checklist-not-array]
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5054226Z PASSED student-4/tests/endpoints/test_create_site_review_endpoint.py::test_non_json_body_is_rejected
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5055570Z PASSED student-4/tests/endpoints/test_site_review_evidence_endpoint.py::test_seeded_review_returns_its_property_evidence
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5056981Z PASSED student-4/tests/endpoints/test_site_review_evidence_endpoint.py::test_unknown_review_evidence_is_not_found
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5058820Z PASSED student-4/tests/endpoints/test_site_review_evidence_endpoint.py::test_deleted_review_evidence_is_not_found
+feature-4-quality	Run Feature 4 endpoint tests	2026-10-21T05:03:46.5059644Z 10 passed in 0.34s
+feature-4-quality	Publish endpoint test summary	﻿2026-10-21T05:03:46.6601178Z ##[group]Run uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-4-endpoints.xml --title "Feature 4 endpoint tests" --output endpoint-results/student-4-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6603094Z ^[[36;1muv run --locked python -m shared_testkit.junit_summary endpoint-results/student-4-endpoints.xml --title "Feature 4 endpoint tests" --output endpoint-results/student-4-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"^[[0m
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6671057Z shell: /usr/bin/bash -e {0}
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6671329Z env:
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6671770Z   AI_MODE_MCP_ENABLED: false
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6672036Z   AI_MODE_RAG_ENABLED: false
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6672351Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6672714Z   UV_PYTHON: 3.12
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6672990Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-4-quality	Publish endpoint test summary	2026-10-21T05:03:46.6673300Z ##[endgroup]
+feature-4-quality	Upload endpoint test results	﻿2026-10-21T05:03:47.2102697Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2103127Z with:
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2103354Z   name: student-4-endpoint-tests
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2103642Z   path: endpoint-results/
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2103897Z   if-no-files-found: error
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2104138Z   retention-days: 30
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2104366Z   compression-level: 6
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2104602Z   overwrite: false
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2104832Z   include-hidden-files: false
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2105083Z   archive: true
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2105290Z env:
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2105497Z   AI_MODE_MCP_ENABLED: false
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2105754Z   AI_MODE_RAG_ENABLED: false
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2106069Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2106428Z   UV_PYTHON: 3.12
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2106691Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.2107003Z ##[endgroup]
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.3581201Z With the provided path, there will be 2 files uploaded
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.3586277Z Artifact name is valid!
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.3586786Z Root directory input is valid!
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.5990126Z Uploading artifact: student-4-endpoint-tests.zip
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.6026012Z Beginning upload of artifact content to blob storage
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.7583117Z Uploaded bytes 1115
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.7945273Z Finished uploading artifact content to blob storage!
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.7946447Z SHA256 digest of uploaded artifact is 1cc5401c6bdea00f75f6151297a65eb88a3b3209c025370009ca741205499a8f
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:47.7947012Z Finalizing artifact upload
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:48.0460338Z Artifact student-4-endpoint-tests successfully finalized. Artifact ID 12322491478
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:48.0461967Z Artifact student-4-endpoint-tests has been successfully uploaded! Final size is 1115 bytes. Artifact ID is 12322491478
+feature-4-quality	Upload endpoint test results	2026-10-21T05:03:48.0493052Z Artifact download URL: https://github.com/MattShelton04/41026ASDProject/actions/runs/39547301902/artifacts/12322491478
