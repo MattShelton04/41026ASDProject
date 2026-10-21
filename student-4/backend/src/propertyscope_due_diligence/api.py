@@ -14,6 +14,7 @@ from typing import Any
 from flask import Blueprint, Flask, Response, jsonify, request
 
 from propertyscope_due_diligence.clients import DependencyUnavailableError
+from propertyscope_due_diligence.evidence_review_routes import register_evidence_review_routes
 from propertyscope_due_diligence.map_layers import build_map
 from propertyscope_due_diligence.tool_inputs import review_identifier
 from shared_contracts import HealthStatus, ReadinessCheckProjection, project_readiness
@@ -210,9 +211,11 @@ def register_health(app: Flask, store: Any) -> None:
         return jsonify(projection.model_dump(mode="json")), projection.http_status
 
 
-def create_blueprint(store: Any, feature1: Any, ai_mode: Any) -> Blueprint:
+def create_blueprint(store: Any, feature1: Any, ai_mode: Any, multi_agent: Any = None) -> Blueprint:
     """Create the public due-diligence API blueprint."""
     blueprint = Blueprint("due_diligence", __name__)
+    if multi_agent is not None:
+        register_evidence_review_routes(blueprint, multi_agent, base=_API)
 
     @blueprint.get(f"{_API}/site-reviews")
     def list_site_reviews() -> Response:
