@@ -214,6 +214,10 @@ def register_evidence_review_routes(
     api: Blueprint, multi_agent: MultiAgentClient, *, base: str
 ) -> None:
     """Register the evidence-review proxy family on Feature 4's public Blueprint."""
+    # The Azure edge protects Multi-Agent proxies by collection NAME, not by route. This name must
+    # be listed in deployment/azure/Caddyfile (@protected) and the nginx sensitive limit map, or
+    # anyone with the viewer login can start paid runs and record decisions in the cloud.
+    # scripts/tests/test_azure_deployment.py finds this line and fails until both list it.
     collection = f"{base}/evidence-reviews"
 
     def owned_run(run_id: uuid.UUID) -> tuple[httpx.Response, Response | None]:
@@ -233,6 +237,7 @@ def register_evidence_review_routes(
 
     # Deliberately not wrapped in _review_route: a deployment with no reachable server must get
     # 200 and a clear "disabled" here, not the 503 every other review route gives.
+    # The Azure edge exempts this one path from operator credentials; keep it read-only.
     @api.get(f"{collection}/capabilities")
     def evidence_review_capabilities() -> Response:
         return jsonify(review_capabilities(multi_agent_available=multi_agent.available()))
