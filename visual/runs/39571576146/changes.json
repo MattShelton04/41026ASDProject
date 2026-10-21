@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "baseSha": "b4cf74a7718795cfcdd2c7d1c102632ec4c2e3a8",
-  "headSha": "da7556c2b721d3768b4be18f16d3b410e2de0238",
+  "baseSha": "37b2ffc2c25209d56503e55540b96c80083c761b",
+  "headSha": "cb712152111bef5add5a920199af52da40f8d549",
   "viewport": {
     "width": 1440,
     "height": 1000,
     "fixedTime": "2026-09-01T10:00:00+10:00"
   },
   "summary": {
-    "changed": 5,
+    "changed": 0,
     "subtle": 0,
-    "unchanged": 36,
-    "incomplete": 1,
+    "unchanged": 42,
+    "incomplete": 0,
     "baseUnavailable": 0,
     "total": 42
   },
@@ -70,14 +70,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1738,
-        "after": 1738
+        "before": 1733,
+        "after": 1733
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
-        "after": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
+        "before": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
+        "after": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
         "difference": null
       },
       "limitations": []
@@ -136,14 +136,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1824,
-        "after": 1824
+        "before": 1902,
+        "after": 1902
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
-        "after": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
+        "before": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
+        "after": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
         "difference": null
       },
       "limitations": []
@@ -202,14 +202,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1738,
-        "after": 1738
+        "before": 1733,
+        "after": 1733
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
-        "after": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
+        "before": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
+        "after": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
         "difference": null
       },
       "limitations": []
@@ -274,8 +274,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png",
-        "after": "../../img/86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png",
+        "before": "../../img/057caed1fc60550083c7a33ecc71c3c8f23365c9696d62b9243e4214af11a226.png",
+        "after": "../../img/057caed1fc60550083c7a33ecc71c3c8f23365c9696d62b9243e4214af11a226.png",
         "difference": null
       },
       "limitations": []
@@ -450,8 +450,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
-        "after": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
+        "before": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
+        "after": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
         "difference": null
       },
       "limitations": []
@@ -560,8 +560,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
-        "after": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "before": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
+        "after": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
         "difference": null
       },
       "limitations": []
@@ -604,8 +604,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
-        "after": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "before": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
+        "after": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
         "difference": null
       },
       "limitations": []
@@ -670,8 +670,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6990764c93d4505b214bed0561b1b2b9d14ecfa37d51adc62dbeee9fa4799994.png",
-        "after": "../../img/6990764c93d4505b214bed0561b1b2b9d14ecfa37d51adc62dbeee9fa4799994.png",
+        "before": "../../img/c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png",
+        "after": "../../img/c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png",
         "difference": null
       },
       "limitations": []
@@ -686,14 +686,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/982ee92251e6a92d704cdb412df0ae9058ff4beeb037e0c34acdb65509d09e89.png",
-        "after": "../../img/982ee92251e6a92d704cdb412df0ae9058ff4beeb037e0c34acdb65509d09e89.png",
+        "before": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
         "difference": null
       },
       "limitations": []
@@ -708,14 +708,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/ba4a413b058d95f5dd7a83bd8740ff97e175f91ddb9df1b6a7a3f58f9d6db00f.png",
-        "after": "../../img/ba4a413b058d95f5dd7a83bd8740ff97e175f91ddb9df1b6a7a3f58f9d6db00f.png",
+        "before": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
         "difference": null
       },
       "limitations": []
@@ -726,55 +726,19 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#explore",
       "state": "overview, search and map",
-      "change": "changed",
-      "changedPixels": 744135,
-      "percent": 37.0438,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 1395,
-        "after": 1143
+        "before": 1173,
+        "after": 1173
       },
-      "areas": [
-        {
-          "x": 0,
-          "y": 871,
-          "width": 1440,
-          "height": 524,
-          "pixels": 510789
-        },
-        {
-          "x": 256,
-          "y": 509,
-          "width": 1152,
-          "height": 323,
-          "pixels": 220353
-        },
-        {
-          "x": 255,
-          "y": 367,
-          "width": 594,
-          "height": 56,
-          "pixels": 7725
-        },
-        {
-          "x": 141,
-          "y": 87,
-          "width": 340,
-          "height": 12,
-          "pixels": 2395
-        },
-        {
-          "x": 1273,
-          "y": 86,
-          "width": 83,
-          "height": 9,
-          "pixels": 561
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/eb0afd9f5cff5af466650cec8dd327103eca1ea5627f2b209d14e2edf0fa4cb5.png",
-        "after": "../../img/b46b8664f9583372a71a75e1dc91b96deb559834cda0312d110beb2a3a54448e.png",
-        "difference": "../../img/1826612660e60ce1666a1d91f3e10cb13f17076513bf1b70cd34fb3911c1f719.png"
+        "before": "../../img/54a04dd58b8978a0415a0c3c28601deb21c0efd7ed0f6568166cfc787c0b5acb.png",
+        "after": "../../img/54a04dd58b8978a0415a0c3c28601deb21c0efd7ed0f6568166cfc787c0b5acb.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -784,76 +748,19 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#trends",
       "state": "crime trend comparison",
-      "change": "changed",
-      "changedPixels": 823869,
-      "percent": 35.9831,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 1590,
+        "before": 1148,
         "after": 1148
       },
-      "areas": [
-        {
-          "x": 0,
-          "y": 861,
-          "width": 1440,
-          "height": 729,
-          "pixels": 700806
-        },
-        {
-          "x": 281,
-          "y": 690,
-          "width": 1102,
-          "height": 130,
-          "pixels": 109729
-        },
-        {
-          "x": 276,
-          "y": 620,
-          "width": 1013,
-          "height": 14,
-          "pixels": 7680
-        },
-        {
-          "x": 141,
-          "y": 87,
-          "width": 340,
-          "height": 12,
-          "pixels": 2395
-        },
-        {
-          "x": 298,
-          "y": 537,
-          "width": 101,
-          "height": 9,
-          "pixels": 689
-        },
-        {
-          "x": 619,
-          "y": 535,
-          "width": 73,
-          "height": 12,
-          "pixels": 615
-        },
-        {
-          "x": 457,
-          "y": 537,
-          "width": 90,
-          "height": 9,
-          "pixels": 587
-        },
-        {
-          "x": 1273,
-          "y": 86,
-          "width": 83,
-          "height": 9,
-          "pixels": 561
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/bc22c4f0d10589628d30061ff6169b09ac3aaebaf72ace6a71077667cfcba34b.png",
-        "after": "../../img/49dbd1bf54058d7ff628c61c819340ba11c955903f09cc02398420e18bac5b97.png",
-        "difference": "../../img/0d5916c6e197e8f02df50dc417430a0efd3c7d41561eefc23079077666b42769.png"
+        "before": "../../img/448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png",
+        "after": "../../img/448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -863,41 +770,19 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#published",
       "state": "published evidence",
-      "change": "changed",
-      "changedPixels": 16093,
-      "percent": 1.0989,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 1017,
         "after": 1017
       },
-      "areas": [
-        {
-          "x": 280,
-          "y": 454,
-          "width": 1101,
-          "height": 39,
-          "pixels": 13137
-        },
-        {
-          "x": 141,
-          "y": 87,
-          "width": 340,
-          "height": 12,
-          "pixels": 2395
-        },
-        {
-          "x": 1273,
-          "y": 86,
-          "width": 83,
-          "height": 9,
-          "pixels": 561
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c82130745caa6dc53b33caa393512bd1d2423ec18cbbf442f493879439f01c1e.png",
-        "after": "../../img/170290f66f1701a171284e341b8ebb62ad139c1894cfb87af055fff1c11ebde9.png",
-        "difference": "../../img/ab0d2469febe4187e30299d01ba0dd13b7b95b3961cd0400c2518caef3edef17.png"
+        "before": "../../img/958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png",
+        "after": "../../img/958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -907,34 +792,19 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#comparisons",
       "state": "saved comparisons",
-      "change": "changed",
-      "changedPixels": 2956,
-      "percent": 0.1113,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 1844,
         "after": 1844
       },
-      "areas": [
-        {
-          "x": 141,
-          "y": 87,
-          "width": 340,
-          "height": 12,
-          "pixels": 2395
-        },
-        {
-          "x": 1273,
-          "y": 86,
-          "width": 83,
-          "height": 9,
-          "pixels": 561
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6fa03e6129d8616bf8d4a4d09094c802c79425d4e9e450c3feb2fd3f5e4e5933.png",
-        "after": "../../img/e01d9c9733f70e49ae94fefba598996cc2e89a6a66065a0a191cc9c6ea4fd305.png",
-        "difference": "../../img/6794a73406f52b2c5a244cddfee63eb96d8c6c8c89d8753ea0b5d9401c4c1ae2.png"
+        "before": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
+        "after": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -944,34 +814,19 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#assistant",
       "state": "trend assistant",
-      "change": "changed",
-      "changedPixels": 2956,
-      "percent": 0.1892,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 1085,
         "after": 1085
       },
-      "areas": [
-        {
-          "x": 141,
-          "y": 87,
-          "width": 340,
-          "height": 12,
-          "pixels": 2395
-        },
-        {
-          "x": 1273,
-          "y": 86,
-          "width": 83,
-          "height": 9,
-          "pixels": 561
-        }
-      ],
-      "sameAreasAs": "f3-comparisons",
+      "areas": [],
+      "sameAreasAs": null,
       "images": {
-        "before": "../../img/0cdb790d190582db19b712517697420c2df0218a2d5d060c0ff6cbad1721780b.png",
-        "after": "../../img/0a3ec6a8b40a0a4fc03de500d78b80cceeb18de480b66058c6023d499874f208.png",
-        "difference": "../../img/f9556ce2f3240ad64c30166355ad63f24e948152564a64f89532551bdeebc0af.png"
+        "before": "../../img/55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png",
+        "after": "../../img/55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -1003,23 +858,21 @@
       "provider": "stack",
       "path": "/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001",
       "state": "one review with evidence",
-      "change": "incomplete",
-      "changedPixels": null,
-      "percent": null,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 3754,
-        "after": null
+        "before": 3943,
+        "after": 3943
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/329de5bd5250ddd0b2bb5d2f4e275e10ad63351facc027d97b37095a2835b185.png",
-        "after": null,
+        "before": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
+        "after": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
         "difference": null
       },
-      "limitations": [
-        "head: the view did not render identically twice within 5 captures"
-      ]
+      "limitations": []
     },
     {
       "id": "f4-new-review-dialog",
