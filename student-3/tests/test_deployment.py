@@ -46,6 +46,8 @@ def test_suburb_services_use_http_and_exclusively_owned_storage() -> None:
         "SUBURB_IMPORT_WORKER": "1",
         "AI_MODE_URL": "http://host.docker.internal:${AI_MODE_PORT:-5005}",
         "AI_MODE_SERVICE_TOKEN": "${AI_MODE_SERVICE_TOKEN:-}",
+        "MULTI_AGENT_BASE_URL": "http://host.docker.internal:${MULTI_AGENT_PORT:-5013}",
+        "MULTI_AGENT_SERVICE_TOKEN": "${MULTI_AGENT_SERVICE_TOKEN:-}",
         "MCP_SERVER_URL": "http://host.docker.internal:${MCP_PORT:-5011}/mcp",
         "RAG_SERVER_URL": "http://host.docker.internal:${RAG_PORT:-5012}",
         "PROPERTY_DATA_URL": "http://f1-backend:5201",

@@ -124,7 +124,6 @@ def _overlay_model() -> dict[str, Any]:
             "MULTI_AGENT_SERVICE_TOKEN=multi_agent_service_token",  # pragma: allowlist secret
         )
     )
-    ai_only = "AI_MODE_SERVICE_TOKEN=x"  # pragma: allowlist secret
     backend = {
         "secrets": [{"source": "ai_mode_service_token"}, {"source": "multi_agent_service_token"}],
         "environment": {
@@ -136,10 +135,6 @@ def _overlay_model() -> dict[str, Any]:
     return {
         "services": {
             **{name: json.loads(json.dumps(backend)) for name in rehearsal.MULTI_AGENT_BACKENDS},
-            "f3-backend": {
-                "secrets": [{"source": "ai_mode_service_token"}],
-                "environment": {"PROPERTYSCOPE_SECRET_ENV": ai_only},
-            },
         },
         "secrets": {
             "multi_agent_service_token": {
@@ -157,17 +152,14 @@ def test_ai_overlay_findings_accept_the_secret_wiring_and_catch_a_leaked_token()
 
     model["services"]["f2-backend"]["secrets"] = [{"source": "ai_mode_service_token"}]
     model["services"]["f4-backend"]["environment"]["MULTI_AGENT_SERVICE_TOKEN"] = "a" * 64
-    model["services"]["f3-backend"]["secrets"].append({"source": "multi_agent_service_token"})
-    model["services"]["f3-backend"]["environment"]["PROPERTYSCOPE_SECRET_ENV"] += (
-        f" {rehearsal.MULTI_AGENT_SECRET_ENV}"
-    )
+    model["services"]["f3-backend"]["secrets"] = [{"source": "ai_mode_service_token"}]
     failed = [
         detail for verdict, detail in rehearsal.ai_overlay_findings(model) if verdict == "FAIL"
     ]
     assert failed == [
         "f2-backend gets multi_agent_service_token as a Compose secret",
+        "f3-backend gets multi_agent_service_token as a Compose secret",
         "f4-backend has no Multi-Agent token value in its environment",
-        "f3-backend gets no Multi-Agent token (it does not call the server)",
     ]
 
 

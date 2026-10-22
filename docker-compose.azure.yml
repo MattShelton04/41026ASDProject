@@ -52,7 +52,7 @@ x-azure-ai-disabled: &azure-ai-disabled
   MCP_SERVER_URL: ""
   RAG_SERVER_URL: ""
 
-# The backends that call the host Multi-Agent Server locally (Features 1, 2, 4 and 5) get the same
+# The backends that call the host Multi-Agent Server locally (Features 1 through 5) get the same
 # closed loopback URL and no token; docker-compose.azure-ai.yml restores both.
 x-azure-multi-agent-disabled: &azure-multi-agent-disabled
   MULTI_AGENT_BASE_URL: http://127.0.0.1:9
@@ -272,10 +272,15 @@ services:
   f3-backend:
     image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/propertyscope/f3-backend:${IMAGE_TAG:?IMAGE_TAG is required}
     build: !reset null
+    entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
+    command: ["gunicorn", "--bind=0.0.0.0:5301", "--workers=1", "--threads=4", "propertyscope_suburb_analytics.app:create_app()"]
     extra_hosts: !reset []
     environment:
-      <<: *azure-ai-disabled
+      <<: [*azure-ai-disabled, *azure-multi-agent-disabled]
       AI_MODE_URL: http://127.0.0.1:9
+      PROPERTYSCOPE_SECRET_ENV: ""
+    volumes:
+      - *azure-secret-shim
     networks: [shared-platform, f3-data]
     restart: unless-stopped
     logging: *azure-logging

@@ -84,7 +84,13 @@ EDGE_PASSWORD_SECRET = "edge-basic-auth-password"  # pragma: allowlist secret  #
 SITE_PASSWORD_SECRET = "edge-site-password"  # pragma: allowlist secret  # noqa: S105 - name
 MULTI_AGENT_SECRET_ENV = "=".join(("MULTI_AGENT_SERVICE_TOKEN", "multi_agent_service_token"))
 # Backends the AI overlay hands the Multi-Agent token (docker-compose.azure-ai.yml).
-MULTI_AGENT_BACKENDS = ("f1-backend", "f2-backend", "f4-backend", "f5-backend")
+MULTI_AGENT_BACKENDS = (
+    "f1-backend",
+    "f2-backend",
+    "f3-backend",
+    "f4-backend",
+    "f5-backend",
+)
 NOTICE = (
     "LOCAL REHEARSAL - this is NOT the Azure deployment. It ran on a developer machine with a "
     "local registry and a Docker-in-Docker VM (`dev.py cloud rehearse`); nothing here proves "
@@ -307,7 +313,7 @@ def ai_overlay_findings(model: Mapping[str, Any]) -> list[tuple[str, str]]:
             source.replace("\\", "/").endswith(f"/{filename}"),
             f"secret {name} is the file {filename}",
         )
-    for backend in (*MULTI_AGENT_BACKENDS, "f3-backend"):
+    for backend in MULTI_AGENT_BACKENDS:
         service = services.get(backend) or {}
         mounted = {
             str(item.get("source") if isinstance(item, dict) else item)
@@ -316,16 +322,13 @@ def ai_overlay_findings(model: Mapping[str, Any]) -> list[tuple[str, str]]:
         environment = service.get("environment") or {}
         secret_env = str(environment.get("PROPERTYSCOPE_SECRET_ENV", ""))
         wired = "multi_agent_service_token" in mounted and MULTI_AGENT_SECRET_ENV in secret_env
-        if backend in MULTI_AGENT_BACKENDS:
-            check(wired, f"{backend} gets multi_agent_service_token as a Compose secret")
-            check(
-                str(environment.get("MULTI_AGENT_BASE_URL", "")).startswith(
-                    "http://host.docker.internal:"
-                ),
-                f"{backend} reaches the Multi-Agent Server through the host gateway",
-            )
-        else:
-            check(not wired, f"{backend} gets no Multi-Agent token (it does not call the server)")
+        check(wired, f"{backend} gets multi_agent_service_token as a Compose secret")
+        check(
+            str(environment.get("MULTI_AGENT_BASE_URL", "")).startswith(
+                "http://host.docker.internal:"
+            ),
+            f"{backend} reaches the Multi-Agent Server through the host gateway",
+        )
         check(
             "ai_mode_service_token" in mounted,
             f"{backend} gets ai_mode_service_token as a Compose secret",

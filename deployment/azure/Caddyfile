@@ -54,15 +54,15 @@
 	# data pipelines. Ordinary feature pages, reads and the per-feature CRUD stay public.
 	# Collections are matched by NAME (/api/<feature>/v1/[.../]<collection>...), so this list must
 	# name every feature's Multi-Agent proxy collection: Feature 1 release-reviews, Feature 2
-	# market-briefs, Feature 4 evidence-reviews. Each one starts paid model runs and records human
+	# market-briefs, Feature 3 comparison-reviews, Feature 4 evidence-reviews. Each one starts paid model runs and records human
 	# decisions under the caller's chosen name. A proxy under a NEW collection name is public until
 	# it is added here AND to the nginx sensitive limit map; scripts/tests/test_azure_deployment.py
 	# finds every proxy in student-*/backend and fails until both cover it. The only exemption is
 	# a proxy's read-only <collection>/capabilities probe: every viewer's page calls it on load, so
 	# protecting it would prompt each viewer for the operator login.
 	@protected {
-		path_regexp protected ^/(operations/|api/(ai-mode|v1)/|api/[a-z-]+/v1/((.+/)?(assistant/turns|agent-runs|case-summary-runs|multi-agent|release-reviews|market-briefs|evidence-reviews)|tools/)|api/data-platform/v1/(artifact-retention|jobs/[^/]+/(plans|runs)|ingestion-runs/[^/]+/|dataset-releases/[^/]+/(publish|reject|submit-review|retry-delivery))|api/suburb-analytics/v1/data-imports/)
-		not path_regexp capabilities ^/api/[a-z-]+/v1/(.+/)?(release-reviews|market-briefs|evidence-reviews)/capabilities$
+		path_regexp protected ^/(operations/|api/(ai-mode|v1)/|api/[a-z-]+/v1/((.+/)?(assistant/turns|agent-runs|case-summary-runs|multi-agent|release-reviews|market-briefs|comparison-reviews|evidence-reviews)|tools/)|api/data-platform/v1/(artifact-retention|jobs/[^/]+/(plans|runs)|ingestion-runs/[^/]+/|dataset-releases/[^/]+/(publish|reject|submit-review|retry-delivery))|api/suburb-analytics/v1/data-imports/)
+		not path_regexp capabilities ^/api/[a-z-]+/v1/(.+/)?(release-reviews|market-briefs|comparison-reviews|evidence-reviews)/capabilities$
 	}
 
 	# The site-wide login (site-auth-on.caddy) covers everything but the liveness route, which

@@ -32,7 +32,7 @@ from shared_consumer_protocol import (
 
 from .clients import HttpClient, ServiceError
 
-BASE = "/api/data-platform/v1"
+DATA_API_ROOT = "/api/data-platform/v1"
 IMPORT_PATH = "/api/data-import/v1/propertyscope-releases"
 PRODUCTS = {
     "bocsar-crime": ("propertyscope.crime-series.v2", "feature-3", "crime-series.v2.schema.json"),
@@ -49,7 +49,7 @@ def access_policy(origin: str) -> ArtifactAccessPolicy:
     # Full observed BOCSAR candidate is ~500 MB compressed. No silent truncation.
     return ArtifactAccessPolicy(
         origin,
-        BASE + "/dataset-releases/{release_id}/artifact",
+        DATA_API_ROOT + "/dataset-releases/{release_id}/artifact",
         1_000_000_000,
         12_000_000_000,
         1_000_000,
@@ -94,11 +94,11 @@ def bounded_get(client: httpx.Client, url: str, limit: int) -> bytes:
 def contract_validators(
     client: httpx.Client, origin: str, request: PublicationRequest
 ) -> tuple[Any, Any]:
-    meta = json.loads(bounded_get(client, origin + BASE + "/product-contracts/v1", 65_536))
+    meta = json.loads(bounded_get(client, origin + DATA_API_ROOT + "/product-contracts/v1", 65_536))
     digest = meta["content_sha256"]
     if not re.fullmatch("[0-9a-f]{64}", digest):
         raise ValueError("invalid_contract_digest")
-    path = BASE + f"/product-contracts/v1/sha256/{digest}.zip"
+    path = DATA_API_ROOT + f"/product-contracts/v1/sha256/{digest}.zip"
     if meta["artifact_path"] != path:
         raise ValueError("invalid_contract_path")
     archive_bytes = bounded_get(client, origin + path, 2_000_000)
@@ -285,7 +285,9 @@ class Ingestion:
         with httpx.Client() as client:
             release = json.loads(
                 bounded_get(
-                    client, self.origin + BASE + f"/data-products/{dataset}/accepted", 2_000_000
+                    client,
+                    self.origin + DATA_API_ROOT + f"/data-products/{dataset}/accepted",
+                    2_000_000,
                 )
             )["release"]
         manifest = release["manifest"] if "manifest" in release else release["manifest_json"]
@@ -296,7 +298,8 @@ class Ingestion:
         payload.update(
             schema_version=manifest["product_schema_version"],
             manifest=manifest,
-            artifact_path=BASE + f"/dataset-releases/{quote(manifest['release_id'])}/artifact",
+            artifact_path=DATA_API_ROOT
+            + f"/dataset-releases/{quote(manifest['release_id'])}/artifact",
             idempotency_key="sync-" + manifest["release_id"],
         )
         return self.enqueue(payload, correlation, payload["idempotency_key"], callback=False)
