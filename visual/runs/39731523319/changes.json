@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "baseSha": "7aa69f6926cb683dd0fa9576e5dac1715f6f69c3",
-  "headSha": "b1181cdf9fffd4b8494bcf4a5635b1ade59e73e6",
+  "baseSha": "002691e42ce0a369bae5f73933e29da93047bf66",
+  "headSha": "d7602b774d47adc57efded1dc5e51abd1f42ac1f",
   "viewport": {
     "width": 1440,
     "height": 1000,
@@ -10,8 +10,8 @@
   "summary": {
     "changed": 1,
     "subtle": 0,
-    "unchanged": 40,
-    "incomplete": 1,
+    "unchanged": 41,
+    "incomplete": 0,
     "baseUnavailable": 0,
     "total": 42
   },
@@ -70,14 +70,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1738,
-        "after": 1738
+        "before": 1733,
+        "after": 1733
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
-        "after": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
+        "before": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
+        "after": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
         "difference": null
       },
       "limitations": []
@@ -132,19 +132,27 @@
       "provider": "fixture",
       "path": "/#release-roadmap",
       "state": "release roadmap",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "changed",
+      "changedPixels": 732,
+      "percent": 0.0267,
       "heights": {
-        "before": 1824,
-        "after": 1824
+        "before": 1902,
+        "after": 1902
       },
-      "areas": [],
+      "areas": [
+        {
+          "x": 311,
+          "y": 1464,
+          "width": 97,
+          "height": 12,
+          "pixels": 732
+        }
+      ],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
-        "after": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
-        "difference": null
+        "before": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
+        "after": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
+        "difference": "../../img/5303fa95e8117dd49e0f519a179f754f3ae05ddca03c2eeff7f6a32930df025d.png"
       },
       "limitations": []
     },
@@ -202,14 +210,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1738,
-        "after": 1738
+        "before": 1733,
+        "after": 1733
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
-        "after": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
+        "before": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
+        "after": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
         "difference": null
       },
       "limitations": []
@@ -274,8 +282,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png",
-        "after": "../../img/86f8b18ac6ec9ce89def8a7e23bd33328c640d65ca8ff0806d8dad850d77a1b7.png",
+        "before": "../../img/057caed1fc60550083c7a33ecc71c3c8f23365c9696d62b9243e4214af11a226.png",
+        "after": "../../img/057caed1fc60550083c7a33ecc71c3c8f23365c9696d62b9243e4214af11a226.png",
         "difference": null
       },
       "limitations": []
@@ -450,8 +458,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
-        "after": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
+        "before": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
+        "after": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
         "difference": null
       },
       "limitations": []
@@ -560,8 +568,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
-        "after": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "before": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
+        "after": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
         "difference": null
       },
       "limitations": []
@@ -604,8 +612,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
-        "after": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "before": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
+        "after": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
         "difference": null
       },
       "limitations": []
@@ -670,8 +678,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6990764c93d4505b214bed0561b1b2b9d14ecfa37d51adc62dbeee9fa4799994.png",
-        "after": "../../img/6990764c93d4505b214bed0561b1b2b9d14ecfa37d51adc62dbeee9fa4799994.png",
+        "before": "../../img/c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png",
+        "after": "../../img/c7cb2320c26235e74a8b22aeb1db77a29c01b2f1ce693c26fa5469451ca16558.png",
         "difference": null
       },
       "limitations": []
@@ -686,14 +694,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/982ee92251e6a92d704cdb412df0ae9058ff4beeb037e0c34acdb65509d09e89.png",
-        "after": "../../img/982ee92251e6a92d704cdb412df0ae9058ff4beeb037e0c34acdb65509d09e89.png",
+        "before": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
         "difference": null
       },
       "limitations": []
@@ -708,14 +716,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/ba4a413b058d95f5dd7a83bd8740ff97e175f91ddb9df1b6a7a3f58f9d6db00f.png",
-        "after": "../../img/ba4a413b058d95f5dd7a83bd8740ff97e175f91ddb9df1b6a7a3f58f9d6db00f.png",
+        "before": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
         "difference": null
       },
       "limitations": []
@@ -726,27 +734,19 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#explore",
       "state": "overview, search and map",
-      "change": "changed",
-      "changedPixels": 46596,
-      "percent": 2.7871,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 1143,
-        "after": 1161
+        "before": 1173,
+        "after": 1173
       },
-      "areas": [
-        {
-          "x": 0,
-          "y": 1103,
-          "width": 1440,
-          "height": 58,
-          "pixels": 46596
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/b46b8664f9583372a71a75e1dc91b96deb559834cda0312d110beb2a3a54448e.png",
-        "after": "../../img/deaf5f0bc6364aa04b48c1e000c1224e557160d759aba85ccbc83cf564a929c5.png",
-        "difference": "../../img/3427239a3b2505fcd85a27b9f9b4b29138af4c58e6dbd5e5c8a267e2d45ef357.png"
+        "before": "../../img/54a04dd58b8978a0415a0c3c28601deb21c0efd7ed0f6568166cfc787c0b5acb.png",
+        "after": "../../img/54a04dd58b8978a0415a0c3c28601deb21c0efd7ed0f6568166cfc787c0b5acb.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -766,8 +766,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/49dbd1bf54058d7ff628c61c819340ba11c955903f09cc02398420e18bac5b97.png",
-        "after": "../../img/49dbd1bf54058d7ff628c61c819340ba11c955903f09cc02398420e18bac5b97.png",
+        "before": "../../img/448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png",
+        "after": "../../img/448376a0b03f0ac4d1295b4c1ce9977a2b7d4b9147f5a742839234c905a87184.png",
         "difference": null
       },
       "limitations": []
@@ -788,8 +788,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/170290f66f1701a171284e341b8ebb62ad139c1894cfb87af055fff1c11ebde9.png",
-        "after": "../../img/170290f66f1701a171284e341b8ebb62ad139c1894cfb87af055fff1c11ebde9.png",
+        "before": "../../img/958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png",
+        "after": "../../img/958b16b68c6848b26273934eb48183f1875132e8a6d152005b89e39c11cb4772.png",
         "difference": null
       },
       "limitations": []
@@ -810,8 +810,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/e01d9c9733f70e49ae94fefba598996cc2e89a6a66065a0a191cc9c6ea4fd305.png",
-        "after": "../../img/e01d9c9733f70e49ae94fefba598996cc2e89a6a66065a0a191cc9c6ea4fd305.png",
+        "before": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
+        "after": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
         "difference": null
       },
       "limitations": []
@@ -832,8 +832,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/0a3ec6a8b40a0a4fc03de500d78b80cceeb18de480b66058c6023d499874f208.png",
-        "after": "../../img/0a3ec6a8b40a0a4fc03de500d78b80cceeb18de480b66058c6023d499874f208.png",
+        "before": "../../img/55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png",
+        "after": "../../img/55b29c0c2298c6ef3beaf22b434e3324f3feb6a31abcf8a0fcbf8f469cb6f8e4.png",
         "difference": null
       },
       "limitations": []
@@ -866,23 +866,21 @@
       "provider": "stack",
       "path": "/features/due-diligence/#site-reviews/d4000000-0000-0000-0000-000000000001",
       "state": "one review with evidence",
-      "change": "incomplete",
-      "changedPixels": null,
-      "percent": null,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 3754,
-        "after": null
+        "before": 3943,
+        "after": 3943
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/b18ee131286f949f26c9cd693de03652db5c85ee5d2d0662b2c59ce64e2e9cbc.png",
-        "after": null,
+        "before": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
+        "after": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
         "difference": null
       },
-      "limitations": [
-        "head: the view did not render identically twice within 5 captures"
-      ]
+      "limitations": []
     },
     {
       "id": "f4-new-review-dialog",
