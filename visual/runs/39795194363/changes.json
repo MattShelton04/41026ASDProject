@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "baseSha": "fdc5111195786a44e1c53b9d33100b7625fc2eb9",
-  "headSha": "ab7c0120a8b8e076001ab7109fdcc4a9f0ddc551",
+  "baseSha": "d7602b774d47adc57efded1dc5e51abd1f42ac1f",
+  "headSha": "3f43133e5ac8851e6664b0da535e88a29b5f90b3",
   "viewport": {
     "width": 1440,
     "height": 1000,
     "fixedTime": "2026-09-01T10:00:00+10:00"
   },
   "summary": {
-    "changed": 0,
+    "changed": 1,
     "subtle": 0,
-    "unchanged": 42,
+    "unchanged": 41,
     "incomplete": 0,
     "baseUnavailable": 0,
     "total": 42
@@ -142,8 +142,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
-        "after": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
+        "before": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
+        "after": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
         "difference": null
       },
       "limitations": []
@@ -686,14 +686,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
-        "after": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
+        "before": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
         "difference": null
       },
       "limitations": []
@@ -708,14 +708,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
-        "after": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
+        "before": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
         "difference": null
       },
       "limitations": []
@@ -862,14 +862,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 3754,
-        "after": 3754
+        "before": 3943,
+        "after": 3943
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
-        "after": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
+        "before": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
+        "after": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
         "difference": null
       },
       "limitations": []
@@ -924,19 +924,27 @@
       "provider": "stack",
       "path": "/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010",
       "state": "one buyer case",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "changed",
+      "changedPixels": 734650,
+      "percent": 10.9668,
       "heights": {
         "before": 4453,
-        "after": 4453
+        "after": 4652
       },
-      "areas": [],
+      "areas": [
+        {
+          "x": 0,
+          "y": 3440,
+          "width": 1440,
+          "height": 1212,
+          "pixels": 734650
+        }
+      ],
       "sameAreasAs": null,
       "images": {
         "before": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
-        "after": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
-        "difference": null
+        "after": "../../img/b7dded21d92e8c2fd9fc6fb75b533a2f72cae6933f3489221cc1b98318e51143.png",
+        "difference": "../../img/0fc61ac495c921aaf132c79780d112ffc44e11c2f79b559cbabf31448b75ba67.png"
       },
       "limitations": []
     }
