@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "baseSha": "06e0ed0f38e0eb52908301b05bf8b7d9679d3191",
-  "headSha": "f58051547f4939046237f817d52aa1301c906f40",
+  "baseSha": "dedda460b6dc10fb7676d3be389b722ec648e732",
+  "headSha": "a8f087c502d4f4f32f128ed8a54fd2c4473a9074",
   "viewport": {
     "width": 1440,
     "height": 1000,
     "fixedTime": "2026-09-01T10:00:00+10:00"
   },
   "summary": {
-    "changed": 4,
+    "changed": 1,
     "subtle": 0,
-    "unchanged": 38,
+    "unchanged": 41,
     "incomplete": 0,
     "baseUnavailable": 0,
     "total": 42
@@ -66,34 +66,19 @@
       "provider": "fixture",
       "path": "/#system-status",
       "state": "every service healthy; measured response times masked",
-      "change": "changed",
-      "changedPixels": 153944,
-      "percent": 6.1511,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 1738,
+        "before": 1733,
         "after": 1733
       },
-      "areas": [
-        {
-          "x": 274,
-          "y": 1355,
-          "width": 1108,
-          "height": 242,
-          "pixels": 124976
-        },
-        {
-          "x": 0,
-          "y": 1640,
-          "width": 1440,
-          "height": 98,
-          "pixels": 28253
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/2708dfa44970abb64aa468447881f4d35c22a3ef02f056f23d93247cf2c925d7.png",
+        "before": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
         "after": "../../img/64bb4db3c71ccdf394de6d673f80cdf70d8e007a0414d4e0b00833a80ba749e7.png",
-        "difference": "../../img/54a65dbf9eafc56197273e7b661b5e92fbd9b39949c4ccf5630150d3d96175ed.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -147,62 +132,19 @@
       "provider": "fixture",
       "path": "/#release-roadmap",
       "state": "release roadmap",
-      "change": "changed",
-      "changedPixels": 322521,
-      "percent": 11.7757,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 1824,
+        "before": 1902,
         "after": 1902
       },
-      "areas": [
-        {
-          "x": 0,
-          "y": 1322,
-          "width": 1440,
-          "height": 580,
-          "pixels": 284364
-        },
-        {
-          "x": 532,
-          "y": 1088,
-          "width": 261,
-          "height": 26,
-          "pixels": 4237
-        },
-        {
-          "x": 532,
-          "y": 1205,
-          "width": 261,
-          "height": 26,
-          "pixels": 4237
-        },
-        {
-          "x": 532,
-          "y": 1147,
-          "width": 261,
-          "height": 25,
-          "pixels": 4107
-        },
-        {
-          "x": 532,
-          "y": 1264,
-          "width": 261,
-          "height": 25,
-          "pixels": 4107
-        },
-        {
-          "x": 866,
-          "y": 1151,
-          "width": 433,
-          "height": 12,
-          "pixels": 3050
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/9b531ee29550a1f36707365499f58ce4a4d39d79bc56f51feefc0ad3061da56b.png",
+        "before": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
         "after": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
-        "difference": "../../img/92134114bab4de1a6fab978fe602888e86045741d8b9b6730823677ef4fa36dd.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -256,34 +198,19 @@
       "provider": "fixture",
       "path": "/#system-status",
       "state": "error scenario: services unavailable",
-      "change": "changed",
-      "changedPixels": 153147,
-      "percent": 6.1192,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
-        "before": 1738,
+        "before": 1733,
         "after": 1733
       },
-      "areas": [
-        {
-          "x": 274,
-          "y": 1355,
-          "width": 1108,
-          "height": 242,
-          "pixels": 124184
-        },
-        {
-          "x": 0,
-          "y": 1640,
-          "width": 1440,
-          "height": 98,
-          "pixels": 28253
-        }
-      ],
-      "sameAreasAs": "shared-data-status",
+      "areas": [],
+      "sameAreasAs": null,
       "images": {
-        "before": "../../img/34da10056f09d29088cc302b4f8fad9af638520d0fb6bd3e2766b8290424a9e6.png",
+        "before": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
         "after": "../../img/ac4e1414a6455f0ac0a3c542bc53114f6aca99ab08d2551174c5456e94d26864.png",
-        "difference": "../../img/8e7e926b649782a4751cd091f5297e2dd0c90ba0131bfbd1c20d1207a373f7c4.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -513,27 +440,19 @@
       "provider": "fixture",
       "path": "/features/data-platform/#releases/60000000-0000-0000-0000-000000000001",
       "state": "accepted release",
-      "change": "changed",
-      "changedPixels": 39,
-      "percent": 0.0013,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 2072,
         "after": 2072
       },
-      "areas": [
-        {
-          "x": 1052,
-          "y": 1799,
-          "width": 7,
-          "height": 7,
-          "pixels": 39
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/07254fa0d7bdf35d57d1f0a2088085a22fa486bb14bf64d93a34627c484fb12e.png",
-        "after": "../../img/102063026b071540dc514492906e301f18a9fd47625768e6d3733411135f435f.png",
-        "difference": "../../img/8a697a26ffd9ea73ce780f2bbfe5677a9fb24869778f5d21508e4586b5e62b2d.png"
+        "before": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
+        "after": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
+        "difference": null
       },
       "limitations": []
     },
@@ -641,8 +560,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
-        "after": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "before": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
+        "after": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
         "difference": null
       },
       "limitations": []
@@ -685,8 +604,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
-        "after": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "before": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
+        "after": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
         "difference": null
       },
       "limitations": []
@@ -767,14 +686,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
-        "after": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
+        "before": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
         "difference": null
       },
       "limitations": []
@@ -789,14 +708,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
-        "after": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
+        "before": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
         "difference": null
       },
       "limitations": []
@@ -873,19 +792,90 @@
       "provider": "stack",
       "path": "/features/suburb-analytics/#comparisons",
       "state": "saved comparisons",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "changed",
+      "changedPixels": 99080,
+      "percent": 3.7313,
       "heights": {
         "before": 1844,
         "after": 1844
       },
-      "areas": [],
+      "areas": [
+        {
+          "x": 990,
+          "y": 512,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 647,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 781,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 916,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 1050,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 1185,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 1320,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 1454,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 1589,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        },
+        {
+          "x": 990,
+          "y": 1724,
+          "width": 274,
+          "height": 38,
+          "pixels": 9908
+        }
+      ],
       "sameAreasAs": null,
       "images": {
         "before": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
-        "after": "../../img/4e7a2526df417f6f57212f38d3831a5aebaca80b8ac3d14f72f4c871998e4ec6.png",
-        "difference": null
+        "after": "../../img/c9e7e58767f71c186f5d7eeb566b3c87c1ea19bc61cdc0999be65e1f870948ef.png",
+        "difference": "../../img/61ad2414d5f0c5475556fe19a1d66048d636d6606765e443379153ca319242d7.png"
       },
       "limitations": []
     },
@@ -943,14 +933,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 3754,
-        "after": 3754
+        "before": 3943,
+        "after": 3943
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
-        "after": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
+        "before": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
+        "after": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
         "difference": null
       },
       "limitations": []
