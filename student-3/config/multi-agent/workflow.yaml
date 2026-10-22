@@ -1,0 +1,135 @@
+# Feature 3 multi-agent workflow: saved suburb comparison evidence review (Release 2).
+#
+# The Planner chooses the evidence sequence, the Worker reads one saved comparison and its
+# published crime evidence through Feature 3's two read-only tools, the Reviewer checks the
+# result against the deterministic rules below, and a human decides whether to accept it.
+#
+# This workflow reviews recorded evidence only. It never changes a saved comparison, labels a
+# suburb safe or unsafe, infers causes, predicts crime, or treats missing observations as zero.
+schema_version: 1
+id: f3-suburb-comparison-review
+version: v1
+feature_id: student-3-suburb-analytics
+title: Suburb comparison evidence review
+objective: >-
+  Review one saved suburb comparison against its published crime evidence and explain whether its
+  period, measure, sources, coverage, missing observations and any rate denominator support the
+  comparison. Preserve recorded zero separately from missing evidence. Do not rank suburb safety,
+  infer causes or predict crime.
+inputs:
+  - name: suburb_comparison_id
+    type: string
+    title: Saved suburb comparison
+    min_length: 1
+    max_length: 100
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+  - name: reviewer_note
+    title: Optional context for the reviewers
+    required: false
+    max_length: 500
+planner_guidance: >-
+  Inspect the saved comparison first for its localities, period, measure, indicators and notes.
+  Then read the published crime evidence resolved for that exact comparison. Plan only these two
+  read-only steps. Never plan a write, a safety ranking, a causal claim or a prediction.
+allowed_tools:
+  - suburb.comparison.inspect.v1
+  - crime.saved-comparison-evidence.v1
+steps:
+  - id: comparison
+    title: Inspect the saved comparison
+    purpose: Collect its name, localities, period, measure, indicators, priorities and limitations.
+    tool: suburb.comparison.inspect.v1
+    arguments:
+      suburb_comparison_id: "{{input.suburb_comparison_id}}"
+  - id: evidence
+    title: Read the published crime evidence
+    purpose: >-
+      Resolve the selected localities over the saved period and measure, including source releases,
+      coverage, missing-value handling, rate-denominator validity, methodology and limitations.
+    tool: crime.saved-comparison-evidence.v1
+    arguments:
+      suburb_comparison_id: "{{input.suburb_comparison_id}}"
+reviewer_checks:
+  - id: comparison-inspected
+    description: The requested saved comparison was inspected.
+    severity: critical
+    recommendation: Check the comparison identifier and run the review again.
+    rule: {kind: step_succeeded, step: comparison}
+  - id: evidence-read
+    description: Published crime evidence was read for the saved comparison.
+    severity: critical
+    recommendation: Without the evidence there is nothing to review; run the review again.
+    rule: {kind: step_succeeded, step: evidence}
+  - id: comparison-matches
+    description: The inspected comparison is the one the run was started for.
+    severity: critical
+    recommendation: Investigate why a different saved comparison was returned before using the review.
+    rule:
+      kind: field_compare
+      step: comparison
+      path: comparison.id
+      operator: eq
+      value: "{{input.suburb_comparison_id}}"
+  - id: evidence-matches
+    description: The evidence was resolved for the requested comparison.
+    severity: critical
+    recommendation: Investigate the evidence lookup before using the review.
+    rule:
+      kind: field_compare
+      step: evidence
+      path: comparison_id
+      operator: eq
+      value: "{{input.suburb_comparison_id}}"
+  - id: localities-comparable
+    description: The saved comparison contains at least two localities.
+    severity: high
+    recommendation: Save at least two supported localities before reviewing the comparison.
+    rule: {kind: min_items, step: comparison, path: comparison.localities, value: 2}
+  - id: period-consistent
+    description: Every series uses the saved comparison period.
+    severity: critical
+    recommendation: Do not compare series from inconsistent periods; correct the evidence projection.
+    rule: {kind: field_compare, step: evidence, path: validation.period_consistent, operator: eq, value: true}
+  - id: measure-consistent
+    description: Every series uses the same count or rate measure.
+    severity: critical
+    recommendation: Do not compare mixed measures; correct the evidence projection.
+    rule: {kind: field_compare, step: evidence, path: validation.measure_consistent, operator: eq, value: true}
+  - id: missing-values-preserved
+    description: Missing observations remain distinct from recorded zeroes.
+    severity: critical
+    recommendation: Correct the projection so unavailable observations are never treated as zero.
+    rule: {kind: field_compare, step: evidence, path: validation.missing_values_preserved, operator: eq, value: true}
+  - id: rate-denominator-valid
+    description: A rate comparison has a valid population denominator for every locality.
+    severity: high
+    recommendation: Use counts or provide valid denominators; do not present an unsupported rate.
+    rule: {kind: field_compare, step: evidence, path: validation.rate_denominator_valid, operator: eq, value: true}
+  - id: evidence-available
+    description: The comparison has at least partial published evidence coverage.
+    severity: high
+    recommendation: Load published crime evidence before accepting the comparison review.
+    rule: {kind: field_compare, step: evidence, path: coverage, operator: in, value: [complete, partial]}
+  - id: sources-recorded
+    description: At least one source release is recorded for the evidence.
+    severity: high
+    recommendation: Do not use unattributed crime figures; publish an attributable source release first.
+    rule: {kind: min_items, step: evidence, path: source_releases, value: 1}
+  - id: limitations-stated
+    description: The evidence reports the limitations that bound the comparison.
+    severity: high
+    recommendation: Carry the evidence limitations into the review before accepting it.
+    rule: {kind: min_items, step: evidence, path: limitations, value: 1}
+  - id: responsible-use-recorded
+    description: The evidence states its responsible-use constraint.
+    severity: medium
+    recommendation: State that recorded crime evidence is not a suburb safety ranking.
+    rule: {kind: field_present, step: evidence, path: methodology.responsible_use}
+human_review_guidance: >-
+  You are deciding whether the comparison summary faithfully describes recorded evidence, not
+  whether either suburb is safe, unsafe, good or bad. Approve only when every critical and high
+  check passed and the prose names the shared period and measure, source coverage, limitations,
+  missing observations and any rate-denominator limitation. Reject causal claims, predictions and
+  safety rankings. Where evidence_mode is seeded_demonstration, the summary must say so. Use
+  "correct" to send the Worker and Reviewer back once with a note, "partial" to accept only the
+  evidence steps that hold, and "reject" when the review should not be used.
