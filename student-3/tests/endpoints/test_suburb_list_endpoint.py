@@ -35,4 +35,4 @@ def test_invalid_limit_is_returned_as_problem_details(
     assert problem["status"] == 422
     assert problem["code"]
     assert problem["type"].startswith("https://propertyscope.invalid/problems/")
-    assert problem["detail"] == "A required feature dependency could not complete the request."
+    assert problem["detail"] == "The request could not be applied."

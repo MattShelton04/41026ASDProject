@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable, Mapping
 from datetime import date
 from http import HTTPStatus
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote
+from urllib.parse import parse_qs, quote, unquote, urlencode
 
 import httpx
 
@@ -47,6 +47,61 @@ TOOL_ALLOWLIST_V1 = (
 )
 TOOL_ALLOWLIST = ("suburb.published-context.v1", "crime.methodology.v1")
 APPROVED_TOOL_ALLOWLISTS = grounded_allowlist_variants(TOOL_ALLOWLIST_V1, TOOL_ALLOWLIST)
+SUBURB_MAP_CATEGORIES = (
+    "schools",
+    "train-station",
+    "library",
+    "protected-reserve",
+)
+
+
+def _suburb_map_context(
+    properties: HttpClient, locality: str, postcode: str | None = None
+) -> dict[str, Any]:
+    """Resolve one gazetted suburb and return its accepted Feature 1 map projection."""
+    search_query: dict[str, str | int] = {"q": locality, "limit": 20}
+    if postcode:
+        search_query["postcode"] = postcode
+    search = properties.request(
+        "GET", f"/api/data-platform/v1/suburbs/search?{urlencode(search_query)}"
+    )
+    items = search.get("items")
+    if not isinstance(items, list) or not items:
+        raise ServiceError(
+            404,
+            {
+                "code": "gazetted_suburb_not_found",
+                "detail": "No accepted gazetted suburb boundary matches this locality.",
+            },
+        )
+    if search.get("match") != "unique" or len(items) != 1:
+        raise ServiceError(
+            409,
+            {
+                "code": "ambiguous_gazetted_suburb",
+                "detail": "More than one gazetted suburb has this name; supply a postcode.",
+                "candidates": [
+                    {key: item.get(key) for key in ("suburb_id", "name", "postcode", "state")}
+                    for item in items[:20]
+                    if isinstance(item, dict)
+                ],
+            },
+        )
+    suburb_id = str(items[0].get("suburb_id", ""))
+    if not re.fullmatch(r"[1-9][0-9]{0,11}", suburb_id):
+        raise ServiceError(502, {"code": "invalid_suburb_identity"})
+    map_query = urlencode(
+        {
+            "categories": ",".join(SUBURB_MAP_CATEGORIES),
+            "detail": "medium",
+            "limit": 500,
+            "operational": "current",
+        }
+    )
+    return properties.request(
+        "GET",
+        f"/api/data-platform/v1/suburbs/{suburb_id}/map-context?{map_query}",
+    )
 
 
 def _published_suburb(context: dict[str, Any]) -> dict[str, Any]:
@@ -384,7 +439,11 @@ def _saved_comparison_evidence(data: HttpClient, comparison: dict[str, Any]) -> 
     ):
         raise ValueError("saved comparison is not reviewable")
     months = _month_range(start, end)
-    offence = "all_recorded"
+    selected_indicators = comparison.get("selected_indicators")
+    offence = next(
+        (indicator for indicator in selected_indicators or [] if indicator in ALLOWED_OFFENCES),
+        "all_recorded",
+    )
     series = []
     for locality in localities:
         context = data.request("GET", f"/internal/v1/published/context?locality={quote(locality)}")
@@ -779,6 +838,14 @@ def create_app(
                 return _response(
                     start, 200, data.request("GET", f"/internal/v1/suburbs?{raw_query}")
                 )
+            if path == f"{BASE}/suburbs/map-context" and method == "GET":
+                locality = query.get("locality", "").strip()
+                postcode = query.get("postcode", "").strip() or None
+                if not locality or len(locality) > 100:
+                    raise ValueError("locality must contain 1 to 100 characters")
+                if postcode is not None and not re.fullmatch(r"[0-9]{4}", postcode):
+                    raise ValueError("postcode must contain four digits")
+                return _response(start, 200, _suburb_map_context(properties, locality, postcode))
             if path.startswith(f"{BASE}/properties/") and path.endswith("/nearby-places"):
                 property_ref = unquote(
                     path.removeprefix(f"{BASE}/properties/").removesuffix("/nearby-places")
@@ -1257,9 +1324,12 @@ def create_app(
         except ValueError as exc:
             return _problem(start, 422, "invalid_request", str(exc))
         except ServiceError as exc:
+            upstream_detail = exc.payload.get("detail")
             error_detail = (
                 "The optional AI service is unavailable; saved comparisons and charts still work."
                 if exc.status == 503 and (path.endswith("agent-runs") or "/assistant/turns" in path)
+                else str(upstream_detail)[:500]
+                if isinstance(upstream_detail, str) and upstream_detail
                 else "A required feature dependency could not complete the request."
             )
             return _problem(

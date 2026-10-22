@@ -23,11 +23,13 @@ class ReviewData:
         self,
         *,
         measure: str = "count",
+        offence: str = "recorded_offences",
         missing_population: bool = False,
         source_release: str = "crime-release-1",
     ) -> None:
         self.calls: list[tuple[str, str, dict[str, Any] | None]] = []
         self.measure = measure
+        self.offence = offence
         self.missing_population = missing_population
         self.source_release = source_release
 
@@ -46,7 +48,7 @@ class ReviewData:
                     "from_month": "2026-01",
                     "to_month": "2026-02",
                     "measure": self.measure,
-                    "selected_indicators": ["recorded_offences"],
+                    "selected_indicators": [self.offence],
                     "priorities": ["transport"],
                     "notes": "Seeded published-locality comparison for demonstration.",
                 }
@@ -176,6 +178,17 @@ def test_saved_comparison_evidence_preserves_recorded_zero_and_missing() -> None
     }
     assert all(method == "GET" and body is None for method, _path, body in data.calls)
     assert data.calls[0][1].endswith(COMPARISON_ID)
+
+
+def test_saved_comparison_evidence_uses_the_saved_offence_category() -> None:
+    status, payload = call_tool(
+        ReviewData(offence="property"),
+        "crime.saved-comparison-evidence.v1",
+        {"suburb_comparison_id": COMPARISON_ID},
+    )
+
+    assert status == 200
+    assert payload["offence"] == "property"
 
 
 def test_rate_review_reports_an_unavailable_denominator() -> None:

@@ -71,6 +71,32 @@ class UnavailableAi:
         raise ServiceError(503, {"code": "dependency_unavailable"})
 
 
+class SuburbMapClient:
+    def __init__(self, *, ambiguous: bool = False) -> None:
+        self.base_url = "http://feature-1.test"
+        self.ambiguous = ambiguous
+        self.paths: list[str] = []
+
+    def request(
+        self, method: str, path: str, payload: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        assert method == "GET" and payload is None
+        self.paths.append(path)
+        if path.startswith("/api/data-platform/v1/suburbs/search?"):
+            items = [{"suburb_id": "108502", "name": "PARRAMATTA", "postcode": "2150"}]
+            if self.ambiguous:
+                items.append({"suburb_id": "108503", "name": "PARRAMATTA", "postcode": "2340"})
+            return {"match": "ambiguous" if self.ambiguous else "unique", "items": items}
+        if path.startswith("/api/data-platform/v1/suburbs/108502/map-context?"):
+            return {
+                "schema_version": "propertyscope.suburb-map-context.v1",
+                "suburb": {"suburb_id": "108502", "name": "PARRAMATTA"},
+                "layers": {},
+                "coverage": {"boundary": "accepted"},
+            }
+        raise AssertionError(path)
+
+
 class RecordingAi:
     def __init__(self) -> None:
         self.payload: dict[str, Any] | None = None
@@ -132,6 +158,44 @@ def test_comparison_rejects_mixed_or_incomplete_selection() -> None:
     )
     assert status == 422
     assert payload["code"] == "incomparable_selection"
+
+
+def test_suburb_map_context_resolves_stable_feature_1_identity() -> None:
+    properties = SuburbMapClient()
+    app = create_app(FakeClient(), UnavailableAi(), properties)
+
+    status, payload = call(
+        app, "/api/suburb-analytics/v1/suburbs/map-context?locality=Parramatta&postcode=2150"
+    )
+
+    assert status == 200
+    assert payload["suburb"]["suburb_id"] == "108502"
+    assert "q=Parramatta" in properties.paths[0]
+    assert "postcode=2150" in properties.paths[0]
+    assert "categories=schools%2Ctrain-station%2Clibrary%2Cprotected-reserve" in properties.paths[1]
+
+
+def test_suburb_map_context_does_not_guess_an_ambiguous_boundary() -> None:
+    properties = SuburbMapClient(ambiguous=True)
+    app = create_app(FakeClient(), UnavailableAi(), properties)
+
+    status, payload = call(app, "/api/suburb-analytics/v1/suburbs/map-context?locality=Parramatta")
+
+    assert status == 409
+    assert payload["code"] == "ambiguous_gazetted_suburb"
+    assert "supply a postcode" in payload["detail"]
+    assert len(properties.paths) == 1
+
+
+@pytest.mark.parametrize("query", ["", "postcode=21", "locality="])
+def test_suburb_map_context_validates_lookup_parameters(query: str) -> None:
+    status, payload = call(
+        create_app(FakeClient(), UnavailableAi(), SuburbMapClient()),
+        f"/api/suburb-analytics/v1/suburbs/map-context?{query}",
+    )
+
+    assert status == 422
+    assert payload["code"] == "invalid_request"
 
 
 def test_same_measure_comparison_returns_neutral_limitations() -> None:
