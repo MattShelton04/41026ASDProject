@@ -11,6 +11,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from propertyscope_market_store.demonstration_data import purge_demonstration_data
 from propertyscope_market_store.import_operations import SalesImportOperations
 from propertyscope_market_store.migrations import migrate
 
@@ -44,11 +45,18 @@ class MarketStore:
         connection.execute("PRAGMA busy_timeout = 10000")
         return connection
 
-    def initialize(self) -> None:
+    def initialize(self, *, demonstration_data: bool = True) -> None:
+        """Migrate, and in a production database drop the seeded showcase rows.
+
+        The purge runs after every migration pass, as Feature 1's does, so a database that was
+        migrated before this setting existed is cleaned on its next start.
+        """
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._migration_lock, self._connect() as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             migrate(connection)
+            if not demonstration_data:
+                purge_demonstration_data(connection)
 
     def ready(self) -> bool:
         try:

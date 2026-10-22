@@ -20,7 +20,7 @@ def create_app(settings: StoreSettings | None = None, *, store: Any = None) -> F
     if store is None:
         store = MarketStore(resolved.database_path)
         if resolved.auto_migrate:
-            store.initialize()
+            store.initialize(demonstration_data=resolved.demonstration_data)
     app = Flask("propertyscope-market-store")
     app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
     register_health(app, store)

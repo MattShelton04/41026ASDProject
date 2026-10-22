@@ -228,6 +228,8 @@ services:
     entrypoint: [/bin/sh, /run/propertyscope/secret-env.sh]
     command: ["gunicorn", "--bind=0.0.0.0:5302", "--workers=1", "--threads=4", "--timeout=60", "--access-logfile=-", "--error-logfile=-", "propertyscope_market_store.app:create_app()"]
     environment:
+      # Production holds only real reviewed data, as f1-db-api does.
+      PROPERTYSCOPE_DEMONSTRATION_DATA: "false"
       PROPERTYSCOPE_INTERNAL_TOKEN: ""
       PROPERTYSCOPE_SECRET_ENV: PROPERTYSCOPE_INTERNAL_TOKEN=internal_token
     secrets: [internal_token]

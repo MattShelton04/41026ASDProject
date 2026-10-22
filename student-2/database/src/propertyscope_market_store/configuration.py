@@ -14,6 +14,8 @@ class StoreSettings:
     database_path: Path
     internal_token: str
     auto_migrate: bool = True
+    # False in the Azure deployment, which holds only real reviewed data.
+    demonstration_data: bool = True
 
     @classmethod
     def from_environment(cls) -> StoreSettings:
@@ -28,5 +30,7 @@ class StoreSettings:
                 "PROPERTYSCOPE_INTERNAL_TOKEN", "propertyscope-local-development-only"
             ),
             auto_migrate=os.environ.get("PROPERTYSCOPE_AUTO_MIGRATE", "true").lower()
+            in {"1", "true", "yes"},
+            demonstration_data=os.environ.get("PROPERTYSCOPE_DEMONSTRATION_DATA", "true").lower()
             in {"1", "true", "yes"},
         )
