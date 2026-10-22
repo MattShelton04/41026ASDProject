@@ -6,6 +6,8 @@ but it is not automatically the current implementation contract.
 
 ## Current authorities
 
+- [`system-overview.md`](system-overview.md): short tour of how everything fits together, with the
+  Release 2 additions (start here)
 - [`registered-feature-scope.md`](registered-feature-scope.md): approved team ownership, feature
   purposes, and minimum frontend/backend/database boundaries
 - [`shared-platform-design.md`](shared-platform-design.md): living Shared services, AI-mode,
