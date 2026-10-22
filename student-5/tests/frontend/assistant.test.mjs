@@ -3,6 +3,44 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createBuyerAssistant, CASE_SUMMARY_MESSAGE, setSummaryVisibility } from "../../frontend/assistant.js";
 import { createAssistantClient, answerSections, evidenceSteps } from "../../frontend/ai-chat/index.js";
+import { createCaseActionPlan } from "../../frontend/action-plan.js";
+
+test("action plans bind the selected case, isolate polling and reopen its own last run", () => {
+  const label = {};
+  const root = {replaceChildren() { this.cleared = true; }};
+  const section = {hidden: true, querySelector(selector) { return selector === "[data-action-plan-case]" ? label : root; }};
+  const mounts = [];
+  let destroyed = 0;
+  const adapter = createCaseActionPlan(section, (options) => {
+    mounts.push(options);
+    return {destroy() { destroyed += 1; }};
+  }, (options) => options);
+  adapter.select(null);
+  assert.equal(section.hidden, true);
+  assert.equal(mounts.length, 0);
+  adapter.select({id: "case-a", name: "<First buyer>"});
+  assert.equal(label.textContent, "Selected case: <First buyer>");
+  assert.equal(section.hidden, false);
+  assert.equal(mounts[0].client.apiRoot, "/api/buyer-workspaces/v1/buyer-cases/case-a/evidence-reviews");
+  assert.deepEqual(mounts[0].initialInput, {buyer_case_id: "case-a"});
+  assert.deepEqual(mounts[0].hiddenInputs, ["buyer_case_id"]);
+  mounts[0].onRunChange({id: "run-a"});
+  adapter.select({id: "case-a", name: "Renamed buyer"});
+  assert.equal(mounts.length, 1);
+  assert.equal(label.textContent, "Selected case: Renamed buyer");
+  adapter.select({id: "case-b", name: "Second buyer"});
+  assert.equal(destroyed, 1);
+  assert.equal(mounts[1].runId, null);
+  mounts[0].onRunChange({id: "stale-result"});
+  adapter.select(null);
+  assert.equal(destroyed, 2);
+  assert.equal(section.hidden, true);
+  assert.equal(root.cleared, true);
+  adapter.select({id: "case-a", name: "First buyer"});
+  assert.equal(mounts[2].runId, "run-a");
+  adapter.destroy();
+  assert.equal(destroyed, 3);
+});
 
 test("summary shortcut is hidden without an open case", () => {
   const button = {};

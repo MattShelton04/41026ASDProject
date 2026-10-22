@@ -7,11 +7,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 _INTERNAL_API = "/internal/buyer-workspaces/v1"
-_TOKEN_HEADER = "X-PropertyScope-Internal-Token"
+_TOKEN_HEADER = "X-PropertyScope-Internal-Token"  # noqa: S105 - header name, not a credential
 _REQUEST_ID_HEADER = "X-Request-ID"
 
 
@@ -91,6 +91,38 @@ class BuyerStoreGateway(Protocol):
     ) -> ClientResponse: ...
 
 
+def validate_http_url(url: str) -> None:
+    """Reject non-HTTP destinations and embedded credentials before opening a connection."""
+    try:
+        parts = urlsplit(url)
+        valid = (
+            parts.scheme in {"http", "https"}
+            and bool(parts.hostname)
+            and parts.username is None
+            and parts.password is None
+            and not parts.fragment
+            and not any(character.isspace() or ord(character) < 32 for character in url)
+        )
+        _ = parts.port
+    except ValueError:
+        valid = False
+    if not valid:
+        raise DatabaseUnavailableError("HTTP dependency address is invalid")
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
+        raise DatabaseUnavailableError("HTTP dependency redirects are not permitted")
+
+
+def urlopen(request: Request, *, timeout: float) -> Any:
+    validate_http_url(request.full_url)
+    # No redirect may forward internal credentials to another destination.
+    return build_opener(_NoRedirect()).open(request, timeout=timeout)
+
+
 class UrllibTransport:
     """Small default transport; tests inject a deterministic implementation."""
 
@@ -117,6 +149,7 @@ class UrllibTransport:
         json_body: Mapping[str, Any] | None,
         timeout_seconds: float,
     ) -> ClientResponse:
+        validate_http_url(url)
         if params:
             url = f"{url}?{urlencode(params)}"
         body = None if json_body is None else json.dumps(json_body).encode("utf-8")
@@ -124,7 +157,7 @@ class UrllibTransport:
         request_headers["Accept"] = "application/json"
         if body is not None:
             request_headers["Content-Type"] = "application/json"
-        outbound = Request(url, data=body, headers=request_headers, method=method)
+        outbound = Request(url, data=body, headers=request_headers, method=method)  # noqa: S310 - HTTP(S) validated before constructing request
         try:
             with urlopen(outbound, timeout=timeout_seconds) as response:
                 return ClientResponse(

@@ -188,6 +188,8 @@ services:
 
   f5-frontend:
     volumes:
+      - ./shared/frontend/multi-agent:/usr/share/nginx/html/multi-agent:ro
+      - ./student-5/frontend/action-plan.js:/usr/share/nginx/html/action-plan.js:ro
       - ./shared/frontend/ai-chat:/usr/share/nginx/html/ai-chat:ro
       - ./shared/frontend/browser:/usr/share/nginx/html/browser:ro
       - ./student-5/frontend/index.html:/usr/share/nginx/html/index.html:ro
