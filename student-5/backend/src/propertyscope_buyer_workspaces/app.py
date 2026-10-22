@@ -8,6 +8,7 @@ from flask import Flask
 
 from propertyscope_buyer_workspaces.api import register_api
 from propertyscope_buyer_workspaces.assistant import register_assistant
+from propertyscope_buyer_workspaces.case_reviews import MultiAgentClient, register_case_reviews
 from propertyscope_buyer_workspaces.clients import BuyerStoreClient, BuyerStoreGateway
 from propertyscope_buyer_workspaces.configuration import BackendSettings
 from propertyscope_buyer_workspaces.integrations import (
@@ -24,6 +25,7 @@ def create_app(
     store: BuyerStoreGateway | None = None,
     evidence: EvidenceGateway | None = None,
     ai_mode: AiModeGateway | None = None,
+    multi_agent: MultiAgentClient | None = None,
 ) -> Flask:
     """Create the backend with an injected database HTTP boundary."""
 
@@ -54,4 +56,13 @@ def create_app(
         ai_mode=runtime_ai_mode,
     )
     register_assistant(app, runtime_store, runtime_settings, runtime_ai_mode)
+    register_case_reviews(
+        app,
+        runtime_store,
+        runtime_settings,
+        multi_agent
+        or MultiAgentClient(
+            runtime_settings.multi_agent_url, os.environ.get("MULTI_AGENT_SERVICE_TOKEN", "")
+        ),
+    )
     return app

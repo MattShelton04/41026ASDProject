@@ -7,11 +7,13 @@ import sqlite3
 import pytest
 
 from propertyscope_buyer_store.migrations import seed
-from propertyscope_buyer_store.repository import BuyerStore
+from propertyscope_buyer_store.repository import TABLES, BuyerStore
 
 
 def _rows(connection: sqlite3.Connection, table: str) -> list[tuple[object, ...]]:
-    return [tuple(row) for row in connection.execute(f"SELECT * FROM {table} ORDER BY id")]
+    if table not in TABLES:
+        raise ValueError("Unsupported fixture table")
+    return [tuple(row) for row in connection.execute(f"SELECT * FROM {table} ORDER BY id")]  # noqa: S608 - table checked against fixed schema tuple
 
 
 def test_seed_has_required_deterministic_counts(store: BuyerStore) -> None:

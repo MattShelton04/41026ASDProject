@@ -56,7 +56,11 @@ def test_owned_process_requires_checkout_and_command(
     assert runtime._owned_process("ai-mode") is None
 
 
-def test_corrupt_pid_file_is_not_authority_to_signal(isolated: Path) -> None:
+def test_corrupt_pid_file_is_not_authority_to_signal(
+    isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # This scenario has no foreground service; do not discover the developer's listeners.
+    monkeypatch.setattr(runtime, "foreground_process", lambda _service, _environment: None)
     runtime.HOST_DIRECTORY.mkdir()
     (runtime.HOST_DIRECTORY / "mcp.json").write_text("broken", encoding="utf-8")
     runtime.stop(("mcp",))
@@ -668,6 +672,8 @@ def test_probe_reports_degraded_checks_tokens_and_silence() -> None:
 def test_probed_status_reads_persisted_tokens_and_flags_foreign_port_holders(
     isolated: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Only the managed RAG process below exists in this test's simulated process inventory.
+    monkeypatch.setattr(runtime, "foreground_process", lambda _service, _environment: None)
     runtime.HOST_DIRECTORY.mkdir()
     (runtime.HOST_DIRECTORY / "rag.token").write_text("r" * 43, encoding="utf-8")
     monkeypatch.setattr(

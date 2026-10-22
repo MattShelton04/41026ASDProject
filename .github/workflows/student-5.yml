@@ -8,6 +8,7 @@ on:
       - "**/pyproject.toml"
       - "student-5/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -28,6 +29,7 @@ on:
       - ".github/workflows/student-5.yml"
       - "student-5/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -44,7 +46,8 @@ on:
 env:
   AI_MODE_MCP_ENABLED: "false"
   AI_MODE_RAG_ENABLED: "false"
-  AI_MODE_SERVICE_TOKEN: "isolated-student5-ci-host-credential-only"
+  AI_MODE_SERVICE_TOKEN: ""
+  MULTI_AGENT_SERVICE_TOKEN: ""
 
 permissions:
   contents: read
@@ -88,6 +91,7 @@ jobs:
         run: |
           node --check student-5/frontend/app.js
           node --check student-5/frontend/assistant.js
+          node --check student-5/frontend/action-plan.js
           node --import ./scripts/frontend-test-bootstrap.mjs --test student-5/tests/frontend/*.test.mjs shared/frontend/ai-chat/*.test.mjs
       - name: Accept scoped assistant, grounding and public guidance without live AI
         run: uv run pytest student-5/tests/test_backend_api.py -k "turn or corpus or injection or insufficient or outage or foreign" --no-cov -q
@@ -101,22 +105,28 @@ jobs:
           uv run python scripts/validate_frontend_styles.py
       - name: Build Student 5 containers
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml build f5-db-api f5-backend f5-frontend
-      - name: Start host AI-mode with advanced capabilities disabled
-        env:
-          OPENAI_BASE_URL: http://127.0.0.1:9/v1
-          OPENAI_ALLOW_INSECURE_HTTP: "true"
-          AI_MODE_REQUIRE_PROVIDER_READY: "false"
-        run: uv run --locked scripts/dev.py ai start --mode direct --offline
       - name: Start isolated Student 5 stack
-        env:
-          OPENAI_BASE_URL: http://127.0.0.1:9/v1
-          OPENAI_ALLOW_INSECURE_HTTP: "true"
-          AI_MODE_REQUIRE_PROVIDER_READY: "false"
         run: docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 up --detach --wait --wait-timeout 180 shared-frontend f5-db-api f5-backend f5-frontend
       - name: Verify seed counts
         run: |
           docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f5-db-api python -c "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5502/internal/buyer-workspaces/v1/seed-report',headers={'X-PropertyScope-Internal-Token':os.environ['PROPERTYSCOPE_INTERNAL_TOKEN']}); value=json.load(urllib.request.urlopen(request,timeout=5)); assert all(value['tables'][name] >= 10 for name in ('buyer_case','case_property','case_note','case_task')), value; print(value)"
-      - name: Run public CRUD, evidence and AI degradation smoke
+      - name: Run Student 5 endpoint tests
+        env:
+          PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5500
+          PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+        run: uv run --locked pytest student-5/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-5-endpoints.xml
+      - name: Publish endpoint test summary
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        run: uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-5-endpoints.xml --title "Feature 5 endpoint tests" --output endpoint-results/student-5-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload endpoint test results
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: student-5-endpoint-tests
+          path: endpoint-results/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Run public CRUD, evidence and AI-disabled degradation smoke
         run: uv run python student-5/scripts/compose_smoke.py initial --state .propertyscope-runtime/student5-smoke.json
       - name: Restart without deleting persistent data
         run: |
@@ -126,9 +136,6 @@ jobs:
       - name: Capture service logs
         if: failure()
         run: docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 200 shared-frontend f5-db-api f5-backend f5-frontend
-      - name: Stop managed host AI-mode
-        if: always()
-        run: uv run --locked scripts/dev.py ai stop
       - name: Remove only isolated CI resources
         if: always()
         run: docker compose --project-name "ps-student5-${{ github.run_id }}" --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 down --remove-orphans --volumes

@@ -13,6 +13,8 @@ from propertyscope_buyer_workspaces.clients import (
     ClientResponse,
     DatabaseProtocolError,
     DatabaseUnavailableError,
+    UrllibTransport,
+    _NoRedirect,
 )
 
 
@@ -125,3 +127,42 @@ def test_invalid_json_is_reported_as_protocol_failure() -> None:
     response = ClientResponse(200, b"not-json", {})
     with pytest.raises(DatabaseProtocolError):
         response.json()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "ftp://dependency/resource",
+        "data:text/plain,private",
+        "http://user:password@dependency/resource",  # pragma: allowlist secret - fake rejected URL
+        "http:///missing-host",
+        "http://dependency:invalid/resource",
+        "http://dependency/\nheader",
+        "http://dependency/resource#fragment",
+    ],
+)
+def test_transport_rejects_unsafe_urls_before_network(
+    url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unexpected_open(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("Invalid dependency URL reached the network")
+
+    monkeypatch.setattr("propertyscope_buyer_workspaces.clients.urlopen", unexpected_open)
+    with pytest.raises(DatabaseUnavailableError, match="address is invalid"):
+        UrllibTransport().request(
+            "GET", url, headers={}, params=None, json_body=None, timeout_seconds=1
+        )
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_dependency_redirects_cannot_forward_credentials(code: int) -> None:
+    from urllib.request import Request
+
+    original = Request(
+        "http://dependency/resource", headers={"X-PropertyScope-Internal-Token": "fixture"}
+    )
+    with pytest.raises(DatabaseUnavailableError, match="redirects are not permitted"):
+        _NoRedirect().redirect_request(
+            original, None, code, "Redirect", {}, "http://other-host/private"
+        )

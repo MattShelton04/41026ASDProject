@@ -14,6 +14,27 @@ CASE_2 = "b5000000-0000-4000-8000-000000000002"
 PROPERTY_1 = "c5000000-0000-4000-8000-000000000001"
 
 
+@pytest.mark.parametrize("field", ["owner_ref", "id", "version", "name = 'injected' --"])
+def test_repository_rejects_non_allowlisted_update_identifiers(
+    store: BuyerStore, field: str
+) -> None:
+    before = store.get_case(OWNER, CASE_1)
+    with pytest.raises(ValueError, match="Unsupported persistence fields"):
+        store.update_case(OWNER, CASE_1, {field: "untrusted"}, expected_version=1)
+    assert store.get_case(OWNER, CASE_1) == before
+
+
+def test_repository_binds_sql_like_values_without_executing_them(store: BuyerStore) -> None:
+    content = "'); DELETE FROM buyer_case; --"
+    note = store.create_note(OWNER, CASE_1, {"content": content, "case_property_id": None})
+    assert note["content"] == content
+    assert store.list_cases(OWNER, page=1, page_size=100)["total"] == 10
+    with pytest.raises(ValueError, match="Unsupported persistence fields"):
+        store._get_child("case_note; DROP TABLE buyer_case", OWNER, CASE_1, note["id"])
+    with pytest.raises(ValueError, match="Unsupported persistence fields"):
+        store.create_note(OWNER, CASE_1, {"content) VALUES ('injected'); --": content})
+
+
 def test_owner_scope_is_applied_to_cases_and_children(store: BuyerStore) -> None:
     store.create_case(
         "another-owner",
@@ -110,7 +131,8 @@ def test_case_deletion_cascades_all_children(store: BuyerStore) -> None:
     connection = store.connect()
     counts = {
         table: connection.execute(
-            f"SELECT COUNT(*) FROM {table} WHERE buyer_case_id = ?", (CASE_1,)
+            f"SELECT COUNT(*) FROM {table} WHERE buyer_case_id = ?",  # noqa: S608 - table from fixed tuple; bound case ID
+            (CASE_1,),
         ).fetchone()[0]
         for table in ("case_property", "case_note", "case_task")
     }

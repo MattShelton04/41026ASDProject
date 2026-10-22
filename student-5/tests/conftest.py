@@ -11,10 +11,30 @@ from flask.testing import FlaskClient
 from propertyscope_buyer_store.app import create_app
 from propertyscope_buyer_store.configuration import StoreSettings
 from propertyscope_buyer_store.repository import BuyerStore
+from shared_testkit.endpoints import EndpointClient
+from shared_testkit.pytest_endpoints import (
+    endpoint_client,
+    endpoint_ready_path,
+    pytest_collection_modifyitems,
+)
+
+__all__ = ["endpoint_client", "endpoint_ready_path", "pytest_collection_modifyitems"]
 
 OWNER = "release0-demo-owner"
 TOKEN = "phase-one-test-token"
 HEADERS = {"X-PropertyScope-Internal-Token": TOKEN}
+
+
+@pytest.fixture
+def created_buyer_cases(endpoint_client: EndpointClient) -> Iterator[list[str]]:
+    """Clean up only the cases created by an opt-in live endpoint test."""
+    created: list[str] = []
+    yield created
+    for case_id in created:
+        response = endpoint_client.delete(f"/api/buyer-workspaces/v1/buyer-cases/{case_id}")
+        assert response.status_code in {200, 204, 404}, (
+            f"Could not clean up endpoint test case: HTTP {response.status_code}"
+        )
 
 
 @pytest.fixture
