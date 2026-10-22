@@ -292,6 +292,39 @@ test("saved comparisons load into trend controls and navigate to crime trends", 
   assert.match(nodes.get("#toast").textContent, /cannot be loaded/);
 });
 
+test("map comparison handoff uses the canonical locality instead of its display label", () => {
+  const nodes = new Map([
+    ["#locality-a", {value: ""}],
+    ["#toast", {textContent: "", dataset: {}}],
+  ]);
+  const location = {hash: "#explore"};
+  const context = vm.createContext({
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
+    location,
+    document: {querySelector: (id) => nodes.get(id)},
+    setTimeout: () => {},
+  });
+  vm.runInContext(
+    js.replace(/^import .*;\r?\n/gm, "")
+      .replaceAll("import.meta.url", '"http://localhost/app.js"')
+      .replace(/init\(\);\s*$/, "")
+      + '\nstate.suburbs = [{locality: "BURWOOD"}, {locality: "NEWTOWN"}];',
+    context,
+  );
+
+  vm.runInContext('useInComparison("BURWOOD")', context);
+
+  assert.equal(nodes.get("#locality-a").value, "BURWOOD");
+  assert.equal(location.hash, "#trends");
+  assert.equal(nodes.get("#toast").textContent, "");
+
+  location.hash = "#explore";
+  vm.runInContext('useInComparison("Burwood (NSW)")', context);
+  assert.equal(location.hash, "#explore");
+  assert.match(nodes.get("#toast").textContent, /not available/);
+});
+
 test("sync controls are optional collapsed operator tools", () => {
   assert.match(html, /<details id="data-maintenance"><summary>Data maintenance \(operators\)<\/summary>/);
   const maintenance = html.split('<details id="data-maintenance">')[1].split("</details>")[0];

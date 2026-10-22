@@ -209,7 +209,12 @@ async function selectSuburb(locality) {
     source_release: school.provenance?.release_id,
   })).filter((place) => place.name && Number.isFinite(place.latitude) && Number.isFinite(place.longitude));
   state.places = places.filter((place) => selectedPlaceTypes().has(place.place_type));
-  renderSuburbDetail(suburb, { schools: { value: places.length }, seifa: context.population?.[0] }, context);
+  renderSuburbDetail(
+    suburb,
+    { schools: { value: places.length }, seifa: context.population?.[0] },
+    context,
+    locality,
+  );
   state.assistant?.controller.setContext({ route: "suburbs/detail", locality });
   const points = featureCollection(state.places.map((place) => pointFeature(place.longitude, place.latitude, { name: place.name, type: place.place_type }, place.id)));
   state.map?.setLayerData("places", points);
@@ -238,7 +243,17 @@ function publishedSuburb(context) {
   };
 }
 
-function renderSuburbDetail(suburb, metrics, context = {}) {
+function useInComparison(locality) {
+  const available = state.suburbs.find((item) => item.locality === locality)?.locality;
+  if (!available) {
+    toast("This suburb is not available in the comparison controls.");
+    return;
+  }
+  $("#locality-a").value = available;
+  location.hash = "#trends";
+}
+
+function renderSuburbDetail(suburb, metrics, context = {}, comparisonLocality = suburb.locality) {
   const values = [
     [Number.isFinite(suburb.population) ? suburb.population.toLocaleString("en-AU") : "Not available", "2021 usual residents"],
     [suburb.lga || "Not available", "School-source LGA"],
@@ -249,10 +264,10 @@ function renderSuburbDetail(suburb, metrics, context = {}) {
   detail.hidden = false;
   detail.setAttribute("aria-busy", "false");
   detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button><button class="ps-button ps-button--small ps-button--primary" type="button" data-ask-locality="${escapeHtml(suburb.locality)}">Ask about ${escapeHtml(suburb.locality)}</button></div></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
-  detail.querySelector?.("[data-compare-locality]")?.addEventListener("click", () => {
-    $("#locality-a").value = suburb.locality;
-    location.hash = "#trends";
-  });
+  detail.querySelector?.("[data-compare-locality]")?.addEventListener(
+    "click",
+    () => useInComparison(comparisonLocality),
+  );
   const bookmark = document.createElement("button");
   bookmark.id = "bookmark-suburb";
   bookmark.type = "button";
