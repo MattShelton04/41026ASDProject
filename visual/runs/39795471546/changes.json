@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "baseSha": "72f3272166174af361937197d3961ad7a25169bf",
-  "headSha": "1aac3d02f061e380f33d1e2c403791bcee877f32",
+  "baseSha": "d7602b774d47adc57efded1dc5e51abd1f42ac1f",
+  "headSha": "3f43133e5ac8851e6664b0da535e88a29b5f90b3",
   "viewport": {
     "width": 1440,
     "height": 1000,
     "fixedTime": "2026-09-01T10:00:00+10:00"
   },
   "summary": {
-    "changed": 4,
+    "changed": 2,
     "subtle": 0,
-    "unchanged": 38,
+    "unchanged": 40,
     "incomplete": 0,
     "baseUnavailable": 0,
     "total": 42
@@ -150,9 +150,9 @@
       ],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
-        "after": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
-        "difference": "../../img/5303fa95e8117dd49e0f519a179f754f3ae05ddca03c2eeff7f6a32930df025d.png"
+        "before": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
+        "after": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
+        "difference": "../../img/e3beb0fd3761480d5e29b417f39826cdbe5cfb0bf6fb76811abdfa1b3155361c.png"
       },
       "limitations": []
     },
@@ -448,27 +448,19 @@
       "provider": "fixture",
       "path": "/features/data-platform/#releases/60000000-0000-0000-0000-000000000001",
       "state": "accepted release",
-      "change": "changed",
-      "changedPixels": 64,
-      "percent": 0.0021,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 2072,
         "after": 2072
       },
-      "areas": [
-        {
-          "x": 380,
-          "y": 720,
-          "width": 8,
-          "height": 9,
-          "pixels": 64
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/102063026b071540dc514492906e301f18a9fd47625768e6d3733411135f435f.png",
+        "before": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
         "after": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
-        "difference": "../../img/db4ac1f027745e070d0e292765483d130566173f544f777ad30ce01601371320.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -566,27 +558,19 @@
       "provider": "fixture",
       "path": "/features/data-platform/#coverage",
       "state": "published coverage",
-      "change": "changed",
-      "changedPixels": 78,
-      "percent": 0.0053,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 1013,
         "after": 1013
       },
-      "areas": [
-        {
-          "x": 937,
-          "y": 381,
-          "width": 9,
-          "height": 10,
-          "pixels": 78
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "before": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
         "after": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
-        "difference": "../../img/11ae6a0c36a11b2238995180fc0a45ec1ddd43d00f6c030114b95cc03a2fd503.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -618,27 +602,19 @@
       "provider": "fixture",
       "path": "/features/data-platform/#overview",
       "state": "error scenario: data service unavailable",
-      "change": "changed",
-      "changedPixels": 61,
-      "percent": 0.0042,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 1013,
         "after": 1013
       },
-      "areas": [
-        {
-          "x": 952,
-          "y": 310,
-          "width": 8,
-          "height": 9,
-          "pixels": 61
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "before": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
         "after": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
-        "difference": "../../img/47d64ebbcc6e0f598f0896a285caa321f0787471643d9174af54aa1633d81cea.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -718,14 +694,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
-        "after": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
+        "before": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
         "difference": null
       },
       "limitations": []
@@ -740,14 +716,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
-        "after": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
+        "before": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
         "difference": null
       },
       "limitations": []
@@ -894,14 +870,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 3754,
-        "after": 3754
+        "before": 3943,
+        "after": 3943
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
-        "after": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
+        "before": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
+        "after": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
         "difference": null
       },
       "limitations": []
@@ -956,19 +932,27 @@
       "provider": "stack",
       "path": "/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010",
       "state": "one buyer case",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "changed",
+      "changedPixels": 734650,
+      "percent": 10.9668,
       "heights": {
         "before": 4453,
-        "after": 4453
+        "after": 4652
       },
-      "areas": [],
+      "areas": [
+        {
+          "x": 0,
+          "y": 3440,
+          "width": 1440,
+          "height": 1212,
+          "pixels": 734650
+        }
+      ],
       "sameAreasAs": null,
       "images": {
         "before": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
-        "after": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
-        "difference": null
+        "after": "../../img/b7dded21d92e8c2fd9fc6fb75b533a2f72cae6933f3489221cc1b98318e51143.png",
+        "difference": "../../img/0fc61ac495c921aaf132c79780d112ffc44e11c2f79b559cbabf31448b75ba67.png"
       },
       "limitations": []
     }
