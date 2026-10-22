@@ -40,7 +40,7 @@ from shared_contracts import (
 _SERVICE = "propertyscope-buyer-store"
 _VERSION = "0.1.0"
 _API = "/internal/buyer-workspaces/v1"
-_TOKEN_HEADER = "X-PropertyScope-Internal-Token"
+_TOKEN_HEADER = "X-PropertyScope-Internal-Token"  # noqa: S105 - header name, not a credential
 
 
 def _problem(status: int, code: str, detail: str) -> tuple[Response, int]:

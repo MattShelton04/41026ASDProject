@@ -19,7 +19,11 @@ from scripts.devtools.review import cli as review_cli
 from scripts.devtools.review import testing as review_testing
 from scripts.devtools.review.bounded import EvidenceReader
 from scripts.devtools.review.checklist import Checklist
-from scripts.devtools.review.deterministic import deterministic_review
+from scripts.devtools.review.deterministic import (
+    INPUT_DETAIL_FACT,
+    READ_INPUTS_FACT,
+    deterministic_review,
+)
 from scripts.devtools.review.loop import (
     PROMPT_ROOT,
     AiModeReviewClient,
@@ -58,6 +62,7 @@ from shared_contracts.evidence_review import (
     ReviewMode,
     ReviewVerdict,
     owner_coverage,
+    validate_review_output,
 )
 from shared_testkit import ScriptedLLMProvider
 
@@ -602,6 +607,146 @@ def test_oversized_facts_are_compacted_to_fit_the_objective(evidence: Path) -> N
     assert [check.id for check in compact.checks] == [check.id for check in bundle.checks]
     review = deterministic_review(compact)
     assert any("compacted" in risk.description for risk in review.risks)
+
+
+def _large_multi_agent(evidence: Path, runs: int) -> EvidenceReviewBundle:
+    """Every student but student-3 exports ``runs`` runs; student-3 submits nothing."""
+    for student in fixtures.STUDENTS:
+        if student == "student-3":
+            fixtures.drop_student(evidence, student)
+        else:
+            fixtures.write_multi_agent_runs(evidence, student, runs)
+    return collect_bundle("multi-agent", evidence)
+
+
+@pytest.mark.parametrize(("runs", "counted"), [(3, False), (12, True)])
+def test_large_multi_agent_bundles_fit_without_dropping_owners_or_checks(
+    evidence: Path, runs: int, counted: bool
+) -> None:
+    bundle = _large_multi_agent(evidence, runs)
+    assert len(bundle.model_dump_json(exclude_defaults=True)) > MAX_REVIEW_OBJECTIVE_CHARS
+
+    compact, objective = objective_for(bundle)
+
+    assert len(objective) <= MAX_REVIEW_OBJECTIVE_CHARS
+    assert compact.compacted
+    assert EvidenceReviewBundle.model_validate_json(objective) == compact
+    assert compact.checks == tuple(
+        check.evolve(detail=compact_check.detail, evidence_refs=compact_check.evidence_refs)
+        for check, compact_check in zip(bundle.checks, compact.checks, strict=True)
+    ), "every check keeps its id, title, status, owner and blocking root"
+    assert owner_coverage(compact) == owner_coverage(bundle)
+    assert compact.checklist_verdict() is bundle.checklist_verdict() is ReviewVerdict.FAIL
+    assert all(item.sha256 for item in compact.inputs if item.status is InputStatus.READ)
+    assert INPUT_DETAIL_FACT not in compact.facts, "hashes are kept while the bundle fits"
+    unread = {item.path for item in bundle.inputs if item.status is not InputStatus.READ}
+    assert unread == {
+        "multi-agent/student-3/workflow_history.jsonl",
+        "multi-agent/student-3/coordination_audit.jsonl",
+    }
+    assert unread <= {item.path for item in compact.inputs}, "missing evidence stays listed"
+    listed = len(compact.inputs)
+    if counted:
+        per_directory = compact.facts[READ_INPUTS_FACT]
+        assert per_directory == {
+            f"multi-agent/{student}": runs * 2 + min(runs, 10)  # run exports are capped at 10
+            for student in ("student-1", "student-2", "student-4", "student-5")
+        }
+        listed += sum(per_directory.values())  # type: ignore[union-attr,arg-type]
+    else:
+        assert READ_INPUTS_FACT not in compact.facts, "read inputs are listed while they fit"
+    assert listed == len(bundle.inputs), "no input disappears without being counted"
+
+    review = deterministic_review(compact)
+    validate_review_output(review, compact)
+    assert f"across {len(bundle.inputs)} evidence file(s), 2 of them" in review.summary
+    assert "Evidence not submitted: student-3." in review.summary
+    compaction = next(risk for risk in review.risks if "compacted" in risk.description)
+    assert "input hashes" not in compaction.description
+    assert ("counted per directory" in compaction.description) is counted
+
+
+def test_input_hashes_are_dropped_only_when_counting_read_inputs_is_not_enough() -> None:
+    cited = [
+        f"multi-agent/student-{n % 5 + 1}/run-{n:03d}/workflow_history.jsonl" for n in range(60)
+    ]
+    uncited = [f"multi-agent/student-1/run-{n:03d}/run.json" for n in range(40)]
+    bundle = EvidenceReviewBundle.model_validate(
+        {
+            "mode": "multi-agent",
+            "inputs": [
+                {"path": path, "status": "read", "sha256": "a" * 64, "bytes": 1_000}
+                for path in sorted([*cited, *uncited])
+            ],
+            "checks": [
+                {
+                    "id": f"check-{index:02d}",
+                    "title": f"Check {index}",
+                    "status": "failed",
+                    "detail": "Stage order missing.",
+                    "evidence_refs": cited[index * 3 : index * 3 + 3],
+                    "owner": f"student-{index % 5 + 1}",
+                }
+                for index in range(20)
+            ],
+        }
+    )
+
+    compact, objective = objective_for(bundle)
+
+    assert len(objective) <= MAX_REVIEW_OBJECTIVE_CHARS
+    assert [item.path for item in compact.inputs] == sorted(cited)
+    assert all(item.sha256 is None and item.bytes is None for item in compact.inputs)
+    assert compact.facts[READ_INPUTS_FACT] == {"multi-agent/student-1": 40}
+    assert INPUT_DETAIL_FACT in compact.facts
+    assert owner_coverage(compact) == owner_coverage(bundle)
+    review = deterministic_review(compact)
+    validate_review_output(review, compact)
+    assert "across 100 evidence file(s)" in review.summary
+    compaction = next(risk for risk in review.risks if "compacted" in risk.description)
+    assert "input hashes and sizes" in compaction.description
+
+
+def test_deterministic_review_of_a_large_bundle_reports_the_full_bundle(
+    evidence: Path, tmp_path: Path
+) -> None:
+    bundle = _large_multi_agent(evidence, 12)
+
+    result = run_review(
+        "multi-agent", evidence_dir=evidence, out_dir=tmp_path / "out", deterministic=True
+    )
+
+    record = result.record
+    assert record.objective_compacted
+    assert record.bundle == bundle
+    assert record.verdict is ReviewVerdict.FAIL
+    report = result.report_path.read_text(encoding="utf-8")
+    assert "| Run objective | compacted to fit AI-mode's objective budget" in report
+    for item in bundle.inputs:
+        assert f"`{item.path}`" in report
+    assert "| student-3 | 0 | 1 | 6 | evidence not submitted" in report
+    assert read_log(result.log_path)[-1]["objective_compacted"] is True
+
+
+def test_a_bundle_that_cannot_fit_names_its_size(evidence: Path) -> None:
+    bundle = collect_bundle("multi-agent", evidence)
+    long_detail = "x" * 400
+    oversized = bundle.evolve(
+        checks=tuple(
+            {
+                "id": f"check-{index:03d}",
+                "title": "t" * 200,
+                "status": "failed",
+                "detail": long_detail,
+                "owner": "student-1",
+            }
+            for index in range(120)
+        )
+    )
+
+    with pytest.raises(ReviewLoopError, match=r"120 checks, 10 inputs") as raised:
+        objective_for(oversized)
+    assert raised.value.code == "bundle_too_large"
 
 
 # --------------------------------------------------------------------------- live AI-mode path

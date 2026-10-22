@@ -21,6 +21,7 @@ class BackendSettings:
     due_diligence_url: str = "http://f4-backend:5401"
     suburb_analytics_url: str = "http://f3-backend:5301"
     ai_mode_url: str = "http://127.0.0.1:5005"
+    multi_agent_url: str = "http://127.0.0.1:5013"
 
     def __post_init__(self) -> None:
         origins = {
@@ -30,6 +31,7 @@ class BackendSettings:
             "due_diligence_url": self.due_diligence_url,
             "suburb_analytics_url": self.suburb_analytics_url,
             "ai_mode_url": self.ai_mode_url,
+            "multi_agent_url": self.multi_agent_url,
         }
         for name, origin in origins.items():
             if not origin.startswith(("http://", "https://")):
@@ -63,5 +65,6 @@ class BackendSettings:
                 "PROPERTYSCOPE_SUBURB_ANALYTICS_URL", "http://f3-backend:5301"
             ),
             ai_mode_url=os.environ.get("AI_MODE_BASE_URL", "http://127.0.0.1:5005"),
+            multi_agent_url=os.environ.get("MULTI_AGENT_BASE_URL", "http://127.0.0.1:5013"),
             demo_owner_ref=os.environ.get("PROPERTYSCOPE_DEMO_OWNER_REF", DEMO_OWNER_REF),
         )

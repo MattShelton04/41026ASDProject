@@ -1181,8 +1181,8 @@ def register_api(
         return [projector(item, case_id) for item in raw_items[:limit]], None
 
     @app.post(f"{_API}/tools/buyer.cases.inspect.v1")
-    def tool_inspect_case() -> Response | tuple[Response, int]:
-        case_id = _tool_case_id()
+    def tool_inspect_case(case_id: str | None = None) -> Response | tuple[Response, int]:
+        case_id = case_id or _tool_case_id()
         buyer_case, problem = _owned_case(store, settings, case_id, g.request_id)
         if problem is not None:
             return problem
@@ -1204,8 +1204,8 @@ def register_api(
         )
 
     @app.post(f"{_API}/tools/buyer.notes.list.v1")
-    def tool_list_notes() -> Response | tuple[Response, int]:
-        notes, problem = tool_children(_tool_case_id(), "notes", _public_note, 100)
+    def tool_list_notes(case_id: str | None = None) -> Response | tuple[Response, int]:
+        notes, problem = tool_children(case_id or _tool_case_id(), "notes", _public_note, 100)
         if problem is not None:
             return problem
         if notes is None:
@@ -1220,8 +1220,8 @@ def register_api(
         )
 
     @app.post(f"{_API}/tools/buyer.tasks.list.v1")
-    def tool_list_tasks() -> Response | tuple[Response, int]:
-        tasks, problem = tool_children(_tool_case_id(), "tasks", _public_task, 100)
+    def tool_list_tasks(case_id: str | None = None) -> Response | tuple[Response, int]:
+        tasks, problem = tool_children(case_id or _tool_case_id(), "tasks", _public_task, 100)
         if problem is not None:
             return problem
         if tasks is None:
@@ -1236,8 +1236,8 @@ def register_api(
         )
 
     @app.post(f"{_API}/tools/buyer.evidence.collect.v1")
-    def tool_collect_evidence() -> Response | tuple[Response, int]:
-        case_id = _tool_case_id()
+    def tool_collect_evidence(case_id: str | None = None) -> Response | tuple[Response, int]:
+        case_id = case_id or _tool_case_id()
         buyer_case, problem = _owned_case(store, settings, case_id, g.request_id)
         if problem is not None:
             return problem
