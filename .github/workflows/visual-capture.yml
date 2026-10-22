@@ -107,7 +107,11 @@ jobs:
       - name: Install lockfile-pinned Chromium
         working-directory: harness
         # Captures use the default headless shell; downloading headed Chrome as well is wasted.
-        run: uv run --no-sync playwright install --with-deps --only-shell chromium
+        run: |
+          # The runner's Microsoft apt feed intermittently returns 403 and breaks apt index updates;
+          # nothing here installs from it.
+          { grep -rlZ packages.microsoft.com /etc/apt/sources.list.d || true; } | xargs -0r sudo rm -f
+          uv run --no-sync playwright install --with-deps --only-shell chromium
 
       - name: Harness policy tests
         if: matrix.revision == 'head' && matrix.provider == 'fixture'

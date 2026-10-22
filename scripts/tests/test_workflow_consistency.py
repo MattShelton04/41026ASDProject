@@ -196,3 +196,32 @@ def test_every_workflow_pins_each_action_to_one_full_commit_sha() -> None:
                 pins.setdefault(name, set()).add(sha)
     inconsistent = {name: shas for name, shas in pins.items() if len(shas) > 1}
     assert not inconsistent
+
+
+def _workflow_steps(name: str) -> list[dict]:
+    workflow = yaml.safe_load((ROOT / f".github/workflows/{name}").read_text(encoding="utf-8"))
+    return [step for job in workflow["jobs"].values() for step in job.get("steps", [])]
+
+
+@pytest.mark.parametrize("name", ["integration-ci.yml", "student-1.yml", "visual-capture.yml"])
+def test_apt_steps_drop_the_flaky_microsoft_feed_first(name: str) -> None:
+    """The runner's packages.microsoft.com source can 403 and break every apt index update."""
+    for step in _workflow_steps(name):
+        run = step.get("run", "")
+        if "apt-get update" in run or "--with-deps" in run:
+            drop = run.index("packages.microsoft.com")
+            install = run.index("apt-get update" if "apt-get update" in run else "--with-deps")
+            assert drop < install, (name, step["name"])
+
+
+def test_feature_1_browser_forms_never_fail_student_1_ci() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/student-1.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["form-browser"]
+    assert job["continue-on-error"] is True
+    steps = {step.get("id"): step for step in job["steps"]}
+    assert steps["chromium"]["continue-on-error"] is True
+    assert steps["forms"]["continue-on-error"] is True
+    assert "test_form_behaviour_playwright.py" in steps["forms"]["run"]
+    assert any("::warning" in step.get("run", "") for step in job["steps"])
