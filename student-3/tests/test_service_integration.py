@@ -140,6 +140,16 @@ def test_comparison_crud_persists_through_the_database_api(
             {"localities": ["Parramatta", "Newtown"], "measure": "rate"},
             "series",
         ),
+        (
+            "suburb.comparison.inspect.v1",
+            {"suburb_comparison_id": "comparison-1"},
+            "comparison",
+        ),
+        (
+            "crime.saved-comparison-evidence.v1",
+            {"suburb_comparison_id": "comparison-1"},
+            "validation",
+        ),
     ],
 )
 def test_registered_tools_return_evidence(

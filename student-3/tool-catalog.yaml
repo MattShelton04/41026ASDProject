@@ -112,3 +112,103 @@ tools:
     service: suburb-analytics-backend
     method: POST
     path: /api/suburb-analytics/v1/tools/crime.methodology.v1
+  - definition:
+      name: suburb.comparison.inspect.v1
+      version: v1
+      feature_key: student-3-suburb-analytics
+      description: Inspect one saved suburb comparison and its bounded research scope without changing the comparison or its optimistic version.
+      input_schema:
+        type: object
+        properties:
+          suburb_comparison_id: {type: string, minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"}
+        required: [suburb_comparison_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          comparison:
+            type: object
+            properties:
+              id: {type: string}
+              version: {type: integer, minimum: 1}
+              name: {type: string}
+              status: {type: string}
+              localities: {type: array, minItems: 2, maxItems: 5, items: {type: string}}
+              from_month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+              to_month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+              measure: {enum: [count, rate]}
+              selected_indicators: {type: array, items: {type: string}}
+              priorities: {type: array, items: {type: string}}
+              notes: {type: string}
+            required: [id, version, name, status, localities, from_month, to_month, measure, selected_indicators, priorities, notes]
+            additionalProperties: false
+          comparison_origin: {enum: [seeded_demonstration, user_saved]}
+          limitations: {type: array, minItems: 2, maxItems: 5, items: {type: string}}
+        required: [comparison, comparison_origin, limitations]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 3000
+      requires_approval: false
+    service: suburb-analytics-backend
+    method: POST
+    path: /api/suburb-analytics/v1/tools/suburb.comparison.inspect.v1
+  - definition:
+      name: crime.saved-comparison-evidence.v1
+      version: v1
+      feature_key: student-3-suburb-analytics
+      description: Resolve one saved comparison against published crime evidence with explicit period, measure, release, coverage, missing-value and rate-denominator checks; never rank suburb safety.
+      input_schema:
+        type: object
+        properties:
+          suburb_comparison_id: {type: string, minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"}
+        required: [suburb_comparison_id]
+        additionalProperties: false
+      output_schema:
+        type: object
+        properties:
+          comparison_id: {type: string}
+          series:
+            type: array
+            minItems: 2
+            maxItems: 5
+            items:
+              type: object
+              properties:
+                locality: {type: string}
+                items: {type: array, maxItems: 120, items: {type: object}}
+              required: [locality, items]
+              additionalProperties: false
+          measure: {enum: [count, rate]}
+          unit: {enum: [count, "per 100,000"]}
+          offence: {const: all_recorded}
+          from_month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+          to_month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+          source_releases: {type: array, maxItems: 10, uniqueItems: true, items: {type: string}}
+          evidence_mode: {enum: [seeded_demonstration, published_release, unavailable]}
+          coverage: {enum: [complete, partial, unavailable]}
+          limitations: {type: array, minItems: 3, maxItems: 5, items: {type: string}}
+          methodology:
+            type: object
+            properties:
+              zero_missing_rule: {type: string}
+              rate_method: {type: string}
+              responsible_use: {type: string}
+            required: [zero_missing_rule, rate_method, responsible_use]
+            additionalProperties: false
+          validation:
+            type: object
+            properties:
+              period_consistent: {type: boolean}
+              measure_consistent: {type: boolean}
+              missing_values_preserved: {type: boolean}
+              rate_denominator_valid: {type: boolean}
+            required: [period_consistent, measure_consistent, missing_values_preserved, rate_denominator_valid]
+            additionalProperties: false
+        required: [comparison_id, series, measure, unit, offence, from_month, to_month, source_releases, evidence_mode, coverage, limitations, methodology, validation]
+        additionalProperties: false
+      side_effect: read_only
+      timeout_ms: 10000
+      requires_approval: false
+    service: suburb-analytics-backend
+    method: POST
+    path: /api/suburb-analytics/v1/tools/crime.saved-comparison-evidence.v1

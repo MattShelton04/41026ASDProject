@@ -24,6 +24,7 @@ BASE = "/api/suburb-analytics/v1"
 FEATURE_KEY = "student-3-suburb-analytics"
 ALLOWED_MEASURES = {"count", "rate"}
 ALLOWED_OFFENCES = {"all_recorded", "property", "person"}
+COMPARISON_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 # Release 0 allowed the model to run a generated crime comparison. Release 1 keeps that
 # historical allowlist readable, but new assistant turns can inspect only published locality
 # evidence and the static methodology. Crime comparisons remain deterministic UI operations.
@@ -192,7 +193,9 @@ def _published_crime_series(
                 "month": month,
                 "value": value,
                 "unit": "per 100,000" if measure == "rate" else "count",
-                "zero_missing_state": "recorded_zero" if value == 0 else "observed",
+                "zero_missing_state": (
+                    "missing" if value is None else "recorded_zero" if value == 0 else "observed"
+                ),
                 "measure_source": "bocsar_published_count"
                 if measure == "count"
                 else "calculated_from_seifa_population",
@@ -207,6 +210,245 @@ def _published_crime_series(
             }
         )
     return result
+
+
+def _review_comparison_id(payload: dict[str, Any]) -> str:
+    comparison_id = payload.get("suburb_comparison_id")
+    if not isinstance(comparison_id, str) or COMPARISON_ID.fullmatch(comparison_id) is None:
+        raise ValueError("suburb_comparison_id must be a valid saved comparison identifier")
+    return comparison_id
+
+
+def _review_comparison(data: HttpClient, comparison_id: str) -> dict[str, Any]:
+    response = data.request(
+        "GET", f"/internal/v1/suburb-comparisons/{quote(comparison_id, safe='')}"
+    )
+    comparison = response.get("comparison")
+    if not isinstance(comparison, dict):
+        raise ServiceError(502, {"code": "invalid_dependency_response"})
+    return comparison
+
+
+def _comparison_inspection(comparison: dict[str, Any]) -> dict[str, Any]:
+    projected = {
+        key: comparison.get(key)
+        for key in (
+            "id",
+            "version",
+            "name",
+            "status",
+            "localities",
+            "from_month",
+            "to_month",
+            "measure",
+            "selected_indicators",
+            "priorities",
+            "notes",
+        )
+    }
+    notes = str(comparison.get("notes", ""))
+    comparison_origin = (
+        "seeded_demonstration"
+        if "seeded" in notes.casefold() and "demonstration" in notes.casefold()
+        else "user_saved"
+    )
+    limitations = [
+        "This read-only inspection does not change the saved comparison or its version.",
+        "The comparison records a research scope; source coverage is checked separately.",
+    ]
+    if comparison_origin == "seeded_demonstration":
+        limitations.append("This is a seeded demonstration comparison.")
+    return {
+        "comparison": projected,
+        "comparison_origin": comparison_origin,
+        "limitations": limitations,
+    }
+
+
+def _month_range(start: str, end: str) -> list[str]:
+    start_date = date.fromisoformat(start + "-01")
+    end_date = date.fromisoformat(end + "-01")
+    if start_date > end_date:
+        raise ValueError("saved comparison period is invalid")
+    months: list[str] = []
+    year, month = start_date.year, start_date.month
+    while (year, month) <= (end_date.year, end_date.month):
+        months.append(f"{year:04d}-{month:02d}")
+        if month == 12:
+            year, month = year + 1, 1
+        else:
+            month += 1
+    if len(months) > 120:
+        raise ValueError("saved comparison period exceeds 120 months")
+    return months
+
+
+def _crime_source_releases(context: dict[str, Any]) -> list[str]:
+    return sorted(
+        {
+            str(source["release_id"])
+            for source in context.get("sources", [])
+            if source.get("dataset_id") == "bocsar-crime" and source.get("release_id")
+        }
+    )
+
+
+def _crime_evidence_mode(context: dict[str, Any]) -> str:
+    sources = [
+        source
+        for source in context.get("sources", [])
+        if source.get("dataset_id") == "bocsar-crime"
+    ]
+    if not sources:
+        return "unavailable"
+    description = " ".join(
+        str(source.get(key, ""))
+        for source in sources
+        for key in ("release_id", "source_release", "source")
+    ).casefold()
+    if any(marker in description for marker in ("demo", "fixture", "seed", "synthetic")):
+        return "seeded_demonstration"
+    return "published_release"
+
+
+def _complete_review_series(
+    context: dict[str, Any],
+    *,
+    locality: str,
+    measure: str,
+    offence: str,
+    start: str,
+    end: str,
+    months: list[str],
+) -> dict[str, Any]:
+    items = _published_crime_series(context, measure, offence, start, end)
+    by_month = {str(item.get("month")): item for item in items}
+    source_releases = _crime_source_releases(context)
+    fallback_release = source_releases[0] if len(source_releases) == 1 else None
+    completed = [
+        by_month.get(month)
+        or {
+            "month": month,
+            "value": None,
+            "unit": "per 100,000" if measure == "rate" else "count",
+            "zero_missing_state": "missing",
+            "measure_source": "unavailable",
+            "source_release": fallback_release,
+        }
+        for month in months
+    ]
+    population = context.get("population") or []
+    denominator_valid = bool(
+        measure != "rate"
+        or (
+            len(population) == 1
+            and isinstance(population[0].get("usual_resident_population"), (int, float))
+            and population[0]["usual_resident_population"] > 0
+        )
+    )
+    return {
+        "locality": locality,
+        "items": completed,
+        "source_releases": source_releases,
+        "evidence_mode": _crime_evidence_mode(context),
+        "rate_denominator_valid": denominator_valid,
+    }
+
+
+def _saved_comparison_evidence(data: HttpClient, comparison: dict[str, Any]) -> dict[str, Any]:
+    comparison_id = str(comparison.get("id", ""))
+    localities = comparison.get("localities")
+    measure = comparison.get("measure")
+    start = comparison.get("from_month")
+    end = comparison.get("to_month")
+    if (
+        not comparison_id
+        or not isinstance(localities, list)
+        or not 2 <= len(localities) <= 5
+        or not all(isinstance(locality, str) and locality.strip() for locality in localities)
+        or measure not in ALLOWED_MEASURES
+        or not isinstance(start, str)
+        or not isinstance(end, str)
+    ):
+        raise ValueError("saved comparison is not reviewable")
+    months = _month_range(start, end)
+    offence = "all_recorded"
+    series = []
+    for locality in localities:
+        context = data.request("GET", f"/internal/v1/published/context?locality={quote(locality)}")
+        series.append(
+            _complete_review_series(
+                context,
+                locality=locality,
+                measure=measure,
+                offence=offence,
+                start=start,
+                end=end,
+                months=months,
+            )
+        )
+    source_releases = sorted({release for item in series for release in item["source_releases"]})
+    evidence_modes = {item["evidence_mode"] for item in series}
+    if "seeded_demonstration" in evidence_modes:
+        evidence_mode = "seeded_demonstration"
+    elif evidence_modes == {"published_release"}:
+        evidence_mode = "published_release"
+    else:
+        evidence_mode = "unavailable"
+    observations = [entry for item in series for entry in item["items"]]
+    observed_count = sum(entry["value"] is not None for entry in observations)
+    if observed_count == 0:
+        coverage = "unavailable"
+    elif observed_count == len(observations):
+        coverage = "complete"
+    else:
+        coverage = "partial"
+    expected_unit = "per 100,000" if measure == "rate" else "count"
+    limitations = [
+        "Missing evidence is unavailable, not zero, and remains null in every series.",
+        "Recorded crime observations do not establish causes, future risk or suburb safety.",
+        "The saved comparison does not store an offence filter; this review uses all "
+        "recorded offences.",
+    ]
+    if measure == "rate":
+        limitations.append(
+            "Rates use the available 2021 population context and are not current denominators."
+        )
+    return {
+        "comparison_id": comparison_id,
+        "series": [{"locality": item["locality"], "items": item["items"]} for item in series],
+        "measure": measure,
+        "unit": expected_unit,
+        "offence": offence,
+        "from_month": start,
+        "to_month": end,
+        "source_releases": source_releases,
+        "evidence_mode": evidence_mode,
+        "coverage": coverage,
+        "limitations": limitations,
+        "methodology": {
+            "zero_missing_rule": "Recorded zero is 0; missing evidence is null.",
+            "rate_method": (
+                "Published count divided by the available 2021 population context, "
+                "multiplied by 100,000."
+                if measure == "rate"
+                else "Published recorded offence counts are aggregated by month."
+            ),
+            "responsible_use": "No causal claims, predictions or safety ranking.",
+        },
+        "validation": {
+            "period_consistent": all(
+                [entry["month"] for entry in item["items"]] == months for item in series
+            ),
+            "measure_consistent": all(entry["unit"] == expected_unit for entry in observations),
+            "missing_values_preserved": all(
+                entry["zero_missing_state"] == "missing"
+                for entry in observations
+                if entry["value"] is None
+            ),
+            "rate_denominator_valid": all(item["rate_denominator_valid"] for item in series),
+        },
+    }
 
 
 def _response(
@@ -735,6 +977,14 @@ def create_app(
                         "source_release": "demo-2026.1",
                     },
                 )
+            if path == f"{BASE}/tools/suburb.comparison.inspect.v1" and method == "POST":
+                comparison_id = _review_comparison_id(_body(environ))
+                comparison = _review_comparison(data, comparison_id)
+                return _response(start, 200, _comparison_inspection(comparison))
+            if path == f"{BASE}/tools/crime.saved-comparison-evidence.v1" and method == "POST":
+                comparison_id = _review_comparison_id(_body(environ))
+                comparison = _review_comparison(data, comparison_id)
+                return _response(start, 200, _saved_comparison_evidence(data, comparison))
             if path == f"{BASE}/suburb-comparisons":
                 if method == "GET":
                     return _response(

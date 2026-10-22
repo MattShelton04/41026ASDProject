@@ -9,6 +9,8 @@ ai_capabilities:
   - suburb.snapshot.v1
   - crime.compare.v1
   - crime.methodology.v1
+  - suburb.comparison.inspect.v1
+  - crime.saved-comparison-evidence.v1
 onboarding:
   frontend:
     asset_root: student-3/frontend
