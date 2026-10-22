@@ -14,6 +14,37 @@ from propertyscope_buyer_store.domain import decode_case
 from propertyscope_buyer_store.migrations import migrate, schema_fingerprint
 
 TABLES = ("buyer_case", "case_property", "case_note", "case_task")
+_WRITABLE_FIELDS = {
+    "buyer_case": frozenset(
+        {
+            "name",
+            "preferences_json",
+            "budget_min_aud",
+            "budget_max_aud",
+            "target_suburbs_json",
+            "status",
+        }
+    ),
+    "case_property": frozenset(
+        {
+            "property_ref",
+            "property_label",
+            "property_validation_state",
+            "journey_stage",
+            "rating",
+            "priority",
+        }
+    ),
+    "case_note": frozenset({"case_property_id", "content"}),
+    "case_task": frozenset({"case_property_id", "title", "due_date", "completed"}),
+}
+
+
+def _check_identifiers(table: str, values: Mapping[str, Any] | None = None) -> None:
+    if table not in _WRITABLE_FIELDS or (
+        values is not None and (not values or set(values) - _WRITABLE_FIELDS[table])
+    ):
+        raise ValueError("Unsupported persistence fields")
 
 
 class StoreError(RuntimeError):
@@ -84,7 +115,7 @@ class BuyerStore:
     def seed_report(self) -> dict[str, Any]:
         with closing(self.connect()) as connection:
             counts = {
-                table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+                table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])  # noqa: S608 - table from fixed TABLES tuple
                 for table in TABLES
             }
         return {
@@ -130,6 +161,7 @@ class BuyerStore:
         return None if row is None else decode_case(_mapping(row))
 
     def create_case(self, owner_ref: str, values: Mapping[str, Any]) -> dict[str, Any]:
+        _check_identifiers("buyer_case", values)
         case_id = self._id_factory()
         timestamp = self._clock()
         with closing(self.connect()) as connection:
@@ -155,7 +187,8 @@ class BuyerStore:
             )
             connection.commit()
         created = self.get_case(owner_ref, case_id)
-        assert created is not None
+        if created is None:
+            raise RecordNotFoundError("buyer case no longer exists")
         return created
 
     def update_case(
@@ -166,6 +199,7 @@ class BuyerStore:
         *,
         expected_version: int,
     ) -> dict[str, Any]:
+        _check_identifiers("buyer_case", changes)
         current = self.get_case(owner_ref, case_id)
         if current is None:
             raise RecordNotFoundError("buyer case does not exist")
@@ -176,7 +210,7 @@ class BuyerStore:
         parameters = [*changes.values(), self._clock(), case_id, owner_ref, expected_version]
         with closing(self.connect()) as connection:
             cursor = connection.execute(
-                f"UPDATE buyer_case SET {', '.join(assignments)} "
+                f"UPDATE buyer_case SET {', '.join(assignments)} "  # noqa: S608 - allowlisted columns; all values bound
                 "WHERE id = ? AND owner_ref = ? AND version = ?",
                 parameters,
             )
@@ -184,7 +218,8 @@ class BuyerStore:
         if cursor.rowcount != 1:
             raise ConcurrentUpdateError("buyer case version is stale")
         updated = self.get_case(owner_ref, case_id)
-        assert updated is not None
+        if updated is None:
+            raise RecordNotFoundError("buyer case no longer exists")
         return updated
 
     def delete_case(self, owner_ref: str, case_id: str) -> bool:
@@ -246,7 +281,7 @@ class BuyerStore:
                     UPDATE {table}
                     SET case_property_id = NULL, updated_at = ?, version = version + 1
                     WHERE buyer_case_id = ? AND case_property_id = ?
-                    """,
+                    """,  # noqa: S608 - table from fixed tuple; all values bound
                     (timestamp, case_id, property_id),
                 )
             deleted = connection.execute(
@@ -340,17 +375,19 @@ class BuyerStore:
     def _list_children(
         self, table: str, owner_ref: str, case_id: str, page: int, page_size: int
     ) -> dict[str, Any]:
+        _check_identifiers(table)
         offset = (page - 1) * page_size
         with closing(self.connect()) as connection:
             if not self._case_exists(connection, owner_ref, case_id):
                 raise RecordNotFoundError("buyer case does not exist")
             total = int(
                 connection.execute(
-                    f"SELECT COUNT(*) FROM {table} WHERE buyer_case_id = ?", (case_id,)
+                    f"SELECT COUNT(*) FROM {table} WHERE buyer_case_id = ?",  # noqa: S608 - allowlisted table; bound case ID
+                    (case_id,),
                 ).fetchone()[0]
             )
             rows = connection.execute(
-                f"SELECT * FROM {table} WHERE buyer_case_id = ? "
+                f"SELECT * FROM {table} WHERE buyer_case_id = ? "  # noqa: S608 - allowlisted table; all values bound
                 "ORDER BY updated_at DESC, id LIMIT ? OFFSET ?",
                 (case_id, page_size, offset),
             ).fetchall()
@@ -364,13 +401,14 @@ class BuyerStore:
     def _get_child(
         self, table: str, owner_ref: str, case_id: str, record_id: str
     ) -> dict[str, Any] | None:
+        _check_identifiers(table)
         with closing(self.connect()) as connection:
             row = connection.execute(
                 f"""
                 SELECT child.* FROM {table} AS child
                 JOIN buyer_case AS parent ON parent.id = child.buyer_case_id
                 WHERE child.id = ? AND child.buyer_case_id = ? AND parent.owner_ref = ?
-                """,
+                """,  # noqa: S608 - allowlisted table; all values bound
                 (record_id, case_id, owner_ref),
             ).fetchone()
         return None if row is None else _mapping(row)
@@ -378,6 +416,7 @@ class BuyerStore:
     def _create_child(
         self, table: str, owner_ref: str, case_id: str, values: Mapping[str, Any]
     ) -> dict[str, Any]:
+        _check_identifiers(table, values)
         record_id = self._id_factory()
         timestamp = self._clock()
         with closing(self.connect()) as connection:
@@ -387,11 +426,13 @@ class BuyerStore:
             parameters = [record_id, case_id, *values.values(), timestamp, timestamp, 1]
             placeholders = ", ".join("?" for _ in fields)
             connection.execute(
-                f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({placeholders})", parameters
+                f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({placeholders})",  # noqa: S608 - allowlisted identifiers; values bound
+                parameters,
             )
             connection.commit()
         created = self._get_child(table, owner_ref, case_id, record_id)
-        assert created is not None
+        if created is None:
+            raise RecordNotFoundError("resource no longer exists")
         return created
 
     def _update_child(
@@ -404,6 +445,7 @@ class BuyerStore:
         *,
         expected_version: int,
     ) -> dict[str, Any]:
+        _check_identifiers(table, changes)
         current = self._get_child(table, owner_ref, case_id, record_id)
         if current is None:
             raise RecordNotFoundError("resource does not exist")
@@ -414,7 +456,7 @@ class BuyerStore:
         parameters = [*changes.values(), self._clock(), record_id, case_id, expected_version]
         with closing(self.connect()) as connection:
             cursor = connection.execute(
-                f"UPDATE {table} SET {', '.join(assignments)} "
+                f"UPDATE {table} SET {', '.join(assignments)} "  # noqa: S608 - allowlisted columns/table; values bound
                 "WHERE id = ? AND buyer_case_id = ? AND version = ?",
                 parameters,
             )
@@ -422,7 +464,8 @@ class BuyerStore:
         if cursor.rowcount != 1:
             raise ConcurrentUpdateError("resource version is stale")
         updated = self._get_child(table, owner_ref, case_id, record_id)
-        assert updated is not None
+        if updated is None:
+            raise RecordNotFoundError("resource no longer exists")
         return updated
 
     def _delete_child(self, table: str, owner_ref: str, case_id: str, record_id: str) -> bool:
@@ -430,7 +473,8 @@ class BuyerStore:
             return False
         with closing(self.connect()) as connection:
             deleted = connection.execute(
-                f"DELETE FROM {table} WHERE id = ? AND buyer_case_id = ?", (record_id, case_id)
+                f"DELETE FROM {table} WHERE id = ? AND buyer_case_id = ?",  # noqa: S608 - _get_child validates table; bound IDs
+                (record_id, case_id),
             ).rowcount
             connection.commit()
         return bool(deleted)

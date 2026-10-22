@@ -133,8 +133,7 @@ def validate_case_create(body: object) -> dict[str, Any]:
 def validate_case_update(body: object) -> tuple[int, dict[str, Any]]:
     value = _object(body)
     version = _integer(value.pop("version", None), "version")
-    assert version is not None
-    if version < 1:
+    if version is None or version < 1:
         raise InputValidationError("version must be at least 1")
     allowed = {
         "name",
@@ -208,8 +207,7 @@ def validate_property_create(body: object) -> dict[str, Any]:
 def validate_property_update(body: object) -> tuple[int, dict[str, Any]]:
     value = _object(body)
     version = _integer(value.pop("version", None), "version")
-    assert version is not None
-    if version < 1:
+    if version is None or version < 1:
         raise InputValidationError("version must be at least 1")
     allowed = {
         "property_label",
@@ -259,8 +257,7 @@ def validate_note_create(body: object) -> dict[str, Any]:
 def validate_note_update(body: object) -> tuple[int, dict[str, Any]]:
     value = _object(body)
     version = _integer(value.pop("version", None), "version")
-    assert version is not None
-    if version < 1:
+    if version is None or version < 1:
         raise InputValidationError("version must be at least 1")
     if unexpected := set(value) - {"case_property_id", "content"}:
         raise InputValidationError(f"unsupported fields: {', '.join(sorted(unexpected))}")
@@ -306,8 +303,7 @@ def validate_task_create(body: object) -> dict[str, Any]:
 def validate_task_update(body: object) -> tuple[int, dict[str, Any]]:
     value = _object(body)
     version = _integer(value.pop("version", None), "version")
-    assert version is not None
-    if version < 1:
+    if version is None or version < 1:
         raise InputValidationError("version must be at least 1")
     if unexpected := set(value) - {"case_property_id", "title", "due_date", "completed"}:
         raise InputValidationError(f"unsupported fields: {', '.join(sorted(unexpected))}")

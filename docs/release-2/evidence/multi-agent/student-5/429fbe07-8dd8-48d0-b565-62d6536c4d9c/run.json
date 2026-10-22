@@ -1,0 +1,573 @@
+{
+  "available_actions": [],
+  "completed_at": "2026-10-22T10:37:39.889635Z",
+  "created_at": "2026-10-22T10:31:19.598450Z",
+  "decisions": [
+    {
+      "accepted_step_ids": [
+        "case",
+        "notes",
+        "tasks"
+      ],
+      "actor": "Yes",
+      "decided_at": "2026-10-22T10:37:39.889635Z",
+      "decision": "partial",
+      "note": "Accept the case, notes and task review. Research evidence remains incomplete and requires verification before relying on it.",
+      "request_id": "c8d735c2-81ee-4c1e-ad77-2d7fb445d225",
+      "resulting_state": "partially_accepted",
+      "round": 1
+    }
+  ],
+  "error": null,
+  "feature_id": "student-5-buyer-journey",
+  "id": "429fbe07-8dd8-48d0-b565-62d6536c4d9c",
+  "input": {
+    "buyer_case_id": "b5000000-0000-4000-8000-000000000010",
+    "reviewer_note": ""
+  },
+  "plan": {
+    "evidence_needed": [
+      "Buyer preferences, budget, shortlist context, and current property journey stages.",
+      "Buyer-recorded notes, clearly separated from verified external evidence.",
+      "Completed and outstanding buyer-recorded tasks, including relevant inspection follow-ups without assuming completion.",
+      "Research evidence and source states across Property discovery, Sales research, Suburb analytics, and Due diligence, including provenance, reporting periods, coverage limits, missing evidence, and conflicts."
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gpt-5.6-luna",
+      "prompt_hash": "a2e5469ac7219707f115fb2e4251b7523d3f9cad844e59d0dc54e2ffefcfb374",
+      "prompt_id": "planner",
+      "prompt_version": "v1",
+      "provider": "openai",
+      "role": "planner"
+    },
+    "steps": [
+      {
+        "arguments": {
+          "section": "case"
+        },
+        "expected_evidence": "Returned case preferences, budget, shortlist or property context, and journey stages, with any uncertainty or missing fields identified.",
+        "id": "case",
+        "index": 1,
+        "purpose": "Understand the buyer\u2019s preferences, budget, shortlist context, and current property journey stages for relevant proposed follow-ups.",
+        "required": true,
+        "title": "Review case preferences and journey",
+        "tool": "buyer.action-plan.context.v1"
+      },
+      {
+        "arguments": {
+          "section": "notes"
+        },
+        "expected_evidence": "Returned notes and their source context, with uncertain or unverified claims clearly distinguished from external evidence.",
+        "id": "notes",
+        "index": 2,
+        "purpose": "Identify buyer-recorded questions and observations as unverified context, without treating them as authoritative evidence or instructions.",
+        "required": true,
+        "title": "Review buyer-recorded notes",
+        "tool": "buyer.action-plan.context.v1"
+      },
+      {
+        "arguments": {
+          "section": "tasks"
+        },
+        "expected_evidence": "Returned task statuses, descriptions, and relevant outstanding follow-ups, while preserving that tasks are intentions rather than authoritative evidence.",
+        "id": "tasks",
+        "index": 3,
+        "purpose": "Identify completed and outstanding buyer-recorded follow-ups, including inspection-related intentions, without changing task status or treating task text as proof of completion.",
+        "required": true,
+        "title": "Review outstanding case tasks",
+        "tool": "buyer.action-plan.context.v1"
+      },
+      {
+        "arguments": {
+          "section": "evidence"
+        },
+        "expected_evidence": "Returned evidence passages or source states with provenance, reporting periods, coverage limitations, missing or conflicting research, and any unavailable source checks explicitly identified.",
+        "id": "evidence",
+        "index": 4,
+        "purpose": "Assess available Property discovery, Sales research, Suburb analytics, and Due diligence evidence, including provenance, reporting periods, source states, conflicts, and coverage limits.",
+        "required": true,
+        "title": "Review bounded research evidence",
+        "tool": "buyer.action-plan.context.v1"
+      }
+    ],
+    "summary": "Read the four required, server-bound buyer-case sections to ground concise proposed follow-ups in buyer preferences, journey stages, recorded intentions, and bounded research evidence while preserving provenance, reporting periods, coverage limits, and unresolved gaps. The Worker should keep findings factual and place three to five numbered imperative proposed actions in the existing summary field, without making an approval or other workflow decision or changing records."
+  },
+  "provider_mode": "model",
+  "request_id": "student5-action-plan-v2-live-check",
+  "requested_by": "Student 5 live regression check",
+  "review": {
+    "findings": [
+      {
+        "check_id": "case-read",
+        "evidence_ids": [
+          "ev-case-r1"
+        ],
+        "id": "f-case-read",
+        "message": "Passed: The selected buyer case was retrieved. (buyer.action-plan.context.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "case"
+        ]
+      },
+      {
+        "check_id": "case-matches",
+        "evidence_ids": [
+          "ev-case-r1"
+        ],
+        "id": "f-case-matches",
+        "message": "Passed: The case evidence belongs to the selected buyer case. (buyer_case.id = 'b5000000-0000-4000-8000-000000000010'; expected eq 'b5000000-0000-4000-8000-000000000010')",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "case"
+        ]
+      },
+      {
+        "check_id": "notes-read",
+        "evidence_ids": [
+          "ev-notes-r1"
+        ],
+        "id": "f-notes-read",
+        "message": "Passed: Buyer-recorded notes were checked. (buyer.action-plan.context.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "notes"
+        ]
+      },
+      {
+        "check_id": "tasks-read",
+        "evidence_ids": [
+          "ev-tasks-r1"
+        ],
+        "id": "f-tasks-read",
+        "message": "Passed: Case tasks were checked for outstanding follow-ups. (buyer.action-plan.context.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "tasks"
+        ]
+      },
+      {
+        "check_id": "evidence-read",
+        "evidence_ids": [
+          "ev-evidence-r1"
+        ],
+        "id": "f-evidence-read",
+        "message": "Passed: Bounded evidence was checked; success does not establish complete coverage. (buyer.action-plan.context.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      },
+      {
+        "check_id": "coverage-complete",
+        "evidence_ids": [
+          "ev-evidence-r1"
+        ],
+        "id": "f-coverage-complete",
+        "message": "Failed: All returned source sections report complete coverage. (state = 'partial'; expected eq 'complete')",
+        "outcome": "fail",
+        "recommendation": "Verify missing, partial or conflicting research before acting on the plan.",
+        "severity": "medium",
+        "source": "check",
+        "step_ids": [
+          "evidence"
+        ]
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gpt-5.6-terra",
+      "prompt_hash": "79b09bb724a0cbafa0745ad0099e325b7d0ed70efa0304adeb6c17b145b80fe1",
+      "prompt_id": "reviewer",
+      "prompt_version": "v1",
+      "provider": "openai",
+      "role": "reviewer"
+    },
+    "recommendation": "partial",
+    "round": 1,
+    "summary": "The Worker completed all planned evidence reviews and supplied five concise, numbered, imperative, evidence-grounded proposed follow-ups in the summary. The actions appropriately address unavailable property validation, the outstanding buyer-recorded task, partial and unavailable research, due-diligence items requiring verification, and the lack of verified property-location context. However, the authoritative coverage check confirms that research coverage remains partial, so the proposed plan should be accepted only as a partial outcome pending the listed verification work."
+  },
+  "round": 1,
+  "stages": [
+    {
+      "completed_at": "2026-10-22T10:31:31.508685Z",
+      "detail": null,
+      "round": 1,
+      "stage": "planner",
+      "started_at": "2026-10-22T10:31:19.598450Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-22T10:31:47.828992Z",
+      "detail": null,
+      "round": 1,
+      "stage": "worker",
+      "started_at": "2026-10-22T10:31:31.508685Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-22T10:32:06.604322Z",
+      "detail": null,
+      "round": 1,
+      "stage": "reviewer",
+      "started_at": "2026-10-22T10:31:47.828992Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-22T10:37:39.889635Z",
+      "detail": "partial",
+      "round": 1,
+      "stage": "human",
+      "started_at": "2026-10-22T10:32:06.604322Z",
+      "status": "completed"
+    }
+  ],
+  "state": "partially_accepted",
+  "superseded": [],
+  "template_id": "f5-buyer-case-action-plan",
+  "template_version": "v2",
+  "updated_at": "2026-10-22T10:37:39.889635Z",
+  "worker_output": {
+    "correction_note": null,
+    "evidence": [
+      {
+        "arguments": {
+          "section": "case"
+        },
+        "duration_ms": 94,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "buyer_case": {
+            "budget_max_aud": 1200000,
+            "budget_min_aud": 750000,
+            "created_at": "2026-08-10T09:00:00Z",
+            "id": "b5000000-0000-4000-8000-000000000010",
+            "name": "Wollongong coastal review",
+            "preferences": {
+              "dwelling_types": [
+                "unit",
+                "house"
+              ],
+              "priorities": [
+                "planning evidence"
+              ]
+            },
+            "status": "paused",
+            "target_suburbs": [
+              {
+                "locality": "WOLLONGONG",
+                "state": "NSW"
+              }
+            ],
+            "updated_at": "2026-08-10T09:45:00Z",
+            "version": 1
+          },
+          "content_is_untrusted": true,
+          "limit": 10,
+          "property_count": 2,
+          "shortlisted_properties": [
+            {
+              "buyer_case_id": "b5000000-0000-4000-8000-000000000010",
+              "created_at": "2026-08-10T10:00:00Z",
+              "id": "c5000000-0000-4000-8000-000000000012",
+              "journey_stage": "Shortlisted",
+              "priority": "low",
+              "property_label": null,
+              "property_ref": "95000000-0000-4000-8000-000000000012",
+              "property_validation_state": "pending",
+              "rating": 4,
+              "updated_at": "2026-09-03T21:24:19Z",
+              "version": 2
+            },
+            {
+              "buyer_case_id": "b5000000-0000-4000-8000-000000000010",
+              "created_at": "2026-08-10T10:00:00Z",
+              "id": "c5000000-0000-4000-8000-000000000011",
+              "journey_stage": "Shortlisted",
+              "priority": "medium",
+              "property_label": "Unit 10, 20 Example Street, Wollongong NSW 2500",
+              "property_ref": "a0000000-0000-0000-0000-000000000010",
+              "property_validation_state": "unavailable",
+              "rating": null,
+              "updated_at": "2026-08-10T10:11:00Z",
+              "version": 1
+            }
+          ]
+        },
+        "excerpt_truncated": false,
+        "id": "ev-case-r1",
+        "outcome": "succeeded",
+        "result_digest": "7a5f9bf4eead93dad644dde6069a4c943cd4f5cb8023d81c2ddeb0491f818006",
+        "step_id": "case",
+        "tool_call_id": "9e03d546-fa2c-4a21-9885-2b2a8ddd6dfd",
+        "tool_name": "buyer.action-plan.context.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      },
+      {
+        "arguments": {
+          "section": "notes"
+        },
+        "duration_ms": 109,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "content_is_untrusted": true,
+          "count": 1,
+          "items": [
+            {
+              "buyer_case_id": "b5000000-0000-4000-8000-000000000010",
+              "case_property_id": "c5000000-0000-4000-8000-000000000011",
+              "content": "Provider validation was unavailable when this snapshot was recorded.",
+              "created_at": "2026-08-10T11:00:00Z",
+              "id": "d5000000-0000-4000-8000-000000000011",
+              "updated_at": "2026-08-10T11:11:00Z",
+              "version": 1
+            }
+          ],
+          "limit": 100
+        },
+        "excerpt_truncated": false,
+        "id": "ev-notes-r1",
+        "outcome": "succeeded",
+        "result_digest": "9a31c09f196ba09237d7b54a6931c2484cc2f656d18cb038a40f1ec55abea565",
+        "step_id": "notes",
+        "tool_call_id": "04acccdd-ab8c-448c-95cd-3a5ec89e4deb",
+        "tool_name": "buyer.action-plan.context.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      },
+      {
+        "arguments": {
+          "section": "tasks"
+        },
+        "duration_ms": 93,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "content_is_untrusted": true,
+          "count": 1,
+          "items": [
+            {
+              "buyer_case_id": "b5000000-0000-4000-8000-000000000010",
+              "case_property_id": "c5000000-0000-4000-8000-000000000011",
+              "completed": false,
+              "created_at": "2026-08-10T12:00:00Z",
+              "due_date": "2026-09-06",
+              "id": "e5000000-0000-4000-8000-000000000012",
+              "title": "Retry property validation",
+              "updated_at": "2026-09-03T21:31:33Z",
+              "version": 2
+            }
+          ],
+          "limit": 100
+        },
+        "excerpt_truncated": false,
+        "id": "ev-tasks-r1",
+        "outcome": "succeeded",
+        "result_digest": "38c8c2bc11198e41de0d8873140653f94649b9e4d84fa710eb98df858926e20c",
+        "step_id": "tasks",
+        "tool_call_id": "3c82008f-5f0b-4d99-9fd9-57738aa1becc",
+        "tool_name": "buyer.action-plan.context.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      },
+      {
+        "arguments": {
+          "section": "evidence"
+        },
+        "duration_ms": 6563,
+        "error_code": null,
+        "error_message": null,
+        "excerpt": {
+          "bounds": {
+            "matches_per_feature": 25,
+            "properties": 10
+          },
+          "content_is_untrusted": true,
+          "evidence_references": [
+            "feature_1:property_ref:95000000-0000-4000-8000-000000000012",
+            "feature_1:property_ref:a0000000-0000-0000-0000-000000000010",
+            "feature_2:property_ref:95000000-0000-4000-8000-000000000012",
+            "feature_2:property_ref:a0000000-0000-0000-0000-000000000010",
+            "feature_3:case_target:NSW:WOLLONGONG",
+            "feature_4:property_ref:95000000-0000-4000-8000-000000000012",
+            "feature_4:property_ref:a0000000-0000-0000-0000-000000000010",
+            "feature_4:site_review_id:d4000000-0000-0000-0000-000000000010"
+          ],
+          "limitations": [
+            "Evidence is bounded to 10 shortlisted properties, 10 target suburbs, 10 distinct locality requests and the first 25 Sales research/Due diligence records.",
+            "Case target suburbs are buyer preferences, not verified property locations. Exact locality names do not establish geographic boundary equivalence."
+          ],
+          "sections": [
+            {
+              "feature": "feature_1",
+              "limitations": [
+                "Property discovery release coverage is retained; fixture, stale and partial coverage is not complete official evidence."
+              ],
+              "records": [
+                {
+                  "property_ref": "95000000-0000-4000-8000-000000000012",
+                  "reference": "feature_1:property_ref:95000000-0000-4000-8000-000000000012",
+                  "snapshot": "{}",
+                  "state": "unavailable"
+                },
+                {
+                  "property_ref": "a0000000-0000-0000-0000-000000000010",
+                  "reference": "feature_1:property_ref:a0000000-0000-0000-0000-000000000010",
+                  "snapshot": "{}",
+                  "state": "unavailable"
+                }
+              ],
+              "state": "unavailable"
+            },
+            {
+              "feature": "feature_2",
+              "limitations": [
+                "Only the first 25 saved records are matched by exact property reference; this is not an exhaustive search."
+              ],
+              "records": [
+                {
+                  "property_ref": "95000000-0000-4000-8000-000000000012",
+                  "reference": "feature_2:property_ref:95000000-0000-4000-8000-000000000012",
+                  "snapshot": "{}",
+                  "state": "partial"
+                },
+                {
+                  "property_ref": "a0000000-0000-0000-0000-000000000010",
+                  "reference": "feature_2:property_ref:a0000000-0000-0000-0000-000000000010",
+                  "snapshot": "{}",
+                  "state": "partial"
+                }
+              ],
+              "state": "partial"
+            },
+            {
+              "feature": "feature_3",
+              "limitations": [
+                "Case target context and verified property-location context are separate; neither is substituted for the other.",
+                "Only exact normalized NSW source localities are requested; no postcode or boundary inference."
+              ],
+              "records": [],
+              "state": "unavailable"
+            },
+            {
+              "feature": "feature_4",
+              "limitations": [
+                "Only the first 25 saved records are matched by exact property reference; this is not an exhaustive search."
+              ],
+              "records": [
+                {
+                  "property_ref": "95000000-0000-4000-8000-000000000012",
+                  "reference": "feature_4:property_ref:95000000-0000-4000-8000-000000000012",
+                  "snapshot": "{}",
+                  "state": "partial"
+                },
+                {
+                  "property_ref": "a0000000-0000-0000-0000-000000000010",
+                  "reference": "feature_4:site_review_id:d4000000-0000-0000-0000-000000000010",
+                  "snapshot": "{\"evidence\":{\"buildings\":[{\"confidence\":0.88,\"created_at\":\"2026-09-01T23:11:58.563666+00:00\",\"evidence_state\":\"non_intersection\",\"id\":\"b4000000-0000-0000-0000-000000000010\",\"match_method\":\"address_match\",\"observed_on\":\"2026-03-12\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"record_type\":\"building_order\",\"reference_code\":\"REF-00010\",\"source_name\":\"NSW Fair Trading\",\"source_url\":\"https://www.nsw.gov.au/\",\"summary\":\"No building order intersects the parcel in available data.\"},{\"confidence\":0.82,\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"evidence_state\":\"partial_coverage\",\"id\":\"b4000002-0000-0000-0000-000000000102\",\"match_method\":\"address_match\",\"observed_on\":\"2026-03-03\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"record_type\":\"building_order\",\"reference_code\":\"REF-00102\",\"source_name\":\"NSW Fair Trading\",\"source_url\":\"https://www.nsw.gov.au/\",\"summary\":\"Building orders or rectification notices recorded against the building.\"},{\"confidence\":0.94,\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"evidence_state\":\"confirmed\",\"id\":\"b4000002-0000-0000-0000-000000000101\",\"match_method\":\"address_match\",\"observed_on\":\"2026-03-03\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"record_type\":\"strata\",\"reference_code\":\"REF-00101\",\"source_name\":\"NSW Strata Hub\",\"source_url\":\"https://www.nsw.gov.au/\",\"summary\":\"Strata scheme registration and management status.\"},{\"confidence\":0.9,\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"evidence_state\":\"unavailable\",\"id\":\"b4000002-0000-0000-0000-000000000104\",\"match_method\":\"address_match\",\"observed_on\":\"2026-03-03\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"record_type\":\"tribunal\",\"reference_code\":\"REF-00104\",\"source_name\":\"NCAT\",\"source_url\":\"https://www.ncat.nsw.gov.au/\",\"summary\":\"Tribunal matters concerning the building.\"},{\"confidence\":0.86,\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"evidence_state\":\"non_intersection\",\"id\":\"b4000002-0000-0000-0000-000000000103\",\"match_method\":\"address_match\",\"observed_on\":\"2026-03-03\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"record_type\":\"undertaking\",\"reference_code\":\"REF-00103\",\"source_name\":\"NSW Fair Trading\",\"source_url\":\"https://www.nsw.gov.au/\",\"summary\":\"Written undertakings recorded against the building.\"}],\"constraints\":[{\"confidence\":0.85,\"constraint_type\":\"biodiversity\",\"created_at\":\"2026-09-01T23:11:58.563666+00:00\",\"dataset_release_id\":\"evidence-release-2026-01\",\"evidence_state\":\"confirmed\",\"id\":\"c4000000-0000-0000-0000-000000000010\",\"match_method\":\"property_centroid\",\"observed_value\":\"Endangered ecological community\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"source_name\":\"NSW BioNet\",\"source_url\":\"https://www.planningportal.nsw.gov.au/\",\"summary\":\"A threatened ecological community is mapped nearby.\"},{\"confidence\":0.96,\"constraint_type\":\"building_height\",\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"dataset_release_id\":\"evidence-release-2026-02\",\"evidence_state\":\"non_intersection\",\"id\":\"c4000002-0000-0000-0000-000000000104\",\"match_method\":\"property_centroid\",\"observed_value\":\"Maximum 9.5 m\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"source_name\":\"NSW Planning Portal\",\"source_url\":\"https://www.planningportal.nsw.gov.au/\",\"summary\":\"Maximum building height development standard.\"},{\"confidence\":0.84,\"constraint_type\":\"bushfire\",\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"dataset_release_id\":\"evidence-release-2026-02\",\"evidence_state\":\"confirmed\",\"id\":\"c4000002-0000-0000-0000-000000000106\",\"match_method\":\"property_centroid\",\"observed_value\":\"Vegetation Category 1\",\"property_ref\":\"a0000000-0000-0000-0000-000000000010\",\"source_name\":\"NSW RFS bushfire prone land\",\"source_url\":\"https://www.rfs.nsw.gov.au/\",\"summary\":\"Bushfire prone land mapping category.\"},{\"confidence\":0.8,\"constraint_type\":\"flood\",\"created_at\":\"2026-09-02T14:57:30.527768+00:00\",\"dataset_release_id\":\"evidence-release-2026-02\",\"evidence_state\":\"unavailable\",\"id\":\"c4000002-0000-0000-0000-0000000",
+                  "state": "partial"
+                }
+              ],
+              "state": "partial"
+            }
+          ],
+          "state": "partial"
+        },
+        "excerpt_truncated": false,
+        "id": "ev-evidence-r1",
+        "outcome": "succeeded",
+        "result_digest": "9f71667c2118204c8bfc65ac28b9683ebbd07bd14fc79241a0d5c63bdd2133c1",
+        "step_id": "evidence",
+        "tool_call_id": "6e6a3d4c-0ed5-4d38-8ae3-07acb9283564",
+        "tool_name": "buyer.action-plan.context.v1",
+        "tool_version": "v1",
+        "transport": "mcp"
+      }
+    ],
+    "produced_by": {
+      "fallback": false,
+      "invocations": 1,
+      "model": "gpt-5.6-terra",
+      "prompt_hash": "95a8827b2c6c9878a245559050d17a5e43b0073ac0dc655d02636239a97bb3eb",
+      "prompt_id": "worker",
+      "prompt_version": "v1",
+      "provider": "openai",
+      "role": "worker"
+    },
+    "round": 1,
+    "steps": [
+      {
+        "evidence_ids": [
+          "ev-case-r1"
+        ],
+        "findings": [
+          "The buyer case status is \u201cpaused,\u201d with a budget range of AUD 750,000 to AUD 1,200,000.",
+          "The case targets \u201cWOLLONGONG\u201d, NSW, and records dwelling types \u201cunit\u201d and \u201chouse\u201d with priority \u201cplanning evidence.\u201d",
+          "There are 2 shortlisted properties, both at journey stage \u201cShortlisted.\u201d",
+          "Property ref \u201c95000000-0000-4000-8000-000000000012\u201d has validation state \u201cpending\u201d; the Unit 10 property has validation state \u201cunavailable.\u201d"
+        ],
+        "status": "completed",
+        "step_id": "case"
+      },
+      {
+        "evidence_ids": [
+          "ev-notes-r1"
+        ],
+        "findings": [
+          "There is 1 buyer-recorded note for the Unit 10 property.",
+          "The note states: \u201cProvider validation was unavailable when this snapshot was recorded.\u201d",
+          "This note is marked within content identified as untrusted."
+        ],
+        "status": "completed",
+        "step_id": "notes"
+      },
+      {
+        "evidence_ids": [
+          "ev-tasks-r1"
+        ],
+        "findings": [
+          "There is 1 recorded task: \u201cRetry property validation.\u201d",
+          "The task is linked to the Unit 10 property, is \u201ccompleted\u201d: false, and has due date \u201c2026-09-06.\u201d",
+          "The task text is buyer-recorded context and does not establish that validation was completed."
+        ],
+        "status": "completed",
+        "step_id": "tasks"
+      },
+      {
+        "evidence_ids": [
+          "ev-evidence-r1"
+        ],
+        "findings": [
+          "Overall research evidence is in state \u201cpartial\u201d; Property discovery evidence for both shortlisted properties is \u201cunavailable.\u201d",
+          "Sales research matching for both properties is \u201cpartial,\u201d and the evidence says only the first 25 saved records are matched by exact property reference.",
+          "Suburb-related target context is \u201cunavailable\u201d; the evidence states that target suburbs are buyer preferences and do not verify property locations.",
+          "For the Unit 10 property, visible Due diligence records include confirmed strata evidence, confirmed bushfire mapping of \u201cVegetation Category 1,\u201d and an unavailable tribunal record.",
+          "Visible building-order evidence for the Unit 10 property includes both \u201cnon_intersection\u201d and \u201cpartial_coverage\u201d states; the latter summary reports building orders or rectification notices recorded against the building."
+        ],
+        "status": "completed",
+        "step_id": "evidence"
+      }
+    ],
+    "summary": "1. Verify Property discovery records for both shortlisted properties, because their evidence state is \u201cunavailable.\u201d 2. Follow up the outstanding \u201cRetry property validation\u201d task for Unit 10 and confirm the provider result. 3. Obtain missing or partial Due diligence and Sales research, including unavailable flood and tribunal checks, and reconcile building-order coverage. 4. During any inspection, verify the reported strata status, bushfire mapping, and nearby threatened ecological community. 5. Verify Suburb analytics separately, since target-suburb context does not establish a property location."
+  }
+}

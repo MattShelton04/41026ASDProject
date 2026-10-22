@@ -42,7 +42,13 @@ from ai_mode.release_review import (
 )
 from ai_mode.services import UnconfiguredToolExecutor
 from scripts.devtools.config import REPOSITORY_ROOT
-from scripts.devtools.review.deterministic import deterministic_review
+from scripts.devtools.review.deterministic import (
+    INPUT_DETAIL_FACT,
+    OMITTED_FACTS,
+    READ_INPUTS_FACT,
+    deterministic_review,
+    input_directory,
+)
 from scripts.devtools.service_auth import AI_SERVICE_TOKEN_HEADER
 from shared_contracts import AgentRunRequest, RunLimits
 from shared_contracts.evidence_review import (
@@ -50,8 +56,11 @@ from shared_contracts.evidence_review import (
     REVIEW_EVIDENCE_TOOL,
     REVIEW_FEATURE_KEY,
     REVIEW_PROMPT_SETS,
+    CheckStatus,
     EvidenceCheck,
+    EvidenceInput,
     EvidenceReviewBundle,
+    InputStatus,
 )
 from shared_contracts.http import REQUEST_ID_HEADER
 
@@ -103,7 +112,14 @@ def bundle_digest(bundle: EvidenceReviewBundle) -> str:
 
 
 def objective_for(bundle: EvidenceReviewBundle) -> tuple[EvidenceReviewBundle, str]:
-    """Fit the bundle into AI-mode's objective budget, compacting only when needed."""
+    """Fit the bundle into AI-mode's objective budget, compacting only when needed.
+
+    Each tier is tried in order and loses less than the next: facts, then passed-check detail,
+    then passed-check refs, then the per-file list of read inputs that no check cites (counted
+    per directory instead), then input hashes and sizes. Every check, owner and unread input is
+    kept, so the verdict floor and owner coverage are unchanged; the report and log hold the
+    full bundle.
+    """
     candidates = (bundle, *_compactions(bundle))
     for candidate in candidates:
         # Fields at their default (no owner, not blocked, required, no refs ...) are omitted to
@@ -112,30 +128,81 @@ def objective_for(bundle: EvidenceReviewBundle) -> tuple[EvidenceReviewBundle, s
         if len(text) <= MAX_REVIEW_OBJECTIVE_CHARS:
             return candidate, text
     raise ReviewLoopError(
-        "The evidence bundle is too large for one review run even after compaction; "
-        "reduce the number of evidence files",
+        f"The evidence bundle is too large for one review run even after compaction "
+        f"({len(bundle.checks)} checks, {len(bundle.inputs)} inputs); reduce the number of "
+        "checks or unread evidence files",
         code="bundle_too_large",
     )
 
 
 def _compactions(bundle: EvidenceReviewBundle) -> tuple[EvidenceReviewBundle, ...]:
-    without_facts = bundle.evolve(
-        facts={"omitted": "Facts exceeded the run budget; see the review report."},
-        compacted=True,
-    )
+    facts: dict[str, JsonValue] = {
+        OMITTED_FACTS: "Facts exceeded the run budget; see the review report."
+    }
+    without_facts = bundle.evolve(facts=facts, compacted=True)
     short_checks = without_facts.evolve(
         checks=tuple(
-            _short_check(check, keep_detail=check.status.value != "passed")
+            _short_check(check, keep_detail=check.status is not CheckStatus.PASSED)
             for check in bundle.checks
         )
     )
-    return (without_facts, short_checks)
+    # The tool result lists passed checks by id only, so their refs never reach the model.
+    passed_without_refs = without_facts.evolve(
+        checks=tuple(
+            _short_check(
+                check,
+                keep_detail=check.status is not CheckStatus.PASSED,
+                keep_refs=check.status is not CheckStatus.PASSED,
+            )
+            for check in bundle.checks
+        )
+    )
+    read_counted = _count_read_inputs(passed_without_refs)
+    # Last resort: hashes are what the run records as tool evidence, so they go last.
+    without_hashes = read_counted.evolve(
+        facts={
+            **read_counted.facts,
+            INPUT_DETAIL_FACT: "Input hashes and sizes are omitted; the review report lists them.",
+        },
+        inputs=tuple(_bare_input(item) for item in read_counted.inputs),
+    )
+    return (without_facts, short_checks, passed_without_refs, read_counted, without_hashes)
 
 
-def _short_check(check: EvidenceCheck, *, keep_detail: bool) -> dict[str, Any]:
+def _count_read_inputs(bundle: EvidenceReviewBundle) -> EvidenceReviewBundle:
+    """List unread and cited inputs; count the other read inputs per evidence directory.
+
+    Findings may cite any input a check cites, so those stay listed and the bundle still
+    validates every reference its checks make.
+    """
+    cited = {ref.partition("#")[0] for check in bundle.checks for ref in check.evidence_refs}
+    listed: list[EvidenceInput] = []
+    counted: dict[str, int] = {}
+    for item in bundle.inputs:
+        if item.status is not InputStatus.READ or item.path in cited:
+            listed.append(item)
+        else:
+            directory = input_directory(item.path)
+            counted[directory] = counted.get(directory, 0) + 1
+    if not counted:
+        return bundle
+    facts: dict[str, JsonValue] = {
+        **bundle.facts,
+        READ_INPUTS_FACT: {directory: counted[directory] for directory in sorted(counted)},
+    }
+    return bundle.evolve(inputs=tuple(listed), facts=facts)
+
+
+def _bare_input(item: EvidenceInput) -> EvidenceInput:
+    return EvidenceInput(path=item.path, status=item.status, detail=item.detail)
+
+
+def _short_check(
+    check: EvidenceCheck, *, keep_detail: bool, keep_refs: bool = True
+) -> dict[str, Any]:
     payload = check.model_dump(mode="json", exclude_none=True)
     payload["detail"] = check.detail[:160] if keep_detail else "Passed."
-    payload["evidence_refs"] = list(check.evidence_refs[:3])
+    payload["evidence_refs"] = list(check.evidence_refs[:3]) if keep_refs else []
     return payload
 
 

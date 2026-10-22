@@ -119,6 +119,12 @@ def render_report(record: ReviewRecord, *, log_name: str, decision_hint: str | N
         f"({record.duration_ms} ms) |",
         f"| Evidence root | `{record.evidence_root}` |",
         f"| Bundle SHA-256 | `{record.bundle_sha256}` |",
+        "| Run objective | "
+        + (
+            "compacted to fit AI-mode's objective budget; this report lists the full bundle |"
+            if record.objective_compacted
+            else "full bundle |"
+        ),
         f"| Validation log | `{log_name}` |",
         "",
     ]

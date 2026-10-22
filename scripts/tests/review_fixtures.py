@@ -133,6 +133,28 @@ def write_multi_agent(root: Path) -> None:
         write_jsonl(directory / "coordination_audit.jsonl", audit(student))
 
 
+def write_multi_agent_runs(root: Path, student: str, count: int) -> None:
+    """Replace one student's evidence with ``count`` exported runs, one directory per run.
+
+    Mirrors the real exports: each run directory holds its history, audit and run export, so
+    the bundle grows by three inputs per run, as it does when students add evidence.
+    """
+    directory = root / "multi-agent" / student
+    shutil.rmtree(directory, ignore_errors=True)
+    for index in range(count):
+        run_id = str(UUID(int=int(student[-1]) * 0x10000 + index))
+        export = directory / f"{run_id[-8:]}-{index:02d}-workflow-run-export"
+        write_jsonl(
+            export / "workflow_history.jsonl",
+            [{**record, "run_id": run_id} for record in history(student)],
+        )
+        write_jsonl(
+            export / "coordination_audit.jsonl",
+            [{**record, "run_id": run_id} for record in audit(student)],
+        )
+        write_json(export / "run.json", {"id": run_id, "status": "approved"})
+
+
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")

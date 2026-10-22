@@ -21,6 +21,7 @@ EXPECTED_TOOLS = [
     "buyer.notes.list.v1",
     "buyer.tasks.list.v1",
     "buyer.evidence.collect.v1",
+    "buyer.action-plan.context.v1",
 ]
 
 
@@ -56,6 +57,12 @@ def test_student_five_catalog_builds_real_owned_tool_runtime() -> None:
             assert isinstance(properties, dict)
             if name == "buyer.capabilities.v1":
                 assert not definition.input_schema.get("required")
+                continue
+            if name == "buyer.action-plan.context.v1":
+                assert set(properties) == {"section"}
+                section = properties["section"]
+                assert isinstance(section, dict)
+                assert section["enum"] == ["case", "notes", "tasks", "evidence"]
                 continue
             buyer_case_id = properties["buyer_case_id"]
             assert isinstance(buyer_case_id, dict)

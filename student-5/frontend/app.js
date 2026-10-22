@@ -1,5 +1,6 @@
 import { createLatestTask } from "./browser/index.js";
 import { createBuyerAssistant, setSummaryVisibility } from "./assistant.js";
+import { createCaseActionPlan } from "./action-plan.js";
 
 import {
   API_BASE,
@@ -63,6 +64,7 @@ const api = createBuyerCaseApi();
 let cases = [];
 let currentCase = null;
 let buyerAssistant = null;
+let caseActionPlan = null;
 let properties = [];
 let notes = [];
 let tasks = [];
@@ -205,6 +207,7 @@ export function renderEvidence(value) {
 }
 
 function renderDetail(item) {
+  caseActionPlan?.select(item);
   buyerAssistant?.select(item);
   setSummaryVisibility(document.querySelector("#summarise-case"), true);
   const view = document.querySelector("#case-view");
@@ -288,6 +291,7 @@ async function loadEvidence(caseId) {
 }
 
 async function loadList() {
+  caseActionPlan?.select(null);
   buyerAssistant?.select(null);
   setSummaryVisibility(document.querySelector("#summarise-case"), false);
   const task = viewTask.start();
@@ -308,6 +312,7 @@ async function loadList() {
 }
 
 async function loadDetail(caseId) {
+  if (currentCase?.id !== caseId) caseActionPlan?.select(null);
   if (currentCase?.id !== caseId) buyerAssistant?.select(null);
   setSummaryVisibility(document.querySelector("#summarise-case"), false);
   const task = viewTask.start();
@@ -333,6 +338,7 @@ async function loadDetail(caseId) {
     if (!task.isCurrent()) return;
     setServiceState(false);
     const missing = error instanceof ApiProblem && error.status === 404;
+    caseActionPlan?.select(null);
     buyerAssistant?.select(null);
     renderState(missing ? "empty" : "unavailable", missing ? "Buyer case not found" : "Buyer case unavailable", missing ? "It may have been deleted." : "The service could not be reached.", !missing);
   }
@@ -666,6 +672,8 @@ async function route(focus = true) {
 }
 
 export function initialise() {
+  const actionPlanSection = document.querySelector("#case-action-plan");
+  if (actionPlanSection) caseActionPlan = createCaseActionPlan(actionPlanSection);
   const assistantRoot = document.querySelector("#buyer-assistant");
   if (assistantRoot) {
     buyerAssistant = createBuyerAssistant(assistantRoot, undefined, document.querySelector("#assistant-selected-case"));
@@ -673,6 +681,7 @@ export function initialise() {
     buyerAssistant.select(null);
   }
   globalThis.addEventListener("pagehide", () => {
+    caseActionPlan?.destroy();
     buyerAssistant?.destroy();
   }, { once: true });
   document.querySelector("#new-case")?.addEventListener("click", () => openCaseForm());

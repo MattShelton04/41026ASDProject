@@ -91,6 +91,9 @@ jobs:
 
       - name: Install cloud-init for schema validation
         run: |
+          # The runner's Microsoft apt feed intermittently returns 403 and breaks apt index updates;
+          # nothing here installs from it.
+          { grep -rlZ packages.microsoft.com /etc/apt/sources.list.d || true; } | xargs -0r sudo rm -f
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends cloud-init
 

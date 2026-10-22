@@ -11,6 +11,7 @@ the verdict is exactly the checklist verdict.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import PurePosixPath
 
 from shared_contracts.evidence_review import (
     UNASSIGNED_OWNER,
@@ -35,6 +36,12 @@ MODE_TITLES = {
     "cloud": "Cloud Deployment Report Review",
 }
 EVIDENCE_COVERAGE_AREA = "evidence coverage"
+OMITTED_FACTS = "omitted"
+"""Fact key that replaces the collected facts in a compacted run objective."""
+INPUT_DETAIL_FACT = "input_detail_omitted"
+"""Fact key present when a compacted objective dropped input hashes and sizes."""
+READ_INPUTS_FACT = "read_inputs_by_directory"
+"""Fact key counting read inputs that a compacted objective no longer lists one by one."""
 REMEDIATION = {
     "evidence": "Export the student's workflow runs from the Multi-Agent Server "
     "(workflow_history.jsonl and coordination_audit.jsonl) into the evidence folder.",
@@ -259,11 +266,19 @@ def _risks(
     ]
     risks = risks[: MAX_RISKS - 1]
     if bundle.compacted:
+        omitted = ["collected facts"]
+        if INPUT_DETAIL_FACT in bundle.facts:
+            omitted.append("input hashes and sizes")
+        if counted := _counted_inputs(bundle):
+            omitted.append(f"the per-file list of {counted} read input(s), counted per directory")
         risks.append(
             EvidenceReviewRisk(
                 severity=ReviewSeverity.LOW,
-                description="Collected facts were compacted to fit the run budget.",
-                mitigation="Read the full facts in the review report before deciding.",
+                description=(
+                    f"The run objective was compacted to fit the run budget: {join_names(omitted)} "
+                    "were left out. Every check and unread input was kept."
+                ),
+                mitigation="Read the full facts and inputs in the review report before deciding.",
             )
         )
     return risks
@@ -295,7 +310,8 @@ def _summary(bundle: EvidenceReviewBundle) -> str:
     parts = [
         f"{MODE_TITLES[bundle.mode]}: {counts[CheckStatus.PASSED]} of {len(bundle.checks)} "
         f"checks passed, {counts[CheckStatus.FAILED]} failed ({required_failed} required)"
-        f"{blocked}, across {len(bundle.inputs)} evidence file(s), {unread} of them missing or "
+        f"{blocked}, across {len(bundle.inputs) + _counted_inputs(bundle)} evidence file(s), "
+        f"{unread} of them missing or "
         "unreadable."
     ]
     coverage = owner_coverage(bundle)
@@ -311,3 +327,17 @@ def _summary(bundle: EvidenceReviewBundle) -> str:
         )
     parts.append("Verdict taken from the deterministic checklist without a model.")
     return " ".join(parts)[:1_500]
+
+
+def input_directory(path: str) -> str:
+    """Group an input path by its first two directories, such as ``multi-agent/student-2``."""
+    parents = PurePosixPath(path).parts[:-1]
+    return "/".join(parents[:2]) or "."
+
+
+def _counted_inputs(bundle: EvidenceReviewBundle) -> int:
+    """Read inputs a compacted objective counts per directory instead of listing."""
+    counted = bundle.facts.get(READ_INPUTS_FACT)
+    if not isinstance(counted, dict):
+        return 0
+    return sum(value for value in counted.values() if isinstance(value, int))

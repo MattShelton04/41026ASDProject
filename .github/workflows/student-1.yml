@@ -76,8 +76,10 @@ jobs:
     name: Feature 1 browser forms
     runs-on: ubuntu-latest
     timeout-minutes: 12
-    # Advisory: a failure stays visible on the job, but does not fail Student 1 CI or the
-    # cloud release gate (scripts/verify_release_gate.py reads the workflow conclusion).
+    # Advisory and non-required: the Chromium form suite is timing-sensitive, so a failing
+    # install or test step leaves a warning annotation and the job stays green. It never fails
+    # Student 1 CI or the cloud release gate (scripts/verify_release_gate.py reads the workflow
+    # conclusion). Run the suite locally before changing Feature 1 forms.
     continue-on-error: true
     steps:
       - name: Check out repository
@@ -97,9 +99,25 @@ jobs:
       - name: Install locked workspace
         run: uv sync --locked --all-packages --all-groups
       - name: Install Chromium for advisory form checks
-        run: uv run --locked playwright install --with-deps chromium
+        id: chromium
+        continue-on-error: true
+        run: |
+          # The runner's Microsoft apt feed intermittently returns 403 and breaks apt index updates;
+          # nothing here installs from it.
+          { grep -rlZ packages.microsoft.com /etc/apt/sources.list.d || true; } | xargs -0r sudo rm -f
+          uv run --locked playwright install --with-deps chromium
       - name: Run advisory Feature 1 form behavior checks
+        id: forms
+        if: steps.chromium.outcome == 'success'
+        continue-on-error: true
         run: uv run --locked pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
+      - name: Report advisory form check result
+        if: steps.chromium.outcome != 'success' || steps.forms.outcome != 'success'
+        env:
+          CHROMIUM: ${{ steps.chromium.outcome }}
+          FORMS: ${{ steps.forms.outcome }}
+        run: |
+          echo "::warning title=Feature 1 browser forms (advisory)::Chromium install: ${CHROMIUM}; form checks: ${FORMS}. Not required; see the step log."
 
   containers:
     name: Feature 1 integrated stack

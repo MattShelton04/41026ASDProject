@@ -3,6 +3,119 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createBuyerAssistant, CASE_SUMMARY_MESSAGE, setSummaryVisibility } from "../../frontend/assistant.js";
 import { createAssistantClient, answerSections, evidenceSteps } from "../../frontend/ai-chat/index.js";
+import { createCaseActionPlan } from "../../frontend/action-plan.js";
+
+function actionPlanFixture() {
+  const label = {};
+  const attributes = new Map();
+  const root = {
+    textContent: "",
+    replaceChildren() { this.textContent = ""; },
+    setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
+  };
+  const section = {hidden: true, querySelector(selector) { return selector === "[data-action-plan-case]" ? label : root; }};
+  return {section, root, attributes};
+}
+
+test("disabled action plans request capabilities only and render an accessible offline state", async (t) => {
+  const {section, root, attributes} = actionPlanFixture();
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requests.push(url);
+    return new Response(JSON.stringify({enabled: false}), {status: 200, headers: {"Content-Type": "application/json"}});
+  });
+  const adapter = createCaseActionPlan(section, () => { assert.fail("Disabled workflow must not mount the shared panel"); });
+  await adapter.select({id: "case-a", name: "Buyer case"});
+  assert.deepEqual(requests, ["/api/buyer-workspaces/v1/buyer-cases/case-a/evidence-reviews/capabilities"]);
+  assert.match(root.textContent, /not enabled in this deployment/);
+  assert.match(root.textContent, /case records remain available/);
+  assert.equal(attributes.get("role"), "status");
+  assert.equal(section.hidden, false);
+  await adapter.select(null);
+  assert.equal(section.hidden, true);
+  assert.equal(root.textContent, "");
+  adapter.destroy();
+});
+
+test("failed or malformed capabilities never mount tools or expose dependency text", async () => {
+  for (const capability of [null, {}, {enabled: "false"}, new Error("private transport detail")]) {
+    const {section, root} = actionPlanFixture();
+    const adapter = createCaseActionPlan(section, () => assert.fail("Unavailable workflow mounted"), undefined, async () => {
+      if (capability instanceof Error) throw capability;
+      return capability;
+    });
+    await adapter.select({id: "case-a", name: "Buyer case"});
+    assert.match(root.textContent, /availability could not be checked/);
+    assert.doesNotMatch(root.textContent, /private transport detail/);
+    adapter.destroy();
+  }
+});
+
+test("late capability responses cannot mount a previous case or a destroyed panel", async () => {
+  const {section} = actionPlanFixture();
+  const pending = [];
+  const mounted = [];
+  const adapter = createCaseActionPlan(section, (options) => { mounted.push(options); return {destroy() {}}; }, (options) => options,
+    (apiRoot, {signal}) => new Promise((resolve) => pending.push({apiRoot, signal, resolve})));
+  const first = adapter.select({id: "case-a", name: "First"});
+  const second = adapter.select({id: "case-b", name: "Second"});
+  assert.equal(pending[0].signal.aborted, true);
+  pending[1].resolve({enabled: true});
+  await second;
+  pending[0].resolve({enabled: true});
+  await first;
+  assert.equal(mounted.length, 1);
+  assert.equal(mounted[0].initialInput.buyer_case_id, "case-b");
+  const third = adapter.select({id: "case-c", name: "Third"});
+  await adapter.select(null);
+  assert.equal(pending[2].signal.aborted, true);
+  pending[2].resolve({enabled: true});
+  await third;
+  assert.equal(mounted.length, 1);
+  const fourth = adapter.select({id: "case-d", name: "Fourth"});
+  adapter.destroy();
+  pending[3].resolve({enabled: true});
+  await fourth;
+  assert.equal(mounted.length, 1);
+});
+
+test("action plans bind the selected case, isolate polling and reopen its own last run", async () => {
+  const label = {};
+  const root = {replaceChildren() { this.cleared = true; }, setAttribute() {}, removeAttribute() {}};
+  const section = {hidden: true, querySelector(selector) { return selector === "[data-action-plan-case]" ? label : root; }};
+  const mounts = [];
+  let destroyed = 0;
+  const adapter = createCaseActionPlan(section, (options) => {
+    mounts.push(options);
+    return {destroy() { destroyed += 1; }};
+  }, (options) => options, async () => ({enabled: true}));
+  adapter.select(null);
+  assert.equal(section.hidden, true);
+  assert.equal(mounts.length, 0);
+  await adapter.select({id: "case-a", name: "<First buyer>"});
+  assert.equal(label.textContent, "Selected case: <First buyer>");
+  assert.equal(section.hidden, false);
+  assert.equal(mounts[0].client.apiRoot, "/api/buyer-workspaces/v1/buyer-cases/case-a/evidence-reviews");
+  assert.deepEqual(mounts[0].initialInput, {buyer_case_id: "case-a"});
+  assert.deepEqual(mounts[0].hiddenInputs, ["buyer_case_id"]);
+  mounts[0].onRunChange({id: "run-a"});
+  await adapter.select({id: "case-a", name: "Renamed buyer"});
+  assert.equal(mounts.length, 1);
+  assert.equal(label.textContent, "Selected case: Renamed buyer");
+  await adapter.select({id: "case-b", name: "Second buyer"});
+  assert.equal(destroyed, 1);
+  assert.equal(mounts[1].runId, null);
+  mounts[0].onRunChange({id: "stale-result"});
+  adapter.select(null);
+  assert.equal(destroyed, 2);
+  assert.equal(section.hidden, true);
+  assert.equal(root.cleared, true);
+  await adapter.select({id: "case-a", name: "First buyer"});
+  assert.equal(mounts[2].runId, "run-a");
+  adapter.destroy();
+  assert.equal(destroyed, 3);
+});
 
 test("summary shortcut is hidden without an open case", () => {
   const button = {};

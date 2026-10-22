@@ -11,6 +11,7 @@ ai_capabilities:
   - buyer.notes.list.v1
   - buyer.tasks.list.v1
   - buyer.evidence.collect.v1
+  - buyer.action-plan.context.v1
 onboarding:
   frontend:
     asset_root: student-5/frontend

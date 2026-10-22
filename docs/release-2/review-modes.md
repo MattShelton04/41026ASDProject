@@ -51,6 +51,13 @@ evidence files ──▶ collector ──▶ bundle (inputs + SHA-256, checklist
    `review-planner/v2`) then returns the review: one finding per root cause, blocked checks
    summarised per owner, and "owner has not submitted X" rather than a code change when evidence
    is absent. The `v1` prompt sets stay registered so earlier runs remain reproducible.
+   AI-mode accepts objectives of at most 16,000 characters, so a bundle over 15,000 is compacted
+   in tiers, stopping at the first that fits: facts are replaced by a note, passed checks keep
+   only `Passed.`, passed checks drop their refs, read inputs that no check cites are counted
+   per directory (`read_inputs_by_directory`), and as a last resort input hashes and sizes are
+   dropped. Every check, owner, unread input and cited input stays, so the checklist verdict and
+   owner coverage are unchanged. The report's **Run objective** row says when this happened;
+   the report and log always hold the full bundle.
 4. **Validate.** AI-mode's completion validator checks the review against the output schema and
    the bundle inside the loop's bounded repair: every `evidence_refs` value must be a check ID or
    input path from the bundle (optionally with a `#` or `:` anchor), and the verdict must not be
@@ -314,7 +321,7 @@ checks" above). `cloud.commit-consistency` also depends on `cloud.report`.
 The report is written to paste into the technical report. It starts with the verdict, the
 checklist and model verdicts, the passed/failed/blocked check counts, the engine, the review ID,
 the loop run ID, request ID, prompt set and prompt versions, provider and model, phases, times,
-evidence root and bundle SHA-256. It then gives the summary and a **Verdict basis** line,
+evidence root, bundle SHA-256 and whether the run objective was compacted. It then gives the summary and a **Verdict basis** line,
 **Coverage by owner** (when the mode declares owners), findings grouped by root cause, risks,
 recommendations, the checklist (each root's blocked checks collapsed into one row), every input
 with its status, size and SHA-256, validation notes and a compact table of the collected facts

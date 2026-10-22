@@ -10,6 +10,21 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_student_five_ci_does_not_start_or_require_host_ai_services() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/student-5.yml").read_text("utf-8"))
+    assert workflow["env"]["AI_MODE_MCP_ENABLED"] == "false"
+    assert workflow["env"]["AI_MODE_RAG_ENABLED"] == "false"
+    assert workflow["env"]["AI_MODE_SERVICE_TOKEN"] == ""
+    assert workflow["env"]["MULTI_AGENT_SERVICE_TOKEN"] == ""
+    commands = "\n".join(
+        step.get("run", "") for job in workflow["jobs"].values() for step in job["steps"]
+    )
+    assert "dev.py ai start" not in commands
+    assert "dev.py ai stop" not in commands
+    assert "pytest student-5/tests/endpoints -m endpoint" in commands
+    assert "shared_testkit.junit_summary" in commands
+
+
 def test_dockerfile_exposes_three_non_root_targets() -> None:
     dockerfile = (ROOT / "student-5" / "Dockerfile").read_text(encoding="utf-8")
     for target in ("database-api", "backend", "frontend"):
@@ -44,10 +59,13 @@ def test_nginx_exposes_only_public_buyer_routes_and_shared_assets() -> None:
     assert "/internal/buyer-workspaces" not in nginx
     assert "shared/frontend/design-system" in dockerfile
     assert "COPY shared/frontend/ai-chat /usr/share/nginx/html/ai-chat" in dockerfile
+    assert "COPY shared/frontend/multi-agent /usr/share/nginx/html/multi-agent" in dockerfile
+    assert "student-5/frontend/action-plan.js" in dockerfile
     assert "student-5/frontend/assistant.js" in dockerfile
     development = yaml.safe_load((ROOT / "docker-compose.dev.yml").read_text("utf-8"))
     mounts = development["services"]["f5-frontend"]["volumes"]
     assert "./shared/frontend/ai-chat:/usr/share/nginx/html/ai-chat:ro" in mounts
+    assert "./shared/frontend/multi-agent:/usr/share/nginx/html/multi-agent:ro" in mounts
     for filename in ("index.html", "app.js", "assistant.js", "api.js", "models.js"):
         assert f"./student-5/frontend/{filename}:/usr/share/nginx/html/{filename}:ro" in mounts
 

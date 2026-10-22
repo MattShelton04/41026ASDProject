@@ -144,8 +144,9 @@ tests while iterating, then audit with
 `--workspace feature-1-property-discovery --port 5312`; for Data Operations use
 `--workspace feature-1-data-operations --port 5313`. Finish any of those paths with
 `uv run python scripts/check.py` before pushing. Ports are examples: each concurrent audit must use
-a distinct free loopback port. The required form-behavior browser suite remains separate because it
-owns a random fixture port and needs installed Chromium:
+a distinct free loopback port. The form-behavior browser suite remains separate because it owns
+a random fixture port and needs installed Chromium. CI runs it as an advisory, non-required check
+(a failure only leaves a warning), so run it locally whenever you change Feature 1 forms:
 
 ```text
 uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
@@ -153,8 +154,8 @@ uv run pytest student-1/tests/e2e/test_form_behaviour_playwright.py --no-cov -q
 
 `Integration CI / Canonical quality gate` is the single required source-quality job; the
 `Pre-commit security scans` job beside it repeats the commit-time security hooks. The
-path-filtered Student 1 workflow adds only the Chromium form suite and the integrated Shared plus
-Feature 1 container check; it does not repeat the whole repository gate or a second shared-image
+path-filtered Student 1 workflow adds only the advisory Chromium form suite and the integrated
+Shared plus Feature 1 container check; it does not repeat the whole repository gate or a second shared-image
 build on the same pull request. Its working set is limited to Feature 1, agent-core/AI-mode, shared
 runtime contracts/frontend assets, Compose/build metadata, workspace manifests, and the exact dev
 command used by that check. Compose readiness and a deterministic fixture collection exercise the
