@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "baseSha": "07b1c81dc102adcf90a3f8e194df26ea76b7fd5e",
-  "headSha": "fa891265f24da599b90fcc86eee750607c1bcc18",
+  "baseSha": "d7602b774d47adc57efded1dc5e51abd1f42ac1f",
+  "headSha": "8b08f30d23502309301b22675821e03f70a806fc",
   "viewport": {
     "width": 1440,
     "height": 1000,
     "fixedTime": "2026-09-01T10:00:00+10:00"
   },
   "summary": {
-    "changed": 1,
+    "changed": 0,
     "subtle": 0,
     "unchanged": 41,
-    "incomplete": 0,
+    "incomplete": 1,
     "baseUnavailable": 0,
     "total": 42
   },
@@ -132,27 +132,19 @@
       "provider": "fixture",
       "path": "/#release-roadmap",
       "state": "release roadmap",
-      "change": "changed",
-      "changedPixels": 732,
-      "percent": 0.0267,
+      "change": "unchanged",
+      "changedPixels": 0,
+      "percent": 0.0,
       "heights": {
         "before": 1902,
         "after": 1902
       },
-      "areas": [
-        {
-          "x": 311,
-          "y": 1464,
-          "width": 97,
-          "height": 12,
-          "pixels": 732
-        }
-      ],
+      "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/dd65caa82640be820bc28aedc55cafed208e19b54e0e267c87f538103a04f798.png",
+        "before": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
         "after": "../../img/bbd03e7d7a4e1e13bf416d040a67487775774942bbbe01cd3698a7178f60f291.png",
-        "difference": "../../img/e3beb0fd3761480d5e29b417f39826cdbe5cfb0bf6fb76811abdfa1b3155361c.png"
+        "difference": null
       },
       "limitations": []
     },
@@ -458,8 +450,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/102063026b071540dc514492906e301f18a9fd47625768e6d3733411135f435f.png",
-        "after": "../../img/102063026b071540dc514492906e301f18a9fd47625768e6d3733411135f435f.png",
+        "before": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
+        "after": "../../img/c1d51a6ade59e3991050eab94dc51b0847fb3d30973c3ce2a8da3cfff7ee8528.png",
         "difference": null
       },
       "limitations": []
@@ -568,8 +560,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
-        "after": "../../img/c777b0d1b145533ac250232d628c65c1ea230c65f544d3d6fe129d10c91a65f4.png",
+        "before": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
+        "after": "../../img/a5c49e93371cc0d01d952c3b130ef5bd4beeac8275503da22ba2fe09d1fad39c.png",
         "difference": null
       },
       "limitations": []
@@ -612,8 +604,8 @@
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
-        "after": "../../img/4ce14d708903ec4bff0b6d2ec26cb35f880fdf5a2d18f6564b0b681559012b0e.png",
+        "before": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
+        "after": "../../img/78673216002708c1c668b6ec73fa366cfe9c28a36dd03a9eb2994a89523ac3c1.png",
         "difference": null
       },
       "limitations": []
@@ -694,14 +686,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
-        "after": "../../img/c6988c1ece084d0cf4afde310e985789ac22f3025fab9110add25a7081eafbaf.png",
+        "before": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
+        "after": "../../img/10e1bef0ab78e327fc427c6dfaf1e6d1cb015b22cf7ef35dfb4bbe8242c924c1.png",
         "difference": null
       },
       "limitations": []
@@ -716,14 +708,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 1982,
-        "after": 1982
+        "before": 2179,
+        "after": 2179
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
-        "after": "../../img/6a7bbf67cecb5f685335e5a5ec02b9564e81d1cc221def40458478ba03e54c25.png",
+        "before": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
+        "after": "../../img/925c93742f335c40f679b94802b8dde20af214e79fcb0c8caaf88453dcb1837e.png",
         "difference": null
       },
       "limitations": []
@@ -870,14 +862,14 @@
       "changedPixels": 0,
       "percent": 0.0,
       "heights": {
-        "before": 3754,
-        "after": 3754
+        "before": 3943,
+        "after": 3943
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
-        "before": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
-        "after": "../../img/70205ceae863276da0df26ec6453e639f5f984cdb38e0a4fc56e82188adc83ac.png",
+        "before": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
+        "after": "../../img/b1df992dde9882f94855bae3c71e97b4987fa7d97b393e27c04764c69557999c.png",
         "difference": null
       },
       "limitations": []
@@ -932,21 +924,23 @@
       "provider": "stack",
       "path": "/features/buyer-workspaces/#buyer-cases/b5000000-0000-4000-8000-000000000010",
       "state": "one buyer case",
-      "change": "unchanged",
-      "changedPixels": 0,
-      "percent": 0.0,
+      "change": "incomplete",
+      "changedPixels": null,
+      "percent": null,
       "heights": {
         "before": 4453,
-        "after": 4453
+        "after": null
       },
       "areas": [],
       "sameAreasAs": null,
       "images": {
         "before": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
-        "after": "../../img/cae9bb48e9fcb7c5421e712eabf21d2d555e107daf5b4451aef508dbd3e9b7d2.png",
+        "after": null,
         "difference": null
       },
-      "limitations": []
+      "limitations": [
+        "head: console: Failed to load resource: the server responded with a status of 503 (SERVICE UNAVAILABLE)"
+      ]
     }
   ]
 }
