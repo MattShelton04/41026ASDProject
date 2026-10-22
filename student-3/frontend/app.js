@@ -13,6 +13,7 @@ let suburbFilterGeneration = 0;
 let suburbSearchTimer;
 const trendTask = createLatestTask();
 let comparisonSaving = false;
+const OFFENCE_CATEGORIES = new Set(["all_recorded", "property", "person"]);
 const BOOKMARK_KEY = "propertyscope.suburb-analytics.bookmarks.v1";
 let bookmarks = [];
 
@@ -475,21 +476,51 @@ function loadComparison(item) {
   $("#from-month").value = item.from_month;
   $("#to-month").value = item.to_month;
   $("#measure").value = item.measure;
-  $("#offence").value = "all_recorded";
+  $("#offence").value = comparisonOffence(item);
   $("#trend-notice").textContent = `Loading saved comparison “${item.name}”…`;
   location.hash = "#trends";
 }
 
+function comparisonOffence(item) {
+  return (item?.selected_indicators || []).find((value) => OFFENCE_CATEGORIES.has(value)) || "all_recorded";
+}
+
+function saveActiveComparison() {
+  const localities = [$("#locality-a").value, $("#locality-b").value];
+  const fromMonth = $("#from-month").value;
+  const toMonth = $("#to-month").value;
+  if (!localities[0] || !localities[1] || localities[0] === localities[1]) {
+    $("#trend-notice").textContent = "Choose two different supported suburbs before saving.";
+    $("#locality-a").focus();
+    return;
+  }
+  if (!fromMonth || !toMonth || fromMonth > toMonth) {
+    $("#trend-notice").textContent = "Choose a valid period with the start month before the end month before saving.";
+    $("#from-month").focus();
+    return;
+  }
+  openDialog({
+    name: `${localities[0]} vs ${localities[1]}`,
+    localities,
+    from_month: fromMonth,
+    to_month: toMonth,
+    measure: $("#measure").value,
+    selected_indicators: [$("#offence").value],
+    status: "saved",
+    notes: "",
+  });
+}
+
 function openDialog(item = null) {
-  $("#dialog-title").textContent = item ? "Edit comparison" : "New comparison"; $("#comparison-id").value = item?.id || ""; $("#comparison-version").value = item?.version ?? "";
+  $("#dialog-title").textContent = item?.id ? "Edit comparison" : "New comparison"; $("#comparison-id").value = item?.id || ""; $("#comparison-version").value = item?.version ?? "";
   $("#comparison-name").value = item?.name || ""; $("#comparison-a").innerHTML = optionMarkup(item?.localities?.[0]); $("#comparison-b").innerHTML = optionMarkup(item?.localities?.[1] || state.suburbs[1]?.locality);
-  $("#comparison-from").value = item?.from_month || "2026-01"; $("#comparison-to").value = item?.to_month || "2026-06"; $("#comparison-measure").value = item?.measure || "count"; $("#comparison-status").value = item?.status || "saved"; $("#comparison-notes").value = item?.notes || ""; $("#form-error").textContent = ""; $("#comparison-dialog").showModal(); $("#comparison-name").focus();
+  $("#comparison-from").value = item?.from_month || "2026-01"; $("#comparison-to").value = item?.to_month || "2026-06"; $("#comparison-measure").value = item?.measure || "count"; $("#comparison-offence").value = comparisonOffence(item); $("#comparison-status").value = item?.status || "saved"; $("#comparison-notes").value = item?.notes || ""; $("#form-error").textContent = ""; $("#comparison-dialog").showModal(); $("#comparison-name").focus();
 }
 
 async function saveComparison(event) {
   event.preventDefault(); if (event.submitter?.value !== "save") { $("#comparison-dialog").close(); return; }
   if (comparisonSaving) return;
-  const id = $("#comparison-id").value; const payload = { name: $("#comparison-name").value.trim(), localities: [$("#comparison-a").value, $("#comparison-b").value], from_month: $("#comparison-from").value, to_month: $("#comparison-to").value, measure: $("#comparison-measure").value, selected_indicators: ["recorded_offences"], priorities: [], notes: $("#comparison-notes").value.trim(), status: $("#comparison-status").value };
+  const id = $("#comparison-id").value; const payload = { name: $("#comparison-name").value.trim(), localities: [$("#comparison-a").value, $("#comparison-b").value], from_month: $("#comparison-from").value, to_month: $("#comparison-to").value, measure: $("#comparison-measure").value, selected_indicators: [$("#comparison-offence").value], priorities: [], notes: $("#comparison-notes").value.trim(), status: $("#comparison-status").value };
   if (payload.localities[0] === payload.localities[1] || payload.from_month > payload.to_month) {
     $("#form-error").textContent = "Choose two different suburbs and a valid date period.";
     $("#form-error").focus(); return;
@@ -539,7 +570,7 @@ async function init() {
       if ($("#bookmark-dialog").open) renderBookmarks();
     }
   });
-  addEventListener("hashchange", route); $("#search-form").addEventListener("submit", search); $("#trend-form").addEventListener("submit", compareTrends); $("#new-comparison").onclick = () => openDialog(); $("#comparison-form").addEventListener("submit", saveComparison); $("#close-comparison-review").onclick = closeComparisonReview; initialiseAssistant();
+  addEventListener("hashchange", route); $("#search-form").addEventListener("submit", search); $("#trend-form").addEventListener("submit", compareTrends); $("#save-active-comparison").onclick = saveActiveComparison; $("#new-comparison").onclick = () => openDialog(); $("#comparison-form").addEventListener("submit", saveComparison); $("#close-comparison-review").onclick = closeComparisonReview; initialiseAssistant();
   ["#lga-filter", "#amenity-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener("change", () => filterSuburbs()));
   $$(".map-filters input").forEach((input) => input.addEventListener("change", () => {
     const current = state.selectedLocality || state.suburbs[0]?.locality;

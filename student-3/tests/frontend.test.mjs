@@ -320,18 +320,54 @@ test("saved comparisons load into trend controls and navigate to crime trends", 
   vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, "") + '\nstate.suburbs = [{locality: "Burwood"}, {locality: "Newtown"}];', context);
   vm.runInContext(`loadComparison({
     id: "comparison-1", name: "Inner west", localities: ["Burwood", "Newtown"],
-    from_month: "2026-02", to_month: "2026-05", measure: "rate"
+    from_month: "2026-02", to_month: "2026-05", measure: "rate", selected_indicators: ["property"]
   })`, context);
   assert.equal(nodes.get("#locality-a").value, "Burwood");
   assert.equal(nodes.get("#locality-b").value, "Newtown");
   assert.equal(nodes.get("#from-month").value, "2026-02");
   assert.equal(nodes.get("#to-month").value, "2026-05");
   assert.equal(nodes.get("#measure").value, "rate");
-  assert.equal(nodes.get("#offence").value, "all_recorded");
+  assert.equal(nodes.get("#offence").value, "property");
   assert.equal(location.hash, "#trends");
   assert.match(nodes.get("#trend-notice").textContent, /Loading saved comparison/);
   vm.runInContext(`loadComparison({name: "Old comparison", localities: ["Unavailable"], from_month: "2026-01", to_month: "2026-02", measure: "count"})`, context);
   assert.match(nodes.get("#toast").textContent, /cannot be loaded/);
+});
+
+test("crime trends can prefill a new saved comparison from the active controls", () => {
+  const node = (value = "") => ({value, innerHTML: "", textContent: "", focus() { this.focused = true; }, showModal() { this.open = true; }});
+  const nodes = new Map([
+    ["#locality-a", node("Burwood")], ["#locality-b", node("Newtown")],
+    ["#from-month", node("2026-02")], ["#to-month", node("2026-05")],
+    ["#measure", node("rate")], ["#offence", node("person")], ["#trend-notice", node()],
+    ["#dialog-title", node()], ["#comparison-id", node()], ["#comparison-version", node()],
+    ["#comparison-name", node()], ["#comparison-a", node()], ["#comparison-b", node()],
+    ["#comparison-from", node()], ["#comparison-to", node()], ["#comparison-measure", node()],
+    ["#comparison-offence", node()], ["#comparison-status", node()], ["#comparison-notes", node()],
+    ["#form-error", node()], ["#comparison-dialog", node()],
+  ]);
+  const context = vm.createContext({
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
+    document: {querySelector: (id) => nodes.get(id)},
+  });
+  vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, "") + '\nstate.suburbs = [{locality: "Burwood"}, {locality: "Newtown"}];', context);
+
+  vm.runInContext("saveActiveComparison()", context);
+
+  assert.equal(nodes.get("#dialog-title").textContent, "New comparison");
+  assert.equal(nodes.get("#comparison-id").value, "");
+  assert.equal(nodes.get("#comparison-name").value, "Burwood vs Newtown");
+  assert.match(nodes.get("#comparison-a").innerHTML, /value="Burwood" selected/);
+  assert.match(nodes.get("#comparison-b").innerHTML, /value="Newtown" selected/);
+  assert.equal(nodes.get("#comparison-from").value, "2026-02");
+  assert.equal(nodes.get("#comparison-to").value, "2026-05");
+  assert.equal(nodes.get("#comparison-measure").value, "rate");
+  assert.equal(nodes.get("#comparison-offence").value, "person");
+  assert.equal(nodes.get("#comparison-dialog").open, true);
+  assert.equal(nodes.get("#comparison-name").focused, true);
+  const trendControls = html.split('id="trend-form"')[1].split('</form>')[0];
+  assert.ok(trendControls.indexOf('id="save-active-comparison"') < trendControls.indexOf('>Compare trends</button>'));
 });
 
 test("map comparison handoff uses the canonical locality instead of its display label", () => {

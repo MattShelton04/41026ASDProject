@@ -439,7 +439,11 @@ def _saved_comparison_evidence(data: HttpClient, comparison: dict[str, Any]) -> 
     ):
         raise ValueError("saved comparison is not reviewable")
     months = _month_range(start, end)
-    offence = "all_recorded"
+    selected_indicators = comparison.get("selected_indicators")
+    offence = next(
+        (indicator for indicator in selected_indicators or [] if indicator in ALLOWED_OFFENCES),
+        "all_recorded",
+    )
     series = []
     for locality in localities:
         context = data.request("GET", f"/internal/v1/published/context?locality={quote(locality)}")
