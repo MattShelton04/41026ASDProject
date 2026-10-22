@@ -81,6 +81,15 @@ The locked Gunicorn runtime serves the WSGI application factories; the developme
 backend/database source and serves frontend edits directly. The standalone servers use Python's
 standard library. `stack down` preserves the database volume.
 
+### Cloud deployment verification
+
+The Azure Compose override uses the same `f3-suburb-data` volume and replaces only the Feature 3
+containers, so saved comparisons survive a deployment. The release smoke test creates, reads and
+deletes a comparison through `/api/suburb-analytics/v1/suburb-comparisons`. For release evidence,
+save a uniquely named comparison before deploying, deploy without resetting the stack or VM, and
+read that same comparison afterwards. Record its ID and the before/after deployment SHAs; a local
+container restart is useful validation but is not a substitute for Azure evidence.
+
 ## Current data and platform assumptions
 
 ### Shared-source ingestion
