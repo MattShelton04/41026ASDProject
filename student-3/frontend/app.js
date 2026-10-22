@@ -5,7 +5,7 @@ import { createAssistantClient, createAssistantSidecar, createFeatureAssistant, 
 import { comparisonReviewEnabled, mountComparisonReview, resumableComparisonReview } from "./integration/comparison-review.js";
 
 const API = "/api/suburb-analytics/v1";
-const state = { suburbs: [], places: [], map: null, comparisons: [], assistant: null, mapAssistant: null, selectedLocality: "", comparisonReview: null, comparisonReviewId: null };
+const state = { suburbs: [], places: [], map: null, mapContext: null, comparisons: [], assistant: null, mapAssistant: null, selectedLocality: "", comparisonReview: null, comparisonReviewId: null };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 let suburbSelection = 0;
@@ -166,10 +166,12 @@ async function initialiseMap() {
   const suburbPoints = suburbFeatures(state.suburbs);
   try {
     state.map = await createMap({ container: $("#map"), provider: createOpenFreeMapProvider(), layers: [
+      { id: "suburb-boundary", label: "Gazetted suburb boundary", kind: "polygon", data: featureCollection([]), style: { color: "#2f7662", opacity: 0.18, strokeColor: "#285442", strokeWidth: 3, strokeOpacity: 0.95 }, popup: { title: "name", fields: [{ label: "Postcode", property: "postcode" }] } },
+      { id: "protected-reserves", label: "NPWS protected reserves", kind: "polygon", data: featureCollection([]), style: { color: "#5f8f55", opacity: 0.3, strokeColor: "#3f6939", strokeWidth: 1.5, strokeOpacity: 0.9 }, popup: { title: "name", fields: [{ label: "Coverage", property: "coverage_note" }] } },
       { id: "suburbs", label: "Supported suburbs", kind: "point", data: suburbPoints, style: { color: getComputedStyle(document.documentElement).getPropertyValue("--ps-ocean-700").trim(), radius: 7 }, onSelect: (feature) => chooseSuburb(feature.properties.name) },
-      { id: "places", label: "Filtered places", kind: "point", data: featureCollection([]), style: { color: getComputedStyle(document.documentElement).getPropertyValue("--ps-coral-700").trim(), radius: 6 }, popup: { title: "name", fields: [{ label: "Type", property: "type" }] } },
+      { id: "places", label: "Selected amenities", kind: "point", data: featureCollection([]), style: { color: getComputedStyle(document.documentElement).getPropertyValue("--ps-coral-700").trim(), radius: 6 }, popup: { title: "name", fields: [{ label: "Type", property: "type" }, { label: "Status", property: "status" }] } },
     ], view: { center: [151.12, -33.88], zoom: 9 } });
-    $("#map-legend").innerHTML = `<span>● Supported suburb</span><span>◆ Place</span>`;
+    $("#map-legend").innerHTML = `<span>▰ Gazetted boundary</span><span>▰ NPWS protected reserve</span><span>● School or amenity</span>`;
   } catch (error) {
     $("#map").hidden = true; $("#map-fallback").hidden = false;
     $("#map-fallback").innerHTML = `<div><strong>Map renderer unavailable</strong><p>The map could not start in this browser. The suburb list and coordinates remain available.</p></div>`;
@@ -184,42 +186,68 @@ async function selectSuburb(locality) {
   state.mapAssistant = null;
   state.selectedLocality = locality;
   state.places = [];
+  state.mapContext = null;
   $("#suburb-detail").hidden = false;
   $("#suburb-detail").setAttribute("aria-busy", "true");
   $("#suburb-detail").innerHTML = `<div class="suburb-detail__body"><h3>Loading ${escapeHtml(locality)}</h3><p role="status">Reading the available suburb and amenity evidence…</p><div class="ps-skeleton-lines" aria-hidden="true"><span class="ps-skeleton"></span><span class="ps-skeleton"></span></div></div>`;
   state.map?.setLayerData("places", featureCollection([]));
+  state.map?.setLayerData("suburb-boundary", featureCollection([]));
+  state.map?.setLayerData("protected-reserves", featureCollection([]));
   if (Number.isFinite(selectedSuburb.longitude) && Number.isFinite(selectedSuburb.latitude)) {
     state.map?.flyTo({ longitude: selectedSuburb.longitude, latitude: selectedSuburb.latitude, zoom: 14 });
   }
   announce(`Loading published Feature 1 evidence for ${locality}…`);
   // Published context replaces the legacy demo area-series projections.
-  const context = await api(`/published/context?locality=${encodeURIComponent(locality)}`);
+  const mapParameters = new URLSearchParams({ locality });
+  if (selectedSuburb.postcode) mapParameters.set("postcode", selectedSuburb.postcode);
+  const [context, mapContext] = await Promise.all([
+    api(`/published/context?locality=${encodeURIComponent(locality)}`),
+    api(`/suburbs/map-context?${mapParameters}`),
+  ]);
   if (selection !== suburbSelection) return;
   state.selectedLocality = locality;
+  state.mapContext = mapContext;
   const suburb = publishedSuburb(context);
+  const spatialSuburb = mapContext.suburb || {};
+  const labelPoint = spatialSuburb.label_point || spatialSuburb.centroid || [];
+  suburb.id = spatialSuburb.suburb_id || suburb.id;
+  suburb.postcode = spatialSuburb.postcode || suburb.postcode;
+  suburb.latitude = Number.isFinite(labelPoint[1]) ? labelPoint[1] : suburb.latitude;
+  suburb.longitude = Number.isFinite(labelPoint[0]) ? labelPoint[0] : suburb.longitude;
+  suburb.coverage_status = mapContext.coverage?.boundary || suburb.coverage_status;
+  const spatialReleases = Object.values(mapContext.releases || {}).map((item) => item?.dataset_release_id).filter(Boolean);
+  if (spatialReleases.length) suburb.source_release = [...new Set(spatialReleases)].join(", ");
   if (Number.isFinite(suburb.longitude) && Number.isFinite(suburb.latitude)) {
     state.map?.flyTo({ longitude: suburb.longitude, latitude: suburb.latitude, zoom: 14 });
   }
-  const places = (context.schools || context.items || []).map((school) => ({
-    id: school.school_code,
-    name: school.school_name,
-    place_type: "school",
-    latitude: school.latitude,
-    longitude: school.longitude,
-    coverage_status: school.operational_status,
-    source_release: school.provenance?.release_id,
-  })).filter((place) => place.name && Number.isFinite(place.latitude) && Number.isFinite(place.longitude));
-  state.places = places.filter((place) => selectedPlaceTypes().has(place.place_type));
+  const selectedTypes = selectedPlaceTypes();
+  const pointCategories = ["schools", "train-station", "library"];
+  const pointFeatures = pointCategories.flatMap((category) => selectedTypes.has(category)
+    ? (mapContext.layers?.[category]?.features || []).map((feature) => ({
+      ...feature,
+      properties: {
+        ...(feature.properties || {}),
+        name: feature.properties?.school_name || feature.properties?.name || "Unnamed recorded facility",
+        type: category === "schools" ? "Government school" : category.replaceAll("-", " "),
+        status: feature.properties?.operational_status || "Not stated",
+      },
+    }))
+    : []);
+  state.places = pointFeatures;
   renderSuburbDetail(
     suburb,
-    { schools: { value: places.length }, seifa: context.population?.[0] },
+    { schools: { value: mapContext.layer_details?.schools?.feature_count ?? 0 }, seifa: context.population?.[0] },
     context,
     locality,
+    mapContext,
   );
   state.assistant?.controller.setContext({ route: "suburbs/detail", locality });
-  const points = featureCollection(state.places.map((place) => pointFeature(place.longitude, place.latitude, { name: place.name, type: place.place_type }, place.id)));
-  state.map?.setLayerData("places", points);
-  announce(`${state.places.length} filtered places shown for ${locality}.`);
+  state.map?.setLayerData("suburb-boundary", featureCollection(spatialSuburb.boundary ? [spatialSuburb.boundary] : []));
+  state.map?.setLayerData("protected-reserves", selectedTypes.has("protected-reserve") ? (mapContext.layers?.["protected-reserve"] || featureCollection([])) : featureCollection([]));
+  state.map?.setLayerData("places", featureCollection(pointFeatures));
+  state.map?.fitToData(["suburb-boundary"], { padding: 44, maxZoom: 14 });
+  const reserveCount = selectedTypes.has("protected-reserve") ? (mapContext.layers?.["protected-reserve"]?.features?.length || 0) : 0;
+  announce(`${pointFeatures.length} selected point amenities and ${reserveCount} protected reserves shown within ${locality}.`);
 }
 
 function publishedSuburb(context) {
@@ -254,7 +282,7 @@ function useInComparison(locality) {
   location.hash = "#trends";
 }
 
-function renderSuburbDetail(suburb, metrics, context = {}, comparisonLocality = suburb.locality) {
+function renderSuburbDetail(suburb, metrics, context = {}, comparisonLocality = suburb.locality, mapContext = {}) {
   const values = [
     [Number.isFinite(suburb.population) ? suburb.population.toLocaleString("en-AU") : "Not available", "2021 usual residents"],
     [suburb.lga || "Not available", "School-source LGA"],
@@ -262,9 +290,11 @@ function renderSuburbDetail(suburb, metrics, context = {}, comparisonLocality = 
     [`${metrics.schools?.value ?? 0}`, "Published school locations"],
   ];
   const detail = $("#suburb-detail");
+  const amenityCounts = ["train-station", "library", "protected-reserve"].map((category) => `${mapContext.layer_details?.[category]?.feature_count ?? 0} ${category.replaceAll("-", " ")}`).join("; ");
+  const unavailable = Object.entries(mapContext.coverage || {}).filter(([, status]) => status === "unavailable").map(([category]) => category.replaceAll("-", " "));
   detail.hidden = false;
   detail.setAttribute("aria-busy", "false");
-  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected published locality</p><h3>${escapeHtml(suburb.locality)}</h3><p>${escapeHtml(suburb.description)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button><button class="ps-button ps-button--small ps-button--primary" type="button" data-ask-locality="${escapeHtml(suburb.locality)}">Ask about ${escapeHtml(suburb.locality)}</button></div></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} evidence</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>Observed ${escapeHtml((suburb.observed_at || "").slice(0, 10) || "not stated")}</span><span>${metrics.schools?.value ?? 0} published schools; catchment status: not assessed</span></div></div>`;
+  detail.innerHTML = `<div class="suburb-detail__body"><div class="suburb-detail__heading"><div><p class="ps-eyebrow">Selected gazetted suburb</p><h3>${escapeHtml(suburb.locality)}${suburb.postcode ? ` · ${escapeHtml(suburb.postcode)}` : ""}</h3><p>${escapeHtml(suburb.description)}</p></div><div class="row-actions"><button class="ps-button ps-button--small" data-compare-locality="${escapeHtml(suburb.locality)}">Use in comparison</button><button class="ps-button ps-button--small ps-button--primary" type="button" data-ask-locality="${escapeHtml(suburb.locality)}">Ask about ${escapeHtml(suburb.locality)}</button></div></div><div class="context-grid">${values.map(([value, label]) => `<article class="context-metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div><div class="evidence-strip"><span class="ps-badge ps-badge--confirmed">${escapeHtml(suburb.coverage_status)} boundary</span><span>Feature 1 releases ${escapeHtml(suburb.source_release)}</span><span>${metrics.schools?.value ?? 0} government schools; catchment status: not assessed</span><span>${escapeHtml(amenityCounts)}</span>${unavailable.length ? `<span>Unavailable layers: ${escapeHtml(unavailable.join(", "))}</span>` : ""}</div></div>`;
   detail.querySelector?.("[data-compare-locality]")?.addEventListener(
     "click",
     () => useInComparison(comparisonLocality),

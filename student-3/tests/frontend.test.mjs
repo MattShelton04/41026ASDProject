@@ -137,7 +137,9 @@ test("suburb search belongs only to overview, below the selected locality and ab
   assert.ok(overview.indexOf('id="sort-filter"') < overview.indexOf('id="suburb-cards"'));
   assert.match(overview, /class="list-filter-bar" aria-labelledby="list-filter-title"/);
   const mapFilters = overview.split('class="ps-card map-filters"')[1].split('class="map-stack"')[0];
-  assert.match(mapFilters, /Places to show/);
+  assert.match(mapFilters, /Map layers/);
+  assert.match(mapFilters, /NPWS protected reserves/);
+  assert.doesNotMatch(mapFilters, /> Parks</);
   assert.doesNotMatch(mapFilters, /id="(?:lga|amenity|sort)-filter"/);
   assert.match(overview, /aria-label="Search overview suburbs"/);
 });
@@ -151,7 +153,7 @@ test("published evidence has its own tab and routes independently of overview", 
   const views = ["explore", "published", "trends", "comparisons", "assistant"].map((name) => ({dataset: {view: name}}));
   const links = views.map((view) => ({dataset: {route: view.dataset.view}, setAttribute(_key, value) { this.current = value; }}));
   const context = vm.createContext({
-    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath, URLSearchParams,
     getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
     location: {hash: "#published"},
     document: {querySelector: () => ({focus() {}}), querySelectorAll: (selector) => selector === "[data-view]" ? views : links},
@@ -225,16 +227,22 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
   const flights = [];
   let definition;
   let creations = 0;
-  const controller = { layerIds: ["suburbs", "places"], setLayerData: (id, data) => updates.push({id, data}), flyTo: (view) => flights.push(view) };
+  const controller = { layerIds: ["suburb-boundary", "protected-reserves", "suburbs", "places"], setLayerData: (id, data) => updates.push({id, data}), flyTo: (view) => flights.push(view), fitToData: () => {} };
+  const mapContext = (locality, code, longitude, latitude) => ({
+    suburb: {suburb_id: code, name: locality.toUpperCase(), postcode: "2150", label_point: [longitude, latitude], boundary: {type: "Feature", id: code, properties: {name: locality, postcode: "2150"}, geometry: {type: "Polygon", coordinates: [[[longitude - 0.01, latitude - 0.01], [longitude + 0.01, latitude - 0.01], [longitude + 0.01, latitude + 0.01], [longitude - 0.01, latitude + 0.01], [longitude - 0.01, latitude - 0.01]]]}}},
+    layers: {schools: {type: "FeatureCollection", features: [{type: "Feature", id: `school:${code}`, properties: {school_code: code, school_name: `${locality} School`, operational_status: "Open"}, geometry: {type: "Point", coordinates: [longitude, latitude]}}]}, "train-station": {type: "FeatureCollection", features: []}, library: {type: "FeatureCollection", features: []}, "protected-reserve": {type: "FeatureCollection", features: []}},
+    coverage: {boundary: "accepted", schools: "accepted", "train-station": "accepted", library: "accepted", "protected-reserve": "accepted"},
+    layer_details: {schools: {feature_count: 1}, "train-station": {feature_count: 0}, library: {feature_count: 0}, "protected-reserve": {feature_count: 0}}, releases: {},
+  });
   const context = vm.createContext({
-    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath,
+    createLatestTask, requestJsonResponse, clearTimeout, escapeHtml, trendPath, URLSearchParams,
     getComputedStyle: () => ({getPropertyValue: () => "#34684f"}),
-    document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {setAttribute() {}, removeAttribute() {}}); return nodes.get(id); }, querySelectorAll: () => [{value: "school"}]},
+    document: {querySelector: (id) => { if (!nodes.has(id)) nodes.set(id, {innerHTML: "", setAttribute() {}, removeAttribute() {}, querySelector() { return {}; }}); return nodes.get(id); }, querySelectorAll: () => [{value: "schools"}]},
     createMap: async (options) => { definition = options; creations++; return controller; },
     createOpenFreeMapProvider: () => ({}),
     featureCollection: (features) => ({features}),
     pointFeature: (longitude, latitude, properties, id) => ({geometry: {coordinates: [longitude, latitude]}, properties, id}),
-    fetch: async (url) => ({ok: true, json: async () => url.includes("/published/context?") ? {locality: "Parramatta", schools: [{school_code: "school", school_name: "School", latitude: -33.8, longitude: 151, operational_status: "Open"}], population: [], sources: []} : {items: []}}),
+    fetch: async (url) => ({ok: true, json: async () => url.includes("/published/context?") ? {locality: "Parramatta", schools: [], population: [], sources: []} : url.includes("/suburbs/map-context?") ? mapContext("Parramatta", "1", 151, -33.8) : {items: []}}),
   });
   vm.runInContext(js.replace(/^import .*;\r?\n/gm, "").replaceAll('import.meta.url', '"http://localhost/app.js"').replace(/init\(\);\s*$/, "") + '\nrenderSuburbDetail = () => {}; state.suburbs = [{id:"parramatta",locality:"Parramatta",longitude:151,latitude:-33.8}];', context);
   await vm.runInContext("initialiseMap()", context);
@@ -245,13 +253,14 @@ test("map pin selection loads amenities and zooms without rebuilding the map", a
   assert.equal(flights[0].longitude, 151);
   assert.equal(updates.at(-1).id, "places");
   assert.equal(updates.at(-1).data.features.length, 1);
-  assert.equal(updates.at(-1).data.features[0].properties.type, "school");
-  assert.match(nodes.get("#live").textContent, /1 filtered places shown for Parramatta/);
+  assert.equal(updates.at(-1).data.features[0].properties.type, "Government school");
+  assert.ok(updates.some((item) => item.id === "suburb-boundary" && item.data.features.length === 1));
+  assert.match(nodes.get("#live").textContent, /1 selected point amenities.*Parramatta/);
   vm.runInContext('state.suburbs.push({id:"newtown",locality:"Newtown",longitude:151.1,latitude:-33.9});', context);
   const pending = [];
   context.fetch = async (url) => {
     if (url.includes("Parramatta")) await new Promise((resolve) => pending.push(resolve));
-    return {ok: true, json: async () => url.includes("/published/context?") ? {locality: "Newtown", schools: [{school_code: "latest", school_name: "Latest school", latitude: -33.9, longitude: 151.1, operational_status: "Open"}], population: [], sources: []} : {items: []}};
+    return {ok: true, json: async () => url.includes("/published/context?") ? {locality: "Newtown", schools: [], population: [], sources: []} : url.includes("/suburbs/map-context?") ? mapContext("Newtown", "2", 151.1, -33.9) : {items: []}};
   };
   const older = layer.onSelect({properties: {name: "Parramatta"}});
   await layer.onSelect({properties: {name: "Newtown"}});
