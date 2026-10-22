@@ -203,7 +203,8 @@ commit → pre-commit hooks → push main → integration-ci.yml + student-1..5.
   With it off, AI routes return `503 ai_disabled`.
 - **Cost controls.** `cloud-auto-deallocate.yml` deallocates the VM nightly. Automatic deploys are
   paused (`AZURE_AUTO_DEPLOY=false`), so deploy with a manual dispatch.
-- Detail: [deployment/azure/README.md](../../deployment/azure/README.md).
+- Detail: [Azure overview](azure-overview.md) (every resource) and
+  [deployment/azure/README.md](../../deployment/azure/README.md) (operating manual).
 
 ### 7. Bonus (B1–B6)
 
