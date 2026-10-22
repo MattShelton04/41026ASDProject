@@ -409,6 +409,24 @@ def test_disabled_workflow_preserves_crud(
     assert client.get("/health/ready").status_code == 200
 
 
+@pytest.mark.parametrize("failure", ["offline", "invalid-json", "private-error"])
+def test_configured_but_unavailable_workflow_reports_disabled_without_breaking_crud(
+    setup: tuple[FlaskClient, FakeMultiAgentServer, Transport, FakeStore], failure: str
+) -> None:
+    client, _, transport, _ = setup
+    transport.bad = failure
+    response = client.get(f"{ROOT}/capabilities", headers={"X-Request-ID": "offline-check"})
+    assert response.status_code == 200
+    assert response.get_json() == {"enabled": False}
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["X-Request-ID"] == "offline-check"
+    assert transport.headers[-1]["X-Request-ID"] == "offline-check"
+    assert "private" not in response.get_data(as_text=True)
+    assert FAKE_MULTI_AGENT_TOKEN not in response.get_data(as_text=True)
+    assert client.get(f"/api/buyer-workspaces/v1/buyer-cases/{CASE_ID}").status_code == 200
+    assert client.get("/health/ready").status_code == 200
+
+
 def test_untrusted_context_cannot_change_tools(
     setup: tuple[FlaskClient, FakeMultiAgentServer, Transport, FakeStore],
 ) -> None:

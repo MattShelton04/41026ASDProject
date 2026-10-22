@@ -150,6 +150,17 @@ def _error(response: ClientResponse) -> tuple[Response, int] | None:
     return _problem(response.status_code, code, messages[code])
 
 
+def _template(response: ClientResponse) -> WorkflowTemplateDescriptor:
+    descriptor = WorkflowTemplateDescriptor.model_validate(_json(response))
+    if (
+        descriptor.template.id != TEMPLATE
+        or descriptor.template.feature_id != FEATURE
+        or set(descriptor.template.allowed_tools) != set(TOOLS)
+    ):
+        raise MultiAgentProtocolError
+    return descriptor
+
+
 def _run(response: ClientResponse, case_id: UUID, run_id: UUID | None = None) -> WorkflowRun:
     value = WorkflowRun.model_validate(_json(response))
     if (
@@ -256,7 +267,16 @@ def register_case_reviews(
     @app.get(f"{collection}/capabilities")
     @guarded
     def case_review_capabilities(case_id: UUID) -> Response:
-        return jsonify({"enabled": multi_agent.configured})
+        # A configured token does not mean the host service is running (notably in CI).
+        # Probe the approved template without starting a run or exposing upstream errors.
+        try:
+            upstream = multi_agent.request("GET", f"/templates/{TEMPLATE}")
+            if upstream.status_code != 200:
+                return jsonify({"enabled": False})
+            _template(upstream)
+        except (MultiAgentUnavailableError, MultiAgentProtocolError, ValidationError):
+            return jsonify({"enabled": False})
+        return jsonify({"enabled": True})
 
     @app.get(f"{collection}/template")
     @guarded
@@ -264,13 +284,7 @@ def register_case_reviews(
         upstream = multi_agent.request("GET", f"/templates/{TEMPLATE}")
         if error := _error(upstream):
             return error
-        descriptor = WorkflowTemplateDescriptor.model_validate(_json(upstream))
-        if (
-            descriptor.template.id != TEMPLATE
-            or descriptor.template.feature_id != FEATURE
-            or set(descriptor.template.allowed_tools) != set(TOOLS)
-        ):
-            raise MultiAgentProtocolError
+        descriptor = _template(upstream)
         # Host filesystem paths are not useful to the browser.
         return jsonify(descriptor.model_dump(mode="json", exclude={"source"}))
 
