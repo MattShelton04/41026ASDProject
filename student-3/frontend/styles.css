@@ -221,3 +221,6 @@ dialog form { display:grid;gap:1rem;padding:var(--ps-space-6)}
  .sidebar>a  {  min-height: var(--ps-control-height); display: inline-flex; align-items: center; }
  .hero h1  {  line-height: 1.2; }
  }
+
+.comparison-review-card { margin-top: var(--ps-space-6); scroll-margin-top: var(--ps-space-4); }
+.comparison-review-card[hidden] { display: none; }

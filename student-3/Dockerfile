@@ -60,6 +60,7 @@ COPY shared/frontend/design-system /usr/share/nginx/html/design-system
 COPY shared/frontend/browser /usr/share/nginx/html/browser
 COPY shared/frontend/ai-chat /usr/share/nginx/html/ai-chat
 COPY shared/frontend/mapping /usr/share/nginx/html/mapping
+COPY shared/frontend/multi-agent /usr/share/nginx/html/multi-agent
 COPY student-3/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=20 CMD ["wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]

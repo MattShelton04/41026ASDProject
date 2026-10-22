@@ -2,9 +2,10 @@ import { trendPath } from "./trend.js";
 import { escapeHtml, requestJsonResponse, createLatestTask } from "./browser/index.js";
 import { createMap, createOpenFreeMapProvider, featureCollection, pointFeature } from "./mapping/index.js";
 import { createAssistantClient, createAssistantSidecar, createFeatureAssistant, featureActivityHref } from "./ai-chat/index.js";
+import { comparisonReviewEnabled, mountComparisonReview, resumableComparisonReview } from "./integration/comparison-review.js";
 
 const API = "/api/suburb-analytics/v1";
-const state = { suburbs: [], places: [], map: null, comparisons: [], assistant: null, mapAssistant: null, selectedLocality: "" };
+const state = { suburbs: [], places: [], map: null, comparisons: [], assistant: null, mapAssistant: null, selectedLocality: "", comparisonReview: null, comparisonReviewId: null };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 let suburbSelection = 0;
@@ -396,11 +397,42 @@ function renderTrend(payload) {
 async function loadComparisons() {
   try {
     const payload = await api("/suburb-comparisons"); state.comparisons = payload.items;
-    $("#comparison-list").innerHTML = payload.items.map((item) => `<article class="comparison-card"><div><span class="ps-badge ps-badge--info">${escapeHtml(item.status)}</span><h3>${escapeHtml(item.name)}</h3><p>${item.localities.map(escapeHtml).join(" ↔ ")} · ${escapeHtml(item.from_month)} to ${escapeHtml(item.to_month)} · ${escapeHtml(item.measure)}</p><p>${escapeHtml(item.notes)}</p></div><div class="row-actions"><button class="ps-button ps-button--small ps-button--primary" data-load="${escapeHtml(item.id)}">Load in crime trends</button><button class="ps-button ps-button--small" data-edit="${escapeHtml(item.id)}">Edit</button><button class="ps-button ps-button--small ps-button--danger" data-delete="${escapeHtml(item.id)}">Delete</button></div></article>`).join("") || `<div class="notice">No saved comparisons yet.</div>`;
+    $("#comparison-list").innerHTML = payload.items.map((item) => `<article class="comparison-card"><div><span class="ps-badge ps-badge--info">${escapeHtml(item.status)}</span><h3>${escapeHtml(item.name)}</h3><p>${item.localities.map(escapeHtml).join(" ↔ ")} · ${escapeHtml(item.from_month)} to ${escapeHtml(item.to_month)} · ${escapeHtml(item.measure)}</p><p>${escapeHtml(item.notes)}</p></div><div class="row-actions"><button class="ps-button ps-button--small ps-button--primary" data-load="${escapeHtml(item.id)}">Load in crime trends</button><button class="ps-button ps-button--small" data-review="${escapeHtml(item.id)}">Review evidence</button><button class="ps-button ps-button--small" data-edit="${escapeHtml(item.id)}">Edit</button><button class="ps-button ps-button--small ps-button--danger" data-delete="${escapeHtml(item.id)}">Delete</button></div></article>`).join("") || `<div class="notice">No saved comparisons yet.</div>`;
     $$('[data-load]').forEach((button) => button.onclick = () => loadComparison(state.comparisons.find((item) => item.id === button.dataset.load)));
+    $$('[data-review]').forEach((button) => button.onclick = () => openComparisonReview(state.comparisons.find((item) => item.id === button.dataset.review)));
     $$("[data-edit]").forEach((button) => button.onclick = () => openDialog(state.comparisons.find((item) => item.id === button.dataset.edit)));
     $$("[data-delete]").forEach((button) => button.onclick = () => deleteComparison(button.dataset.delete));
   } catch (error) { $("#comparison-list").innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`; }
+}
+
+async function openComparisonReview(item) {
+  if (!item) return;
+  state.comparisonReview?.destroy();
+  state.comparisonReview = null;
+  state.comparisonReviewId = item.id;
+  const section = $("#comparison-review-section");
+  const root = $("#comparison-review-root");
+  section.hidden = false;
+  $("#comparison-review-title").textContent = `Review: ${item.name}`;
+  root.textContent = "Checking whether multi-agent reviews are available…";
+  section.scrollIntoView({ block: "start" });
+  const enabled = await comparisonReviewEnabled({ request: (path) => api(path) });
+  if (state.comparisonReviewId !== item.id) return;
+  if (!enabled) {
+    root.textContent = "Multi-agent comparison reviews are not available in this deployment. Your saved comparison is unaffected.";
+    return;
+  }
+  state.comparisonReview = mountComparisonReview({ root, comparisonId: item.id, comparisonName: item.name, announce });
+  const runId = await resumableComparisonReview(item.id, { request: (path) => api(path) });
+  if (runId && state.comparisonReviewId === item.id && !state.comparisonReview.run) state.comparisonReview.open(runId);
+}
+
+function closeComparisonReview() {
+  state.comparisonReview?.destroy();
+  state.comparisonReview = null;
+  state.comparisonReviewId = null;
+  $("#comparison-review-section").hidden = true;
+  $("#comparison-review-root").replaceChildren();
 }
 
 function loadComparison(item) {
@@ -438,7 +470,7 @@ async function saveComparison(event) {
   try { await api(id ? `/suburb-comparisons/${id}` : "/suburb-comparisons", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) }); $("#comparison-dialog").close(); toast(id ? "Comparison updated." : "Comparison created."); loadComparisons(); } catch (error) { $("#form-error").textContent = error.message; $("#form-error").focus(); } finally { comparisonSaving = false; $("#save-comparison").disabled = false; }
 }
 
-async function deleteComparison(id) { if (!confirm("Delete this saved comparison?")) return; try { await api(`/suburb-comparisons/${id}`, { method: "DELETE" }); toast("Comparison deleted."); loadComparisons(); } catch (error) { toast(error.message); } }
+async function deleteComparison(id) { if (!confirm("Delete this saved comparison?")) return; try { await api(`/suburb-comparisons/${id}`, { method: "DELETE" }); if (state.comparisonReviewId === id) closeComparisonReview(); toast("Comparison deleted."); loadComparisons(); } catch (error) { toast(error.message); } }
 function initialiseAssistant() {
   state.assistant = createFeatureAssistant({
     root: $("#assistant-root"),
@@ -477,14 +509,14 @@ async function init() {
       if ($("#bookmark-dialog").open) renderBookmarks();
     }
   });
-  addEventListener("hashchange", route); $("#search-form").addEventListener("submit", search); $("#trend-form").addEventListener("submit", compareTrends); $("#new-comparison").onclick = () => openDialog(); $("#comparison-form").addEventListener("submit", saveComparison); initialiseAssistant();
+  addEventListener("hashchange", route); $("#search-form").addEventListener("submit", search); $("#trend-form").addEventListener("submit", compareTrends); $("#new-comparison").onclick = () => openDialog(); $("#comparison-form").addEventListener("submit", saveComparison); $("#close-comparison-review").onclick = closeComparisonReview; initialiseAssistant();
   ["#lga-filter", "#amenity-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener("change", () => filterSuburbs()));
   $$(".map-filters input").forEach((input) => input.addEventListener("change", () => {
     const current = state.selectedLocality || state.suburbs[0]?.locality;
     if (current) chooseSuburb(current);
   }));
   try { const [health, suburbs] = await Promise.all([requestJsonResponse(fetch, new URL("./health/ready", import.meta.url)).then(({body}) => body), fetchAllPublishedSuburbs()]); state.suburbs = suburbs; $("#service-state").className = "ps-badge ps-badge--confirmed"; $("#service-state").textContent = ["ready", "healthy"].includes(health.status) ? "Published data ready" : "Partial service"; populateSelectors(); renderSuburbs(state.suburbs); await initialiseMap(); } catch (error) { $("#service-state").textContent = "Service unavailable"; $("#result-count").textContent = error.message; }
-  addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.mapAssistant?.destroy?.(); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
+  addEventListener("pagehide", () => { trendTask.cancel(); clearTimeout(suburbSearchTimer); state.comparisonReview?.destroy(); state.mapAssistant?.destroy?.(); state.assistant?.destroy?.(); state.map?.destroy(); }, { once: true });
   route();
 }
 

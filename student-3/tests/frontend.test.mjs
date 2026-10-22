@@ -5,6 +5,39 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import { crimeValue, populationLabel } from "../frontend/published.js";
+import {
+  COMPARISON_REVIEW_API_ROOT,
+  comparisonReviewEnabled,
+  forgetComparisonReview,
+  rememberedComparisonReview,
+  rememberComparisonReview,
+  resumableComparisonReview,
+} from "../frontend/integration/comparison-review.js";
+
+const REVIEW_RUN_ID = "123e4567-e89b-42d3-a456-426614174000";
+
+function reviewStorage(initial = "{}") {
+  let value = initial;
+  return { getItem: () => value, setItem: (_key, next) => { value = next; }, value: () => value };
+}
+
+test("comparison reviews use only the Feature 3 proxy and degrade when unavailable", async () => {
+  assert.equal(COMPARISON_REVIEW_API_ROOT, "/api/suburb-analytics/v1/comparison-reviews");
+  assert.equal(await comparisonReviewEnabled({ request: async () => ({ comparison_review: { enabled: true } }) }), true);
+  assert.equal(await comparisonReviewEnabled({ request: async () => { throw new Error("offline"); } }), false);
+});
+
+test("remembered comparison-review runs stay scoped to their saved comparison", async () => {
+  const memory = reviewStorage();
+  rememberComparisonReview("comparison-1", REVIEW_RUN_ID.toUpperCase(), memory);
+  assert.equal(rememberedComparisonReview("comparison-1", memory), REVIEW_RUN_ID);
+  assert.equal(await resumableComparisonReview("comparison-1", { storage: memory, request: async () => ({ input: { suburb_comparison_id: "comparison-1" } }) }), REVIEW_RUN_ID);
+  assert.equal(await resumableComparisonReview("comparison-1", { storage: memory, request: async () => ({ input: { suburb_comparison_id: "comparison-2" } }) }), null);
+  assert.equal(rememberedComparisonReview("comparison-1", memory), null);
+  rememberComparisonReview("comparison-1", REVIEW_RUN_ID, memory);
+  forgetComparisonReview("comparison-1", REVIEW_RUN_ID, memory);
+  assert.equal(memory.value(), "{}");
+});
 
 test("published evidence distinguishes zero, missing and incompatible population", () => {
   const series = {observations: [{month: "2026-01-01", count: 3}], observed_months: ["2026-01-01", "2026-02-01"], blank_means_observed_zero: true};
