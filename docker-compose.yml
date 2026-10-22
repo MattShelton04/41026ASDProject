@@ -346,6 +346,8 @@ services:
       SUBURB_IMPORT_WORKER: "1"
       AI_MODE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
       AI_MODE_SERVICE_TOKEN: ${AI_MODE_SERVICE_TOKEN:-}
+      MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
+      MULTI_AGENT_SERVICE_TOKEN: ${MULTI_AGENT_SERVICE_TOKEN:-}
       # Declares where the shared local MCP/RAG servers listen. This backend does not
       # call them directly: it reaches AI-mode, which holds the MCP/RAG credentials and
       # performs tool calls and retrieval. Reachable from here, but no service token is

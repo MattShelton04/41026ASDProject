@@ -484,6 +484,7 @@ def test_every_multi_agent_proxy_requires_operator_credentials_at_the_edge() -> 
     assert {
         "/api/data-platform/v1/release-reviews",
         "/api/market-intelligence/v1/market-briefs",
+        "/api/suburb-analytics/v1/comparison-reviews",
         "/api/due-diligence/v1/evidence-reviews",
     } <= set(collections)
     for collection, module in collections.items():
@@ -534,6 +535,7 @@ def test_edge_protects_operations_and_ai_routes_consistently() -> None:
         "/features/data-platform/",
         "/fragments/rate-limit-probe",
         "/api/market-intelligence/v1/market-briefs/capabilities",
+        "/api/suburb-analytics/v1/comparison-reviews/capabilities",
         "/api/due-diligence/v1/evidence-reviews/capabilities",
     ]
     for path in sensitive:
@@ -595,8 +597,13 @@ MULTI_AGENT_BACKENDS = sorted(
 
 
 def test_multi_agent_backends_are_the_ones_the_overlays_wire() -> None:
-    # Feature 3 declares no Multi-Agent connection locally, so the Azure files leave it alone.
-    assert MULTI_AGENT_BACKENDS == ["f1-backend", "f2-backend", "f4-backend", "f5-backend"]
+    assert MULTI_AGENT_BACKENDS == [
+        "f1-backend",
+        "f2-backend",
+        "f3-backend",
+        "f4-backend",
+        "f5-backend",
+    ]
 
 
 def test_baseline_closes_the_multi_agent_server_and_blanks_its_token() -> None:
@@ -605,8 +612,6 @@ def test_baseline_closes_the_multi_agent_server_and_blanks_its_token() -> None:
         assert isinstance(environment, dict)
         assert environment["MULTI_AGENT_BASE_URL"] == "http://127.0.0.1:9", name
         assert environment["MULTI_AGENT_SERVICE_TOKEN"] == "", name
-    f3 = AZURE_OVERRIDE["services"]["f3-backend"]["environment"]
-    assert "MULTI_AGENT_SERVICE_TOKEN" not in f3
 
 
 def test_ai_overlay_hands_each_multi_agent_backend_its_token_as_a_compose_secret() -> None:
@@ -633,8 +638,6 @@ def test_ai_overlay_hands_each_multi_agent_backend_its_token_as_a_compose_secret
         assert isinstance(baseline, dict)
         overlay = AZURE_AI["services"][name]["environment"]["PROPERTYSCOPE_SECRET_ENV"].split()
         assert set(baseline["PROPERTYSCOPE_SECRET_ENV"].split()) <= set(overlay), name
-    f3 = AZURE_AI["services"]["f3-backend"]
-    assert "multi_agent_service_token" not in f3["secrets"]
 
 
 def test_vm_renders_compose_readable_entry_tokens_and_root_only_host_tokens() -> None:

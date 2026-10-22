@@ -9,7 +9,7 @@
 # publicly: Caddy still publishes only 80/443 and requires operator credentials on AI routes.
 #
 # The Multi-Agent token goes only to the backends that call the Multi-Agent Server locally
-# (Features 1, 2, 4 and 5 in docker-compose.yml); Feature 3 declares no Multi-Agent token there.
+# (Features 1 through 5 in docker-compose.yml).
 
 x-azure-ai-backend-environment: &azure-ai-backend-environment
   AI_MODE_BASE_URL: http://host.docker.internal:${AI_MODE_PORT:-5005}
@@ -71,8 +71,8 @@ services:
       MCP_SERVER_URL: http://host.docker.internal:${MCP_PORT:-5011}/mcp
       RAG_SERVER_URL: http://host.docker.internal:${RAG_PORT:-5012}
       MULTI_AGENT_BASE_URL: http://host.docker.internal:${MULTI_AGENT_PORT:-5013}
-      PROPERTYSCOPE_SECRET_ENV: AI_MODE_SERVICE_TOKEN=ai_mode_service_token
-    secrets: [ai_mode_service_token]
+      PROPERTYSCOPE_SECRET_ENV: AI_MODE_SERVICE_TOKEN=ai_mode_service_token MULTI_AGENT_SERVICE_TOKEN=multi_agent_service_token  # pragma: allowlist secret (names only)
+    secrets: [ai_mode_service_token, multi_agent_service_token]
     volumes:
       - *azure-secret-shim
 

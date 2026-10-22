@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Callable, Iterable
+import uuid
+from collections.abc import Callable, Iterable, Mapping
 from datetime import date
 from http import HTTPStatus
 from typing import Any
@@ -13,10 +14,11 @@ from urllib.parse import parse_qs, quote, unquote
 
 import httpx
 
-from shared_contracts import read_json_object
+from shared_contracts import REQUEST_ID_HEADER, TRACEPARENT_HEADER, read_json_object
 from shared_contracts.grounding import grounded_allowlist_variants
+from shared_contracts.multi_agent import MAX_RUN_PAGE_LIMIT, WORKFLOW_RUN_ID_HEADER
 
-from .clients import HttpClient, ServiceError
+from .clients import HttpClient, MultiAgentClient, MultiAgentUnavailableError, ServiceError
 from .ingestion import IMPORT_PATH, Ingestion, correlation
 
 StartResponse = Callable[[str, list[tuple[str, str]]], None]
@@ -24,6 +26,17 @@ BASE = "/api/suburb-analytics/v1"
 FEATURE_KEY = "student-3-suburb-analytics"
 ALLOWED_MEASURES = {"count", "rate"}
 ALLOWED_OFFENCES = {"all_recorded", "property", "person"}
+COMPARISON_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+COMPARISON_REVIEW_TEMPLATE_ID = "f3-suburb-comparison-review"
+base = BASE
+collection = f"{base}/comparison-reviews"
+COMPARISON_REVIEW_COLLECTION = collection
+COMPARISON_REVIEW_DISABLED_DETAIL = (
+    "Multi-agent suburb comparison reviews are not available in this deployment."
+)
+_START_REVIEW_FIELDS = frozenset({"input", "requested_by", "template_id"})
+_ACTOR = re.compile(r"[^\W_][\w .,'\N{RIGHT SINGLE QUOTATION MARK}@()-]*")
+_NOTE_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 # Release 0 allowed the model to run a generated crime comparison. Release 1 keeps that
 # historical allowlist readable, but new assistant turns can inspect only published locality
 # evidence and the static methodology. Crime comparisons remain deterministic UI operations.
@@ -192,7 +205,9 @@ def _published_crime_series(
                 "month": month,
                 "value": value,
                 "unit": "per 100,000" if measure == "rate" else "count",
-                "zero_missing_state": "recorded_zero" if value == 0 else "observed",
+                "zero_missing_state": (
+                    "missing" if value is None else "recorded_zero" if value == 0 else "observed"
+                ),
                 "measure_source": "bocsar_published_count"
                 if measure == "count"
                 else "calculated_from_seifa_population",
@@ -209,8 +224,251 @@ def _published_crime_series(
     return result
 
 
+def _review_comparison_id(payload: dict[str, Any]) -> str:
+    comparison_id = payload.get("suburb_comparison_id")
+    if not isinstance(comparison_id, str) or COMPARISON_ID.fullmatch(comparison_id) is None:
+        raise ValueError("suburb_comparison_id must be a valid saved comparison identifier")
+    return comparison_id
+
+
+def _review_comparison(data: HttpClient, comparison_id: str) -> dict[str, Any]:
+    response = data.request(
+        "GET", f"/internal/v1/suburb-comparisons/{quote(comparison_id, safe='')}"
+    )
+    comparison = response.get("comparison")
+    if not isinstance(comparison, dict):
+        raise ServiceError(502, {"code": "invalid_dependency_response"})
+    return comparison
+
+
+def _comparison_inspection(comparison: dict[str, Any]) -> dict[str, Any]:
+    projected = {
+        key: comparison.get(key)
+        for key in (
+            "id",
+            "version",
+            "name",
+            "status",
+            "localities",
+            "from_month",
+            "to_month",
+            "measure",
+            "selected_indicators",
+            "priorities",
+            "notes",
+        )
+    }
+    notes = str(comparison.get("notes", ""))
+    comparison_origin = (
+        "seeded_demonstration"
+        if "seeded" in notes.casefold() and "demonstration" in notes.casefold()
+        else "user_saved"
+    )
+    limitations = [
+        "This read-only inspection does not change the saved comparison or its version.",
+        "The comparison records a research scope; source coverage is checked separately.",
+    ]
+    if comparison_origin == "seeded_demonstration":
+        limitations.append("This is a seeded demonstration comparison.")
+    return {
+        "comparison": projected,
+        "comparison_origin": comparison_origin,
+        "limitations": limitations,
+    }
+
+
+def _month_range(start: str, end: str) -> list[str]:
+    start_date = date.fromisoformat(start + "-01")
+    end_date = date.fromisoformat(end + "-01")
+    if start_date > end_date:
+        raise ValueError("saved comparison period is invalid")
+    months: list[str] = []
+    year, month = start_date.year, start_date.month
+    while (year, month) <= (end_date.year, end_date.month):
+        months.append(f"{year:04d}-{month:02d}")
+        if month == 12:
+            year, month = year + 1, 1
+        else:
+            month += 1
+    if len(months) > 120:
+        raise ValueError("saved comparison period exceeds 120 months")
+    return months
+
+
+def _crime_source_releases(context: dict[str, Any]) -> list[str]:
+    return sorted(
+        {
+            str(source["release_id"])
+            for source in context.get("sources", [])
+            if source.get("dataset_id") == "bocsar-crime" and source.get("release_id")
+        }
+    )
+
+
+def _crime_evidence_mode(context: dict[str, Any]) -> str:
+    sources = [
+        source
+        for source in context.get("sources", [])
+        if source.get("dataset_id") == "bocsar-crime"
+    ]
+    if not sources:
+        return "unavailable"
+    description = " ".join(
+        str(source.get(key, ""))
+        for source in sources
+        for key in ("release_id", "source_release", "source")
+    ).casefold()
+    if any(marker in description for marker in ("demo", "fixture", "seed", "synthetic")):
+        return "seeded_demonstration"
+    return "published_release"
+
+
+def _complete_review_series(
+    context: dict[str, Any],
+    *,
+    locality: str,
+    measure: str,
+    offence: str,
+    start: str,
+    end: str,
+    months: list[str],
+) -> dict[str, Any]:
+    items = _published_crime_series(context, measure, offence, start, end)
+    by_month = {str(item.get("month")): item for item in items}
+    source_releases = _crime_source_releases(context)
+    fallback_release = source_releases[0] if len(source_releases) == 1 else None
+    completed = [
+        by_month.get(month)
+        or {
+            "month": month,
+            "value": None,
+            "unit": "per 100,000" if measure == "rate" else "count",
+            "zero_missing_state": "missing",
+            "measure_source": "unavailable",
+            "source_release": fallback_release,
+        }
+        for month in months
+    ]
+    population = context.get("population") or []
+    denominator_valid = bool(
+        measure != "rate"
+        or (
+            len(population) == 1
+            and isinstance(population[0].get("usual_resident_population"), (int, float))
+            and population[0]["usual_resident_population"] > 0
+        )
+    )
+    return {
+        "locality": locality,
+        "items": completed,
+        "source_releases": source_releases,
+        "evidence_mode": _crime_evidence_mode(context),
+        "rate_denominator_valid": denominator_valid,
+    }
+
+
+def _saved_comparison_evidence(data: HttpClient, comparison: dict[str, Any]) -> dict[str, Any]:
+    comparison_id = str(comparison.get("id", ""))
+    localities = comparison.get("localities")
+    measure = comparison.get("measure")
+    start = comparison.get("from_month")
+    end = comparison.get("to_month")
+    if (
+        not comparison_id
+        or not isinstance(localities, list)
+        or not 2 <= len(localities) <= 5
+        or not all(isinstance(locality, str) and locality.strip() for locality in localities)
+        or measure not in ALLOWED_MEASURES
+        or not isinstance(start, str)
+        or not isinstance(end, str)
+    ):
+        raise ValueError("saved comparison is not reviewable")
+    months = _month_range(start, end)
+    offence = "all_recorded"
+    series = []
+    for locality in localities:
+        context = data.request("GET", f"/internal/v1/published/context?locality={quote(locality)}")
+        series.append(
+            _complete_review_series(
+                context,
+                locality=locality,
+                measure=measure,
+                offence=offence,
+                start=start,
+                end=end,
+                months=months,
+            )
+        )
+    source_releases = sorted({release for item in series for release in item["source_releases"]})
+    evidence_modes = {item["evidence_mode"] for item in series}
+    if "seeded_demonstration" in evidence_modes:
+        evidence_mode = "seeded_demonstration"
+    elif evidence_modes == {"published_release"}:
+        evidence_mode = "published_release"
+    else:
+        evidence_mode = "unavailable"
+    observations = [entry for item in series for entry in item["items"]]
+    observed_count = sum(entry["value"] is not None for entry in observations)
+    if observed_count == 0:
+        coverage = "unavailable"
+    elif observed_count == len(observations):
+        coverage = "complete"
+    else:
+        coverage = "partial"
+    expected_unit = "per 100,000" if measure == "rate" else "count"
+    limitations = [
+        "Missing evidence is unavailable, not zero, and remains null in every series.",
+        "Recorded crime observations do not establish causes, future risk or suburb safety.",
+        "The saved comparison does not store an offence filter; this review uses all "
+        "recorded offences.",
+    ]
+    if measure == "rate":
+        limitations.append(
+            "Rates use the available 2021 population context and are not current denominators."
+        )
+    return {
+        "comparison_id": comparison_id,
+        "series": [{"locality": item["locality"], "items": item["items"]} for item in series],
+        "measure": measure,
+        "unit": expected_unit,
+        "offence": offence,
+        "from_month": start,
+        "to_month": end,
+        "source_releases": source_releases,
+        "evidence_mode": evidence_mode,
+        "coverage": coverage,
+        "limitations": limitations,
+        "methodology": {
+            "zero_missing_rule": "Recorded zero is 0; missing evidence is null.",
+            "rate_method": (
+                "Published count divided by the available 2021 population context, "
+                "multiplied by 100,000."
+                if measure == "rate"
+                else "Published recorded offence counts are aggregated by month."
+            ),
+            "responsible_use": "No causal claims, predictions or safety ranking.",
+        },
+        "validation": {
+            "period_consistent": all(
+                [entry["month"] for entry in item["items"]] == months for item in series
+            ),
+            "measure_consistent": all(entry["unit"] == expected_unit for entry in observations),
+            "missing_values_preserved": all(
+                entry["zero_missing_state"] == "missing"
+                for entry in observations
+                if entry["value"] is None
+            ),
+            "rate_denominator_valid": all(item["rate_denominator_valid"] for item in series),
+        },
+    }
+
+
 def _response(
-    start: StartResponse, status: int, payload: object, content_type: str = "application/json"
+    start: StartResponse,
+    status: int,
+    payload: object,
+    content_type: str = "application/json",
+    extra_headers: Iterable[tuple[str, str]] = (),
 ) -> Iterable[bytes]:
     body = json.dumps(payload, separators=(",", ":")).encode()
     headers = [
@@ -218,6 +476,7 @@ def _response(
         ("Content-Length", str(len(body))),
         ("Cache-Control", "no-store"),
     ]
+    headers.extend(extra_headers)
     start(f"{status} {HTTPStatus(status).phrase}", headers)
     return [body]
 
@@ -239,6 +498,106 @@ def _problem(start: StartResponse, status: int, code: str, detail: str) -> Itera
 
 def _body(environ: dict[str, Any]) -> dict[str, Any]:
     return read_json_object(environ, max_bytes=2_000_000)
+
+
+def _review_headers(environ: Mapping[str, Any]) -> dict[str, str]:
+    """Project only correlation headers from WSGI into the service client."""
+    return {
+        name: str(value)
+        for name, value in (
+            (REQUEST_ID_HEADER, environ.get("HTTP_X_REQUEST_ID", "")),
+            (TRACEPARENT_HEADER, environ.get("HTTP_TRACEPARENT", "")),
+        )
+        if value
+    }
+
+
+def _upstream_object(response: httpx.Response) -> dict[str, Any]:
+    if response.is_redirect:
+        raise MultiAgentUnavailableError("The Multi-Agent Server returned an unexpected redirect")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise MultiAgentUnavailableError(
+            "The Multi-Agent Server returned an unreadable JSON response"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise MultiAgentUnavailableError("The Multi-Agent Server returned an invalid JSON response")
+    return payload
+
+
+def _forward_multi_agent(
+    start: StartResponse,
+    response: httpx.Response,
+    *,
+    location: str | None = None,
+) -> Iterable[bytes]:
+    content_type = response.headers.get("content-type", "").split(";", 1)[0]
+    headers = [
+        (name, response.headers[name])
+        for name in (REQUEST_ID_HEADER, WORKFLOW_RUN_ID_HEADER)
+        if name in response.headers
+    ]
+    if location is not None:
+        headers.append(("Location", location))
+    return _response(
+        start,
+        response.status_code,
+        _upstream_object(response),
+        (
+            "application/problem+json"
+            if content_type == "application/problem+json"
+            else "application/json"
+        ),
+        headers,
+    )
+
+
+def _checked_actor(value: Any, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    actor = value.strip()
+    if not actor or len(actor) > 100 or _ACTOR.fullmatch(actor) is None:
+        raise ValueError(f"{field} must be a valid name of at most 100 characters")
+    return actor
+
+
+def _checked_note(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("note must be a string")
+    note = value.strip()
+    if len(note) > 2_000:
+        raise ValueError("note must be at most 2000 characters")
+    if _NOTE_CONTROL.search(note):
+        raise ValueError("note must not contain control characters")
+    return note
+
+
+def _owned_comparison_review(
+    multi_agent: MultiAgentClient,
+    run_id: uuid.UUID,
+    headers: Mapping[str, str],
+) -> httpx.Response:
+    response = multi_agent.get_run(run_id, headers)
+    if response.status_code >= 400:
+        return response
+    run = _upstream_object(response)
+    if (
+        run.get("feature_id") != FEATURE_KEY
+        or run.get("template_id") != COMPARISON_REVIEW_TEMPLATE_ID
+    ):
+        return httpx.Response(
+            404,
+            headers={"content-type": "application/problem+json"},
+            json={
+                "type": "https://propertyscope.invalid/problems/comparison_review_not_found",
+                "title": "Comparison Review Not Found",
+                "status": 404,
+                "detail": "Suburb comparison review does not exist.",
+                "code": "comparison_review_not_found",
+            },
+        )
+    return response
 
 
 def _validate_comparison(payload: dict[str, Any], *, require_version: bool = False) -> None:
@@ -271,6 +630,7 @@ def create_app(
     store: HttpClient | None = None,
     ai_mode: HttpClient | None = None,
     property_data: HttpClient | None = None,
+    multi_agent: MultiAgentClient | None = None,
 ) -> Callable[..., Iterable[bytes]]:
     data = store or HttpClient(os.getenv("SUBURB_STORE_URL", "http://f3-database:5302"))
     ai = ai_mode or HttpClient(
@@ -280,6 +640,10 @@ def create_app(
     )
     properties = property_data or HttpClient(
         os.getenv("PROPERTY_DATA_URL", "http://f1-backend:5201"), timeout=4.0
+    )
+    reviews = multi_agent or MultiAgentClient(
+        os.getenv("MULTI_AGENT_BASE_URL", "http://host.docker.internal:5013"),
+        service_token=os.getenv("MULTI_AGENT_SERVICE_TOKEN", ""),
     )
     ingestion = Ingestion(data, properties.base_url)
     if os.getenv("SUBURB_IMPORT_WORKER") == "1":
@@ -559,6 +923,115 @@ def create_app(
                         "source_release": "demo-2026.1",
                     },
                 )
+            if path == f"{COMPARISON_REVIEW_COLLECTION}/capabilities" and method == "GET":
+                review_available = reviews.available()
+                return _response(
+                    start,
+                    200,
+                    {
+                        "comparison_review": {
+                            "enabled": review_available,
+                            "detail": (
+                                None if review_available else COMPARISON_REVIEW_DISABLED_DETAIL
+                            ),
+                        }
+                    },
+                )
+            if path == f"{COMPARISON_REVIEW_COLLECTION}/template" and method == "GET":
+                return _forward_multi_agent(
+                    start,
+                    reviews.template(COMPARISON_REVIEW_TEMPLATE_ID, _review_headers(environ)),
+                )
+            if path == COMPARISON_REVIEW_COLLECTION:
+                headers = _review_headers(environ)
+                if method == "POST":
+                    body = _body(environ)
+                    unexpected = sorted(set(body) - _START_REVIEW_FIELDS)
+                    if unexpected:
+                        raise ValueError(f"unexpected field(s): {', '.join(unexpected)}")
+                    workflow_input = body.get("input")
+                    if not isinstance(workflow_input, dict):
+                        raise ValueError("input must be a JSON object")
+                    payload: dict[str, Any] = {
+                        "template_id": COMPARISON_REVIEW_TEMPLATE_ID,
+                        "input": workflow_input,
+                    }
+                    if body.get("requested_by") is not None:
+                        payload["requested_by"] = _checked_actor(
+                            body["requested_by"], "requested_by"
+                        )
+                    response = reviews.create_run(payload, headers)
+                    location = None
+                    if response.status_code == 202:
+                        try:
+                            created_review_id = uuid.UUID(
+                                str(_upstream_object(response).get("id", ""))
+                            )
+                        except ValueError as exc:
+                            raise MultiAgentUnavailableError(
+                                "The Multi-Agent Server returned an invalid run identifier"
+                            ) from exc
+                        location = f"{COMPARISON_REVIEW_COLLECTION}/{created_review_id}"
+                    return _forward_multi_agent(start, response, location=location)
+                if method == "GET":
+                    try:
+                        limit = min(max(int(query.get("limit", "20")), 1), MAX_RUN_PAGE_LIMIT)
+                    except ValueError as exc:
+                        raise ValueError("limit must be an integer") from exc
+                    params: dict[str, str | int] = {
+                        "template_id": COMPARISON_REVIEW_TEMPLATE_ID,
+                        "feature_id": FEATURE_KEY,
+                        "limit": limit,
+                    }
+                    if query.get("state"):
+                        params["state"] = query["state"]
+                    response = reviews.list_runs(params, headers)
+                    if response.status_code != 200:
+                        return _forward_multi_agent(start, response)
+                    page = _upstream_object(response)
+                    items = [
+                        item
+                        for item in page.get("items", [])
+                        if isinstance(item, dict)
+                        and item.get("feature_id") == FEATURE_KEY
+                        and item.get("template_id") == COMPARISON_REVIEW_TEMPLATE_ID
+                    ]
+                    return _response(start, 200, {"items": items, "count": len(items)})
+            if path.startswith(f"{COMPARISON_REVIEW_COLLECTION}/"):
+                suffix = path.removeprefix(f"{COMPARISON_REVIEW_COLLECTION}/").split("/")
+                review_run_id = uuid.UUID(suffix[0])
+                headers = _review_headers(environ)
+                review_detail = _owned_comparison_review(reviews, review_run_id, headers)
+                if review_detail.status_code >= 400:
+                    return _forward_multi_agent(start, review_detail)
+                if len(suffix) == 1 and method == "GET":
+                    return _forward_multi_agent(start, review_detail)
+                if len(suffix) == 2 and suffix[1] == "decision" and method == "POST":
+                    decision_body = _body(environ)
+                    decision_body["actor"] = _checked_actor(decision_body.get("actor"), "actor")
+                    if "note" in decision_body:
+                        decision_body["note"] = _checked_note(decision_body["note"])
+                    return _forward_multi_agent(
+                        start, reviews.decide(review_run_id, decision_body, headers)
+                    )
+                if len(suffix) == 2 and suffix[1] == "cancel" and method == "POST":
+                    cancel_body = (
+                        _body(environ) if int(environ.get("CONTENT_LENGTH", "0") or 0) else None
+                    )
+                    if cancel_body is not None and cancel_body.get("actor") is not None:
+                        cancel_body["actor"] = _checked_actor(cancel_body["actor"], "actor")
+                    return _forward_multi_agent(
+                        start, reviews.cancel(review_run_id, cancel_body, headers)
+                    )
+                if len(suffix) == 2 and suffix[1] == "history" and method == "GET":
+                    cursors = {
+                        name: query[name]
+                        for name in ("after_history", "after_audit")
+                        if query.get(name)
+                    }
+                    return _forward_multi_agent(
+                        start, reviews.history(review_run_id, headers, cursors)
+                    )
             if path == f"{BASE}/assistant/capabilities" and method == "GET":
                 return _response(
                     start,
@@ -735,6 +1208,14 @@ def create_app(
                         "source_release": "demo-2026.1",
                     },
                 )
+            if path == f"{BASE}/tools/suburb.comparison.inspect.v1" and method == "POST":
+                comparison_id = _review_comparison_id(_body(environ))
+                comparison = _review_comparison(data, comparison_id)
+                return _response(start, 200, _comparison_inspection(comparison))
+            if path == f"{BASE}/tools/crime.saved-comparison-evidence.v1" and method == "POST":
+                comparison_id = _review_comparison_id(_body(environ))
+                comparison = _review_comparison(data, comparison_id)
+                return _response(start, 200, _saved_comparison_evidence(data, comparison))
             if path == f"{BASE}/suburb-comparisons":
                 if method == "GET":
                     return _response(
@@ -771,6 +1252,8 @@ def create_app(
             return _problem(
                 start, 503, "producer_unavailable", "The data platform could not be reached."
             )
+        except MultiAgentUnavailableError as exc:
+            return _problem(start, 503, "multi_agent_unavailable", str(exc))
         except ValueError as exc:
             return _problem(start, 422, "invalid_request", str(exc))
         except ServiceError as exc:

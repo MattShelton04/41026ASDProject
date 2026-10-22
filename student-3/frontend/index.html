@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="./design-system/components.css">
   <link rel="stylesheet" href="./mapping/mapping.css">
   <link rel="stylesheet" href="./ai-chat/styles.css">
+  <link rel="stylesheet" href="./multi-agent/styles.css">
   <link rel="stylesheet" href="./styles.css?v=overview-search">
-  <script type="module" src="./app.js?v=click-to-select-suburbs"></script>
+  <script type="module" src="./app.js?v=comparison-review"></script>
   <script type="module" src="./published.js?v=2"></script>
   <link rel="stylesheet" href="./design-system/shell.css">
   <script type="module" src="./shell.js"></script>
@@ -123,6 +124,12 @@
       <section id="comparisons-view" class="view" data-view="comparisons" hidden>
         <div class="section-heading"><div><p class="ps-eyebrow">Your research</p><h2>Saved suburb comparisons</h2><p>Create, edit and remove transparent comparison scopes.</p></div><button id="new-comparison" class="ps-button ps-button--primary">New comparison</button></div>
         <div id="comparison-list" class="comparison-list"></div>
+        <article id="comparison-review-section" class="ps-card comparison-review-card" hidden>
+          <div class="ps-card__body">
+            <div class="section-heading"><div><p class="ps-eyebrow">Multi-agent workflow</p><h2 id="comparison-review-title">Comparison evidence review</h2><p>A Planner, Worker and Reviewer inspect the saved scope and published crime evidence before asking for your decision. The workflow never edits the comparison.</p></div><button id="close-comparison-review" class="ps-button ps-button--small" type="button">Close review</button></div>
+            <div id="comparison-review-root"></div>
+          </div>
+        </article>
       </section>
       <section id="assistant-view" class="view" data-view="assistant" hidden>
         <div id="assistant-root"></div>

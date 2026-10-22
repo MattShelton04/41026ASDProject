@@ -14,6 +14,7 @@ on:
       - "scripts/**"
       - "shared/consumer-protocol/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -35,6 +36,7 @@ on:
       - "scripts/**"
       - "shared/consumer-protocol/**"
       - "shared/contracts/**"
+      - "shared/testkit/**"
       - "shared/tool-runtime/**"
       - "ai-services/mcp-server/**"
       - "ai-services/rag-server/**"
@@ -104,6 +106,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: .python-version
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Reproduce locked workspace
+        run: uv sync --locked --all-packages --all-groups
       - name: Validate the Feature 3 Compose plan
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 config --quiet
       # A dedicated builder avoids relying on the runner's shared Docker driver,
@@ -142,6 +156,24 @@ jobs:
           curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:5600/api/suburb-analytics/v1/suburbs?limit=10' --output /tmp/suburbs.json
           python -c "import json; value=json.load(open('/tmp/suburbs.json', encoding='utf-8')); assert len(value['items']) >= 10, value"
           docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml exec -T f3-database python -c "import json,urllib.request; value=json.load(urllib.request.urlopen('http://127.0.0.1:5302/health/ready',timeout=2)); assert min(value['tables'].values()) >= 10, value"
+      # Two endpoint functions (suburb listing and saved-comparison creation),
+      # each with a happy path and a failure path through the running stack.
+      - name: Run Feature 3 endpoint tests
+        env:
+          PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5600
+          PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+        run: uv run --locked pytest student-3/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-3-endpoints.xml
+      - name: Publish endpoint test summary
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        run: uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-3-endpoints.xml --title "Feature 3 endpoint tests" --output endpoint-results/student-3-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload endpoint test results
+        if: ${{ !cancelled() && hashFiles('endpoint-results/*.xml') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: student-3-endpoint-tests
+          path: endpoint-results/
+          if-no-files-found: error
+          retention-days: 30
       - name: Capture Feature 3 service logs
         if: failure()
         run: docker compose --file docker-compose.yml --file deployment/enabled-features.compose.yml --profile release-0 logs --no-color --tail 250 f3-database f3-backend f3-frontend

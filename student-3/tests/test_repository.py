@@ -40,6 +40,27 @@ def test_seeded_comparisons_are_loadable(repository: Repository) -> None:
     assert {item["measure"] for item in comparisons} == {"count", "rate"}
 
 
+def test_user_comparison_survives_database_service_restart(tmp_path: Path) -> None:
+    database = tmp_path / "suburbs.sqlite3"
+    first_process = Repository(database)
+    first_process.initialise()
+    created = first_process.create_comparison(
+        {
+            "name": "Cloud persistence probe",
+            "localities": ["Parramatta", "Newtown"],
+            "from_month": "2025-01",
+            "to_month": "2025-06",
+            "measure": "count",
+            "notes": "Must survive a service replacement.",
+        }
+    )
+
+    replacement_process = Repository(database)
+    replacement_process.initialise()
+
+    assert replacement_process.comparison(created["id"]) == created
+
+
 def test_demo_amenity_filters_and_counts_are_distinct(repository: Repository) -> None:
     assert len(set(DEMO_AMENITIES.values())) == len(SUBURBS)
     for index, kind in enumerate(("school", "transport", "park")):
