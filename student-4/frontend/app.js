@@ -621,7 +621,7 @@ function assistantSection(root) {
 }
 
 function mountReviewAssistant(root, review) {
-  activeAssistant?.destroy();
+  activeAssistant?.controller.destroy();
   activeAssistant = createFeatureAssistant({
     root,
     apiRoot: `${API_BASE}/assistant`,
@@ -939,7 +939,7 @@ async function route(options) {
   questionTask.cancel();
   activeMap?.destroy();
   activeMap = null;
-  activeAssistant?.destroy();
+  activeAssistant?.controller.destroy();
   activeAssistant = null;
   evidenceReviewTask.cancel();
   activeEvidenceReview?.destroy();
@@ -970,7 +970,7 @@ function initialise() {
     });
   }
   window.addEventListener("hashchange", () => route({ focus: true }));
-  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); activeAssistant?.destroy(); evidenceReviewTask.cancel(); activeEvidenceReview?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
+  window.addEventListener("pagehide", () => { routeTask.cancel(); questionTask.cancel(); propertySearchTask.cancel(); activeMap?.destroy(); activeAssistant?.controller.destroy(); evidenceReviewTask.cancel(); activeEvidenceReview?.destroy(); clearTimeout(toastTimer); clearTimeout(searchTimer); }, { once: true });
 
   const dialog = document.querySelector("#review-dialog");
   if (dialog) {
