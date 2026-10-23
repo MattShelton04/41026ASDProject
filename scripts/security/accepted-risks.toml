@@ -54,6 +54,19 @@ ids = [
     "CVE-2026-112899",
     "CVE-2026-112900",
     "CVE-2026-112901",
+    "CVE-2026-96636",
+    "CVE-2026-96637",
+    "CVE-2026-96638",
+    "CVE-2026-96639",
+    "CVE-2026-96640",
+    "CVE-2026-96641",
+    "CVE-2026-96642",
+    "CVE-2026-96643",
+    "CVE-2026-96644",
+    "CVE-2026-96778",
+    "CVE-2026-112398",
+    "CVE-2026-114501",
+    "GHSA-78g4-xqwv-q3g8",
 ]
 reason = """\
 Image-decoding flaws fixed in Pillow 12.x and 13.0. The lock cannot move past 11.3.0 because \
@@ -63,7 +76,7 @@ the project captured itself. No feature service imports Pillow."""
 follow_up = """\
 Shared: move rag-server to fastembed>=0.9 (allows pillow 12.3+) together with a RAG re-ingest \
 and the retrieval evaluation, then delete this entry."""
-reviewed = "2026-10-22"
+reviewed = "2026-10-24"
 
 [[pip_audit]]
 package = "pytest"

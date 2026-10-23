@@ -130,11 +130,11 @@ class Handler(SimpleHTTPRequestHandler):
             for name in ("X-Request-ID", "Idempotency-Key"):
                 if value := self.headers.get(name):
                     headers[name] = value
-            request = Request(
+            request = Request(  # noqa: S310 - BACKEND is the configured http(s) backend URL
                 BACKEND.rstrip("/") + self.path, data=data, method=method, headers=headers
             )
             try:
-                with urlopen(request, timeout=15) as response:
+                with urlopen(request, timeout=15) as response:  # noqa: S310 - the request targets the configured backend URL above
                     body = response.read(MAX_RESPONSE_BYTES + 1)
                     status = response.status
                     media = response.headers.get("Content-Type", "application/json")

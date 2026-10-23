@@ -35,7 +35,7 @@ class HttpClient:
         self, method: str, path: str, payload: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         data = json.dumps(payload).encode() if payload is not None else None
-        request = Request(
+        request = Request(  # noqa: S310 - base_url is a configured http(s) service URL, never user input
             self.base_url + path,
             data=data,
             method=method,
@@ -48,7 +48,7 @@ class HttpClient:
             },
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310 - the request targets the configured service URL above
                 body = response.read(16_777_217)
                 if len(body) > 16_777_216:
                     raise ServiceError(502, {"code": "dependency_response_too_large"})

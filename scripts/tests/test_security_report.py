@@ -451,7 +451,7 @@ def test_accepted_risks_require_reasons(tmp_path: Path) -> None:
 def test_repository_policy_keeps_owner_exceptions_inside_other_students_slices() -> None:
     policy = load_ruff_policy((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert policy.per_file_ignores["**/tests/**"][0] == "S101"
-    assert policy.owner_exceptions
+    # Every owner has now fixed or justified their findings, so the table may be empty.
     for pattern in policy.owner_exceptions:
         assert re.match(r"^student-[2-5]/", pattern), pattern
         assert "*" not in pattern, "owner exceptions must name individual files"

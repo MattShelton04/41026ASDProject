@@ -1345,7 +1345,7 @@ def create_app(
 def main() -> None:
     from wsgiref.simple_server import make_server
 
-    with make_server("0.0.0.0", int(os.getenv("PORT", "5301")), create_app()) as server:
+    with make_server("0.0.0.0", int(os.getenv("PORT", "5301")), create_app()) as server:  # noqa: S104 - container entry point; only the Compose network publishes this port
         server.serve_forever()
 
 
