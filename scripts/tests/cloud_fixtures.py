@@ -149,6 +149,7 @@ def run_smoke(
             monotonic=lambda: 0.0,
         )
         smoke.cleanup_delay = 0
+        smoke.lookup_delay = 0
         smoke.run(cloud_smoke.load_features(), expect_ai=expect_ai)
     return smoke
 

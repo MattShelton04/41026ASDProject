@@ -180,6 +180,45 @@ def test_an_empty_feature_1_skips_the_cases_that_need_its_property_without_faili
     assert len(searches) == 2 * len(cloud_smoke.PROPERTY_QUERIES)  # one property lookup per case
 
 
+class _ColdFeature1Edge(FakeEdge):
+    """Feature 1 answers its first searches 503 while it warms up, then finds a property."""
+
+    def __init__(self, *, cold_searches: int) -> None:
+        super().__init__()
+        self.cold_searches = cold_searches
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/properties/search"):
+            self.requests.append((request.method, request.url.path))
+            if self.cold_searches:
+                self.cold_searches -= 1
+                return httpx.Response(503, json={"code": "read_budget_exceeded"})
+            item = {"property_ref": "p-1", "address_display": "1 George Street, Sydney NSW 2000"}
+            return httpx.Response(200, json={"items": [item]})
+        return super().__call__(request)
+
+
+def test_a_cold_feature_1_search_is_retried_instead_of_skipping_crud() -> None:
+    edge = _ColdFeature1Edge(cold_searches=2)
+
+    smoke = run_smoke(edge)
+
+    assert not [result for result in smoke.results if result.skipped]
+    searches = [path for _, path in edge.requests if path.endswith("/properties/search")]
+    # Two 503s, then each query once; the chosen property is cached for the rest of the run.
+    assert len(searches) == 2 + len(cloud_smoke.PROPERTY_QUERIES)
+
+
+def test_a_feature_1_that_stays_unavailable_is_retried_a_bounded_number_of_times() -> None:
+    edge = _ColdFeature1Edge(cold_searches=10_000)
+
+    smoke = run_smoke(edge)
+
+    searches = [path for _, path in edge.requests if path.endswith("/properties/search")]
+    # The showcase fallback then validates, so only the first case searches.
+    assert len(searches) == len(cloud_smoke.PROPERTY_QUERIES) * smoke.lookup_attempts
+
+
 def test_cleanup_runs_even_when_the_read_back_fails() -> None:
     edge = FakeEdge()
     original = edge.__call__

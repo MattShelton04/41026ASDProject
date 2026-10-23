@@ -138,16 +138,10 @@ select = ["B", "C4", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 "shared/testkit/**" = ["S101"]
 "scripts/ui_feature_smoke.py" = ["S101"]
 
-# Release 2 F-6: owner to fix or justify; see docs/release-2/evidence/security/pre-commit-report.md
-# Each entry lists only the rules found in that file when the scan was adopted. Remove an entry
-# once the owner has fixed the findings or added a justified `# noqa`.
+# Release 2 F-6: owner exceptions, one file and rule per entry; see
+# docs/release-2/evidence/security/pre-commit-report.md. Every owner has fixed their findings or
+# added a justified `# noqa`, so none remain. Add an entry only with an owner and a follow-up.
 [tool.ruff.lint.extend-per-file-ignores]
-"student-3/backend/src/propertyscope_suburb_analytics/app.py" = ["S104"]
-"student-3/backend/src/propertyscope_suburb_analytics/clients.py" = ["S310"]
-"student-3/database/src/propertyscope_suburb_store/app.py" = ["S104"]
-"student-3/database/src/propertyscope_suburb_store/imports.py" = ["S608"]
-"student-3/database/src/propertyscope_suburb_store/repository.py" = ["S608"]
-"student-3/frontend/dev_server.py" = ["S310"]
 
 [tool.ruff.lint.isort]
 known-first-party = [

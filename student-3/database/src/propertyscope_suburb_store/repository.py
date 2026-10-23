@@ -404,11 +404,12 @@ class Repository:
         )
         with self.connect() as connection:
             total = connection.execute(
-                f"SELECT COUNT(*) FROM suburb_info{where}", values
+                f"SELECT COUNT(*) FROM suburb_info{where}",  # noqa: S608 - fixed ? predicates; values are bound
+                values,
             ).fetchone()[0]
             items = self._rows(
                 connection.execute(
-                    f"SELECT * FROM suburb_info{where} ORDER BY {order} LIMIT ? OFFSET ?",
+                    f"SELECT * FROM suburb_info{where} ORDER BY {order} LIMIT ? OFFSET ?",  # noqa: S608 - fixed ? predicates and allowlisted ORDER BY; values are bound
                     (*values, min(max(limit, 1), 100), max(offset, 0)),
                 )
             )
@@ -596,6 +597,6 @@ class Repository:
         )
         with self.connect() as connection:
             return {
-                table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608 - table names from the fixed tuple above
                 for table in tables
             }

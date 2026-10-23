@@ -399,6 +399,10 @@ class Smoke:
         self.ai_timeout = ai_timeout
         self.cleanup_attempts = 3
         self.cleanup_delay = 2.0
+        # A freshly started Feature 1 can answer its first searches 503 while its read budget
+        # warms up; retry those rather than skip Features 2 and 4's CRUD cases.
+        self.lookup_attempts = 4
+        self.lookup_delay = 10.0
         self.results: list[CheckResult] = []
         # What the AI check observed: disabled, available, unreachable; None when not checked.
         self.ai_state: str | None = None
@@ -554,16 +558,7 @@ class Smoke:
             return self._property
         candidates: list[tuple[str, str]] = []
         for query in PROPERTY_QUERIES:
-            try:
-                response = self.request(
-                    "GET",
-                    "/api/data-platform/v1/properties/search",
-                    params={"q": query, "state": "NSW", "limit": 1},
-                )
-                items = response.json().get("items", []) if response.status_code == 200 else []
-            except (httpx.HTTPError, ValueError, AttributeError):
-                items = []
-            for item in items:
+            for item in self._search_properties(query):
                 reference, address = item.get("property_ref"), item.get("address_display")
                 if isinstance(reference, str) and isinstance(address, str):
                     candidates.append((reference, address))
@@ -581,6 +576,28 @@ class Smoke:
         raise PrerequisiteUnavailableError(
             "Feature 1 has published no property to reference yet (publish a G-NAF release)"
         )
+
+    def _search_properties(self, query: str) -> list[dict[str, Any]]:
+        """Feature 1 search results, retrying an unavailable (5xx or unreachable) answer."""
+        for attempt in range(1, self.lookup_attempts + 1):
+            try:
+                response = self.request(
+                    "GET",
+                    "/api/data-platform/v1/properties/search",
+                    params={"q": query, "state": "NSW", "limit": 1},
+                )
+                if response.status_code == 200:
+                    items = response.json().get("items", [])
+                    return [item for item in items if isinstance(item, dict)]
+                if response.status_code < 500:
+                    return []
+            except httpx.HTTPError:
+                pass
+            except (ValueError, AttributeError):
+                return []
+            if attempt < self.lookup_attempts:
+                time.sleep(self.lookup_delay)
+        return []
 
     def run_crud(self, case: CrudCase) -> None:
         name = self.unique_name(case.owner)

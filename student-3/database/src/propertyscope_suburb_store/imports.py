@@ -55,7 +55,7 @@ class Imports:
                     "token,lease_until,receipt_json"
                 )
                 db.execute(
-                    f"INSERT INTO source_imports ({columns}) "
+                    f"INSERT INTO source_imports ({columns}) "  # noqa: S608 - fixed column list constant; no input is interpolated
                     f"SELECT {columns} FROM source_imports_legacy"
                 )
                 db.execute("DROP TABLE source_imports_legacy")
