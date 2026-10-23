@@ -393,28 +393,42 @@ default (R2-44). The cloud holds only real releases published through the Featur
 
 Open <http://localhost:5400/#site-reviews/d4000000-0000-0000-0000-000000000001>.
 
-1. **CRUD (0:08).** Tick one checklist item and save; the version number goes up.
-2. **Workflow (0:30).** In "Evidence readiness review", click "Start another review". While the
-   Planner, Worker and Reviewer lanes fill, say what each one does. Open "Worker evidence", read
-   one drafted question, then make the decision on camera: "Send back once" with a note if the
-   draft misses an unavailable or partial item, otherwise "Approve".
-3. **CI (0:10).** Show run [39547301902](https://github.com/MattShelton04/41026ASDProject/actions/runs/39547301902):
+1. **CRUD (0:00–0:07).** Click "Edit", change "Status" to "In review", click "Save changes". The
+   "Site review updated." toast shows and the status badge changes. Afterwards, set it back to
+   "Draft".
+2. **Workflow (0:07–0:32).** In "Evidence readiness review", click "Review evidence readiness"
+   (if an earlier run is shown, click "Start another review" first). While
+   the Planner, Worker and Reviewer lanes fill (cut the wait in the edit), say what each one does.
+   Open "Worker evidence", read one drafted question, then decide on camera: "Send back once"
+   with a note if the draft misses an unavailable or partial item, otherwise "Approve".
+3. **CI (0:32–0:41).** Show run [39547301902](https://github.com/MattShelton04/41026ASDProject/actions/runs/39547301902):
    `feature-4-quality` green and the "Feature 4 endpoint tests" summary, 10 passed.
-4. **Security and Azure (0:12).** Show Student 4 at 0 open and 0 pending-owner in
-   `docs/release-2/evidence/security/pre-commit-report.md`, then
+4. **Security (0:41–0:50).** Show line 49 of
+   `docs/release-2/evidence/security/pre-commit-report.md` ("Results by slice"): Student 4 at 0
+   open, 0 pending-owner, 6 justified.
+5. **Azure (0:50–1:00).** Logged in, open
    `https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com/features/due-diligence/`
-   (if the VM is down, use the Troubleshooting fallback; never present a local page as Azure).
+   and click into the same site review. Its evidence loads and the workflow panel says
+   multi-agent reviews are not available, because the cloud AI tier is off by default. If the VM
+   is down, use the Troubleshooting fallback; never present a local page as Azure.
 
 **Viewer sees:** a saved review change, all four lanes reach "Your turn", a human decision
-recorded under Michael's name, a green `student-4.yml` run, and Feature 4 on the public URL.
+recorded under Michael's name, a green `student-4.yml` run, and Feature 4 on the public URL with
+the AI tier off.
 
-> "Feature 4 helps a buyer prepare due diligence on one property. For Release 2 I added an
-> evidence readiness review: the Planner picks two read-only tools, the Worker drafts questions
-> for a professional from the recorded planning and building evidence, the Reviewer runs ten
-> checks, and I decide. The checks are structural, so the human reads the questions. In my
-> recorded run I sent back a draft that passed every check because it missed two conflicting
-> records. I also added endpoint tests for creating a review and reading its evidence, and
-> cleared Feature 4's eight Ruff security findings by replacing asserts and justifying the SQL."
+> 1. "This is Feature 4, site due diligence, running locally. I'll change this review's status
+>    and save. The update is stored in Feature 4's database."
+> 2. "For Release 2 I added an evidence readiness review on the Multi-Agent Server. The Planner
+>    picks two read-only tools, the Worker drafts questions for a professional from the recorded
+>    evidence, and the Reviewer runs ten checks. The checks are structural, so I read the
+>    questions myself. This one is grounded in the recorded evidence, so I approve it, and the
+>    decision is recorded under my name."
+> 3. "Every push runs student-4.yml. My endpoint tests cover creating a site review and reading
+>    its evidence, with success and failure cases: ten passing."
+> 4. "Feature 4 had eight Ruff security findings. I removed the two asserts and justified the
+>    six fixed-column SQL queries, so it's zero open and zero pending."
+> 5. "And here it is on Azure at our public URL. The cloud runs with the AI tier off by default,
+>    so the evidence loads and the workflow shows as unavailable."
 
 ### 12 Feature 5 (Derek Song, 1:00)
 
