@@ -9,10 +9,9 @@
 | Team | Matthew Shelton, Burhan Naeem, James Huang, Michael White, Derek Song |
 | Due | 25 October 2026, 11:59 pm Sydney time |
 | Repository | [MattShelton04/41026ASDProject](https://github.com/MattShelton04/41026ASDProject) |
-| Showcase video | Pending |
+| Showcase video | [https://www.youtube.com/watch?v=0GocJXh61VM](https://www.youtube.com/watch?v=0GocJXh61VM) |
 | Commit reference | [[BASELINE]] |
-
-[[TODO: Group | Replace "Pending" with the published showcase video link, and use the same URL in RELEASE2_METADATA and Section 14]]
+| Deployed code and evidence | `7b3fb43` |
 
 <!--
 Authors: the brief allows 3,000 words. Cover text, captions, tables, generated tables and code
@@ -160,7 +159,7 @@ security: pip-audit of locked dependencies (uv.lock)............Passed
 ## 6 Post-commit CI/CD testing
 
 Each owner's `student-N.yml` starts the feature's Compose stack with AI disabled, runs
-`pytest -m endpoint` on two endpoint functions and publishes the Shared test kit's JUnit summary (at
+`pytest -m endpoint` on at least two endpoint functions and publishes the Shared test kit's JUnit summary (at
 least two passes). `collect_ci_evidence.py` keeps each run's record, reports and log.
 
 [[CI_EVIDENCE]]
@@ -225,6 +224,9 @@ deterministic checklist and through the shared loop; the stricter verdict wins.
 
 [[REVIEW_SUMMARY testing]]
 
+The finding's 73 pip-audit records are the 55 accepted advisory IDs in Section 5, some listed
+more than once; none is open.
+
 ## 8 Local deployment evidence
 
 `dev.py stack up` starts the four host AI services, then the Compose application; backends reach
@@ -287,10 +289,12 @@ template:
 
 ### Student 2
 
-UI run `f1c290a2` briefed `Sydney example - full history`. The Reviewer recommended approve on
+UI run `f1c290a2` briefed `Sydney example – full history`. The Reviewer recommended approve on
 all eleven checks passing. Burhan sent it back: the checks read the tool results, while the prose
 summary reported the figures without the limitations. Round two restated them with the
 synthetic-data disclosure, and Burhan approved it, 0 failed and 11 passed.
+
+![Figure 10 F2 run f1c290a2, approved in round two](assets/release-2/screenshots/f2-workflow.png)
 
 ### Student 3
 
@@ -299,14 +303,18 @@ Reviewer recommended correct: coverage was unavailable, the denominator invalid 
 disclosure missing. It was sent back; round two added the disclosure, the Reviewer again recommended
 correct, and it was rejected until counts are used or the missing BOCSAR months are published.
 
+![Figure 11 F3 run 5338d71c, round two awaiting decision](assets/release-2/screenshots/f3-workflow.png)
+
 ### Student 4
 
 UI run `2956e465` reviewed seeded review 1 (11 Example Street, Sydney). The Reviewer recommended
 approve on all ten checks passing. Michael sent it back: the draft referred to the saved question
-list, missed two conflicting records and did not plainly disclose seeded data. Round two fixed all
-three, and Michael approved it, noting three questions still to write.
+list, missed two conflicting records and did not plainly disclose seeded data. Round two disclosed
+the seeded data and both conflicts, and Michael approved it, noting three of five questions still to
+write by hand.
 
-![Figure 10 F2–F4 workflow panels in the live app](assets/release-2/screenshots/multi-agent-panels.png)
+![Figure 12 F4 run 2956e465, approved in round two](assets/release-2/screenshots/f4-workflow.png)
+
 
 ### Student 5
 
@@ -319,6 +327,8 @@ recommended partial (one high, two medium failures). Derek approved it anyway.
 Commit history:
 [https://github.com/MattShelton04/41026ASDProject/commits/main](https://github.com/MattShelton04/41026ASDProject/commits/main).
 Section 12 lists each student's commits.
+
+[[PAGEBREAK]]
 
 ## 12 Contribution logs
 
@@ -381,17 +391,17 @@ B5 checks TLS 1.2+, the HTTPS redirect, HSTS, CSP and framing headers, the site 
 credentials on AI and workflow routes. B6 checks Key Vault RBAC and purge protection, least-privilege
 managed identity, encrypted disks, OIDC without secrets, and internal database networks.
 
-![Figure 11 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
+![Figure 13 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
 
 ## 14 Showcase video
 
-[[TODO: Group | Link the published showcase video (at most 10 minutes) and record which students participated]]
+Showcase video: [https://www.youtube.com/watch?v=0GocJXh61VM](https://www.youtube.com/watch?v=0GocJXh61VM), a pre-recorded walkthrough in which all five members, Matthew Shelton, Burhan Naeem, James Huang, Michael White and Derek Song, present their work.
 
 <!-- RELEASE2_METADATA
 schema_version: 1
 baseline: '[[BASELINE]]'
 repository_url: https://github.com/MattShelton04/41026ASDProject
-showcase_url: ''
+showcase_url: https://www.youtube.com/watch?v=0GocJXh61VM
 sections:
   overview: 1 Project overview
   repository: 2 Final repository structure
@@ -542,5 +552,10 @@ contributions:
   section: Student 5 Derek Song
   commits:
   - a400cb0
-attendance: {}
+attendance:
+  1: Matthew Shelton
+  2: Burhan Naeem
+  3: James Huang
+  4: Michael White
+  5: Derek Song
 -->

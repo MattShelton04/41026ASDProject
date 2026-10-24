@@ -91,14 +91,14 @@ URL_KINDS = {"ci", "cloud-workflow"}
 SECTION_WORD_BUDGETS = {
     "1 ": 180,  # Project overview, team, allocation, Release 1 to Release 2
     "2 ": 110,  # Final repository structure
-    "3 ": 330,  # Design flow: shared flows plus about 40 words per student
+    "3 ": 320,  # Design flow: shared flows plus about 40 words per student
     "4 ": 220,  # Azure reference architecture, DevOps flow and deployment scripts
     "5 ": 195,  # Pre-commit security testing (generated summary and slice table)
     "6 ": 430,  # Post-commit CI: generated run table plus about 60 words per student
-    "7 ": 105,  # Testing review and its latest validation-log entry
-    "8 ": 165,  # Local deployment and multi-terminal logs
+    "7 ": 125,  # Testing review, its latest validation-log entry and finding
+    "8 ": 155,  # Local deployment and multi-terminal logs
     "9 ": 185,  # Cloud deployment report, job timings, review and human release decision
-    "10 ": 515,  # Multi-agent evidence: F1 worked example, F2-F4 panels, ~50 words per student
+    "10 ": 535,  # Multi-agent evidence: F1 worked example, F2-F4 figures, ~50 words per student
     "11 ": 15,  # GitHub commit log URL
     "12 ": 295,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
     "13 ": 145,  # Bonus claim table B1-B6 and the B5/B6 controls
