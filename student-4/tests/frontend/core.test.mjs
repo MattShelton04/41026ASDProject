@@ -243,3 +243,10 @@ test("the due-diligence page serves the shared grounded renderer styles", () => 
   // Criterion 4 is marked on citations and confidence, which the shared renderer owns.
   assert.match(pageSource, /ai-chat\/styles\.css/);
 });
+
+test("re-rendering a review tears down the assistant through its controller", () => {
+  // createFeatureAssistant returns {client, controller}; only the controller has destroy().
+  // Calling it on the wrapper threw, so a saved edit never re-rendered the review.
+  assert.doesNotMatch(appSource, /activeAssistant\?\.destroy\(/);
+  assert.match(appSource, /activeAssistant\?\.controller\.destroy\(\)/);
+});
