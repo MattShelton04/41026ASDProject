@@ -1,0 +1,75 @@
+Feature 3 integrated stack	Run Feature 3 endpoint tests	﻿2026-10-23T23:52:06.0659004Z ##[group]Run uv run --locked pytest student-3/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-3-endpoints.xml
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0660714Z uv run --locked pytest student-3/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-3-endpoints.xml
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0722008Z shell: /usr/bin/bash -e {0}
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0722274Z env:
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0722479Z   AI_MODE_MCP_ENABLED: false
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0722733Z   AI_MODE_RAG_ENABLED: false
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0723038Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0723486Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0723914Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0724293Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0724678Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0725064Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0725503Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0725877Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0726250Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5600
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0726609Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:06.0726908Z ##[endgroup]
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0971407Z ....                                                                     [100%]
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0972371Z ==================================== PASSES ====================================
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0973788Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-3-endpoints.xml -
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0974931Z =========================== short test summary info ============================
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0975897Z PASSED student-3/tests/endpoints/test_suburb_comparison_create_endpoint.py::test_valid_comparison_is_created_persisted_and_deleted
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0977096Z PASSED student-3/tests/endpoints/test_suburb_comparison_create_endpoint.py::test_invalid_measure_is_rejected_without_creating_a_comparison
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0978536Z PASSED student-3/tests/endpoints/test_suburb_list_endpoint.py::test_seeded_suburbs_are_returned_as_a_bounded_page
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0979759Z PASSED student-3/tests/endpoints/test_suburb_list_endpoint.py::test_invalid_limit_is_returned_as_problem_details
+Feature 3 integrated stack	Run Feature 3 endpoint tests	2026-10-23T23:52:09.0980417Z 4 passed in 0.84s
+Feature 3 integrated stack	Publish endpoint test summary	﻿2026-10-23T23:52:09.2555260Z ##[group]Run uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-3-endpoints.xml --title "Feature 3 endpoint tests" --output endpoint-results/student-3-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2557050Z uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-3-endpoints.xml --title "Feature 3 endpoint tests" --output endpoint-results/student-3-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2622399Z shell: /usr/bin/bash -e {0}
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2622776Z env:
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2622986Z   AI_MODE_MCP_ENABLED: false
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2623245Z   AI_MODE_RAG_ENABLED: false
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2623550Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2624112Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2624536Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2625096Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2625477Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2625856Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2626395Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2626766Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 3 integrated stack	Publish endpoint test summary	2026-10-23T23:52:09.2627069Z ##[endgroup]
+Feature 3 integrated stack	Upload endpoint test results	﻿2026-10-23T23:52:09.8659154Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8659905Z with:
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8660140Z   name: student-3-endpoint-tests
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8660409Z   path: endpoint-results/
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8660662Z   if-no-files-found: error
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8660897Z   retention-days: 30
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8661114Z   compression-level: 6
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8661331Z   overwrite: false
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8661550Z   include-hidden-files: false
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8661782Z   archive: true
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8661972Z env:
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8662161Z   AI_MODE_MCP_ENABLED: false
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8662396Z   AI_MODE_RAG_ENABLED: false
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8662692Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8663122Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8663547Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8663919Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8664326Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8664704Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8665101Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8665471Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:09.8665767Z ##[endgroup]
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.0154701Z With the provided path, there will be 2 files uploaded
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.0161452Z Artifact name is valid!
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.0162172Z Root directory input is valid!
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.1999288Z Uploading artifact: student-3-endpoint-tests.zip
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.2037255Z Beginning upload of artifact content to blob storage
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.2780132Z Uploaded bytes 941
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.3337121Z Finished uploading artifact content to blob storage!
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.3338188Z SHA256 digest of uploaded artifact is 651ee3605398bad9dfaca68bb55667f19b5a2e92941a60d0f87bc13962dc2a5f
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.3340048Z Finalizing artifact upload
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.7643888Z Artifact student-3-endpoint-tests successfully finalized. Artifact ID 12539651751
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.7645502Z Artifact student-3-endpoint-tests has been successfully uploaded! Final size is 941 bytes. Artifact ID is 12539651751
+Feature 3 integrated stack	Upload endpoint test results	2026-10-23T23:52:10.7648518Z Artifact download URL: https://github.com/MattShelton04/41026ASDProject/actions/runs/40041938393/artifacts/12539651751

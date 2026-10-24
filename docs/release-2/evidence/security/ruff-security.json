@@ -1,7 +1,7 @@
 {
   "tool": "ruff",
   "version": "0.16.1",
-  "commit": "7af681c64f4dd4cb6c3128bfde6f422b0cc7788e",
+  "commit": "7b3fb43728582d21bb8c9722405c040e3c18cbf2",
   "command": "ruff check . --select S --ignore-noqa --isolated --config 'target-version = \"py312\"' --config 'extend-exclude = [\"Temp\", \"temp\", \"tmp\"]' --config 'lint.per-file-ignores = { \"**/tests/**\" = [\"S101\", \"S105\", \"S106\", \"S107\", \"S108\", \"S311\"], \"scripts/ui_feature_smoke.py\" = [\"S101\"], \"shared/testkit/**\" = [\"S101\"] }' --output-format json --exit-zero --no-cache",
   "findings": [
     {
@@ -456,7 +456,7 @@
     },
     {
       "path": "scripts/devtools/cloud_rehearsal.py",
-      "row": 425,
+      "row": 428,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -466,7 +466,7 @@
     },
     {
       "path": "scripts/devtools/cloud_rehearsal.py",
-      "row": 441,
+      "row": 444,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -476,7 +476,7 @@
     },
     {
       "path": "scripts/devtools/cloud_rehearsal.py",
-      "row": 918,
+      "row": 921,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -486,7 +486,7 @@
     },
     {
       "path": "scripts/devtools/cloud_rehearsal.py",
-      "row": 919,
+      "row": 922,
       "code": "S607",
       "message": "Starting a process with a partial executable path",
       "slice": "shared",
@@ -846,7 +846,7 @@
     },
     {
       "path": "scripts/tests/test_azure_deployment.py",
-      "row": 742,
+      "row": 817,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -856,7 +856,7 @@
     },
     {
       "path": "scripts/tests/test_azure_deployment.py",
-      "row": 944,
+      "row": 1019,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -866,7 +866,7 @@
     },
     {
       "path": "scripts/tests/test_azure_deployment.py",
-      "row": 969,
+      "row": 1044,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -876,7 +876,7 @@
     },
     {
       "path": "scripts/tests/test_azure_deployment.py",
-      "row": 1051,
+      "row": 1126,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -886,7 +886,7 @@
     },
     {
       "path": "scripts/tests/test_azure_deployment.py",
-      "row": 1095,
+      "row": 1170,
       "code": "S603",
       "message": "`subprocess` call: check for execution of untrusted input",
       "slice": "shared",
@@ -966,7 +966,7 @@
     },
     {
       "path": "scripts/tests/test_cloud_rehearsal.py",
-      "row": 178,
+      "row": 170,
       "code": "S506",
       "message": "Probable use of unsafe loader `_ComposeLoader` with `yaml.load`. Allows instantiation of arbitrary objects. Consider `yaml.safe_load`.",
       "slice": "shared",
@@ -986,7 +986,7 @@
     },
     {
       "path": "scripts/tests/test_host_runtime.py",
-      "row": 578,
+      "row": 582,
       "code": "S104",
       "message": "Possible binding to all interfaces",
       "slice": "shared",
@@ -996,7 +996,7 @@
     },
     {
       "path": "scripts/tests/test_host_runtime.py",
-      "row": 588,
+      "row": 592,
       "code": "S104",
       "message": "Possible binding to all interfaces",
       "slice": "shared",
@@ -1926,32 +1926,32 @@
     },
     {
       "path": "student-3/backend/src/propertyscope_suburb_analytics/app.py",
-      "row": 795,
+      "row": 1348,
       "code": "S104",
       "message": "Possible binding to all interfaces",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "container entry point; only the Compose network publishes this port",
       "count": 1
     },
     {
       "path": "student-3/backend/src/propertyscope_suburb_analytics/clients.py",
-      "row": 26,
+      "row": 38,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "base_url is a configured http(s) service URL, never user input",
       "count": 1
     },
     {
       "path": "student-3/backend/src/propertyscope_suburb_analytics/clients.py",
-      "row": 39,
+      "row": 51,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "the request targets the configured service URL above",
       "count": 1
     },
     {
@@ -1960,8 +1960,8 @@
       "code": "S104",
       "message": "Possible binding to all interfaces",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "container entry point; only the Compose network publishes this port",
       "count": 1
     },
     {
@@ -1970,8 +1970,8 @@
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "fixed column list constant; no input is interpolated",
       "count": 1
     },
     {
@@ -1980,28 +1980,28 @@
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "fixed ? predicates; values are bound",
       "count": 1
     },
     {
       "path": "student-3/database/src/propertyscope_suburb_store/repository.py",
-      "row": 411,
+      "row": 412,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "fixed ? predicates and allowlisted ORDER BY; values are bound",
       "count": 1
     },
     {
       "path": "student-3/database/src/propertyscope_suburb_store/repository.py",
-      "row": 599,
+      "row": 600,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "table names from the fixed tuple above",
       "count": 1
     },
     {
@@ -2010,8 +2010,8 @@
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "BACKEND is the configured http(s) backend URL",
       "count": 1
     },
     {
@@ -2020,8 +2020,8 @@
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-3",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "the request targets the configured backend URL above",
       "count": 1
     },
     {
@@ -2090,28 +2090,18 @@
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"_TOKEN_HEADER\"",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "header name, not a credential",
       "count": 1
     },
     {
       "path": "student-5/backend/src/propertyscope_buyer_workspaces/clients.py",
-      "row": 127,
+      "row": 160,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/backend/src/propertyscope_buyer_workspaces/clients.py",
-      "row": 129,
-      "code": "S310",
-      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "HTTP(S) validated before constructing request",
       "count": 1
     },
     {
@@ -2120,128 +2110,48 @@
       "code": "S105",
       "message": "Possible hardcoded password assigned to: \"_TOKEN_HEADER\"",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
-      "row": 136,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
-      "row": 211,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
-      "row": 262,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/domain.py",
-      "row": 309,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "header name, not a credential",
       "count": 1
     },
     {
       "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 87,
+      "row": 118,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "table from fixed TABLES tuple",
       "count": 1
     },
     {
       "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 158,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 179,
+      "row": 213,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted columns; all values bound",
       "count": 1
     },
     {
       "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 187,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 245,
+      "row": 280,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "table from fixed tuple; all values bound",
       "count": 1
     },
     {
       "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 349,
+      "row": 385,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 353,
-      "code": "S608",
-      "message": "Possible SQL injection vector through string-based query construction",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 369,
-      "code": "S608",
-      "message": "Possible SQL injection vector through string-based query construction",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted table; bound case ID",
       "count": 1
     },
     {
@@ -2250,58 +2160,48 @@
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted table; all values bound",
       "count": 1
     },
     {
       "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 394,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 417,
+      "row": 407,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted table; all values bound",
       "count": 1
     },
     {
       "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 425,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
-      "row": 433,
+      "row": 429,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted identifiers; values bound",
       "count": 1
     },
     {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 34,
-      "code": "S310",
-      "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 459,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "allowlisted columns/table; values bound",
+      "count": 1
+    },
+    {
+      "path": "student-5/database/src/propertyscope_buyer_store/repository.py",
+      "row": 476,
+      "code": "S608",
+      "message": "Possible SQL injection vector through string-based query construction",
+      "slice": "student-5",
+      "status": "noqa-justified",
+      "justification": "_get_child validates table; bound IDs",
       "count": 1
     },
     {
@@ -2310,368 +2210,48 @@
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "base URL validated; wrapper rejects redirects",
       "count": 1
     },
     {
       "path": "student-5/scripts/compose_smoke.py",
-      "row": 48,
+      "row": 53,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "wrapper validates HTTP(S) before opening",
       "count": 1
     },
     {
       "path": "student-5/scripts/compose_smoke.py",
-      "row": 49,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 50,
+      "row": 58,
       "code": "S310",
       "message": "Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 51,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 54,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 57,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 74,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 82,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 84,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 87,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 89,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 100,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 113,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 121,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 128,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 130,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 138,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 145,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 147,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 150,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 151,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 152,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 165,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 168,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 169,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 170,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 173,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 177,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 179,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 180,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 187,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 189,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 200,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
-      "count": 1
-    },
-    {
-      "path": "student-5/scripts/compose_smoke.py",
-      "row": 202,
-      "code": "S101",
-      "message": "Use of `assert` detected",
-      "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "wrapper validates HTTP(S) before opening",
       "count": 1
     },
     {
       "path": "student-5/tests/test_migrations.py",
-      "row": 14,
+      "row": 16,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "table checked against fixed schema tuple",
       "count": 1
     },
     {
       "path": "student-5/tests/test_repository.py",
-      "row": 113,
+      "row": 134,
       "code": "S608",
       "message": "Possible SQL injection vector through string-based query construction",
       "slice": "student-5",
-      "status": "pending-owner",
-      "justification": "Temporarily allowed by `[tool.ruff.lint.extend-per-file-ignores]`; owner to fix or justify.",
+      "status": "noqa-justified",
+      "justification": "table from fixed tuple; bound case ID",
       "count": 1
     }
   ]

@@ -1,31 +1,31 @@
 {
   "available_actions": [],
-  "completed_at": "2026-10-16T09:02:18.744113Z",
-  "created_at": "2026-10-16T09:02:00.986053Z",
+  "completed_at": "2026-10-23T23:57:30.002944Z",
+  "created_at": "2026-10-23T23:57:09.816072Z",
   "decisions": [
     {
       "accepted_step_ids": [],
       "actor": "local-deployment-capture",
-      "decided_at": "2026-10-16T09:02:18.744113Z",
+      "decided_at": "2026-10-23T23:57:30.002944Z",
       "decision": "reject",
       "note": "Scripted decision by scripts/capture_local_deployment.py to exercise the human-decision path of the local deployment check. The workflow publishes nothing.",
-      "request_id": "28d78332-215b-4889-a3c7-4944aad6d975",
+      "request_id": "bb738a46-ee3a-4780-89cc-f6f55927b729",
       "resulting_state": "rejected",
       "round": 1
     }
   ],
   "error": null,
   "feature_id": "student-1-propertyscope-data-platform",
-  "id": "56685fcf-6061-4f79-a005-856d6c768d26",
+  "id": "fa8aedfd-ec4e-4138-9292-af7aad8e43c0",
   "input": {
-    "dataset_id": "abs-seifa-2021",
-    "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+    "dataset_id": "fixture-property",
+    "release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
     "reviewer_note": "Local deployment capture (capture_local_deployment.py)"
   },
   "plan": {
     "evidence_needed": [
-      "Candidate release inspection showing status, record count, content hash, quality results, provenance, publication receipts or activations, and accepted predecessor.",
-      "Release queue context for abs-seifa-2021 showing related release IDs, statuses, record counts, and ingestion runs."
+      "Candidate release status, record count, content hash, quality results, provenance, publication receipts or activations, and accepted predecessor.",
+      "Up to 10 release summaries for dataset fixture-property, including release IDs, statuses, record counts, dataset IDs, and ingestion runs."
     ],
     "produced_by": {
       "fallback": false,
@@ -40,34 +40,34 @@
     "steps": [
       {
         "arguments": {
-          "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869"
+          "release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e"
         },
-        "expected_evidence": "The release inspection result identifies the requested release and reports its status, record count, content hash, quality results, provenance, publication evidence, and accepted predecessor.",
+        "expected_evidence": "The release's exact status, record count, content hash, quality summary or results, provenance, publication receipts and activations, and accepted predecessor, if present.",
         "id": "release",
         "index": 1,
-        "purpose": "Collect the candidate release's exact status, record count, content hash, quality summary, provenance, publication receipts or activations, and accepted predecessor needed for the readiness assessment.",
+        "purpose": "Collect the candidate release's readiness evidence, including status, record count, content hash, quality results, provenance, publication receipts or activations, and accepted predecessor.",
         "required": true,
         "title": "Inspect the candidate release",
         "tool": "data.release_inspect.v1"
       },
       {
         "arguments": {
-          "dataset_id": "abs-seifa-2021",
+          "dataset_id": "fixture-property",
           "limit": 10
         },
-        "expected_evidence": "The queue lists up to 10 releases for dataset abs-seifa-2021 with each release's exact ID, status, record count, and ingestion run.",
+        "expected_evidence": "A bounded list of releases for dataset fixture-property showing each release ID, status, record count, dataset ID, and ingestion run.",
         "id": "queue",
         "index": 2,
-        "purpose": "Review other releases for the same dataset to establish queue context, including their statuses, record counts, ingestion runs, and exact release identifiers.",
+        "purpose": "Provide context on other releases associated with the requested dataset, including their statuses, record counts, ingestion runs, and release identifiers.",
         "required": true,
         "title": "Read the dataset release queue",
         "tool": "data.releases.v1"
       }
     ],
-    "summary": "Inspect the specified release first to gather its readiness evidence, including status, record count, content hash, quality results, provenance, publication information, and accepted predecessor. Then review the bounded release queue for the same dataset to provide context on competing or related releases. All planned operations are read-only and no publication or other write action is included."
+    "summary": "Inspect the specified release first to obtain its status, record count, content hash, quality findings, provenance, publication evidence, activations, and accepted predecessor, then review the bounded release queue for the same dataset to provide context on other releases. All planned evidence gathering is read-only; no publication or other write operation is included."
   },
   "provider_mode": "model",
-  "request_id": "ebf79ca9-2b5c-4583-ab11-508f7d389296",
+  "request_id": "682b5bff-c3cf-4702-920a-de1a312f02b0",
   "requested_by": "local-deployment-capture",
   "review": {
     "findings": [
@@ -92,7 +92,7 @@
           "ev-release-r1"
         ],
         "id": "f-release-matches",
-        "message": "Passed: The inspected release is the one requested. (release.id = 'cb188a6e-613f-4f4e-b7b0-b827dd573869'; expected eq 'cb188a6e-613f-4f4e-b7b0-b827dd573869')",
+        "message": "Passed: The inspected release is the one requested. (release.id = 'b127980b-46c6-42bb-92cd-9bed875ded4e'; expected eq 'b127980b-46c6-42bb-92cd-9bed875ded4e')",
         "outcome": "pass",
         "recommendation": null,
         "severity": "info",
@@ -122,7 +122,7 @@
           "ev-release-r1"
         ],
         "id": "f-has-records",
-        "message": "Passed: The release contains at least one record. (release.record_count = 4320; expected gt 0)",
+        "message": "Passed: The release contains at least one record. (release.record_count = 10; expected gt 0)",
         "outcome": "pass",
         "recommendation": null,
         "severity": "info",
@@ -147,12 +147,57 @@
         ]
       },
       {
+        "check_id": "publisher-recorded",
+        "evidence_ids": [
+          "ev-release-r1"
+        ],
+        "id": "f-publisher-recorded",
+        "message": "Passed: The release manifest names the source publisher. (release.manifest_json.publisher is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "licence-recorded",
+        "evidence_ids": [
+          "ev-release-r1"
+        ],
+        "id": "f-licence-recorded",
+        "message": "Passed: The release manifest records the source licence. (release.manifest_json.source_licence is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": "retrieval-time-recorded",
+        "evidence_ids": [
+          "ev-release-r1"
+        ],
+        "id": "f-retrieval-time-recorded",
+        "message": "Passed: The release manifest records when the source was retrieved. (release.manifest_json.source_retrieved_at is present)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
         "check_id": "quality-recorded",
         "evidence_ids": [
           "ev-release-r1"
         ],
         "id": "f-quality-recorded",
-        "message": "Passed: Quality checks were run against the release. (quality_summary.total = 3; expected gt 0)",
+        "message": "Passed: Quality checks were run against the release. (quality_summary.total = 2; expected gt 0)",
         "outcome": "pass",
         "recommendation": null,
         "severity": "info",
@@ -205,6 +250,53 @@
         "step_ids": [
           "release"
         ]
+      },
+      {
+        "check_id": "queue-read",
+        "evidence_ids": [
+          "ev-queue-r1"
+        ],
+        "id": "f-queue-read",
+        "message": "Passed: The release queue for the dataset was read for context. (data.releases.v1 succeeded)",
+        "outcome": "pass",
+        "recommendation": null,
+        "severity": "info",
+        "source": "check",
+        "step_ids": [
+          "queue"
+        ]
+      },
+      {
+        "check_id": null,
+        "evidence_ids": [
+          "ev-release-r1"
+        ],
+        "id": "f-model-1",
+        "message": "The candidate\u2019s lineage is internally inconsistent: its manifest declares supersedes_release_id \"60000000-0000-0000-0000-000000000010\", while the authoritative release record and release contract report supersedes_release_id as null. The Worker cited the accepted predecessor but did not identify or resolve this discrepancy.",
+        "outcome": "fail",
+        "recommendation": "Reconcile the release-level supersedes_release_id with the manifest before approval, and confirm that the requested candidate is intentionally designated to supersede the accepted predecessor.",
+        "severity": "medium",
+        "source": "model",
+        "step_ids": [
+          "release"
+        ]
+      },
+      {
+        "check_id": null,
+        "evidence_ids": [
+          "ev-queue-r1",
+          "ev-release-r1"
+        ],
+        "id": "f-model-2",
+        "message": "The dataset queue contains another unaccepted candidate, f4a48747-0a65-40ef-ab82-720266fd6e7c, with the same 10-record count and target feature as the requested candidate. The evidence does not establish which candidate is the intended publication choice or whether the other candidate has been superseded or withdrawn.",
+        "outcome": "fail",
+        "recommendation": "Confirm with the release owner which candidate is approved for publication and resolve or document the disposition of the concurrent candidate before making a publication recommendation.",
+        "severity": "medium",
+        "source": "model",
+        "step_ids": [
+          "queue",
+          "release"
+        ]
       }
     ],
     "produced_by": {
@@ -217,210 +309,170 @@
       "provider": "openai",
       "role": "reviewer"
     },
-    "recommendation": "approve",
+    "recommendation": "correct",
     "round": 1,
-    "summary": "Both required plan steps were completed with successful evidence, and the Worker's factual findings are supported by the release inspection and queue results. The candidate has 4,320 records, a recorded content hash and ABS provenance, three passing blocking quality checks with no failures, and a known accepted predecessor with the same record count. The candidate is unactivated and has no receipts or consumer imports, which is consistent with this being a pre-publication recommendation rather than a publication action. All authoritative checks passed, including every readiness condition specified by the workflow."
+    "summary": "The required inspection and queue evidence were obtained and the Worker accurately reported the candidate\u2019s status, provenance, hash, record count, quality results, and queue context. However, the evidence reveals an unresolved release-lineage inconsistency and a concurrent candidate for the same dataset, neither of which the Worker assessed; these create a material risk of publishing the wrong or ambiguously superseding release."
   },
   "round": 1,
   "stages": [
     {
-      "completed_at": "2026-10-16T09:02:05.884925Z",
+      "completed_at": "2026-10-23T23:57:15.839658Z",
       "detail": null,
       "round": 1,
       "stage": "planner",
-      "started_at": "2026-10-16T09:02:00.986053Z",
+      "started_at": "2026-10-23T23:57:09.816072Z",
       "status": "completed"
     },
     {
-      "completed_at": "2026-10-16T09:02:11.729816Z",
+      "completed_at": "2026-10-23T23:57:20.788924Z",
       "detail": null,
       "round": 1,
       "stage": "worker",
-      "started_at": "2026-10-16T09:02:05.884925Z",
+      "started_at": "2026-10-23T23:57:15.839658Z",
       "status": "completed"
     },
     {
-      "completed_at": "2026-10-16T09:02:14.293619Z",
+      "completed_at": "2026-10-23T23:57:26.813553Z",
       "detail": null,
       "round": 1,
       "stage": "reviewer",
-      "started_at": "2026-10-16T09:02:11.729816Z",
+      "started_at": "2026-10-23T23:57:20.788924Z",
       "status": "completed"
     },
     {
-      "completed_at": "2026-10-16T09:02:18.744113Z",
+      "completed_at": "2026-10-23T23:57:30.002944Z",
       "detail": "reject",
       "round": 1,
       "stage": "human",
-      "started_at": "2026-10-16T09:02:14.293619Z",
+      "started_at": "2026-10-23T23:57:26.813553Z",
       "status": "completed"
     }
   ],
   "state": "rejected",
   "superseded": [],
   "template_id": "f1-release-readiness-review",
-  "template_version": "v1",
-  "updated_at": "2026-10-16T09:02:18.744113Z",
+  "template_version": "v2",
+  "updated_at": "2026-10-23T23:57:30.002944Z",
   "worker_output": {
     "correction_note": null,
     "evidence": [
       {
         "arguments": {
-          "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869"
+          "release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e"
         },
-        "duration_ms": 32,
+        "duration_ms": 47,
         "error_code": null,
         "error_message": null,
         "excerpt": {
           "accepted_predecessor": {
-            "accepted_at": "2026-09-05T10:56:44.850750+00:00",
-            "artifact_record_id": "b78fdba5-d066-4c1e-9102-61dec8024d07",
-            "content_sha256": "b52f15f9ddfe753001f0f4e239ff8dc0eecf483c732b7f99e8032a4182eac1a2",
+            "accepted_at": "2026-08-03T00:00:00+00:00",
+            "artifact_record_id": "50000000-0000-0000-0000-000000000010",
+            "content_sha256": "d4be594fef1ef33922949032f3501b2bf9bb9fe63649140dce5baae0d71cec25",
             "coverage_json": {
-              "all_records": true,
-              "profile": "full-data",
-              "source_record_count": 4320,
-              "state": "NSW"
+              "complete": true,
+              "profile": "synthetic-showcase",
+              "record_count": 3,
+              "state": "NSW",
+              "synthetic": true
             },
-            "created_at": "2026-09-03T10:33:51.319526+00:00",
-            "dataset_id": "abs-seifa-2021",
-            "id": "0320c071-6ee7-451e-83a6-8a7870252be4",
-            "ingestion_run_id": "b7bc4361-1cd4-4f7b-baa4-fdfb4f3da033",
+            "created_at": "2026-08-02T00:00:00+00:00",
+            "dataset_id": "fixture-property",
+            "id": "60000000-0000-0000-0000-000000000010",
+            "ingestion_run_id": "30000000-0000-0000-0000-000000000010",
             "manifest_json": {
-              "builder_key": "seifa-area",
-              "builder_version": "1.0.0",
-              "byte_count": 440418,
-              "candidate_generation_id": "0320c071-6ee7-451e-83a6-8a7870252be4",
+              "builder_key": "property-snapshot",
+              "builder_version": "3.0.0",
+              "byte_count": 1010,
+              "candidate_generation_id": "60000000-0000-0000-0000-000000000010",
               "content_encoding": "gzip",
-              "content_sha256": "b52f15f9ddfe753001f0f4e239ff8dc0eecf483c732b7f99e8032a4182eac1a2",
-              "created_at": "2026-09-03T10:33:54.171499Z",
-              "dataset_id": "abs-seifa-2021",
+              "content_sha256": "d4be594fef1ef33922949032f3501b2bf9bb9fe63649140dce5baae0d71cec25",
+              "created_at": "2026-08-02T00:00:00+00:00",
+              "dataset_id": "fixture-property",
               "download_permitted": true,
               "entity_types": [
-                "suburb_and_locality_area"
+                "property_address"
               ],
               "geography_coverage": [
-                "NSW:SAL:10001",
-                "NSW:SAL:10002",
-                "NSW:SAL:10003",
-                "NSW:SAL:10004",
-                "NSW:SAL:10005",
-                "NSW:SAL:10006",
-                "NSW:SAL:10007",
-                "NSW:SAL:10008",
-                "NSW:SAL:10009",
-                "NSW:SAL:10010"
+                "NSW:MOSMAN:2088",
+                "NSW:PARRAMATTA:2150",
+                "NSW:WOLLONGONG:2500"
               ],
-              "import_profile": "seifa-2021-sal-nsw",
+              "import_profile": "property-fixture",
               "known_limitations": [
-                "SEIFA describes an area, not an individual property, household, or resident.",
-                "Property matching uses exact normalised locality name and state, not a spatial boundary.",
-                "Small-population SAL scores and comparisons require caution."
+                "Small synthetic fixture for demonstration and offline tests.",
+                "Address identity is not legal title, parcel, ownership, valuation, or occupancy evidence."
               ],
-              "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+              "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
               "manifest_schema_version": "propertyscope.release-manifest.v2",
-              "measures": [
-                "ieo",
-                "ier",
-                "irsad",
-                "irsd",
-                "usual_resident_population"
-              ],
+              "measures": [],
               "media_type": "application/x-ndjson",
               "normalisation_version": "1.0.0",
-              "product_schema_version": "propertyscope.seifa-area.v1",
-              "publisher": "Australian Bureau of Statistics",
-              "record_count": 4320,
-              "record_count_definition": "number of complete NSW Suburbs and Localities records in the ABS 2021 workbook",
-              "redistribution_decision": "attributed-derived-release",
-              "release_id": "0320c071-6ee7-451e-83a6-8a7870252be4",
-              "release_version": "release-39d9c3b47565d7ee-b7bc4361",
-              "source": "ABS SEIFA 2021 NSW Suburbs and Localities",
+              "product_schema_version": "propertyscope.property-snapshot.v2",
+              "publisher": "PropertyScope project",
+              "record_count": 3,
+              "record_count_definition": "number of source-aligned property/address records in records",
+              "redistribution_decision": "committed-synthetic-fixture",
+              "release_id": "60000000-0000-0000-0000-000000000010",
+              "release_version": "2026.08.10",
+              "source": "Example NSW property records",
               "source_effective_at": null,
-              "source_licence": "cc-by-4-0",
-              "source_release": "abs-seifa-2021-sal",
-              "source_retrieved_at": "2026-09-03T10:33:47.485780Z",
-              "supersedes_release_id": "1672de46-b88e-400d-9e12-7e9fecad1b0a",
+              "source_licence": "synthetic-test-data",
+              "source_release": "committed-fixture-2026-08",
+              "source_retrieved_at": "2026-08-02T00:00:00+00:00",
+              "supersedes_release_id": null,
               "target_feature": "feature-1",
-              "temporal_coverage": {
-                "from": "2021-01-01",
-                "to": "2021-12-31"
-              }
+              "temporal_coverage": null
             },
             "publication_status": "completed",
-            "record_count": 4320,
-            "release_version": "release-39d9c3b47565d7ee-b7bc4361",
-            "review_comment": "Approve full validated SEIFA candidate and verify durable automatic activation after the loader restart.",
-            "schema_version": "propertyscope.seifa-area.v1",
-            "source_definition_id": "10000000-0000-0000-0000-000000000011",
+            "record_count": 3,
+            "release_version": "2026.08.10",
+            "review_comment": "Synthetic local showcase baseline accepted for demonstration; not publisher coverage.",
+            "schema_version": "propertyscope.property-snapshot.v2",
+            "source_definition_id": "10000000-0000-0000-0000-000000000010",
             "status": "accepted",
-            "supersedes_release_id": "1672de46-b88e-400d-9e12-7e9fecad1b0a",
+            "supersedes_release_id": null,
             "target_feature": "feature-1",
             "terminal_reason_json": null,
-            "updated_at": "2026-09-05T10:56:44.850750+00:00",
-            "version": 5
+            "updated_at": "2026-09-01T00:00:00+00:00",
+            "version": 3
           },
           "activations": [],
           "consumer_imports": [],
           "publication_policy": "producer-owned",
           "quality_results": [
             {
-              "created_at": "2026-09-13T04:41:15.692105+00:00",
-              "dataset_release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+              "created_at": "2026-10-22T00:50:29.614663+00:00",
+              "dataset_release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
               "dimension": "completeness",
               "expected_value_json": {
-                "minimum": 4320
+                "minimum": 10
               },
-              "id": "128b2806-1a77-4409-a155-ca268bad2997",
-              "ingestion_run_id": "f99c4612-a508-4434-bcba-f020520dc413",
+              "id": "e983e8fb-84d6-4a76-90a6-4a0b253b8667",
+              "ingestion_run_id": "cbd66dae-cd5d-46b3-a4d0-e6e2d6cb37c8",
               "message": "Candidate generation contains the complete validated artifact.",
               "observed_value_json": {
-                "accepted": 4320
+                "accepted": 10
               },
-              "rule_key": "import.seifa-2021-sal-nsw.candidate-row-count",
+              "rule_key": "import.property-fixture.candidate-row-count",
               "rule_version": "1.0.0",
               "sample_json": null,
               "severity": "blocking",
               "status": "pass"
             },
             {
-              "created_at": "2026-09-13T04:41:15.692105+00:00",
-              "dataset_release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
-              "dimension": "coverage",
-              "expected_value_json": {
-                "reference_year": 2021,
-                "rows": 4320,
-                "state": "NSW"
-              },
-              "id": "a1fd3f61-7477-4060-8909-6853f3c6e07f",
-              "ingestion_run_id": "f99c4612-a508-4434-bcba-f020520dc413",
-              "message": "Every accepted row is a unique NSW 2021 SAL with population evidence.",
-              "observed_value_json": {
-                "count": 4320,
-                "distinct_codes": 4320,
-                "populated": 4320,
-                "scoped": 4320
-              },
-              "rule_key": "import.seifa-2021-sal-nsw.nsw-scope",
-              "rule_version": "1.0.0",
-              "sample_json": null,
-              "severity": "blocking",
-              "status": "pass"
-            },
-            {
-              "created_at": "2026-09-13T04:41:15.692105+00:00",
-              "dataset_release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+              "created_at": "2026-10-22T00:50:29.614663+00:00",
+              "dataset_release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
               "dimension": "schema",
               "expected_value_json": {
                 "schema_version": "propertyscope.canonical-import.v1"
               },
-              "id": "bb901718-ce73-472e-bb12-a600eba3e30f",
-              "ingestion_run_id": "f99c4612-a508-4434-bcba-f020520dc413",
+              "id": "c73fa597-ccbc-48e4-b9a5-8915c415be82",
+              "ingestion_run_id": "cbd66dae-cd5d-46b3-a4d0-e6e2d6cb37c8",
               "message": "Canonical artifact matches the registered schema.",
               "observed_value_json": {
                 "schema_version": "propertyscope.canonical-import.v1"
               },
-              "rule_key": "import.seifa-2021-sal-nsw.schema",
+              "rule_key": "import.property-fixture.schema",
               "rule_version": "1.0.0",
               "sample_json": null,
               "severity": "blocking",
@@ -430,246 +482,224 @@
           "quality_summary": {
             "blocking_failures": 0,
             "failed": 0,
-            "passed": 3,
-            "total": 3
+            "passed": 2,
+            "total": 2
           },
           "receipts": [],
           "release": {
             "accepted_at": null,
-            "artifact_record_id": "97f85163-f566-4050-b118-f27a126adad6",
-            "content_sha256": "31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0",
+            "artifact_record_id": "11825278-b685-4456-b427-9153fd1d6369",
+            "content_sha256": "267cbeb1cc2bc1fc1f8a42e059bd3c0cd994cdc23b41660679d0bd5d8bfe1075",
             "coverage_json": {
               "all_records": true,
               "profile": "full-data",
-              "source_record_count": 4320,
-              "state": "NSW"
+              "source_record_count": 10
             },
-            "created_at": "2026-09-13T04:41:14.066735+00:00",
-            "dataset_id": "abs-seifa-2021",
-            "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
-            "ingestion_run_id": "f99c4612-a508-4434-bcba-f020520dc413",
+            "created_at": "2026-10-22T00:50:29.225761+00:00",
+            "dataset_id": "fixture-property",
+            "id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+            "ingestion_run_id": "cbd66dae-cd5d-46b3-a4d0-e6e2d6cb37c8",
             "manifest_json": {
-              "builder_key": "seifa-area",
-              "builder_version": "1.0.0",
-              "byte_count": 491625,
-              "candidate_generation_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+              "builder_key": "property-snapshot",
+              "builder_version": "3.0.0",
+              "byte_count": 1431,
+              "candidate_generation_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
               "content_encoding": "gzip",
-              "content_sha256": "31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0",
-              "created_at": "2026-09-13T04:41:17.702872Z",
-              "dataset_id": "abs-seifa-2021",
+              "content_sha256": "267cbeb1cc2bc1fc1f8a42e059bd3c0cd994cdc23b41660679d0bd5d8bfe1075",
+              "created_at": "2026-10-22T00:50:30.321436Z",
+              "dataset_id": "fixture-property",
               "download_permitted": true,
               "entity_types": [
-                "suburb_and_locality_area"
+                "property_address"
               ],
               "geography_coverage": [
-                "NSW:SAL:10001",
-                "NSW:SAL:10002",
-                "NSW:SAL:10003",
-                "NSW:SAL:10004",
-                "NSW:SAL:10005",
-                "NSW:SAL:10006",
-                "NSW:SAL:10007",
-                "NSW:SAL:10008",
-                "NSW:SAL:10009",
-                "NSW:SAL:10010"
+                "NSW:MOSMAN:2088",
+                "NSW:PARRAMATTA:2150",
+                "NSW:WOLLONGONG:2500"
               ],
-              "import_profile": "seifa-2021-sal-nsw",
+              "import_profile": "property-fixture",
               "known_limitations": [
-                "SEIFA describes an area, not an individual property, household, or resident.",
-                "Property matching uses exact normalised locality name and state, not a spatial boundary.",
-                "Small-population SAL scores and comparisons require caution."
+                "Address identity is not legal title, parcel, ownership, valuation, or occupancy evidence."
               ],
-              "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+              "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
               "manifest_schema_version": "propertyscope.release-manifest.v2",
-              "measures": [
-                "ieo",
-                "ier",
-                "irsad",
-                "irsd",
-                "usual_resident_population"
-              ],
+              "measures": [],
               "media_type": "application/x-ndjson",
               "normalisation_version": "1.0.0",
-              "product_schema_version": "propertyscope.seifa-area.v1",
-              "publisher": "Australian Bureau of Statistics",
-              "record_count": 4320,
-              "record_count_definition": "number of complete NSW Suburbs and Localities records in the ABS 2021 workbook",
-              "redistribution_decision": "attributed-derived-release",
-              "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
-              "release_version": "release-39d9c3b47565d7ee-f99c4612",
-              "source": "ABS SEIFA 2021 NSW Suburbs and Localities",
+              "product_schema_version": "propertyscope.property-snapshot.v2",
+              "publisher": "PropertyScope project",
+              "record_count": 10,
+              "record_count_definition": "number of source-aligned property/address records in records",
+              "redistribution_decision": "committed-synthetic-fixture",
+              "release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+              "release_version": "release-bd6b6bb8fb57e5cc-cbd66dae",
+              "source": "Example NSW property records",
               "source_effective_at": null,
-              "source_licence": "cc-by-4-0",
-              "source_release": "abs-seifa-2021-sal",
-              "source_retrieved_at": "2026-09-13T04:41:08.783243Z",
-              "supersedes_release_id": "0320c071-6ee7-451e-83a6-8a7870252be4",
+              "source_licence": "synthetic-test-data",
+              "source_release": "fixture-v1",
+              "source_retrieved_at": "2026-10-22T00:50:29.142021Z",
+              "supersedes_release_id": "60000000-0000-0000-0000-000000000010",
               "target_feature": "feature-1",
-              "temporal_coverage": {
-                "from": "2021-01-01",
-                "to": "2021-12-31"
-              }
+              "temporal_coverage": null
             },
-            "record_count": 4320,
-            "release_version": "release-39d9c3b47565d7ee-f99c4612",
+            "record_count": 10,
+            "release_version": "release-bd6b6bb8fb57e5cc-cbd66dae",
             "review_comment": null,
-            "schema_version": "propertyscope.seifa-area.v1",
-            "source_definition_id": "10000000-0000-0000-0000-000000000011",
+            "schema_version": "propertyscope.property-snapshot.v2",
+            "source_definition_id": "10000000-0000-0000-0000-000000000010",
             "status": "candidate",
             "supersedes_release_id": null,
             "target_feature": "feature-1",
             "terminal_reason_json": null,
-            "updated_at": "2026-09-13T04:41:17.732627+00:00",
+            "updated_at": "2026-10-22T00:50:30.337797+00:00",
             "version": 3
           },
           "release_contract": {
-            "content_sha256": "31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0",
-            "dataset_id": "abs-seifa-2021",
-            "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+            "content_sha256": "267cbeb1cc2bc1fc1f8a42e059bd3c0cd994cdc23b41660679d0bd5d8bfe1075",
+            "dataset_id": "fixture-property",
+            "id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
             "manifest_json": {
-              "builder_key": "seifa-area",
-              "builder_version": "1.0.0",
-              "byte_count": 491625,
-              "candidate_generation_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+              "builder_key": "property-snapshot",
+              "builder_version": "3.0.0",
+              "byte_count": 1431,
+              "candidate_generation_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
               "content_encoding": "gzip",
-              "content_sha256": "31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0",
-              "created_at": "2026-09-13T04:41:17.702872Z",
-              "dataset_id": "abs-seifa-2021",
+              "content_sha256": "267cbeb1cc2bc1fc1f8a42e059bd3c0cd994cdc23b41660679d0bd5d8bfe1075",
+              "created_at": "2026-10-22T00:50:30.321436Z",
+              "dataset_id": "fixture-property",
               "download_permitted": true,
               "entity_types": [
-                "suburb_and_locality_area"
+                "property_address"
               ],
               "geography_coverage": [
-                "NSW:SAL:10001",
-                "NSW:SAL:10002",
-                "NSW:SAL:10003",
-                "NSW:SAL:10004",
-                "NSW:SAL:10005",
-                "NSW:SAL:10006",
-                "NSW:SAL:10007",
-                "NSW:SAL:10008",
-                "NSW:SAL:10009",
-                "NSW:SAL:10010"
+                "NSW:MOSMAN:2088",
+                "NSW:PARRAMATTA:2150",
+                "NSW:WOLLONGONG:2500"
               ],
-              "import_profile": "seifa-2021-sal-nsw",
+              "import_profile": "property-fixture",
               "known_limitations": [
-                "SEIFA describes an area, not an individual property, household, or resident.",
-                "Property matching uses exact normalised locality name and state, not a spatial boundary.",
-                "Small-population SAL scores and comparisons require caution."
+                "Address identity is not legal title, parcel, ownership, valuation, or occupancy evidence."
               ],
-              "licence_url": "https://www.abs.gov.au/website-privacy-copyright-and-disclaimer",
+              "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
               "manifest_schema_version": "propertyscope.release-manifest.v2",
-              "measures": [
-                "ieo",
-                "ier",
-                "irsad",
-                "irsd",
-                "usual_resident_population"
-              ],
+              "measures": [],
               "media_type": "application/x-ndjson",
               "normalisation_version": "1.0.0",
-              "product_schema_version": "propertyscope.seifa-area.v1",
-              "publisher": "Australian Bureau of Statistics",
-              "record_count": 4320,
-              "record_count_definition": "number of complete NSW Suburbs and Localities records in the ABS 2021 workbook",
-              "redistribution_decision": "attributed-derived-release",
-              "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
-              "release_version": "release-39d9c3b47565d7ee-f99c4612",
-              "source": "ABS SEIFA 2021 NSW Suburbs and Localities",
+              "product_schema_version": "propertyscope.property-snapshot.v2",
+              "publisher": "PropertyScope project",
+              "record_count": 10,
+              "record_count_definition": "number of source-aligned property/address records in records",
+              "redistribution_decision": "committed-synthetic-fixture",
+              "release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+              "release_version": "release-bd6b6bb8fb57e5cc-cbd66dae",
+              "source": "Example NSW property records",
               "source_effective_at": null,
-              "source_licence": "cc-by-4-0",
-              "source_release": "abs-seifa-2021-sal",
-              "source_retrieved_at": "2026-09-13T04:41:08.783243Z",
-              "supersedes_release_id": "0320c071-6ee7-451e-83a6-8a7870252be4",
+              "source_licence": "synthetic-test-data",
+              "source_release": "fixture-v1",
+              "source_retrieved_at": "2026-10-22T00:50:29.142021Z",
+              "supersedes_release_id": "60000000-0000-0000-0000-000000000010",
               "target_feature": "feature-1",
-              "temporal_coverage": {
-                "from": "2021-01-01",
-                "to": "2021-12-31"
-              }
+              "temporal_coverage": null
             },
             "receipts": [],
-            "record_count": 4320,
-            "release_version": "release-39d9c3b47565d7ee-f99c4612",
-            "schema_version": "propertyscope.seifa-area.v1",
+            "record_count": 10,
+            "release_version": "release-bd6b6bb8fb57e5cc-cbd66dae",
+            "schema_version": "propertyscope.property-snapshot.v2",
             "status": "candidate",
             "supersedes_release_id": null,
             "target_feature": "feature-1",
             "version": 3
           }
         },
-        "excerpt_truncated": true,
+        "excerpt_truncated": false,
         "id": "ev-release-r1",
         "outcome": "succeeded",
-        "result_digest": "7ba2b3c18e64ef97cd812ab4f0acad4caec86d569ed23a1f92a16fcc0d5a5ee4",
+        "result_digest": "9c299e4a7942364d678883d84cf2a1b07cd46110e8662b955ea0dd1966a8d23d",
         "step_id": "release",
-        "tool_call_id": "29f0afda-2821-4047-b964-c8b930e1b5b5",
+        "tool_call_id": "3bfd887b-7ee1-4948-bb58-bf6b1140c097",
         "tool_name": "data.release_inspect.v1",
         "tool_version": "v1",
         "transport": "mcp"
       },
       {
         "arguments": {
-          "dataset_id": "abs-seifa-2021",
+          "dataset_id": "fixture-property",
           "limit": 10
         },
-        "duration_ms": 16,
+        "duration_ms": 15,
         "error_code": null,
         "error_message": null,
         "excerpt": {
-          "count": 3,
+          "count": 4,
           "items": [
             {
               "accepted_at": null,
-              "created_at": "2026-09-13T04:41:14.066735+00:00",
-              "dataset_id": "abs-seifa-2021",
-              "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
-              "ingestion_run_id": "f99c4612-a508-4434-bcba-f020520dc413",
-              "record_count": 4320,
-              "release_version": "release-39d9c3b47565d7ee-f99c4612",
-              "schema_version": "propertyscope.seifa-area.v1",
-              "source_definition_id": "10000000-0000-0000-0000-000000000011",
+              "created_at": "2026-10-22T00:50:29.225761+00:00",
+              "dataset_id": "fixture-property",
+              "id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+              "ingestion_run_id": "cbd66dae-cd5d-46b3-a4d0-e6e2d6cb37c8",
+              "record_count": 10,
+              "release_version": "release-bd6b6bb8fb57e5cc-cbd66dae",
+              "schema_version": "propertyscope.property-snapshot.v2",
+              "source_definition_id": "10000000-0000-0000-0000-000000000010",
               "status": "candidate",
               "supersedes_release_id": null,
               "target_feature": "feature-1",
-              "updated_at": "2026-09-13T04:41:17.732627+00:00"
+              "updated_at": "2026-10-22T00:50:30.337797+00:00"
             },
             {
-              "accepted_at": "2026-09-05T10:56:44.850750+00:00",
-              "created_at": "2026-09-03T10:33:51.319526+00:00",
-              "dataset_id": "abs-seifa-2021",
-              "id": "0320c071-6ee7-451e-83a6-8a7870252be4",
-              "ingestion_run_id": "b7bc4361-1cd4-4f7b-baa4-fdfb4f3da033",
-              "record_count": 4320,
-              "release_version": "release-39d9c3b47565d7ee-b7bc4361",
-              "schema_version": "propertyscope.seifa-area.v1",
-              "source_definition_id": "10000000-0000-0000-0000-000000000011",
-              "status": "accepted",
-              "supersedes_release_id": "1672de46-b88e-400d-9e12-7e9fecad1b0a",
-              "target_feature": "feature-1",
-              "updated_at": "2026-09-05T10:56:44.850750+00:00"
-            },
-            {
-              "accepted_at": "2026-09-02T10:30:05.126864+00:00",
-              "created_at": "2026-09-02T10:28:45.165100+00:00",
-              "dataset_id": "abs-seifa-2021",
-              "id": "1672de46-b88e-400d-9e12-7e9fecad1b0a",
-              "ingestion_run_id": "c362a746-a2ab-45c7-88e0-fcb99c400180",
-              "record_count": 4320,
-              "release_version": "release-39d9c3b47565d7ee-c362a746",
-              "schema_version": "propertyscope.seifa-area.v1",
-              "source_definition_id": "10000000-0000-0000-0000-000000000011",
-              "status": "superseded",
+              "accepted_at": null,
+              "created_at": "2026-09-07T10:25:26.741129+00:00",
+              "dataset_id": "fixture-property",
+              "id": "f4a48747-0a65-40ef-ab82-720266fd6e7c",
+              "ingestion_run_id": "6e5f24a8-af27-40b0-89a1-dc786970f768",
+              "record_count": 10,
+              "release_version": "release-bd6b6bb8fb57e5cc-6e5f24a8",
+              "schema_version": "propertyscope.property-snapshot.v2",
+              "source_definition_id": "10000000-0000-0000-0000-000000000010",
+              "status": "candidate",
               "supersedes_release_id": null,
               "target_feature": "feature-1",
-              "updated_at": "2026-09-05T10:56:44.850750+00:00"
+              "updated_at": "2026-09-07T10:25:27.846353+00:00"
+            },
+            {
+              "accepted_at": null,
+              "created_at": "2026-08-02T00:00:00+00:00",
+              "dataset_id": "fixture-property",
+              "id": "60000000-0000-0000-0000-000000000012",
+              "ingestion_run_id": "30000000-0000-0000-0000-000000000012",
+              "record_count": 3,
+              "release_version": "2026.09.12",
+              "schema_version": "propertyscope.property-snapshot.v2",
+              "source_definition_id": "10000000-0000-0000-0000-000000000010",
+              "status": "rejected",
+              "supersedes_release_id": "60000000-0000-0000-0000-000000000010",
+              "target_feature": "feature-1",
+              "updated_at": "2026-09-01T00:00:00+00:00"
+            },
+            {
+              "accepted_at": "2026-08-03T00:00:00+00:00",
+              "created_at": "2026-08-02T00:00:00+00:00",
+              "dataset_id": "fixture-property",
+              "id": "60000000-0000-0000-0000-000000000010",
+              "ingestion_run_id": "30000000-0000-0000-0000-000000000010",
+              "record_count": 3,
+              "release_version": "2026.08.10",
+              "schema_version": "propertyscope.property-snapshot.v2",
+              "source_definition_id": "10000000-0000-0000-0000-000000000010",
+              "status": "accepted",
+              "supersedes_release_id": null,
+              "target_feature": "feature-1",
+              "updated_at": "2026-09-01T00:00:00+00:00"
             }
           ]
         },
         "excerpt_truncated": false,
         "id": "ev-queue-r1",
         "outcome": "succeeded",
-        "result_digest": "6dc0af04d6352ac8fe60a7cec215c1763200d33a7714edbed109a3b5599d5d17",
+        "result_digest": "6dc5f878116180206a0c3c08f483c03867d96da7febbc44c97256aa38f41e206",
         "step_id": "queue",
-        "tool_call_id": "addb8008-2e7a-4b54-97dd-623237246a38",
+        "tool_call_id": "9456f92c-53a6-4385-87d7-4a231fc4ef1f",
         "tool_name": "data.releases.v1",
         "tool_version": "v1",
         "transport": "mcp"
@@ -692,11 +722,11 @@
           "ev-release-r1"
         ],
         "findings": [
-          "Release \"cb188a6e-613f-4f4e-b7b0-b827dd573869\" has status \"candidate\", record_count 4320, release_version \"release-39d9c3b47565d7ee-f99c4612\", and content_sha256 \"31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0\".",
-          "Quality summary reports total 3, passed 3, failed 0, and blocking_failures 0; all three blocking rules have status \"pass\".",
-          "The completeness rule expected minimum 4320 and observed accepted 4320; the coverage rule observed count 4320, distinct_codes 4320, populated 4320, and scoped 4320.",
-          "Manifest provenance names publisher \"Australian Bureau of Statistics\", source \"ABS SEIFA 2021 NSW Suburbs and Localities\", source_licence \"cc-by-4-0\", source_retrieved_at \"2026-09-13T04:41:08.783243Z\", and temporal coverage from \"2021-01-01\" to \"2021-12-31\".",
-          "The inspection lists activations [], consumer_imports [], and receipts []; its accepted predecessor is \"0320c071-6ee7-451e-83a6-8a7870252be4\", accepted at \"2026-09-05T10:56:44.850750+00:00\", with record_count 4320."
+          "Release \"b127980b-46c6-42bb-92cd-9bed875ded4e\" has status \"candidate\", dataset_id \"fixture-property\", record_count 10, and release_version \"release-bd6b6bb8fb57e5cc-cbd66dae\".",
+          "Its content_sha256 is \"267cbeb1cc2bc1fc1f8a42e059bd3c0cd994cdc23b41660679d0bd5d8bfe1075\"; the manifest reports source_release \"fixture-v1\", source_licence \"synthetic-test-data\", and redistribution_decision \"committed-synthetic-fixture\".",
+          "Quality summary is total 2, passed 2, failed 0, blocking_failures 0. Both blocking rules have status \"pass\": candidate-row-count observed accepted 10 against minimum 10, and schema observed \"propertyscope.canonical-import.v1\" matching the expected schema.",
+          "The release has \"receipts\": [], \"activations\": [], and \"consumer_imports\": [].",
+          "The accepted predecessor is \"60000000-0000-0000-0000-000000000010\", accepted_at \"2026-08-03T00:00:00+00:00\", with record_count 3 and content_sha256 \"d4be594fef1ef33922949032f3501b2bf9bb9fe63649140dce5baae0d71cec25\". The candidate manifest states that address identity is not evidence of legal title, parcel, ownership, valuation, or occupancy."
         ],
         "status": "completed",
         "step_id": "release"
@@ -706,15 +736,15 @@
           "ev-queue-r1"
         ],
         "findings": [
-          "The dataset queue returned count 3 for \"abs-seifa-2021\".",
-          "The requested release \"cb188a6e-613f-4f4e-b7b0-b827dd573869\" is listed as \"candidate\" with record_count 4320 and ingestion_run_id \"f99c4612-a508-4434-bcba-f020520dc413\".",
-          "Release \"0320c071-6ee7-451e-83a6-8a7870252be4\" is \"accepted\" with record_count 4320 and accepted_at \"2026-09-05T10:56:44.850750+00:00\".",
-          "Release \"1672de46-b88e-400d-9e12-7e9fecad1b0a\" is \"superseded\" with record_count 4320."
+          "The fixture-property queue returned count 4.",
+          "It includes candidate \"b127980b-46c6-42bb-92cd-9bed875ded4e\" with record_count 10 and ingestion_run_id \"cbd66dae-cd5d-46b3-a4d0-e6e2d6cb37c8\", plus candidate \"f4a48747-0a65-40ef-ab82-720266fd6e7c\" with record_count 10.",
+          "It also includes rejected release \"60000000-0000-0000-0000-000000000012\" with record_count 3 and accepted release \"60000000-0000-0000-0000-000000000010\" with record_count 3.",
+          "The accepted queue entry has accepted_at \"2026-08-03T00:00:00+00:00\"; both candidate entries have accepted_at null."
         ],
         "status": "completed",
         "step_id": "queue"
       }
     ],
-    "summary": "The inspected release \"cb188a6e-613f-4f4e-b7b0-b827dd573869\" is a 4,320-record candidate with three passing blocking quality checks and no blocking failures. Its manifest identifies ABS SEIFA 2021 NSW Suburbs and Localities provenance, source licence \"cc-by-4-0\", and SHA-256 \"31efd96c9f11ddb873b5178cc4c47ec53bb066881dddc73503211d34d596d1a0\". Inspection shows no activations, consumer imports, or receipts; the queue shows it alongside one accepted 4,320-record predecessor and one superseded 4,320-record release."
+    "summary": "The inspected release b127980b-46c6-42bb-92cd-9bed875ded4e is a candidate for fixture-property with 10 records, two passing blocking quality checks and no blocking failures; its manifest records synthetic-fixture provenance, a SHA-256 content hash, and a stated limitation on address identity. The inspection shows no receipts, activations, or consumer imports, while the dataset queue contains this candidate, one other candidate, one rejected release, and one accepted predecessor with 3 records."
   }
 }

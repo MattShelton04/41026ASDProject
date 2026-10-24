@@ -164,11 +164,11 @@ incomplete evidence file becomes a TODO for its owner, which shows in drafts and
 |---|---|
 | `[[FEATURE_FLOWS]]` | Each feature's frontend → API → database path, MCP tools, RAG documents and multi-agent template, from the manifests |
 | `[[SECURITY_SUMMARY]]` | Scan results and per-slice findings from `security/pre-commit-report.md` |
-| `[[CI_EVIDENCE]]` | One row per student from `ci/student-N.md` (`collect_ci_evidence.py`): run, conclusion, commit, endpoint totals |
-| `[[REVIEW_SUMMARY mode]]` | Verdict, checklist, engine, loop run, validation-log entries and summary of `reviews/<mode>-review.md` (`multi-agent`, `testing`, `cloud`) |
-| `[[MULTI_AGENT_RUNS]]` | Every export under `multi-agent/student-N/`: history and audit events, handoffs, tool calls, decisions, final state |
+| `[[CI_EVIDENCE]]` | One row per student from `ci/student-N.md` (`collect_ci_evidence.py`): run, endpoint totals and log link; a run must be a successful push to `main` with at least two passing endpoint tests. The commit column appears only when the runs used different commits |
+| `[[REVIEW_SUMMARY mode]]` | Verdict, checklist, engine, loop run, validation-log entries and summary of `reviews/<mode>-review.md` (`multi-agent`, `testing`, `cloud`), plus the first finding of a non-pass verdict |
+| `[[MULTI_AGENT_RUNS student-N/run ...]]` | Exports under `multi-agent/student-N/`: history and audit events (linked to their JSONL), handoffs, tool calls, decisions, final state. A bare `student-N` lists every export; `student-N/<run>` cites one run and counts the rest. Each student may be selected once |
 | `[[WORKFLOW_HISTORY dir]]` | One exported run's state transitions as a terminal block |
-| `[[LOCAL_EVIDENCE]]` | Verdict, check groups and terminal logs from `local/local-deployment-report.md` |
+| `[[LOCAL_EVIDENCE]]` | Verdict, check groups and terminal logs from `local/local-deployment-report.md`; all-zero and single-value columns are dropped |
 | `[[CLOUD_SUMMARY]]` | Cloud deployment result and the human release decision from `cloud/` |
 
 To fill in your part, run `--status`, find the TODOs with your name, replace each with content, keep inside your share of
@@ -183,6 +183,9 @@ sharing one HTTPS video URL; the commit-history URL linked; evidence of kinds `s
 `cloud-deployment` and `cloud-workflow` (an Actions run URL), plus `ci` and `multi-agent` for each
 student, each linked in its section and unchanged since the baseline; resolvable contribution
 commits for each student; and each student's showcase participation recorded in Section 14.
+It also cross-checks the cited files: the cloud deployment report names the cited workflow run,
+the release decision is RELEASE on the cited cloud review, no review verdict failed, and every
+cited multi-agent summary sits beside a decided `run.json`.
 
 ## Diagrams
 

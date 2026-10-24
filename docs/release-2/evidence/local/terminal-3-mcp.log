@@ -1,32 +1,36 @@
 # Terminal 3: MCP host process
 # Equivalent foreground command: uv run scripts/dev.py ai serve mcp
-# Source: .propertyscope-runtime/host/mcp.log from byte 67327
+# Source: .propertyscope-runtime/host/mcp.log from byte 105157
 --- last 15 line(s) before the capture window ---
-INFO:     127.0.0.1:55875 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55875 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55880 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64513 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64520 - "POST /mcp HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:64520 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64520 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52499 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52499 - "POST /mcp HTTP/1.1" 202 Accepted
-INFO:     127.0.0.1:52500 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52500 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52504 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52504 - "POST /mcp HTTP/1.1" 202 Accepted
-INFO:     127.0.0.1:52505 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52505 - "POST /mcp HTTP/1.1" 200 OK
---- capture window 2026-10-16T09:01:51+00:00 to 2026-10-16T09:02:24+00:00 ---
-INFO:     127.0.0.1:62908 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62915 - "POST /mcp HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:62915 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62915 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61318 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61318 - "POST /mcp HTTP/1.1" 202 Accepted
-INFO:     127.0.0.1:61319 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61319 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61323 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61323 - "POST /mcp HTTP/1.1" 202 Accepted
-INFO:     127.0.0.1:61324 - "POST /mcp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61324 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51613 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51619 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51619 - "POST /mcp HTTP/1.1" 202 Accepted
+{"timestamp":"2026-10-23T23:43:46.986+00:00","level":"info","service":"mcp-server","environment":"local","event":"agent.tool.completed","message":"Feature tool call completed","request_id":"85cae7a5da4f396d8c6b99d9a5f94065","run_id":"5338d71c-148c-4ae2-8d2f-4f4e9cf4db64","step_id":"21106a96-0bea-5eb7-8ef1-0a0a8dc6f30a","tool_call_id":"a6b6e0d4-4a84-46e4-bf94-b1d8fd11e803","feature_key":null,"outcome":"succeeded","duration_ms":1750,"error_code":null,"tool_name":"crime.saved-comparison-evidence.v1","tool_version":"v1","retryable":false}
+{"timestamp":"2026-10-23T23:43:46.987+00:00","level":"info","service":"mcp-server","environment":"local","event":"mcp.tool_call.completed","message":"MCP tool call completed","request_id":"85cae7a5da4f396d8c6b99d9a5f94065","run_id":"5338d71c-148c-4ae2-8d2f-4f4e9cf4db64","step_id":"21106a96-0bea-5eb7-8ef1-0a0a8dc6f30a","tool_call_id":"a6b6e0d4-4a84-46e4-bf94-b1d8fd11e803","feature_key":"student-3-suburb-analytics","outcome":"success","duration_ms":1750,"error_code":null,"tool_name":"crime.saved-comparison-evidence.v1","tool_version":"v1","tool_outcome":"succeeded","retryable":false}
+INFO:     127.0.0.1:51620 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51620 - "POST /mcp HTTP/1.1" 200 OK
+=== mcp serving in the foreground on port 5011, PID 26112, started 2026-10-23T23:52:19+00:00 (Ctrl+C stops it) ===
+INFO:     Started server process [13276]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5011 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53642 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54234 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61516 - "GET /health HTTP/1.1" 200 OK
+--- capture window 2026-10-23T23:56:26+00:00 to 2026-10-23T23:57:34+00:00 ---
+INFO:     127.0.0.1:65087 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54120 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:54120 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54120 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50672 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50672 - "POST /mcp HTTP/1.1" 202 Accepted
+{"timestamp":"2026-10-23T23:57:15.932+00:00","level":"info","service":"mcp-server","environment":"local","event":"agent.tool.completed","message":"Feature tool call completed","request_id":"682b5bff-c3cf-4702-920a-de1a312f02b0","run_id":"fa8aedfd-ec4e-4138-9292-af7aad8e43c0","step_id":"a3ed8aaf-893f-5719-b551-416894698f3c","tool_call_id":"3bfd887b-7ee1-4948-bb58-bf6b1140c097","feature_key":null,"outcome":"succeeded","duration_ms":47,"error_code":null,"tool_name":"data.release_inspect.v1","tool_version":"v1","retryable":false}
+{"timestamp":"2026-10-23T23:57:15.933+00:00","level":"info","service":"mcp-server","environment":"local","event":"mcp.tool_call.completed","message":"MCP tool call completed","request_id":"682b5bff-c3cf-4702-920a-de1a312f02b0","run_id":"fa8aedfd-ec4e-4138-9292-af7aad8e43c0","step_id":"a3ed8aaf-893f-5719-b551-416894698f3c","tool_call_id":"3bfd887b-7ee1-4948-bb58-bf6b1140c097","feature_key":"student-1-propertyscope-data-platform","outcome":"success","duration_ms":47,"error_code":null,"tool_name":"data.release_inspect.v1","tool_version":"v1","tool_outcome":"succeeded","retryable":false}
+INFO:     127.0.0.1:50673 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50673 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50677 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50677 - "POST /mcp HTTP/1.1" 202 Accepted
+{"timestamp":"2026-10-23T23:57:16.004+00:00","level":"info","service":"mcp-server","environment":"local","event":"agent.tool.completed","message":"Feature tool call completed","request_id":"682b5bff-c3cf-4702-920a-de1a312f02b0","run_id":"fa8aedfd-ec4e-4138-9292-af7aad8e43c0","step_id":"d7905b0f-bcd1-51ba-8d58-022c027d680b","tool_call_id":"9456f92c-53a6-4385-87d7-4a231fc4ef1f","feature_key":null,"outcome":"succeeded","duration_ms":15,"error_code":null,"tool_name":"data.releases.v1","tool_version":"v1","retryable":false}
+{"timestamp":"2026-10-23T23:57:16.005+00:00","level":"info","service":"mcp-server","environment":"local","event":"mcp.tool_call.completed","message":"MCP tool call completed","request_id":"682b5bff-c3cf-4702-920a-de1a312f02b0","run_id":"fa8aedfd-ec4e-4138-9292-af7aad8e43c0","step_id":"d7905b0f-bcd1-51ba-8d58-022c027d680b","tool_call_id":"9456f92c-53a6-4385-87d7-4a231fc4ef1f","feature_key":"student-1-propertyscope-data-platform","outcome":"success","duration_ms":15,"error_code":null,"tool_name":"data.releases.v1","tool_version":"v1","tool_outcome":"succeeded","retryable":false}
+INFO:     127.0.0.1:50678 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50678 - "POST /mcp HTTP/1.1" 200 OK

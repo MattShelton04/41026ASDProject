@@ -4,33 +4,52 @@ This folder holds the reviewed evidence of the Azure deployment, for criteria 5�
 the Cloud Deployment Report Review (R2-22). Nothing here is produced by hand. Each file comes
 from a deployment run and is copied in after a person has checked it.
 
-**Current state (18 October 2026): AI-off baseline captured.** Azure is provisioned (*Azure for
-Students*, `newzealandnorth`, `Standard_D4as_v4`; see
+**Current state (24 October 2026): AI-off baseline captured on the submitted commit.** Azure is
+provisioned (*Azure for Students*, `newzealandnorth`, `Standard_D4as_v4`; see
 [deployment/azure/README.md](../../../../deployment/azure/README.md) and
-[ADR-048](../../../architecture/decisions/ADR-048-azure-vm-hosting.md)). The files in this folder
-come from [Cloud Deployment run 39112162750](https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750)
-on `main` at `3c25c083`, dispatched by hand and approved for `production` on 18 October
-(deploy 08:47 UTC, smoke 08:49 UTC):
+[ADR-048](../../../architecture/decisions/ADR-048-azure-vm-hosting.md)). The deployment files in this
+folder come from [Cloud Deployment run 40041985429](https://github.com/MattShelton04/41026ASDProject/actions/runs/40041985429)
+on `main` at `7b3fb437`, dispatched by hand at 23:51 UTC on 23 October with `provision=false`
+(provision skipped) and approved for `production` by MattShelton04. It finished at 00:09 UTC on
+24 October (deploy job 00:00–00:09 UTC, smoke 00:06 UTC); see [`workflow-run.md`](workflow-run.md):
 
 | Check | Result |
 |---|---|
-| Release gate | Passed: Integration CI #424 and Student 1–5 CI all `success` at the deployed commit (`identical`) |
+| Release gate | Passed: Integration CI #480 and Student 1–5 CI all `success` at the deployed commit (`identical`) |
 | Image build | 18 images built and validated, none running as root |
 | VM | 21 of 21 containers running, every image pinned by digest, cloud AI flag `false`, host AI units inactive |
-| Public smoke test | **37 of 37 passed, 0 skipped, 0 failed**; full CRUD for all five features; AI-mode answered `503 ai_disabled` |
-| B5 endpoint security | 54 of 54 lines without failure (52 PASS, 2 INFO) |
-| B6 data security | 43 PASS, 0 FAIL (16 control-plane, 27 on-host), run from a laptop at 08:55 UTC |
-| Cloud review | `pass`, 18 of 18 checks (deterministic engine), [`../reviews/cloud-review.md`](../reviews/cloud-review.md) |
-| Human release decision | **RELEASE** by Matthew Shelton (06:44 UTC on 19 October), recorded with `ai review decide` on review `44929d5d`: [`release-decision.md`](release-decision.md) |
+| Public smoke test | **37 of 37 passed, 0 skipped, 0 failed**; create, read and delete for all five features (Feature 1 also update); AI-mode answered `503 ai_disabled` |
+| B5 endpoint security | 60 of 60 lines without failure (58 PASS, 2 INFO, 0 FAIL) |
+| B6 data security | 43 PASS, 0 FAIL (16 control-plane, 27 on-host), run from a laptop against this deployment at 00:13 UTC on 24 October |
+| Cloud review | `pass`, 18 of 18 checks, through live AI-mode (review `be5514a8`, loop run `ce7e9072`), [`../reviews/cloud-review.md`](../reviews/cloud-review.md) |
+| Human release decision | **RELEASE** by Matthew Shelton (2026-10-24T00:14:49Z), recorded with `ai review decide` on review `be5514a8`: [`release-decision.md`](release-decision.md) |
 
-Feature 1 held five accepted real releases when the smoke test ran: G-NAF 5,224,340 addresses,
-NSW property sales 7,423,881, BOCSAR 318,804, ABS SEIFA 4,320 and NSW government schools 2,210.
-NSW suburb boundaries (4,607 suburbs) was published at 08:58 UTC, after the smoke test and before
-the screenshots, so `app/03-published-data.png` shows six. No demonstration data is loaded.
+At deploy time the VM reported six accepted Feature 1 releases, published through the Feature 1
+review (`vm-deploy.log`). No demonstration data is loaded. The VM is now deallocated.
 
-An earlier run the same day, [39109808841](https://github.com/MattShelton04/41026ASDProject/actions/runs/39109808841),
-also succeeded but skipped the Feature 2 and 4 CRUD cases (29 passed, 2 skipped), because its
-smoke test ran a minute after `f1-db-api` restarted. Run 39112162750 replaced that evidence.
+The application and portal screenshots below were **not retaken**: they are earlier evidence from
+18 October, after run 39112162750.
+
+### Earlier evidence
+
+- [Run 39846161362](https://github.com/MattShelton04/41026ASDProject/actions/runs/39846161362)
+  (22 October, `0b7124f9`) succeeded with smoke 29 passed and 2 skipped: the Feature 2 and 4 CRUD
+  cases ran while the just-restarted `f1-db-api` answered its first searches `503
+  read_budget_exceeded`. #181 makes the smoke retry those searches; run 40041985429 is the result.
+- [Run 39112162750](https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750)
+  (18 October, `3c25c083`; deploy 08:47 UTC, smoke 08:49 UTC) was the first complete AI-off
+  evidence: gate passed with Integration CI #424, 21/21 containers, smoke 37/37 with 0 skipped,
+  B5 52 PASS and 2 INFO, B6 43 PASS from a laptop at 08:55 UTC, a deterministic `ai review cloud`
+  pass 18/18 (review `44929d5d`) and a **RELEASE** decision at 06:44 UTC on 19 October. That
+  decision is superseded by the one recorded on review `be5514a8`. When its smoke test ran,
+  Feature 1 held five accepted real releases: G-NAF 5,224,340 addresses, NSW property sales
+  7,423,881, BOCSAR 318,804, ABS SEIFA 4,320 and NSW government schools 2,210. NSW suburb
+  boundaries (4,607 suburbs) was published at 08:58 UTC, after the smoke test and before the
+  screenshots, so `app/03-published-data.png` shows six.
+- An earlier run on 18 October, [39109808841](https://github.com/MattShelton04/41026ASDProject/actions/runs/39109808841),
+  also succeeded but skipped the Feature 2 and 4 CRUD cases (29 passed, 2 skipped), because its
+  smoke test ran a minute after `f1-db-api` restarted. Run 39112162750 replaced that evidence.
+
 Automatic deployments stay paused (`AZURE_AUTO_DEPLOY=false`); manual runs still deploy.
 
 ## The pipeline
@@ -70,7 +89,7 @@ cancelled).
 | `cloud-smoke.json` / `.md` | `cloud-deployment-<sha>`: `smoke/` | The smoke contract below |
 | `release-gate.json` / `.md` | `cloud-deployment-<sha>`: `gate/` (or `release-gate-<sha>`) | For each of Integration CI and Student 1–5 CI: state, run number and URL, head commit, relation and detail |
 | `image-build.json` / `.md` | `image-build-<sha>` | Compose models validated, the images built (ID, size, user), and any missing, unbuilt or root image |
-| `logs/*.log` | `cloud-deployment-<sha>`: `logs/`, plus `build.log` from `image-build-<sha>` | Step output of provision, push, deploy, smoke and the image build |
+| `logs/*.log` | `cloud-deployment-<sha>`: `logs/`, plus `build.log` from `image-build-<sha>` | Step output of provision, push, deploy, smoke and the image build (run 40041985429 skipped provision, so there is no `provision.log`) |
 | `vm-deploy.log` | `cloud-deployment-<sha>` | Pull, `compose up --wait`, accepted-release check, the `PROPERTYSCOPE_IMAGES` line (running images, pinned by digest where known) and the `PROPERTYSCOPE_RESULT` summary |
 | `workflow-run.md` | person | Link to the successful *Cloud Deployment* run, its approval, and the downloaded artifact names |
 | `release-decision.md` | person, after `dev.py ai review cloud` | The human release decision: approve, approve with conditions, or reject, with reasons |
@@ -79,8 +98,8 @@ cancelled).
 | `app/*.png` | person | The public site, Shared shell and Feature 1 (see "Application screenshots") |
 | `portal/*.png` | person | The Azure portal screenshots below |
 
-The bonus folder [`../bonus/`](../bonus/README.md) holds the AI-tier (B1–B4) evidence and copies of
-B5 and B6; the files here are the AI-off baseline's own copies.
+The bonus folder [`../bonus/`](../bonus/README.md) holds the AI-tier (B1–B4) evidence and the earlier
+18 October copies of B5 and B6. The current B5 and B6 outputs (24 October) are the files here.
 
 The review also finds `smoke/cloud-smoke.json`, `gate/release-gate.json` and
 `build/image-build.json` one folder down, so you can copy the artifact folders unchanged.
@@ -129,8 +148,9 @@ reads it back, deletes it and confirms it is gone. Feature 1 also updates its so
 
 ## Application screenshots
 
-Taken on 18 October (about 09:00 UTC) through the site login, after run 39112162750. Every image
-is 1456×819 (16:9). Only the Shared shell and Feature 1 are captured here; each feature owner
+Earlier evidence, not retaken: taken on 18 October (about 09:00 UTC) through the site login, after
+run 39112162750, so they show that deployment rather than run 40041985429. Every image is 1456×819
+(16:9). Only the Shared shell and Feature 1 are captured here; each feature owner
 captures their own pages.
 
 | File | Page | What it shows |
@@ -143,11 +163,13 @@ captures their own pages.
 
 ### Observations made while capturing
 
-These came from the live deployment and are recorded for their owners; none affects the smoke
-test or the review.
+These came from the 18 October deployment and are recorded for their owners; none affects the
+smoke test or the review. None was rechecked on 24 October: the smoke test does not open these
+pages or call `/published/suburbs`, and the screenshots were not retaken.
 
 - Shared: Data status counts the deliberately disabled AI tier as "Unavailable" (needs attention)
-  rather than "Disabled". Fixed in #160; it shows on Azure after the next deployment.
+  rather than "Disabled". Fixed in #160, which is in the deployed `7b3fb437` (not rechecked on
+  24 October).
 - Feature 3: Suburb context showed "Service unavailable": `/api/suburb-analytics/v1/published/suburbs`
   answered 503 after 4–8 s (Student 3).
 - Feature 2: Sales & market lists saved cases on fixture addresses (`11 Example Street`,
@@ -179,7 +201,8 @@ running and after a successful *Cloud Deployment*.
 | `portal/14-rg-access.png` | Resource group → Access control (IAM) → Role assignments | Deployer: Contributor and the conditioned RBAC Administrator (open the condition) | B6 |
 | `portal/15-vm-metrics.png` (optional) | VM → Monitoring → Metrics | CPU and network during a smoke run or data collection | C7 |
 
-All 15 were taken on 18 October (09:05–09:16 UTC) after run 39112162750, at 1456×819 (16:9),
+All 15 are earlier evidence, not retaken: they were taken on 18 October (09:05–09:16 UTC) after
+run 39112162750, at 1456×819 (16:9),
 with the subscription and tenant IDs blacked out. Where one blade does not show everything, the
 image stacks crops of several blades on the same 16:9 canvas:
 
@@ -217,8 +240,8 @@ Rules for these screenshots:
 The technical report uses three crops of this evidence, in
 [`docs/reports/assets/release-2/screenshots/`](../../../reports/assets/release-2/screenshots/):
 `azure-resources.png` (Figure 5: `portal/01` and `portal/08`), `azure-workflow.png` (Figure 6: the
-summary and *Deploy to Azure* step list of run 39112162750, captured on 18 October with the page
-in GitHub's light theme) and `azure-app.png` (Figure 7: `app/01` and `app/03`). They are crops
+summary, protection rule and *Deploy to Azure* step list of the current run 40041985429 (#46),
+captured on 24 October in GitHub's light theme) and `azure-app.png` (Figure 7: `app/01` and `app/03`). They are crops
 only; nothing is redrawn except the URL label on Figure 7.
 
 ## Labelling rules

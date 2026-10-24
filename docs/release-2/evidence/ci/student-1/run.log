@@ -1,112 +1,176 @@
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3626049Z ##[group]Run uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3627193Z uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3666393Z shell: /usr/bin/bash -e {0}
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3666662Z env:
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3666885Z   AI_MODE_MCP_ENABLED: false
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3667138Z   AI_MODE_RAG_ENABLED: false
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3667394Z   AI_MODE_REQUIRE_PROVIDER_READY: false
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3667705Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3668063Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3668430Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3668985Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3669461Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3669843Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3670221Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3670606Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3671000Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3671370Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3671756Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5200
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3672122Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:40.3672417Z ##[endgroup]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7083304Z ..................s.....s                                                [100%]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7084430Z =============================== warnings summary ===============================
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7085572Z student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7087498Z   student-1/tests/endpoints/test_property_search_endpoint.py:23: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7088724Z     def test_accepted_address_returns_typed_ranked_matches(
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7089006Z 
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7089276Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7089785Z ==================================== PASSES ====================================
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7090507Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-1-feature-origin.xml -
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7091223Z =========================== short test summary info ============================
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7091926Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7092872Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[missing-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7094084Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[one-character-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7095121Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[whitespace-padded-short-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7096127Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[over-long-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7097086Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_source_definition_create_list_read_update_delete
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7098171Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[missing-required-field]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7099724Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[adapter-key-pattern]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7100920Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[source-url-not-http]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7102076Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[no-target-features]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7103235Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[duplicate-targets]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7104531Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unknown-status]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7105662Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unexpected-field]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7106884Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[published]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7107886Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[all]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7108765Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_non_json_body_is_rejected
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7109622Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_duplicate_name_conflicts_and_keeps_the_original
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7110519Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_search_is_schema_valid_and_reports_availability
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7111582Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params0-unsupported_category]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7112807Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params1-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7114358Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params2-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7115521Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/not-a-cadid-params3-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7116618Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/search-params4-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7117639Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:64: this stack has no accepted nsw-suburb-boundaries release
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7118591Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:119: this stack has no accepted nsw-suburb-boundaries release
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7119289Z 23 passed, 2 skipped, 5 deselected, 1 warning in 0.58s
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7961908Z ##[group]Run uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.7963566Z uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8019711Z shell: /usr/bin/bash -e {0}
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8020144Z env:
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8020491Z   AI_MODE_MCP_ENABLED: false
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8020919Z   AI_MODE_RAG_ENABLED: false
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8021349Z   AI_MODE_REQUIRE_PROVIDER_READY: false
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8021861Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8022495Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8023155Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8023992Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8024789Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8025449Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8026110Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8026799Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8027499Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8028145Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8028814Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5100
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8029439Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /healthz
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:41.8029937Z ##[endgroup]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0095090Z ..................s.....s                                                [100%]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0096187Z =============================== warnings summary ===============================
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0097803Z student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0100872Z   student-1/tests/endpoints/test_property_search_endpoint.py:23: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0102993Z     def test_accepted_address_returns_typed_ranked_matches(
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0103790Z 
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0104341Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0105458Z ==================================== PASSES ====================================
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0106840Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-1-shared-edge.xml -
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0107830Z =========================== short test summary info ============================
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0108771Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0110191Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[missing-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0111498Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[one-character-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0112895Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[whitespace-padded-short-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0114421Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[over-long-q]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0115705Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_source_definition_create_list_read_update_delete
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0117150Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[missing-required-field]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0119061Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[adapter-key-pattern]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0120624Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[source-url-not-http]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0122155Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[no-target-features]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0123813Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[duplicate-targets]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0125320Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unknown-status]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0126831Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unexpected-field]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0128359Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[published]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0129682Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[all]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0130836Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_non_json_body_is_rejected
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0131947Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_duplicate_name_conflicts_and_keeps_the_original
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0133127Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_search_is_schema_valid_and_reports_availability
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0134747Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params0-unsupported_category]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0136456Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params1-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0138293Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params2-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0139822Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/not-a-cadid-params3-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0141274Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/search-params4-invalid_request]
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0142665Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:64: this stack has no accepted nsw-suburb-boundaries release
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0144243Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:119: this stack has no accepted nsw-suburb-boundaries release
-Feature 1 integrated stack	UNKNOWN STEP	2026-10-18T10:10:43.0145226Z 23 passed, 2 skipped, 5 deselected, 1 warning in 0.50s
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	﻿2026-10-23T23:53:30.7615759Z ##[group]Run uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7616972Z uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-feature-origin.xml
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7678206Z shell: /usr/bin/bash -e {0}
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7678490Z env:
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7678934Z   AI_MODE_MCP_ENABLED: false
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7679275Z   AI_MODE_RAG_ENABLED: false
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7679558Z   AI_MODE_REQUIRE_PROVIDER_READY: false
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7679898Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7680286Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7680717Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7681227Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7681761Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7682280Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7682745Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7683403Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7683885Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7684335Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7684783Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5200
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7685228Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:30.7685585Z ##[endgroup]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2714388Z ..................s.....s                                                [100%]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2715741Z =============================== warnings summary ===============================
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2717411Z student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2720197Z   student-1/tests/endpoints/test_property_search_endpoint.py:23: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2721791Z     def test_accepted_address_returns_typed_ranked_matches(
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2722326Z 
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2722954Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2723739Z ==================================== PASSES ====================================
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2724907Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-1-feature-origin.xml -
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2726184Z =========================== short test summary info ============================
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2727715Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2729773Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[missing-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2731235Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[one-character-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2732798Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[whitespace-padded-short-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2736046Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[over-long-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2737952Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_source_definition_create_list_read_update_delete
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2740837Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[missing-required-field]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2743157Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[adapter-key-pattern]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2745876Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[source-url-not-http]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2748152Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[no-target-features]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2750581Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[duplicate-targets]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2752775Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unknown-status]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2754866Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unexpected-field]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2756941Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[published]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2758986Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[all]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2760839Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_non_json_body_is_rejected
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2762268Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_duplicate_name_conflicts_and_keeps_the_original
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2763896Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_search_is_schema_valid_and_reports_availability
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2765753Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params0-unsupported_category]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2767916Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params1-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2770305Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params2-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2772554Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/not-a-cadid-params3-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2774575Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/search-params4-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2776520Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:64: this stack has no accepted nsw-suburb-boundaries release
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2778327Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:119: this stack has no accepted nsw-suburb-boundaries release
+Feature 1 integrated stack	Run Feature 1 endpoint tests on the feature origin	2026-10-23T23:53:32.2779973Z 23 passed, 2 skipped, 5 deselected, 1 warning in 0.59s
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	﻿2026-10-23T23:53:32.3848093Z ##[group]Run uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3850732Z uv run --locked pytest student-1/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-1-shared-edge.xml
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3938940Z shell: /usr/bin/bash -e {0}
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3939678Z env:
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3940046Z   AI_MODE_MCP_ENABLED: false
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3940495Z   AI_MODE_RAG_ENABLED: false
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3940948Z   AI_MODE_REQUIRE_PROVIDER_READY: false
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3941507Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3942146Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3942831Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3943607Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3944371Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3945153Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3945868Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3946575Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3947298Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3947948Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3948836Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5100
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3949535Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /healthz
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:32.3950032Z ##[endgroup]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7809373Z ..................s.....s                                                [100%]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7810511Z =============================== warnings summary ===============================
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7812038Z student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7814449Z   student-1/tests/endpoints/test_property_search_endpoint.py:23: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7816298Z     def test_accepted_address_returns_typed_ranked_matches(
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7817238Z 
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7817802Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7819116Z ==================================== PASSES ====================================
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7820404Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-1-shared-edge.xml -
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7821684Z =========================== short test summary info ============================
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7822996Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_accepted_address_returns_typed_ranked_matches
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7824956Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[missing-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7826861Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[one-character-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7828869Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[whitespace-padded-short-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7830411Z PASSED student-1/tests/endpoints/test_property_search_endpoint.py::test_invalid_query_is_a_structured_problem[over-long-q]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7831859Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_source_definition_create_list_read_update_delete
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7833416Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[missing-required-field]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7835142Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[adapter-key-pattern]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7837168Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[source-url-not-http]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7839129Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[no-target-features]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7840825Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[duplicate-targets]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7842456Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unknown-status]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7844048Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_invalid_source_definition_is_rejected_and_not_persisted[unexpected-field]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7845589Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[published]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7847033Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_unknown_status_filter_is_a_structured_problem[all]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7848266Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_non_json_body_is_rejected
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7849703Z PASSED student-1/tests/endpoints/test_source_definitions_endpoint.py::test_duplicate_name_conflicts_and_keeps_the_original
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7850956Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_search_is_schema_valid_and_reports_availability
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7852415Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params0-unsupported_category]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7854182Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params1-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7855854Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/108033054/map-context-params2-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7857475Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/not-a-cadid-params3-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7859458Z PASSED student-1/tests/endpoints/test_suburb_map_endpoint.py::test_invalid_requests_are_structured_problems[/search-params4-invalid_request]
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7860882Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:64: this stack has no accepted nsw-suburb-boundaries release
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7862178Z SKIPPED [1] student-1/tests/endpoints/test_suburb_map_endpoint.py:119: this stack has no accepted nsw-suburb-boundaries release
+Feature 1 integrated stack	Run Feature 1 endpoint tests through the Shared edge	2026-10-23T23:53:33.7863121Z 23 passed, 2 skipped, 5 deselected, 1 warning in 0.55s
+Feature 1 integrated stack	Publish endpoint test summary	﻿2026-10-23T23:53:33.9317390Z ##[group]Run status=0
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9317748Z status=0
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9318083Z for origin in feature-origin shared-edge; do
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9318839Z   report="endpoint-results/student-1-${origin}.xml"
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9319348Z   if [ -f "$report" ]; then
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9320655Z     uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 1 endpoint tests (${origin})" --output "endpoint-results/student-1-${origin}.md" --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY" || status=1
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9321861Z   else
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9322154Z     echo "::error::Missing $report" && status=1
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9322507Z   fi
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9322730Z done
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9322960Z exit "$status"
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9385232Z shell: /usr/bin/bash -e {0}
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9385568Z env:
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9385819Z   AI_MODE_MCP_ENABLED: false
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9386179Z   AI_MODE_RAG_ENABLED: false
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9386503Z   AI_MODE_REQUIRE_PROVIDER_READY: false
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9386910Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9387365Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9387850Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9388422Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9389320Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9389836Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9390335Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9390849Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9391373Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9391859Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 1 integrated stack	Publish endpoint test summary	2026-10-23T23:53:33.9392255Z ##[endgroup]
+Feature 1 integrated stack	Upload endpoint test results	﻿2026-10-23T23:53:35.0602132Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0602592Z with:
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0602811Z   name: student-1-endpoint-tests
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0603100Z   path: endpoint-results/
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0603348Z   if-no-files-found: error
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0603618Z   retention-days: 30
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0603839Z   compression-level: 6
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0604060Z   overwrite: false
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0604278Z   include-hidden-files: false
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0604522Z   archive: true
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0604720Z env:
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0604909Z   AI_MODE_MCP_ENABLED: false
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0605150Z   AI_MODE_RAG_ENABLED: false
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0605400Z   AI_MODE_REQUIRE_PROVIDER_READY: false
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0605724Z   PROPERTYSCOPE_LOADER_TEMP_FILE_LIMIT_KIB: 65536
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0606091Z   PROPERTYSCOPE_LOADER_DISK_RESERVE_BYTES: 1073741824
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0606481Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0606976Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0607427Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0607829Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0608421Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0609352Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0609804Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0610206Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.0610517Z ##[endgroup]
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.2156975Z With the provided path, there will be 4 files uploaded
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.2164499Z Artifact name is valid!
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.2165353Z Root directory input is valid!
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.5820143Z Uploading artifact: student-1-endpoint-tests.zip
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.5860864Z Beginning upload of artifact content to blob storage
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:35.9203699Z Uploaded bytes 3972
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:36.0013320Z Finished uploading artifact content to blob storage!
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:36.0014872Z SHA256 digest of uploaded artifact is 14013a38251b591a325161d92ae596a62f8525e63d87297ad2ffd896dc79dbfe
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:36.0016023Z Finalizing artifact upload
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:36.6038676Z Artifact student-1-endpoint-tests successfully finalized. Artifact ID 12540165232
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:36.6040367Z Artifact student-1-endpoint-tests has been successfully uploaded! Final size is 3972 bytes. Artifact ID is 12540165232
+Feature 1 integrated stack	Upload endpoint test results	2026-10-23T23:53:36.6044000Z Artifact download URL: https://github.com/MattShelton04/41026ASDProject/actions/runs/40041938540/artifacts/12540165232

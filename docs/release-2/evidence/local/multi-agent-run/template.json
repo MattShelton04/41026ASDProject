@@ -5,7 +5,7 @@
   ],
   "description": null,
   "feature_id": "student-1-propertyscope-data-platform",
-  "human_review_guidance": "You are deciding on the recommendation, not publishing. Approve only when every critical and high check passed. Use \"correct\" to send the Worker and Reviewer back once with a note, \"partial\" to accept some steps, and \"reject\" when the release should not be published. Publish separately from the Data Platform release review page if you approve.",
+  "human_review_guidance": "You are deciding on the recommendation, not publishing. Approve only when every critical and high check passed. Completeness against the publisher's own totals is self-attested: the read-only tools cannot fetch upstream source totals, so confirm the record count and coverage against the publisher yourself, especially for a first release with no accepted predecessor. Use \"correct\" to send the Worker and Reviewer back once with a note, \"partial\" to accept some steps, and \"reject\" when the release should not be published. Publish separately from the Data Platform release review page if you approve.",
   "id": "f1-release-readiness-review",
   "inputs": [
     {
@@ -123,6 +123,45 @@
       "severity": "medium"
     },
     {
+      "description": "The release manifest names the source publisher.",
+      "id": "publisher-recorded",
+      "recommendation": "Record the publisher on the source definition, then rebuild the release.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "release.manifest_json.publisher",
+        "step": "release",
+        "value": null
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The release manifest records the source licence.",
+      "id": "licence-recorded",
+      "recommendation": "Record the licence on the source definition, then rebuild the release.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "release.manifest_json.source_licence",
+        "step": "release",
+        "value": null
+      },
+      "severity": "medium"
+    },
+    {
+      "description": "The release manifest records when the source was retrieved.",
+      "id": "retrieval-time-recorded",
+      "recommendation": "Say in the review comment when the source was retrieved, or re-run the acquisition.",
+      "rule": {
+        "kind": "field_present",
+        "operator": null,
+        "path": "release.manifest_json.source_retrieved_at",
+        "step": "release",
+        "value": null
+      },
+      "severity": "low"
+    },
+    {
       "description": "Quality checks were run against the release.",
       "id": "quality-recorded",
       "recommendation": "Run the quality checks before recommending publication.",
@@ -173,6 +212,19 @@
         "value": null
       },
       "severity": "low"
+    },
+    {
+      "description": "The release queue for the dataset was read for context.",
+      "id": "queue-read",
+      "recommendation": "Check the other candidates for this dataset on the release list before deciding.",
+      "rule": {
+        "kind": "step_succeeded",
+        "operator": null,
+        "path": null,
+        "step": "queue",
+        "value": null
+      },
+      "severity": "low"
     }
   ],
   "schema_version": 1,
@@ -200,5 +252,5 @@
     }
   ],
   "title": "Release readiness review",
-  "version": "v1"
+  "version": "v2"
 }

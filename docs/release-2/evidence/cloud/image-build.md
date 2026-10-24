@@ -1,6 +1,6 @@
 ## Docker build and validation
 
-**PASSED** for `3c25c083e09e5f170767e63655593c0e5b9f1e27`: 18 image(s) built; 18 pinned to `IMAGE_TAG` in `docker-compose.azure.yml`.
+**PASSED** for `7b3fb43728582d21bb8c9722405c040e3c18cbf2`: 18 image(s) built; 18 pinned to `IMAGE_TAG` in `docker-compose.azure.yml`.
 
 | Compose model | Valid | Detail |
 |---|---|---|
@@ -9,21 +9,21 @@
 
 | Service | Image ID | Size (MB) | User |
 |---|---|---|---|
-| f1-backend | `3d726f9a0350` | 361 | propertyscope |
-| f1-db-api | `fd3c7dad7fe0` | 361 | propertyscope |
-| f1-db-loader | `803ccd11a180` | 361 | propertyscope |
-| f1-frontend | `e433cdc02f44` | 15 | 101 |
-| f1-runner | `2928f331073d` | 361 | propertyscope |
-| f2-backend | `37ae739db393` | 147 | propertyscope |
-| f2-db-api | `937350eb21bf` | 147 | propertyscope |
-| f2-frontend | `ca85c935de8f` | 13 | 101 |
-| f3-backend | `884b143016a9` | 154 | propertyscope |
-| f3-database | `6ef74eaa03a3` | 154 | propertyscope |
-| f3-frontend | `ed4d880fb839` | 14 | 101 |
-| f4-backend | `d85594c55b4b` | 168 | propertyscope |
-| f4-db-api | `8e6ce628da80` | 168 | propertyscope |
-| f4-frontend | `bea0f530d6c1` | 14 | 101 |
-| f5-backend | `21ecee1a7310` | 143 | propertyscope |
-| f5-db-api | `c46528afac4f` | 143 | propertyscope |
-| f5-frontend | `db09ac688165` | 13 | 101 |
-| shared-frontend | `a4c6e6ee1f61` | 15 | 101 |
+| f1-backend | `0ac14ff4b154` | 362 | propertyscope |
+| f1-db-api | `e15ac31e2757` | 362 | propertyscope |
+| f1-db-loader | `4cfbe8aa3f3b` | 362 | propertyscope |
+| f1-frontend | `edf93ab27634` | 15 | 101 |
+| f1-runner | `971429e65f29` | 362 | propertyscope |
+| f2-backend | `7a235d266370` | 147 | propertyscope |
+| f2-db-api | `a48c21649ea5` | 147 | propertyscope |
+| f2-frontend | `d1b9e8228f62` | 13 | 101 |
+| f3-backend | `a1e0e8f1ea51` | 155 | propertyscope |
+| f3-database | `e4c37cb73cf7` | 155 | propertyscope |
+| f3-frontend | `39025d3e2fee` | 14 | 101 |
+| f4-backend | `bd2f430fb54f` | 168 | propertyscope |
+| f4-db-api | `e1c7f51da293` | 168 | propertyscope |
+| f4-frontend | `5c6280ff6635` | 14 | 101 |
+| f5-backend | `9237131304ba` | 144 | propertyscope |
+| f5-db-api | `1752bf1e663d` | 144 | propertyscope |
+| f5-frontend | `58e6497a5e1c` | 13 | 101 |
+| shared-frontend | `875f72e235a3` | 15 | 101 |

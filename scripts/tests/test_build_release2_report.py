@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -142,13 +143,48 @@ def test_ci_rows_come_from_the_collected_record_and_flag_failed_runs(evidence: P
     assert (
         "[#353](https://github.com/MattShelton04/41026ASDProject/actions/runs/38719115720)" in row
     )
-    assert "| success |" in row and "`d449a43`" in row
     assert "34 passed, 0 failed (2 reports)" in row
     assert "[record](" in row
     owners = [match["owner"] for match in _todos(lines)]
     assert report.TEAM["1"] not in owners
     assert owners.count(report.TEAM["2"]) == 1
-    assert "1 failed (2 reports)" in next(line for line in lines if line.startswith("| 2 |"))
+    failed = next(line for line in lines if line.startswith("| 2 |"))
+    assert "(failure)" in failed and "1 failed (2 reports)" in failed
+    # Students 3-5 have no record, so the commits differ and get their own column.
+    assert lines[0] == "| Student | Successful `student-N.yml` run | Commit | Endpoint tests |"
+    assert "| `d449a43` |" in row
+
+
+def test_ci_rows_share_one_commit_sentence_and_require_two_passing_push_tests(
+    evidence: Path,
+) -> None:
+    (evidence / "ci").mkdir()
+    record = (
+        "| Field | Value |\n|---|---|\n"
+        "| Run | [#1 (ID 2, attempt 1)](https://github.com/o/r/actions/runs/2) |\n"
+        "| Conclusion | **success** |\n| Event | push |\n| Branch | main |\n"
+        "| Head SHA | `7b3fb43728582d21bb8c9722405c040e3c18cbf2` |\n\n"
+        "**PASSED**: 4 passed, 0 failed, 0 errors, 0 skipped of 4 tests in 0.2s\n"
+    )
+    for student in report.TEAM:
+        (evidence / "ci" / f"student-{student}.md").write_text(record, encoding="utf-8")
+    (evidence / "ci" / "student-1").mkdir()
+    (evidence / "ci" / "student-1" / "run.log").write_text("log\n", encoding="utf-8")
+    (evidence / "ci" / "student-4.md").write_text(
+        record.replace("4 passed", "1 passed"), encoding="utf-8"
+    )
+    (evidence / "ci" / "student-5.md").write_text(
+        record.replace("| push |", "| pull_request |"), encoding="utf-8"
+    )
+
+    lines = report.ci_evidence("")
+
+    assert lines[0] == "| Student | Successful `student-N.yml` run | Endpoint tests |"
+    assert "Every run is a push to `main` at `7b3fb43`." in lines
+    assert "[log](" in next(line for line in lines if line.startswith("| 1 |"))
+    assert "(2 reports)" not in "\n".join(lines)
+    owners = sorted(match["owner"] for match in _todos(lines))
+    assert owners == sorted([report.TEAM["4"], report.TEAM["5"]])
 
 
 def test_review_summary_shows_verdict_checklist_run_log_and_summary(evidence: Path) -> None:
@@ -172,6 +208,32 @@ def test_review_summary_shows_verdict_checklist_run_log_and_summary(evidence: Pa
     assert "`7d700a5f`" in lines[2] and "2026-10-09" in lines[2] and "2 entries" in lines[2]
     assert lines[-1].startswith("> Every student's endpoints passed. ([full review](")
     assert not _todos(lines)
+
+
+def test_review_summary_explains_a_non_pass_verdict_with_its_first_finding(
+    evidence: Path,
+) -> None:
+    reviews = evidence / "reviews"
+    reviews.mkdir()
+    (reviews / "testing-review.md").write_text(
+        "| Field | Value |\n|---|---|\n| Verdict | **pass_with_risks** |\n\n"
+        "## Findings\n\n| Severity | Root cause | Owner | Finding |\n|---|---|---|---|\n"
+        "| medium | `security.dependencies-clean` | shared | The audit records 73 known "
+        "vulnerabilities. They are documented. |\n| low | `x` | shared | Never shown. |\n",
+        encoding="utf-8",
+    )
+    (reviews / "testing-validation-log.jsonl").write_text("", encoding="utf-8")
+    lines = report.review_summary("testing")
+    assert lines[-1] == (
+        "Finding (medium, shared, `security.dependencies-clean`): "
+        "The audit records 73 known vulnerabilities. They are documented."
+    )
+    (reviews / "testing-review.md").write_text(
+        "| Field | Value |\n|---|---|\n| Verdict | **pass** |\n\n## Findings\n\n"
+        "| Severity | Root cause | Owner | Finding |\n|---|---|---|---|\n| low | `x` | a | b |\n",
+        encoding="utf-8",
+    )
+    assert not any(line.startswith("Finding") for line in report.review_summary("testing"))
 
 
 def test_review_summary_prints_the_latest_validation_log_entry(evidence: Path) -> None:
@@ -206,14 +268,14 @@ def test_review_summary_prints_the_latest_validation_log_entry(evidence: Path) -
     line = next(item for item in report.review_summary("cloud") if item.startswith("Latest"))
     assert line == (
         "Latest validation-log entry: `review_completed`, review `44929d5d`, "
-        "`review-cloud.v2`, bundle `b0362e89`, 18 passed / 0 failed, verdict **pass**, 2026-10-18."
+        "`review-cloud.v2`, bundle `b0362e89`, 2026-10-18."
     )
 
     log.write_text(f"{json.dumps(review)}\n{json.dumps(decision)}\n", encoding="utf-8")
     line = next(item for item in report.review_summary("cloud") if item.startswith("Latest"))
     assert line.startswith("Latest validation-log entry: `human_release_decision` (**release**)")
-    assert "`review-cloud.v2`" in line and "18 passed / 0 failed" in line
-    assert line.endswith("verdict **pass**, 2026-10-19.")
+    assert "`review-cloud.v2`" in line and "passed" not in line
+    assert line.endswith("bundle `b0362e89`, 2026-10-19."), "the table already shows the verdict"
 
     long = "One two three. " + "word " * 40 + "end. Never shown."
     assert report._leading_sentences(long) == "One two three."
@@ -255,7 +317,9 @@ def test_multi_agent_runs_and_history_come_from_the_export(evidence: Path) -> No
     rows = report.multi_agent_runs("")
 
     row = next(line for line in rows if line.startswith("| 1 |"))
-    assert "[`18740ca5`](" in row and "| 2 | 5 | 3 | 2 | correct → partial |" in row
+    assert "[`18740ca5`](" in row and "| 3 | 2 | correct → partial |" in row
+    assert "| [2](" in row and "workflow_history.jsonl) | [5](" in row
+    assert "coordination_audit.jsonl) |" in row
     assert row.endswith("| `partially_accepted` |")
     assert {match["owner"] for match in _todos(rows)} == {
         report.TEAM[number] for number in ("2", "3", "4", "5")
@@ -263,6 +327,18 @@ def test_multi_agent_runs_and_history_come_from_the_export(evidence: Path) -> No
     block = report.workflow_history("multi-agent/student-1/run-a")
     assert block[0] == "```text" and block[-1] == "```"
     assert "01:21:32 r2 awaiting_human -> partially_accepted" in block[3]
+
+    # Citing one run per student keeps the table to the report's runs and counts the rest.
+    shutil.copytree(export, evidence / "multi-agent" / "student-1" / "run-b")
+    cited = report.multi_agent_runs("student-1/run-a")
+    assert sum(line.startswith("| 1 |") for line in cited) == 1
+    assert "Other exported runs in the evidence folders: 1." in cited
+    assert sum(line.startswith("| 1 |") for line in report.multi_agent_runs("student-1")) == 2
+    missing = report.multi_agent_runs("student-1/absent")
+    assert {match["owner"] for match in _todos(missing)} == {report.TEAM["1"]}
+    for selection in ("student-1 student-1/run-a", "student-9"):
+        with pytest.raises(ValueError, match="at most once"):
+            report.multi_agent_runs(selection)
 
 
 def test_local_and_cloud_evidence_summarise_their_reports(evidence: Path) -> None:
@@ -295,9 +371,10 @@ def test_local_and_cloud_evidence_summarise_their_reports(evidence: Path) -> Non
 
     local = report.local_evidence("")
     assert "**PASSED**, 3 of 3 checks passed, captured 2026-10-16 at commit `d449a43`" in local[0]
-    assert "| Host AI services | 2 | 0 |" in local and "| Data | 1 | 0 |" in local
+    assert "| Host AI services | 2 |" in local and "| Data | 1 |" in local
+    assert "| Check group | Passed |" in local  # no all-zero Failed column
     assert any(
-        line.startswith("| MCP | managed | `dev.py ai serve mcp` |")
+        line.startswith("| MCP | `dev.py ai serve mcp` |")  # one mode, so no Ran as column
         and "terminal-3-mcp.log" in line
         for line in local
     )
@@ -340,13 +417,22 @@ def complete_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Pa
     git("init", "--quiet")
     git("config", "user.name", "Report test")
     git("config", "user.email", "report-test@example.invalid")
-    (tmp_path / "evidence.txt").write_text("Recorded validation; fixture data.\n", encoding="utf-8")
-    git("add", "evidence.txt")
+    repository = report_pdf.REPOSITORY_URL
+    workflow_url = f"{repository}/actions/runs/123"
+    # One file stands in for every evidence kind, so it carries each kind's cross-checked fields.
+    (tmp_path / "evidence.txt").write_text(
+        "Recorded validation for run `run-1`; fixture data.\n\n| Field | Value |\n|---|---|\n"
+        f"| Workflow run | {workflow_url} |\n| Decision | **RELEASE** |\n"
+        "| Review ID | `be5514a8` |\n| Verdict | **pass** |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "run.json").write_text(
+        json.dumps({"id": "run-1", "decisions": [{"decision": "approve"}]}), encoding="utf-8"
+    )
+    git("add", "evidence.txt", "run.json")
     git("commit", "--quiet", "-m", "test: retain evidence")
     baseline = git("rev-parse", "HEAD")
     monkeypatch.setattr(report, "ROOT", tmp_path)
-    repository = report_pdf.REPOSITORY_URL
-    workflow_url = f"{repository}/actions/runs/123"
     sections = {key: key.replace("_", " ").title() for key in report.REQUIRED_SECTIONS}
     evidence = [
         {
@@ -397,6 +483,7 @@ def complete_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Pa
             for student in report.TEAM:
                 content += f"### Student {student}\n\n{baseline[:7]} delivered work.\n\n"
         if key == "showcase":
+            content += "[Section 14 showcase](https://youtu.be/example)\n\n"
             content += " ".join(f"{name} presented." for name in report.TEAM.values()) + "\n\n"
     source = tmp_path / "report.md"
     source.write_text(content, encoding="utf-8")
@@ -412,6 +499,33 @@ def test_final_accepts_a_complete_traceable_report(
     monkeypatch.setattr(report_pdf, "build", lambda *args: calls.append(args))
     assert report.main(["--source", str(source), "--final", "--baseline", baseline]) == 0
     assert calls[0][1] == report.OUTPUT
+
+
+def test_final_cross_checks_the_cited_evidence(complete_report: tuple[Path, str]) -> None:
+    source, baseline = complete_report
+    (source.parent / "evidence.txt").write_text(
+        "Run `run-2`.\n\n| Field | Value |\n|---|---|\n"
+        f"| Workflow run | {report_pdf.REPOSITORY_URL}/actions/runs/9 |\n"
+        "| Decision | **HOLD** |\n| Review ID | `be5514a8` |\n| Verdict | **fail** |\n",
+        encoding="utf-8",
+    )
+    (source.parent / "run.json").write_text(json.dumps({"id": "run-2"}), encoding="utf-8")
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "[Section 14 showcase](https://youtu.be/example)", "Section 14 showcase"
+        ),
+        encoding="utf-8",
+    )
+    blockers = report.final_content_blockers(source, baseline)
+    for expected in (
+        "evidence.txt does not name the cited cloud workflow run",
+        "evidence.txt does not record a RELEASE decision",
+        "evidence.txt records a failed or unknown verdict",
+        "evidence.txt must sit beside the decided run.json it summarises",
+        "the showcase section must link the showcase URL",
+    ):
+        assert any(expected in item for item in blockers), expected
+    assert not any("other than the cited cloud review" in item for item in blockers)
 
 
 def test_final_refuses_todos_and_pending_images(

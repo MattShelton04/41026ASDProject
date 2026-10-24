@@ -1202,8 +1202,11 @@ def capture(context: CaptureContext) -> dict[str, Any]:
     report["summary"] = summarise(job.checks)
     report["passed"] = report["summary"]["failed"] == 0
     report["verdict"] = "PASSED" if report["passed"] else "FAILED"
-    (output / f"{REPORT_NAME}.json").write_text(json.dumps(report, indent=2) + "\n", "utf-8")
-    (output / f"{REPORT_NAME}.md").write_text(render_markdown(report), "utf-8")
+    # LF on every platform, so hashes taken on Windows match the blob Git stores.
+    (output / f"{REPORT_NAME}.json").write_text(
+        json.dumps(report, indent=2) + "\n", "utf-8", newline="\n"
+    )
+    (output / f"{REPORT_NAME}.md").write_text(render_markdown(report), "utf-8", newline="\n")
     return report
 
 
@@ -1253,7 +1256,9 @@ def write_terminal(
             f"[{dropped:,} earlier bytes dropped to keep this log under {max_bytes:,} bytes]\n"
             + bounded
         )
-    (context.output_directory / terminal.filename).write_text(bounded, encoding="utf-8")
+    (context.output_directory / terminal.filename).write_text(
+        bounded, encoding="utf-8", newline="\n"
+    )
     return {
         "number": terminal.number,
         "title": terminal.title,
@@ -1275,7 +1280,7 @@ def sanitise_tree(redactor: Redactor, directory: Path) -> int:
             text = path.read_text(encoding="utf-8", errors="replace")
             cleaned, count = redactor.values(text)
             if count:
-                path.write_text(cleaned, encoding="utf-8")
+                path.write_text(cleaned, encoding="utf-8", newline="\n")
                 replaced += count
     return replaced
 

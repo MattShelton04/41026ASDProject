@@ -11,8 +11,8 @@ release decision are in [`../cloud/`](../cloud/README.md). The cloud review's re
 | B2 MCP tool call | **PASS** | Same run: `data.releases.v1` called over MCP |
 | B3 Grounded RAG answer | **PASS** | Run `56c85266-6cc9-4421-9f49-61794f55e7b3`: 2 citations from the `operator-guidance` corpus, grounding ready |
 | B4 Planner → Worker → Reviewer workflow | **PASS** | Run `2058658b-8c85-44ee-bebc-cfc0cd8ab8b8`: Feature 1 release review of the accepted `nsw-suburb-boundaries` release, all three roles completed with model providers. Decided in the Azure UI on 19 October: **rejected** by Matthew Shelton ([`ui/`](#ui-captures-19-october)) |
-| B5 Endpoint security | **PASS** (52 PASS, 0 FAIL) | [`endpoint-security.txt`](endpoint-security.txt) |
-| B6 Data security | **PASS** (43 PASS, 0 FAIL) | [`data-security.txt`](data-security.txt) |
+| B5 Endpoint security | **PASS** (58 PASS, 0 FAIL; 24 October) | [`../cloud/endpoint-security.txt`](../cloud/endpoint-security.txt), *Cloud Deployment* run 40041985429. Earlier 18 October copy here: [`endpoint-security.txt`](endpoint-security.txt) (52 PASS, 0 FAIL) |
+| B6 Data security | **PASS** (43 PASS, 0 FAIL; 24 October) | [`../cloud/data-security.txt`](../cloud/data-security.txt), from a laptop at 00:13 UTC. Earlier 18 October copy here: [`data-security.txt`](data-security.txt) (43 PASS, 0 FAIL) |
 
 ## B1–B4: Cloud AI Tier workflow run
 
@@ -26,6 +26,12 @@ release decision are in [`../cloud/`](../cloud/README.md). The cloud review's re
 | Probe window | 2026-10-18 10:53:59–10:54:46 UTC |
 | VM after the run | 21/21 containers running; host units `ai-mode`, `mcp`, `rag` and `multi-agent` active |
 | Artifact | `cloud-ai-on-817ef779771637629bbfe928c975d640b35aa797`, copied here unchanged |
+
+B1–B4 are unchanged since this run. *Cloud AI Tier* ran again before the showcase on 22 October in
+run [39720293518](https://github.com/MattShelton04/41026ASDProject/actions/runs/39720293518) on
+`dedda460`; its artifact was not copied here, so the files below are still those of run
+39119158736. The AI tier was turned off again after that run, and the 24 October AI-off
+deployment (run 40041985429 on `7b3fb437`) answered `503 ai_disabled`.
 
 The workflow turns the host AI tier on from the deployed commit (`deploy.sh ai on`), then
 `deploy.sh ai-probe` runs `scripts/cloud_ai_probe.py` through the public edge with the operator
@@ -78,21 +84,33 @@ pre-publication readiness recommendation does not apply (the Reviewer's high fin
 
 ## B5 and B6
 
-These are copies of the AI-off baseline files in [`../cloud/`](../cloud/README.md):
+The current B5 and B6 outputs are the AI-off baseline files in [`../cloud/`](../cloud/README.md),
+against the submitted commit `7b3fb437`:
+
+- B5 came from *Cloud Deployment* run
+  [40041985429](https://github.com/MattShelton04/41026ASDProject/actions/runs/40041985429)
+  (`deploy.sh validate-endpoint`, 00:06 UTC on 24 October): 58 PASS, 2 INFO, 0 FAIL.
+- B6 came from `deploy.sh validate-data`, run from a laptop against the same deployment at
+  00:13 UTC on 24 October: 43 PASS, 0 FAIL.
+
+### Earlier copies (18 October)
+
+`endpoint-security.txt` and `data-security.txt` in this folder are the earlier copies and were not
+replaced:
 
 - B5 came from *Cloud Deployment* run
   [39112162750](https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750)
-  (commit `3c25c083`, `deploy.sh validate-endpoint`).
+  (commit `3c25c083`, `deploy.sh validate-endpoint`): 52 PASS, 2 INFO, 0 FAIL.
 - B6 came from `deploy.sh validate-data`, run from a laptop against the same deployment on
-  18 October.
+  18 October: 43 PASS, 0 FAIL.
 
-Outside `docs/`, the B1–B4 deployment (`817ef779`) differs from that commit in three ways:
+Outside `docs/`, the B1–B4 deployment (`817ef779`) differed from that commit in three ways:
 
 - the Cloud AI Tier tooling (#156): workflow, `deploy.sh ai-probe` and the probe script;
 - the Multi-Agent unit's bind address (#158);
 - their tests.
 
-No application service code changed, so B5 and B6 still describe the running site.
+No application service code changed, so those copies described the site B1–B4 ran on.
 
 ## Turning the tier off
 

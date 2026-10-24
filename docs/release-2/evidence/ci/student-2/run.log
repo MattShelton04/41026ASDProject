@@ -1,69 +1,69 @@
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	﻿2026-10-20T13:56:33.7562389Z ##[group]Run uv run --locked pytest student-2/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-2-feature-origin.xml
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7563483Z ^[[36;1muv run --locked pytest student-2/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-2-feature-origin.xml^[[0m
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7613722Z shell: /usr/bin/bash -e {0}
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7614011Z env:
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7614229Z   AI_MODE_MCP_ENABLED: false
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7614508Z   AI_MODE_RAG_ENABLED: false
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7614858Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7615250Z   UV_PYTHON: 3.12
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7615526Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7615956Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5300
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7616376Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:33.7616714Z ##[endgroup]
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8623398Z ....                                                                     [100%]
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8624422Z ==================================== PASSES ====================================
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8625595Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-2-feature-origin.xml -
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8626961Z =========================== short test summary info ============================
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8628476Z PASSED student-2/tests/endpoints/test_market_case_create_endpoint.py::test_a_valid_case_is_created_and_readable_at_its_own_url
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8629866Z PASSED student-2/tests/endpoints/test_market_case_create_endpoint.py::test_an_invalid_date_window_is_refused_and_creates_nothing
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8631194Z PASSED student-2/tests/endpoints/test_market_case_update_endpoint.py::test_an_update_with_the_current_version_succeeds
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8632497Z PASSED student-2/tests/endpoints/test_market_case_update_endpoint.py::test_a_stale_version_is_refused_and_changes_nothing
-feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-20T13:56:34.8633276Z 4 passed in 0.29s
-feature-2-quality	Publish endpoint test summary	﻿2026-10-20T13:56:35.0401842Z ##[group]Run status=0
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0402167Z ^[[36;1mstatus=0^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0402408Z ^[[36;1mfor origin in feature-origin; do^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0402778Z ^[[36;1m  report="endpoint-results/student-2-${origin}.xml"^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0403154Z ^[[36;1m  if [ -f "$report" ]; then^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0404165Z ^[[36;1m    uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 2 endpoint tests (${origin})" --output "endpoint-results/student-2-${origin}.md" --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY" || status=1^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0405191Z ^[[36;1m  else^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0405447Z ^[[36;1m    echo "::error::Missing $report" && status=1^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0405759Z ^[[36;1m  fi^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0405950Z ^[[36;1mdone^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0406147Z ^[[36;1mexit "$status"^[[0m
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0455671Z shell: /usr/bin/bash -e {0}
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0455928Z env:
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0456127Z   AI_MODE_MCP_ENABLED: false
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0456448Z   AI_MODE_RAG_ENABLED: false
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0456763Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0457323Z   UV_PYTHON: 3.12
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0457580Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
-feature-2-quality	Publish endpoint test summary	2026-10-20T13:56:35.0457897Z ##[endgroup]
-feature-2-quality	Upload endpoint test results	﻿2026-10-20T13:56:35.5902391Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5902833Z with:
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5903045Z   name: student-2-endpoint-tests
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5903313Z   path: endpoint-results/
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5903556Z   if-no-files-found: error
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5903789Z   retention-days: 30
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5904000Z   compression-level: 6
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5904210Z   overwrite: false
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5904422Z   include-hidden-files: false
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5904655Z   archive: true
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5904845Z env:
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5905031Z   AI_MODE_MCP_ENABLED: false
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5905267Z   AI_MODE_RAG_ENABLED: false
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5905577Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5905901Z   UV_PYTHON: 3.12
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5906147Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.5906458Z ##[endgroup]
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.7510515Z With the provided path, there will be 2 files uploaded
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.7518040Z Artifact name is valid!
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:35.7518788Z Root directory input is valid!
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.1188970Z Uploading artifact: student-2-endpoint-tests.zip
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.1231862Z Beginning upload of artifact content to blob storage
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.4283033Z Uploaded bytes 961
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.5023862Z Finished uploading artifact content to blob storage!
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.5024990Z SHA256 digest of uploaded artifact is 62111d693ebf976c89be3316f618b879778d4c12eb8eba3794d495ae78dcf3d5
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.5026328Z Finalizing artifact upload
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.9617625Z Artifact student-2-endpoint-tests successfully finalized. Artifact ID 12270140668
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.9618952Z Artifact student-2-endpoint-tests has been successfully uploaded! Final size is 961 bytes. Artifact ID is 12270140668
-feature-2-quality	Upload endpoint test results	2026-10-20T13:56:36.9621990Z Artifact download URL: https://github.com/MattShelton04/41026ASDProject/actions/runs/39434589653/artifacts/12270140668
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	﻿2026-10-23T23:52:26.6903381Z ##[group]Run uv run --locked pytest student-2/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-2-feature-origin.xml
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6904456Z uv run --locked pytest student-2/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-2-feature-origin.xml
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6969430Z shell: /usr/bin/bash -e {0}
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6969711Z env:
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6969913Z   AI_MODE_MCP_ENABLED: false
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6970181Z   AI_MODE_RAG_ENABLED: false
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6970493Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6970843Z   UV_PYTHON: 3.12
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6971100Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6971487Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5300
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6971860Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:26.6972158Z ##[endgroup]
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7475096Z ....                                                                     [100%]
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7476224Z ==================================== PASSES ====================================
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7477687Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-2-feature-origin.xml -
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7478960Z =========================== short test summary info ============================
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7479974Z PASSED student-2/tests/endpoints/test_market_case_create_endpoint.py::test_a_valid_case_is_created_and_readable_at_its_own_url
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7481245Z PASSED student-2/tests/endpoints/test_market_case_create_endpoint.py::test_an_invalid_date_window_is_refused_and_creates_nothing
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7482429Z PASSED student-2/tests/endpoints/test_market_case_update_endpoint.py::test_an_update_with_the_current_version_succeeds
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7483599Z PASSED student-2/tests/endpoints/test_market_case_update_endpoint.py::test_a_stale_version_is_refused_and_changes_nothing
+feature-2-quality	Run Feature 2 endpoint tests on the feature origin	2026-10-23T23:52:27.7484275Z 4 passed in 0.28s
+feature-2-quality	Publish endpoint test summary	﻿2026-10-23T23:52:27.8952587Z ##[group]Run status=0
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8952882Z status=0
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8953109Z for origin in feature-origin; do
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8953458Z   report="endpoint-results/student-2-${origin}.xml"
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8953796Z   if [ -f "$report" ]; then
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8955082Z     uv run --locked python -m shared_testkit.junit_summary "$report" --title "Feature 2 endpoint tests (${origin})" --output "endpoint-results/student-2-${origin}.md" --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY" || status=1
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8956258Z   else
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8956511Z     echo "::error::Missing $report" && status=1
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8956801Z   fi
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8956983Z done
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.8957174Z exit "$status"
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9018629Z shell: /usr/bin/bash -e {0}
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9018886Z env:
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9019092Z   AI_MODE_MCP_ENABLED: false
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9019371Z   AI_MODE_RAG_ENABLED: false
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9019673Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9020010Z   UV_PYTHON: 3.12
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9020257Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-2-quality	Publish endpoint test summary	2026-10-23T23:52:27.9020549Z ##[endgroup]
+feature-2-quality	Upload endpoint test results	﻿2026-10-23T23:52:28.4294880Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4295601Z with:
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4295911Z   name: student-2-endpoint-tests
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4296198Z   path: endpoint-results/
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4296450Z   if-no-files-found: error
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4296682Z   retention-days: 30
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4296897Z   compression-level: 6
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4297106Z   overwrite: false
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4297313Z   include-hidden-files: false
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4297549Z   archive: true
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4297742Z env:
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4297926Z   AI_MODE_MCP_ENABLED: false
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4298156Z   AI_MODE_RAG_ENABLED: false
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4298457Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4298794Z   UV_PYTHON: 3.12
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4299047Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.4299342Z ##[endgroup]
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.5915680Z With the provided path, there will be 2 files uploaded
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.5916707Z Artifact name is valid!
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.5917192Z Root directory input is valid!
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.9815171Z Uploading artifact: student-2-endpoint-tests.zip
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:28.9854994Z Beginning upload of artifact content to blob storage
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.2157093Z Uploaded bytes 962
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.2694780Z Finished uploading artifact content to blob storage!
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.2696112Z SHA256 digest of uploaded artifact is 9874da90ba675339dc69e6cae885025fff48299f1f05b04f91fcb43ac5982a18
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.2697094Z Finalizing artifact upload
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.8825557Z Artifact student-2-endpoint-tests successfully finalized. Artifact ID 12539297990
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.8827324Z Artifact student-2-endpoint-tests has been successfully uploaded! Final size is 962 bytes. Artifact ID is 12539297990
+feature-2-quality	Upload endpoint test results	2026-10-23T23:52:29.8830311Z Artifact download URL: https://github.com/MattShelton04/41026ASDProject/actions/runs/40041938639/artifacts/12539297990
