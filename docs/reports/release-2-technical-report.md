@@ -9,10 +9,8 @@
 | Team | Matthew Shelton, Burhan Naeem, James Huang, Michael White, Derek Song |
 | Due | 25 October 2026, 11:59 pm Sydney time |
 | Repository | [MattShelton04/41026ASDProject](https://github.com/MattShelton04/41026ASDProject) |
-| Showcase video | Pending |
+| Showcase video | [YouTube](https://www.youtube.com/watch?v=0GocJXh61VM) |
 | Commit reference | [[BASELINE]] |
-
-[[TODO: Group | Replace "Pending" with the published showcase video link, and use the same URL in RELEASE2_METADATA and Section 14]]
 
 <!--
 Authors: the brief allows 3,000 words. Cover text, captions, tables, generated tables and code
@@ -385,13 +383,13 @@ managed identity, encrypted disks, OIDC without secrets, and internal database n
 
 ## 14 Showcase video
 
-[[TODO: Group | Link the published showcase video (at most 10 minutes) and record which students participated]]
+[Showcase video](https://www.youtube.com/watch?v=0GocJXh61VM): a pre-recorded walkthrough in which all five members, Matthew Shelton, Burhan Naeem, James Huang, Michael White and Derek Song, present their work.
 
 <!-- RELEASE2_METADATA
 schema_version: 1
 baseline: '[[BASELINE]]'
 repository_url: https://github.com/MattShelton04/41026ASDProject
-showcase_url: ''
+showcase_url: https://www.youtube.com/watch?v=0GocJXh61VM
 sections:
   overview: 1 Project overview
   repository: 2 Final repository structure
@@ -542,5 +540,10 @@ contributions:
   section: Student 5 Derek Song
   commits:
   - a400cb0
-attendance: {}
+attendance:
+  1: Matthew Shelton
+  2: Burhan Naeem
+  3: James Huang
+  4: Michael White
+  5: Derek Song
 -->
