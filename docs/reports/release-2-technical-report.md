@@ -296,9 +296,8 @@ synthetic-data disclosure, and Burhan approved it, 0 failed and 11 passed.
 
 UI run `5338d71c` reviewed seeded comparison `comparison-10` (Newcastle and Wollongong, rate). The
 Reviewer recommended correct: coverage was unavailable, the denominator invalid and the seeded-data
-disclosure missing. The human reviewer, Claude Code acting outside the multi-agent system, sent it
-back; round two added the disclosure, the Reviewer again recommended correct, and the reviewer
-rejected it until counts are used or the missing BOCSAR months are published.
+disclosure missing. It was sent back; round two added the disclosure, the Reviewer again recommended
+correct, and it was rejected until counts are used or the missing BOCSAR months are published.
 
 ### Student 4
 
