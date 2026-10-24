@@ -306,6 +306,8 @@ approve on all ten checks passing. Michael sent it back: the draft referred to t
 list, missed two conflicting records and did not plainly disclose seeded data. Round two fixed all
 three, and Michael approved it, noting three questions still to write.
 
+![Figure 10 F2–F4 workflow panels in the live app](assets/release-2/screenshots/multi-agent-panels.png)
+
 ### Student 5
 
 UI run `e9600341` reviewed seeded case `Wollongong coastal review`. The Reviewer recommended correct:
@@ -316,9 +318,7 @@ recommended partial (one high, two medium failures). Derek approved it anyway.
 
 Commit history:
 [https://github.com/MattShelton04/41026ASDProject/commits/main](https://github.com/MattShelton04/41026ASDProject/commits/main).
-Matthew's commits:
-[https://github.com/MattShelton04/41026ASDProject/commits/main?author=MattShelton04](https://github.com/MattShelton04/41026ASDProject/commits/main?author=MattShelton04);
-each student's GitHub username filters the same way, and Section 12 lists their commits.
+Section 12 lists each student's commits.
 
 ## 12 Contribution logs
 
@@ -330,8 +330,8 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 | 15–17 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43), [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81), [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272), [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111), [93d0f53](https://github.com/MattShelton04/41026ASDProject/commit/93d0f53) | CI and local evidence, report builder, release gate |
 | 17 Oct | [5e90231](https://github.com/MattShelton04/41026ASDProject/commit/5e90231), [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443), [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5), [cd8e56d](https://github.com/MattShelton04/41026ASDProject/commit/cd8e56d) | Azure switch-on, site login, security fixes |
 | 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6), [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08), [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31), [3ea2932](https://github.com/MattShelton04/41026ASDProject/commit/3ea2932), [817ef77](https://github.com/MattShelton04/41026ASDProject/commit/817ef77), [0cf5e3f](https://github.com/MattShelton04/41026ASDProject/commit/0cf5e3f) | F1 suburb-map API, real data and Cloud AI Tier on Azure, cloud and bonus evidence, release decision |
-| 19–21 Oct | [daee27d](https://github.com/MattShelton04/41026ASDProject/commit/daee27d), [70f3b9a](https://github.com/MattShelton04/41026ASDProject/commit/70f3b9a), [cb71215](https://github.com/MattShelton04/41026ASDProject/commit/cb71215) | Report against the rubric, B1–B4 UI captures, edge protection for F2 and F4 workflows |
-| 21–24 Oct | [dedda46](https://github.com/MattShelton04/41026ASDProject/commit/dedda46), [002691e](https://github.com/MattShelton04/41026ASDProject/commit/002691e), [d7602b7](https://github.com/MattShelton04/41026ASDProject/commit/d7602b7), [81c833d](https://github.com/MattShelton04/41026ASDProject/commit/81c833d), [7b3fb43](https://github.com/MattShelton04/41026ASDProject/commit/7b3fb43) | Students 2 and 4 report sections, CVE fixes, review bundle limits, CI resilience, cold-start smoke retry |
+| 19 Oct | [daee27d](https://github.com/MattShelton04/41026ASDProject/commit/daee27d), [70f3b9a](https://github.com/MattShelton04/41026ASDProject/commit/70f3b9a) | Report against the rubric, B1–B4 UI captures |
+| 22–24 Oct | [002691e](https://github.com/MattShelton04/41026ASDProject/commit/002691e), [d7602b7](https://github.com/MattShelton04/41026ASDProject/commit/d7602b7), [81c833d](https://github.com/MattShelton04/41026ASDProject/commit/81c833d), [7b3fb43](https://github.com/MattShelton04/41026ASDProject/commit/7b3fb43) | CVE fixes, review bundle limits, CI resilience, cold-start smoke retry |
 
 ### Student 2 Burhan Naeem
 
@@ -381,7 +381,7 @@ B5 checks TLS 1.2+, the HTTPS redirect, HSTS, CSP and framing headers, the site 
 credentials on AI and workflow routes. B6 checks Key Vault RBAC and purge protection, least-privilege
 managed identity, encrypted disks, OIDC without secrets, and internal database networks.
 
-![Figure 10 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
+![Figure 11 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
 
 ## 14 Showcase video
 
@@ -518,8 +518,6 @@ contributions:
   - 0cf5e3f
   - daee27d
   - 70f3b9a
-  - cb71215
-  - dedda46
   - 002691e
   - d7602b7
   - 81c833d

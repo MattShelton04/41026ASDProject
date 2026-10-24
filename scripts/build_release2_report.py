@@ -98,9 +98,9 @@ SECTION_WORD_BUDGETS = {
     "7 ": 105,  # Testing review and its latest validation-log entry
     "8 ": 165,  # Local deployment and multi-terminal logs
     "9 ": 185,  # Cloud deployment report, job timings, review and human release decision
-    "10 ": 505,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
-    "11 ": 25,  # GitHub commit log and author-filtered URLs
-    "12 ": 305,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
+    "10 ": 515,  # Multi-agent evidence: F1 worked example, F2-F4 panels, ~50 words per student
+    "11 ": 15,  # GitHub commit log URL
+    "12 ": 295,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
     "13 ": 145,  # Bonus claim table B1-B6 and the B5/B6 controls
     "14 ": 40,  # Showcase video and participation
 }
