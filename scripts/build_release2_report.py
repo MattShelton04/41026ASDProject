@@ -18,6 +18,7 @@ the final guard over the hidden RELEASE2_METADATA evidence index. See docs/repor
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
@@ -90,17 +91,17 @@ URL_KINDS = {"ci", "cloud-workflow"}
 SECTION_WORD_BUDGETS = {
     "1 ": 180,  # Project overview, team, allocation, Release 1 to Release 2
     "2 ": 110,  # Final repository structure
-    "3 ": 350,  # Design flow: shared flows plus about 40 words per student
+    "3 ": 330,  # Design flow: shared flows plus about 40 words per student
     "4 ": 220,  # Azure reference architecture, DevOps flow and deployment scripts
     "5 ": 195,  # Pre-commit security testing (generated summary and slice table)
     "6 ": 430,  # Post-commit CI: generated run table plus about 60 words per student
     "7 ": 105,  # Testing review and its latest validation-log entry
-    "8 ": 185,  # Local deployment and multi-terminal logs
-    "9 ": 195,  # Cloud deployment report, job timings, review and human release decision
+    "8 ": 165,  # Local deployment and multi-terminal logs
+    "9 ": 185,  # Cloud deployment report, job timings, review and human release decision
     "10 ": 505,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
     "11 ": 25,  # GitHub commit log and author-filtered URLs
     "12 ": 305,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
-    "13 ": 100,  # Bonus claim table B1-B6
+    "13 ": 145,  # Bonus claim table B1-B6 and the B5/B6 controls
     "14 ": 40,  # Showcase video and participation
 }
 
@@ -158,7 +159,8 @@ def _shown(path: Path) -> str:
 
 def _read_text(path: Path) -> str | None:
     try:
-        return path.read_text(encoding="utf-8")
+        # utf-8-sig: a file saved by Windows PowerShell may start with a byte-order mark.
+        return path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError):
         return None
 
@@ -204,7 +206,7 @@ def feature_flows(_: str) -> list[str]:
     """Each enabled feature's CRUD path, retained Release 1 AI wiring and Release 2 workflow."""
     rows = [
         "| Student | Frontend → backend/API → database | MCP tools | RAG documents "
-        "| Multi-agent template |",
+        "| Multi-agent template (read-only tools) |",
         "|---|---|---|---|---|",
     ]
     for manifest in release1._feature_manifests():
@@ -221,7 +223,7 @@ def feature_flows(_: str) -> list[str]:
         if template.is_file():
             document = yaml.safe_load(template.read_text(encoding="utf-8")) or {}
             tools = len(document.get("allowed_tools") or [])
-            workflow = f"`{document.get('id', '?')}` ({tools} read-only tools)"
+            workflow = f"`{document.get('id', '?')}` ({tools})"
         rows.append(
             f"| {manifest['_student'].split('-')[1]} | :{port} → "
             f"`{manifest.get('backend_base_path', '?')}` → {databases or '-'} "
@@ -273,12 +275,18 @@ TOTALS = re.compile(
 RUN_LINK = re.compile(r"\[#(\d+)[^\]]*\]\((https://github\.com/[^)]+/actions/runs/\d+[^)]*)\)")
 
 
-def _ci_row(student: str) -> tuple[str, str | None]:
+def _ci_row(student: str) -> tuple[list[str], str, str | None]:
+    """Run, endpoint-test and commit cells for one student, and a TODO when the run is not usable.
+
+    The run must be a successful push to ``main`` whose endpoint tests pass at least twice (two
+    endpoint functions), with no failure or error.
+    """
     path = EVIDENCE_DIR / "ci" / f"student-{student}.md"
     text = _read_text(path)
     if text is None:
         return (
-            f"| {student} | Pending | - | - | - |",
+            ["Pending", "-"],
+            "-",
             _todo(
                 TEAM.get(student, "Owner"),
                 f"Record a green `student-{student}.yml` run on main with "
@@ -290,41 +298,61 @@ def _ci_row(student: str) -> tuple[str, str | None]:
     conclusion = _plain(fields.get("Conclusion", "unknown"))
     sha = _plain(fields.get("Head SHA", ""))[:7] or "-"
     totals = [tuple(int(value) for value in match) for match in TOTALS.findall(text)]
-    failed = errors = 0
+    passed = failed = errors = 0
     if totals:
         passed, failed, errors = (sum(item[index] for item in totals) for index in range(3))
-        reports = f"{len(totals)} report{'s' if len(totals) != 1 else ''}"
-        tests = f"{passed} passed, {failed + errors} failed ({reports})"
+        reports = f" ({len(totals)} reports)" if len(totals) > 1 else ""
+        tests = f"{passed} passed, {failed + errors} failed{reports}"
     else:
         tests = "No JUnit totals"
     run_cell = f"[#{run[1]}]({run[2]})" if run else "Unlinked"
-    record = f"[record]({_link(path)})"
-    row = f"| {student} | {run_cell} | {_cell(conclusion)} | `{sha}` | {tests} ({record}) |"
+    if conclusion != "success":
+        run_cell += f" ({_cell(conclusion)})"
+    links = [f"[record]({_link(path)})"]
+    log = path.parent / f"student-{student}" / "run.log"
+    if log.is_file():
+        links.append(f"[log]({_link(log)})")
     issue = None
-    if not run or conclusion != "success" or not totals or failed + errors:
+    pushed = _plain(fields.get("Event", "push")) == "push"
+    on_main = _plain(fields.get("Branch", "main")) == "main"
+    if not (run and conclusion == "success" and pushed and on_main) or (
+        passed < 2 or failed + errors
+    ):
         issue = _todo(
             TEAM.get(student, "Owner"),
-            f"`{_shown(path)}` must link a successful run whose endpoint tests all pass",
+            f"`{_shown(path)}` must link a successful push run on main whose endpoint tests "
+            "pass at least twice and never fail",
         )
-    return row, issue
+    return [run_cell, f"{tests} ({', '.join(links)})"], sha, issue
 
 
 def ci_evidence(_: str) -> list[str]:
-    """One row per student from ``ci/student-N.md``, written by ``collect_ci_evidence.py``."""
-    rows = [
-        "| Student | `student-N.yml` run | Conclusion | Commit | Endpoint tests |",
-        "|---|---|---|---|---|",
-    ]
+    """One row per student from ``ci/student-N.md``, written by ``collect_ci_evidence.py``.
+
+    The commit gets its own column only when the runs tested different commits; otherwise one
+    sentence names it.
+    """
+    results = {student: _ci_row(student) for student in TEAM}
+    shas = {sha for _, sha, _ in results.values()}
+    shared = next(iter(shas)) if len(shas) == 1 and "-" not in shas else None
+    header = "| Student | Successful `student-N.yml` run | Endpoint tests |"
+    if not shared:
+        header = header.replace("| Endpoint tests |", "| Commit | Endpoint tests |")
+    rows = [header, "|" + "---|" * header.count(" | ") + "---|"]
     issues: list[str] = []
-    for student in TEAM:
-        row, issue = _ci_row(student)
-        rows.append(row)
+    for student, (cells, sha, issue) in results.items():
+        if not shared:
+            cells = [cells[0], f"`{sha}`", cells[1]]
+        rows.append(f"| {student} | " + " | ".join(cells) + " |")
         if issue:
             issues.append(issue)
+    if shared:
+        rows += ["", f"Every run is a push to `main` at `{shared}`."]
     return rows + (["", *issues] if issues else [])
 
 
 SUMMARY_WORD_CAP = 30
+FINDING_WORD_CAP = 20
 
 
 def _leading_sentences(text: str, cap: int = SUMMARY_WORD_CAP) -> str:
@@ -353,11 +381,13 @@ def _log_entries(text: str) -> list[dict[str, Any]]:
     return entries
 
 
-def latest_log_entry(text: str) -> str | None:
+def latest_log_entry(text: str, shown: Iterable[str] = ()) -> str | None:
     """One line for the newest validation-log entry of a review mode.
 
-    A human decision entry carries no prompt set or checks, so those come from the newest entry
-    for the same review ID (the review it decided on).
+    A verdict or date already in ``shown`` (the review table above the line) is not repeated.
+
+    A human decision entry carries no prompt set, so that comes from the newest entry for the
+    same review ID (the review it decided on). Check counts are left to the table above it.
     """
     entries = [entry for entry in _log_entries(text) if entry.get("event")]
     if not entries:
@@ -367,7 +397,7 @@ def latest_log_entry(text: str) -> str | None:
         (
             entry
             for entry in reversed(entries)
-            if entry.get("review_id") == latest.get("review_id") and "checks_passed" in entry
+            if entry.get("review_id") == latest.get("review_id") and entry.get("prompt_set")
         ),
         latest,
     )
@@ -380,17 +410,24 @@ def latest_log_entry(text: str) -> str | None:
         parts.append(f"`{_cell(review['prompt_set'])}`")
     if latest.get("bundle_sha256"):
         parts.append(f"bundle `{_cell(str(latest['bundle_sha256'])[:8])}`")
-    if "checks_passed" in review:
-        parts.append(
-            f"{review.get('checks_passed', 0)} passed / {review.get('checks_failed', 0)} failed"
-        )
+    shown = set(shown)
     verdict = latest.get("verdict") or latest.get("review_verdict")
-    if verdict:
+    if verdict and str(verdict) not in shown:
         parts.append(f"verdict **{_cell(verdict)}**")
     when = str(latest.get("decided_at") or latest.get("finished_at") or latest.get("at") or "")
-    if when[:10]:
+    if when[:10] and when[:10] not in shown:
         parts.append(when[:10])
     return "Latest validation-log entry: " + ", ".join(parts) + "."
+
+
+def _first_finding(text: str) -> str | None:
+    """The first row of a review's ``## Findings`` table, which explains a non-pass verdict."""
+    for row in _table_after(text, "## Findings"):
+        if len(row) >= 4:
+            severity, root_cause, owner, finding = (_plain(cell) for cell in row[:4])
+            summary = _leading_sentences(finding, FINDING_WORD_CAP)
+            return f"Finding ({severity}, {owner}, `{root_cause.strip('`')}`): {summary}"
+    return None
 
 
 def review_summary(argument: str) -> list[str]:
@@ -404,7 +441,11 @@ def review_summary(argument: str) -> list[str]:
     if text is None:
         return [_todo(SHARED_OWNER, f"Run `dev.py ai review {mode}` to write `{_shown(path)}`")]
     fields = _fields(text)
-    checklist = re.search(r"^## Checklist \((\d+)/(\d+) passed\)", text, re.MULTILINE)
+    # "36 passed, 1 failed, 0 blocked (not evaluated) of 37"; older reports wrote "(24/26 passed)".
+    checklist = re.search(
+        r"(\d+) passed, \d+ failed, \d+ blocked.*? of (\d+)", fields.get("Checks", "")
+    )
+    checklist = checklist or re.search(r"^## Checklist \((\d+)/(\d+) passed\)", text, re.MULTILINE)
     summary = re.search(r"^## Summary\s*\n+(.+?)\n\s*\n", text, re.MULTILINE | re.DOTALL)
     run = re.search(r"`([0-9a-f-]{8})[0-9a-f-]*`", fields.get("Loop run ID", ""))
     model = fields.get("Provider / model", "")
@@ -422,12 +463,16 @@ def review_summary(argument: str) -> list[str]:
         f"| {engine}, {_cell(model) if model else '-'} | `{run[1] if run else '-'}` | {when} "
         f"| [{entries} {'entry' if entries == 1 else 'entries'}]({_link(log)}) |",
     ]
-    latest = latest_log_entry(log_text) if log_text is not None else None
+    verdict = _plain(fields.get("Verdict", "unknown"))
+    latest = latest_log_entry(log_text, {verdict, when}) if log_text is not None else None
     if latest:
         rows += ["", latest]
     if summary:
         quote = _leading_sentences(" ".join(summary[1].split()))
         rows += ["", f"> {_cell(quote)} ([full review]({_link(path)}))"]
+    finding = _first_finding(text) if verdict != "pass" else None
+    if finding:
+        rows += ["", finding]
     if log_text is None:
         rows.append(_todo(SHARED_OWNER, f"Commit the validation log `{_shown(log)}`"))
     return rows
@@ -438,15 +483,16 @@ def _jsonl(path: Path) -> list[dict[str, Any]] | None:
     if text is None:
         return None
     try:
-        return [json.loads(line) for line in text.splitlines() if line.strip()]
+        items = [json.loads(line) for line in text.splitlines() if line.strip()]
     except ValueError:
         return None
+    return [item for item in items if isinstance(item, dict)]
 
 
 def _run_row(directory: Path) -> str | None:
     """A summary row for one exported run, or None when the export is incomplete."""
     try:
-        run = json.loads((directory / "run.json").read_text(encoding="utf-8"))
+        run = json.loads((directory / "run.json").read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return None
     history = _jsonl(directory / "workflow_history.jsonl")
@@ -457,9 +503,12 @@ def _run_row(directory: Path) -> str | None:
     decisions = " → ".join(
         str(item.get("decision")) for item in run.get("decisions") or [] if isinstance(item, dict)
     )
+    history_link = _link(directory / "workflow_history.jsonl")
+    audit_link = _link(directory / "coordination_audit.jsonl")
     return (
         f"| [`{str(run.get('id', '?'))[:8]}`]({_link(directory / 'summary.md')}) "
-        f"| {len(history)} | {len(audit)} | {events['agent.handoff']} | {events['tool.call']} "
+        f"| [{len(history)}]({history_link}) | [{len(audit)}]({audit_link}) "
+        f"| {events['agent.handoff']} | {events['tool.call']} "
         f"| {decisions or '-'} | `{_cell(run.get('state', '?'))}` |"
     )
 
@@ -471,6 +520,10 @@ def multi_agent_runs(argument: str) -> list[str]:
     the report cites, with the student's other exports counted beneath the table).
     """
     selections = argument.split() or [f"student-{number}" for number in TEAM]
+    students = [selection.partition("/")[0] for selection in selections]
+    unknown = sorted(set(students) - {f"student-{number}" for number in TEAM})
+    if unknown or len(set(students)) != len(students):
+        raise ValueError(f"name each of student-1 … student-5 at most once: {argument!r}")
     rows = [
         "| Student | Run | History events | Audit events | Handoffs | Tool calls "
         "| Decisions | Final state |",
@@ -498,7 +551,7 @@ def multi_agent_runs(argument: str) -> list[str]:
                 )
             )
     if others:
-        rows += ["", f"Other exported runs kept in the evidence folders: {others}."]
+        rows += ["", f"Other exported runs in the evidence folders: {others}."]
     return rows + (["", *issues] if issues else [])
 
 
@@ -518,7 +571,7 @@ def workflow_history(argument: str) -> list[str]:
         source = item.get("from_state") or "-"
         lines.append(
             f"{_clock(item.get('at'))} r{item.get('round', '?')} {source:>14} -> "
-            f"{item.get('to_state', '?'):<18} {item.get('actor', '?')}"
+            f"{item.get('to_state') or '?':<18} {item.get('actor', '?')}"
         )
     return [*lines, "```"]
 
@@ -563,22 +616,36 @@ def local_evidence(argument: str) -> list[str]:
             f"`{commit[1][:7] if commit else 'unrecorded'}`."
         )
         groups = _check_groups(text)
-        if groups:
+        if groups and any(failed for _, _, failed in groups):
             rows += ["", "| Check group | Passed | Failed |", "|---|---|---|"]
             rows += [f"| {_cell(name)} | {passed} | {failed} |" for name, passed, failed in groups]
+        elif groups:
+            # Every check passed (the lead says so), so a column of zeros adds nothing.
+            rows += ["", "| Check group | Passed |", "|---|---|"]
+            rows += [f"| {_cell(name)} | {passed} |" for name, passed, _ in groups]
         if not verdict or verdict[2] != verdict[3]:
             rows.append(_todo(SHARED_OWNER, f"`{_shown(report)}` must record every check passing"))
         terminals = [row for row in _table_after(text, "## Terminals") if len(row) >= 4]
     if terminals:
-        rows += ["", "| Terminal | Ran as | Command | Log |", "|---|---|---|---|"]
-        for row in terminals:
-            # Find cells by content, so a column added to the capture's table never shifts them.
+        # Find cells by content, so a column added to the capture's table never shifts them.
+        modes = [
+            next((cell for cell in row if cell in {"managed", "foreground"}), "-")
+            for row in terminals
+        ]
+        mixed = len(set(modes)) > 1
+        rows += (
+            ["", "| Terminal | Ran as | Command | Log |", "|---|---|---|---|"]
+            if mixed
+            # One mode for every terminal: the prose names it, so the column is dropped.
+            else ["", "| Terminal | Command | Log |", "|---|---|---|"]
+        )
+        for row, ran_as in zip(terminals, modes, strict=True):
             log_cell = next((cell for cell in row if re.search(r"\]\(terminal-", cell)), "")
             log = re.search(r"\]\(([^)]+)\)", log_cell)
             target = f"[`{Path(log[1]).name}`]({_link(directory / log[1])})" if log else "-"
             command = next((cell for cell in row[2:] if cell.startswith("`")), "-")
-            ran_as = next((cell for cell in row if cell in {"managed", "foreground"}), "-")
-            rows.append(f"| {_cell(row[1])} | {ran_as} | {_cell(command)} | {target} |")
+            mode = f" {ran_as} |" if mixed else ""
+            rows.append(f"| {_cell(row[1])} |{mode} {_cell(command)} | {target} |")
         return rows
     logs = sorted(directory.glob("terminal-*.log")) if directory.is_dir() else []
     if logs:
@@ -782,6 +849,62 @@ def _evidence_issue(
     return None
 
 
+def _consistency_blockers(evidence: list[Any]) -> list[str]:
+    """Cross-check the indexed evidence files against each other.
+
+    The files come from the metadata ``path`` entries, so each check reads exactly what the
+    report cites: the deployment report names the cited workflow run, the release decision is
+    RELEASE on the cited cloud review, no review failed, and every cited workflow run reached a
+    human decision.
+    """
+    paths: dict[str, list[str]] = {}
+    urls: dict[str, str] = {}
+    for item in evidence:
+        if isinstance(item, dict):
+            kind = str(item.get("kind", ""))
+            if item.get("path"):
+                paths.setdefault(kind, []).append(str(item["path"]))
+            if item.get("url"):
+                urls[kind] = str(item["url"])
+
+    def fields(kind: str) -> list[tuple[str, dict[str, str]]]:
+        found = []
+        for path in paths.get(kind, []):
+            text = _read_text(ROOT / path)
+            if text is not None:
+                found.append((path, _fields(text)))
+        return found
+
+    def identifier(value: str) -> str:
+        match = re.search(r"`([0-9a-f-]+)`", value)
+        return match[1] if match else value.strip("` ")
+
+    blockers: list[str] = []
+    workflow = urls.get("cloud-workflow", "")
+    for path, values in fields("cloud-deployment"):
+        if workflow and values.get("Workflow run") != workflow:
+            blockers.append(f"{path} does not name the cited cloud workflow run {workflow}")
+    reviews = {identifier(values.get("Review ID", "")) for _, values in fields("cloud-review")}
+    for path, values in fields("release-decision"):
+        if _plain(values.get("Decision", "")) != "RELEASE":
+            blockers.append(f"{path} does not record a RELEASE decision")
+        if identifier(values.get("Review ID", "")) not in reviews:
+            blockers.append(f"{path} decided a review other than the cited cloud review")
+    for kind in ("cloud-review", "testing-review", "multi-agent-review"):
+        for path, values in fields(kind):
+            if _plain(values.get("Verdict", "")) not in {"pass", "pass_with_risks"}:
+                blockers.append(f"{path} records a failed or unknown verdict")
+    for path in paths.get("multi-agent", []):
+        try:
+            run = json.loads((ROOT / path).parent.joinpath("run.json").read_text("utf-8-sig"))
+        except (OSError, ValueError):
+            run = None
+        decided = isinstance(run, dict) and run.get("decisions")
+        if not decided or str(run.get("id", "")) not in (_read_text(ROOT / path) or ""):
+            blockers.append(f"{path} must sit beside the decided run.json it summarises")
+    return blockers
+
+
 def final_content_blockers(source: Path, baseline: str) -> list[str]:
     """Check the evidence index against rendered content and the selected baseline commit."""
     blockers: list[str] = []
@@ -809,6 +932,8 @@ def final_content_blockers(source: Path, baseline: str) -> list[str]:
     sections = _section_bodies(source)
     declared = metadata.get("sections")
     declared = declared if isinstance(declared, dict) else {}
+    if video and video not in sections.get(str(declared.get("showcase", "")), ""):
+        blockers.append("the showcase section must link the showcase URL")
     for requirement in REQUIRED_SECTIONS:
         title = declared.get(requirement)
         if not isinstance(title, str) or not sections.get(title, "").strip():
@@ -870,6 +995,7 @@ def final_content_blockers(source: Path, baseline: str) -> list[str]:
         for student in TEAM
         if student not in recorded
     ]
+    blockers += _consistency_blockers(evidence if isinstance(evidence, list) else [])
     attendance = metadata.get("attendance")
     attendance = attendance if isinstance(attendance, dict) else {}
     showcase = sections.get(str(declared.get("showcase", "")), "")
@@ -909,6 +1035,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         help="Refresh Mermaid PNGs and their drift manifest before building",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        # A Windows console code page cannot print every character the status table uses.
+        sys.stdout.reconfigure(errors="replace")
     source = args.source.resolve()
     status = report_pdf.review(source, SPEC)
     print(report_pdf.format_status(status, SPEC))

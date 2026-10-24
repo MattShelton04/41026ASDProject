@@ -10,7 +10,6 @@
 | Due | 25 October 2026, 11:59 pm Sydney time |
 | Repository | [MattShelton04/41026ASDProject](https://github.com/MattShelton04/41026ASDProject) |
 | Showcase video | Pending |
-| Showcase | 23 October 2026 |
 | Commit reference | [[BASELINE]] |
 
 [[TODO: Group | Replace "Pending" with the published showcase video link, and use the same URL in RELEASE2_METADATA and Section 14]]
@@ -41,10 +40,10 @@ Release 0–1 AI-mode, agentic loop, MCP and RAG servers, and adds:
 | Student | Feature | Release 2 responsibility |
 |---|---|---|
 | 1 Matthew Shelton (24763373) | F1 Data platform and property discovery | Shared platform (Multi-Agent Server, review modes, security scans, test kit, Azure); F1 workflow and endpoint tests |
-| 2 Burhan Naeem (24764134) | F2 Property sales and market cases | F2 workflow, endpoint tests and evidence |
-| 3 James Huang (24970865) | F3 Suburb, crime and liveability analytics | F3 workflow, endpoint tests and evidence |
-| 4 Michael White (24846267) | F4 Site, planning and building due diligence | F4 workflow, endpoint tests and evidence |
-| 5 Derek Song (24833978) | F5 Buyer journey workspace | F5 workflow, endpoint tests and evidence |
+| 2 Burhan Naeem (24764134) | F2 Property sales and market cases | Workflow, endpoint tests, evidence |
+| 3 James Huang (24970865) | F3 Suburb, crime and liveability analytics | Workflow, endpoint tests, evidence |
+| 4 Michael White (24846267) | F4 Site, planning and building due diligence | Workflow, endpoint tests, evidence |
+| 5 Derek Song (24833978) | F5 Buyer journey workspace | Workflow, endpoint tests, evidence |
 
 ## 2 Final repository structure
 
@@ -52,8 +51,8 @@ Release 0–1 AI-mode, agentic loop, MCP and RAG servers, and adds:
 |---|---|---|
 | `student-1/` … `student-5/` | Feature slices: UI, API, database service, tools, corpus | 0–1 |
 | `student-N/config/multi-agent/`, `student-N/tests/endpoints/` | Each feature's workflow template and endpoint tests | 2 |
-| `ai-services/ai-mode/`, `agent-core/` | AI-mode run API and the shared agentic loop | 0 |
-| `ai-services/mcp-server/`, `rag-server/` | Tool transport and local retrieval | 1 |
+| `ai-services/{ai-mode,agent-core}/` | AI-mode run API and the shared agentic loop | 0 |
+| `ai-services/{mcp-server,rag-server}/` | Tool transport and local retrieval | 1 |
 | `ai-services/multi-agent-server/` | Planner, Worker, Reviewer, decisions, JSONL audit, CLI | 2 |
 | `scripts/devtools/review/` | Review modes and release decision | 2 |
 | `shared/frontend/multi-agent/`, `shared/testkit/` | Shared workflow panel; endpoint client, JUnit summary, `FakeMultiAgentServer` | 2 |
@@ -69,8 +68,9 @@ Release 0–1 AI-mode, agentic loop, MCP and RAG servers, and adds:
 CRUD requests pass from the browser through the shared edge to a feature frontend, its backend/API
 and its own database service. Assistant turns keep the Release 1 path through AI-mode to the
 feature's MCP tools and RAG corpus. A backend with a workflow also proxies the Multi-Agent Server
-over HTTP with a service token, and the shared panel shows each stage up to the human decision.
-No AI service opens a feature database or runs in Docker.
+over HTTP with a service token through proxy routes that fix the template server-side and hide
+other features' runs; the shared panel shows each stage up to the human decision. No AI service
+opens a feature database or runs in Docker.
 
 [[FEATURE_FLOWS]]
 
@@ -79,29 +79,25 @@ No AI service opens a feature database or runs in Docker.
 ### Student 1
 
 `f1-release-readiness-review` recommends whether a candidate dataset release is ready to publish.
-Seven proxy routes under `/api/data-platform/v1/release-reviews` fix the template server-side and
-hide other features' runs. The allowlist omits `data.release_publish.v1`, so a review never
+Seven proxy routes sit under `/api/data-platform/v1/release-reviews`. The allowlist omits `data.release_publish.v1`, so a review never
 publishes.
 
 ### Student 2
 
 `f2-market-case-brief` summarises one saved market case's sale observations. Eight proxy routes
-under `/api/market-intelligence/v1/market-briefs` fix the template server-side and hide other
-features' runs. Both allowlisted tools, `market.cases.inspect.v1` and `market.sales.summary.v1`,
+sit under `/api/market-intelligence/v1/market-briefs`. Both allowlisted tools, `market.cases.inspect.v1` and `market.sales.summary.v1`,
 are read-only.
 
 ### Student 3
 
 `f3-suburb-comparison-review` checks one saved suburb comparison against its published crime
-evidence. Eight proxy routes under `/api/suburb-analytics/v1/comparison-reviews` fix the template
-server-side and hide other features' runs. Both allowlisted tools, `suburb.comparison.inspect.v1`
+evidence. Eight proxy routes sit under `/api/suburb-analytics/v1/comparison-reviews`. Both allowlisted tools, `suburb.comparison.inspect.v1`
 and `crime.saved-comparison-evidence.v1`, are read-only; a review never ranks suburb safety.
 
 ### Student 4
 
 `f4-evidence-readiness-review` drafts a professional's verification questions from one saved
-site review's evidence. Eight proxy routes under `/api/due-diligence/v1/evidence-reviews` fix the
-template server-side and hide other features' runs. Both allowlisted tools,
+site review's evidence. Eight proxy routes sit under `/api/due-diligence/v1/evidence-reviews`. Both allowlisted tools,
 `duediligence.review.inspect.v1` and `duediligence.evidence.summary.v1`, are read-only.
 
 ### Student 5
@@ -163,8 +159,8 @@ security: pip-audit of locked dependencies (uv.lock)............Passed
 
 ## 6 Post-commit CI/CD testing
 
-Each owner's `student-N.yml` should start the feature's Compose stack with AI disabled, run
-`pytest -m endpoint` on two endpoint functions and publish the Shared test kit's JUnit summary (at
+Each owner's `student-N.yml` starts the feature's Compose stack with AI disabled, runs
+`pytest -m endpoint` on two endpoint functions and publishes the Shared test kit's JUnit summary (at
 least two passes). `collect_ci_evidence.py` keeps each run's record, reports and log.
 
 [[CI_EVIDENCE]]
@@ -178,8 +174,6 @@ least two passes). `collect_ci_evidence.py` keeps each run's record, reports and
    address; invalid queries return structured problems.
 2. `/api/data-platform/v1/sources`: create, list, read, update and delete a source definition;
    invalid, duplicate and non-JSON bodies are rejected and not persisted.
-
-Suburb-map tests also run; two skip without a suburb-boundaries release.
 
 ### Student 2
 
@@ -227,8 +221,7 @@ Suburb-map tests also run; two skip without a suburb-boundaries release.
 ## 7 Testing review
 
 `dev.py ai review testing` checks the security report and each `ci/student-N.md` against a
-deterministic checklist and reviews them through the shared loop. The stricter verdict wins, and
-each review appends to the validation log.
+deterministic checklist and through the shared loop; the stricter verdict wins.
 
 [[REVIEW_SUMMARY testing]]
 
@@ -236,8 +229,7 @@ each review appends to the validation log.
 
 `dev.py stack up` starts the four host AI services, then the Compose application; backends reach
 them through `host.docker.internal`. `capture_local_deployment.py` checks the running system,
-including that each AI service is a host process, not a container. This capture ran on clean
-`main` with each host service in its own foreground terminal.
+including that each AI service is a host process in its own terminal, not a container.
 
 [[LOCAL_EVIDENCE]]
 
@@ -285,9 +277,9 @@ UI run `18740ca5` (10 October, model provider) reviewed a real 680-record ABS CP
 Round 1: the Reviewer recommended approve; the human chose correct, asking for completeness against
 ABS. Round 2: the Reviewer recommended correct, as read-only tools cannot fetch ABS totals; the
 human accepted step `release` only, publishing nothing. Terminal run `c17c66cc` used the same
-template.
+template:
 
-[[WORKFLOW_HISTORY multi-agent/student-1/18740ca5-ui]]
+[[WORKFLOW_HISTORY multi-agent/student-1/c17c66cc-terminal]]
 
 ![Figure 8 F1 Reviewer recommendation, round 1](../release-2/evidence/multi-agent/student-1/18740ca5-ui/screenshots/04-round1-reviewer.png)
 
@@ -295,31 +287,31 @@ template.
 
 ### Student 2
 
-Run `f1c290a2` briefed `Sydney example - full history`. The Reviewer recommended approve on
+UI run `f1c290a2` briefed `Sydney example - full history`. The Reviewer recommended approve on
 all eleven checks passing. Burhan sent it back: the checks read the tool results, while the prose
 summary reported the figures without the limitations. Round two restated them with the
 synthetic-data disclosure, and Burhan approved it, 0 failed and 11 passed.
 
 ### Student 3
 
-Run `5338d71c` reviewed seeded comparison `comparison-10` (Newcastle and Wollongong, rate). The
+UI run `5338d71c` reviewed seeded comparison `comparison-10` (Newcastle and Wollongong, rate). The
 Reviewer recommended correct: coverage was unavailable, the denominator invalid and the seeded-data
-disclosure missing. It was sent back; round two added the disclosure, the Reviewer again recommended
-correct, and it was rejected until counts are used or the missing BOCSAR months are published.
+disclosure missing. The human reviewer, Claude Code acting outside the multi-agent system, sent it
+back; round two added the disclosure, the Reviewer again recommended correct, and the reviewer
+rejected it until counts are used or the missing BOCSAR months are published.
 
 ### Student 4
 
-Run `2956e465` reviewed seeded review 1 (11 Example Street, Sydney). The Reviewer recommended
+UI run `2956e465` reviewed seeded review 1 (11 Example Street, Sydney). The Reviewer recommended
 approve on all ten checks passing. Michael sent it back: the draft referred to the saved question
 list, missed two conflicting records and did not plainly disclose seeded data. Round two fixed all
 three, and Michael approved it, noting three questions still to write.
 
 ### Student 5
 
-Run `e9600341` reviewed seeded case `Wollongong coastal review`. The Reviewer recommended correct:
+UI run `e9600341` reviewed seeded case `Wollongong coastal review`. The Reviewer recommended correct:
 the Worker proposed no actions. Derek sent it back; round two still had none, and the Reviewer
-recommended partial (one high, two medium failures). Derek approved it anyway. Template v2 run
-`429fbe07` then produced five grounded actions and was partially accepted.
+recommended partial (one high, two medium failures). Derek approved it anyway.
 
 ## 11 GitHub commit logs
 
@@ -338,10 +330,9 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 | 8–10 Oct | [36a4c26](https://github.com/MattShelton04/41026ASDProject/commit/36a4c26), [f86f787](https://github.com/MattShelton04/41026ASDProject/commit/f86f787), [bef57da](https://github.com/MattShelton04/41026ASDProject/commit/bef57da), [06e0ed0](https://github.com/MattShelton04/41026ASDProject/commit/06e0ed0) | Multi-Agent Server, review modes, security scans, test kit, panel, F1 review |
 | 15–17 Oct | [d449a43](https://github.com/MattShelton04/41026ASDProject/commit/d449a43), [07b1c81](https://github.com/MattShelton04/41026ASDProject/commit/07b1c81), [72f3272](https://github.com/MattShelton04/41026ASDProject/commit/72f3272), [fdc5111](https://github.com/MattShelton04/41026ASDProject/commit/fdc5111), [93d0f53](https://github.com/MattShelton04/41026ASDProject/commit/93d0f53) | CI and local evidence, report builder, release gate |
 | 17 Oct | [5e90231](https://github.com/MattShelton04/41026ASDProject/commit/5e90231), [ad2b443](https://github.com/MattShelton04/41026ASDProject/commit/ad2b443), [71764a5](https://github.com/MattShelton04/41026ASDProject/commit/71764a5), [cd8e56d](https://github.com/MattShelton04/41026ASDProject/commit/cd8e56d) | Azure switch-on, site login, security fixes |
-| 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6), [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08) | F1 suburb-map API, real data on Azure |
-| 18 Oct | [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31), [3ea2932](https://github.com/MattShelton04/41026ASDProject/commit/3ea2932), [817ef77](https://github.com/MattShelton04/41026ASDProject/commit/817ef77), [0cf5e3f](https://github.com/MattShelton04/41026ASDProject/commit/0cf5e3f) | Cloud AI Tier, cloud and bonus evidence, release decision |
+| 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6), [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08), [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31), [3ea2932](https://github.com/MattShelton04/41026ASDProject/commit/3ea2932), [817ef77](https://github.com/MattShelton04/41026ASDProject/commit/817ef77), [0cf5e3f](https://github.com/MattShelton04/41026ASDProject/commit/0cf5e3f) | F1 suburb-map API, real data and Cloud AI Tier on Azure, cloud and bonus evidence, release decision |
 | 19–21 Oct | [daee27d](https://github.com/MattShelton04/41026ASDProject/commit/daee27d), [70f3b9a](https://github.com/MattShelton04/41026ASDProject/commit/70f3b9a), [cb71215](https://github.com/MattShelton04/41026ASDProject/commit/cb71215) | Report against the rubric, B1–B4 UI captures, edge protection for F2 and F4 workflows |
-| 21–24 Oct | [dedda46](https://github.com/MattShelton04/41026ASDProject/commit/dedda46), [002691e](https://github.com/MattShelton04/41026ASDProject/commit/002691e), [d7602b7](https://github.com/MattShelton04/41026ASDProject/commit/d7602b7), [81c833d](https://github.com/MattShelton04/41026ASDProject/commit/81c833d), [7b3fb43](https://github.com/MattShelton04/41026ASDProject/commit/7b3fb43) | CVE fixes, review bundle limits, CI resilience, cold-start smoke retry, final evidence |
+| 21–24 Oct | [dedda46](https://github.com/MattShelton04/41026ASDProject/commit/dedda46), [002691e](https://github.com/MattShelton04/41026ASDProject/commit/002691e), [d7602b7](https://github.com/MattShelton04/41026ASDProject/commit/d7602b7), [81c833d](https://github.com/MattShelton04/41026ASDProject/commit/81c833d), [7b3fb43](https://github.com/MattShelton04/41026ASDProject/commit/7b3fb43) | Students 2 and 4 report sections, CVE fixes, review bundle limits, CI resilience, cold-start smoke retry |
 
 ### Student 2 Burhan Naeem
 
@@ -376,20 +367,22 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 We claim B1–B6. B1–B4 ran through the public edge in Cloud AI Tier run
 [39119158736](https://github.com/MattShelton04/41026ASDProject/actions/runs/39119158736)
 (`817ef779`, 18 October), and again before the showcase in
-[39720293518](https://github.com/MattShelton04/41026ASDProject/actions/runs/39720293518) (22 October).
+[39720293518](https://github.com/MattShelton04/41026ASDProject/actions/runs/39720293518) (`dedda460`, 22 October).
 
 | Tier | Result and evidence | Run or source |
 |---|---|---|
 | B1 AI-mode | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | AI-mode run `387591f0` |
 | B2 MCP | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | `data.releases.v1` over MCP, same run |
 | B3 RAG | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `56c85266`, 2 citations |
-| B4 Multi-Agent | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `2058658b`, rejected in the UI |
+| B4 Multi-Agent | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `2058658b`, rejected in the [UI](../release-2/evidence/bonus/README.md#ui-captures-19-october) |
 | B5 Endpoint security | [58 PASS, 0 FAIL](../release-2/evidence/cloud/endpoint-security.txt) | Cloud Deployment run 40041985429 |
 | B6 Data security | [43 PASS, 0 FAIL](../release-2/evidence/cloud/data-security.txt) | Laptop, same deployment, 24 October |
 
-![Figure 10 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
+B5 checks TLS 1.2+, the HTTPS redirect, HSTS, CSP and framing headers, the site login, and operator
+credentials on AI and workflow routes. B6 checks Key Vault RBAC and purge protection, least-privilege
+managed identity, encrypted disks, OIDC without secrets, and internal database networks.
 
-More [UI captures](../release-2/evidence/bonus/README.md#ui-captures-19-october).
+![Figure 10 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
 
 ## 14 Showcase video
 

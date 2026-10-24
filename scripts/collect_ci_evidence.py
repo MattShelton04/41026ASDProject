@@ -494,7 +494,8 @@ def write_evidence(evidence: Evidence, output_directory: Path) -> Path:
     if evidence.run_log is not None:
         (raw_directory / RUN_LOG_NAME).write_bytes(evidence.run_log.text.encode("utf-8"))
     path = output_directory / f"student-{evidence.student}.md"
-    path.write_text(render(evidence), encoding="utf-8")
+    # LF on every platform, so hashes taken on Windows match the blob Git stores.
+    path.write_text(render(evidence), encoding="utf-8", newline="\n")
     return path
 
 
