@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool": "scripts/validate_release_images.py",
-  "commit_sha": "3c25c083e09e5f170767e63655593c0e5b9f1e27",
+  "commit_sha": "7b3fb43728582d21bb8c9722405c040e3c18cbf2",
   "passed": true,
   "compose_models": [
     {
@@ -50,168 +50,168 @@
     {
       "service": "f1-backend",
       "image": "propertyscope/f1-backend:dev",
-      "id": "sha256:3d726f9a03501a48327d4e647db6d5d8acfc4f09c859787d2635f3dd7eb144a9",
-      "size_bytes": 361312437,
+      "id": "sha256:0ac14ff4b1545e6a2cecc4a22e7a6019247e38592596d6bb40f6c3584c3f80f4",
+      "size_bytes": 361534910,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:25.046715308Z"
+      "created": "2026-10-23T23:56:59.585910627Z"
     },
     {
       "service": "f1-db-api",
       "image": "propertyscope/f1-db-api:dev",
-      "id": "sha256:fd3c7dad7fe00dd47f2395c15d91e93331c9b207bf92c84c00b08eea7b5216e5",
-      "size_bytes": 361312437,
+      "id": "sha256:e15ac31e2757386e9d34951c5f13345063a6c1b02c37ba551ae37c7271b3be6b",
+      "size_bytes": 361534910,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:25.046715308Z"
+      "created": "2026-10-23T23:56:59.585910627Z"
     },
     {
       "service": "f1-db-loader",
       "image": "propertyscope/f1-db-loader:dev",
-      "id": "sha256:803ccd11a18041db97267e8f6039b50699d1a46df9ec3c68651536f26da91dca",
-      "size_bytes": 361312437,
+      "id": "sha256:4cfbe8aa3f3b7360ec8dd15aa211f2211ba27393f127426f4e1ea3fbc1269f53",
+      "size_bytes": 361534910,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:25.046715308Z"
+      "created": "2026-10-23T23:56:59.585910627Z"
     },
     {
       "service": "f1-frontend",
       "image": "propertyscope/f1-frontend:dev",
-      "id": "sha256:e433cdc02f44d41965896669d7524cbfda00466275f1af6eeebed13597dddc91",
+      "id": "sha256:edf93ab276341d5304b97784aa467d0ac50474609650d6112c4fa8fbf9e3cd96",
       "size_bytes": 14633655,
       "user": "101",
       "non_root": true,
-      "created": "2026-10-18T08:38:08.258064042Z"
+      "created": "2026-10-23T23:56:43.693042917Z"
     },
     {
       "service": "f1-runner",
       "image": "propertyscope/f1-runner:dev",
-      "id": "sha256:2928f331073d2d934bf336eb5334b04c88b74735ec6fc001e1f8dc4aed801dec",
-      "size_bytes": 361312437,
+      "id": "sha256:971429e65f296059db0c0f55056160b43ed81a73b7fa531ca86d477edf689eb0",
+      "size_bytes": 361534910,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:25.046715308Z"
+      "created": "2026-10-23T23:56:59.585910627Z"
     },
     {
       "service": "f2-backend",
       "image": "propertyscope/f2-backend:dev",
-      "id": "sha256:37ae739db393c240d0b29db4a407257cee83fed6130cff022cf670891f5702f5",
-      "size_bytes": 146786237,
+      "id": "sha256:7a235d266370dcc6a85e4de61399db4958afc0c2ab14420b7f1622b3e778f4e2",
+      "size_bytes": 147032388,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:22.609191302Z"
+      "created": "2026-10-23T23:56:55.717095787Z"
     },
     {
       "service": "f2-db-api",
       "image": "propertyscope/f2-db-api:dev",
-      "id": "sha256:937350eb21bf358752e03341cc49b0c3466aa5936b073a04e93181ea23894140",
-      "size_bytes": 146786237,
+      "id": "sha256:a48c21649ea5f36eface73c6c0d2f224083101aac4ada370d3079f2704fcc264",
+      "size_bytes": 147032388,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:22.609191302Z"
+      "created": "2026-10-23T23:56:55.717095787Z"
     },
     {
       "service": "f2-frontend",
       "image": "propertyscope/f2-frontend:dev",
-      "id": "sha256:ca85c935de8f9378fb285e0d093d03d575385b9955e9134aa1c6edea3f7e7e1d",
-      "size_bytes": 12755564,
+      "id": "sha256:d1b9e8228f62c64e17faf9d8fd87d94f53caf54b023cda74b1a1868896b41659",
+      "size_bytes": 13054231,
       "user": "101",
       "non_root": true,
-      "created": "2026-10-18T08:38:07.884263919Z"
+      "created": "2026-10-23T23:56:43.339476747Z"
     },
     {
       "service": "f3-backend",
       "image": "propertyscope/f3-backend:dev",
-      "id": "sha256:884b143016a91b165c84c56f38f3ce2729fb1db9bd03ca322c8523fbf645d87e",
-      "size_bytes": 154318016,
+      "id": "sha256:a1e0e8f1ea5144144256479945ab9cb7e98de29ed175839189f4be4a2a6b3b00",
+      "size_bytes": 154567724,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:19.625503662Z"
+      "created": "2026-10-23T23:56:52.26260997Z"
     },
     {
       "service": "f3-database",
       "image": "propertyscope/f3-database:dev",
-      "id": "sha256:6ef74eaa03a3938ff72c95a7bafceefa58dad5c5ec2d20378305447e34337ed5",
-      "size_bytes": 154316012,
+      "id": "sha256:e4c37cb73cf7ca69fd0ad28897d016cd9456194b11ff01e5e59192dc9d5247f0",
+      "size_bytes": 154538464,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:20.241592971Z"
+      "created": "2026-10-23T23:56:52.905203642Z"
     },
     {
       "service": "f3-frontend",
       "image": "propertyscope/f3-frontend:dev",
-      "id": "sha256:ed4d880fb8392c777c82bb30d4e0ee422d6d854d51e558ed32447ba80641730a",
-      "size_bytes": 14004189,
+      "id": "sha256:39025d3e2feeac14a12798e9fa760572893d5b504b4d8e921430dbdb830dd538",
+      "size_bytes": 14300861,
       "user": "101",
       "non_root": true,
-      "created": "2026-10-18T08:38:07.888584001Z"
+      "created": "2026-10-23T23:56:43.39537163Z"
     },
     {
       "service": "f4-backend",
       "image": "propertyscope/f4-backend:dev",
-      "id": "sha256:d85594c55b4ba59a4c871285b9335492ca74f7563133e1aa80bb7e01862f5bff",
-      "size_bytes": 167800245,
+      "id": "sha256:bd2f430fb54feec09552334d5457610e319f4b7f7c1e43139d1f5a376a4227ec",
+      "size_bytes": 168045565,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:22.714524346Z"
+      "created": "2026-10-23T23:56:57.275343219Z"
     },
     {
       "service": "f4-db-api",
       "image": "propertyscope/f4-db-api:dev",
-      "id": "sha256:8e6ce628da80e0ff88a18945ea55c3492146c2e071c8f1fec75d33d4ffc37dc6",
-      "size_bytes": 167800245,
+      "id": "sha256:e1c7f51da293f4156e3e5213baa38db1537c1bd1ab1b5aac3a22443a3cf733ff",
+      "size_bytes": 168045565,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:22.714524346Z"
+      "created": "2026-10-23T23:56:57.275343219Z"
     },
     {
       "service": "f4-frontend",
       "image": "propertyscope/f4-frontend:dev",
-      "id": "sha256:bea0f530d6c1334f08fa0a7353e21f756c1bbf2f030045308183ccdadf68d656",
-      "size_bytes": 13995978,
+      "id": "sha256:5c6280ff663562a3c0454d44998e5fd69c299648fc5003f7b1dcc2fac1665df4",
+      "size_bytes": 14290328,
       "user": "101",
       "non_root": true,
-      "created": "2026-10-18T08:38:08.062618294Z"
+      "created": "2026-10-23T23:56:43.389120287Z"
     },
     {
       "service": "f5-backend",
       "image": "propertyscope/f5-backend:dev",
-      "id": "sha256:21ecee1a7310ea12ff3507528b610f6b9e92738819def5a36b666f64966ebcba",
-      "size_bytes": 143477566,
+      "id": "sha256:9237131304bad8a9af373a77473fb690d1ef48cb593296915d908e4ee47e68dc",
+      "size_bytes": 143721880,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:21.652010665Z"
+      "created": "2026-10-23T23:56:56.204915142Z"
     },
     {
       "service": "f5-db-api",
       "image": "propertyscope/f5-db-api:dev",
-      "id": "sha256:c46528afac4f8721d642d8efbd9877dc8a8fd7888d3ed77dc465ba23bc6e025c",
-      "size_bytes": 143477566,
+      "id": "sha256:1752bf1e663d7745a6ed7cba63cc9e9c673434d1aeddd34ed59bf8e82fb6115e",
+      "size_bytes": 143721880,
       "user": "propertyscope",
       "non_root": true,
-      "created": "2026-10-18T08:38:22.115217036Z"
+      "created": "2026-10-23T23:56:56.62558513Z"
     },
     {
       "service": "f5-frontend",
       "image": "propertyscope/f5-frontend:dev",
-      "id": "sha256:db09ac68816580b5602e68d9207c99b22c20385747124b7f5d0cf81a2a5092de",
-      "size_bytes": 12791147,
+      "id": "sha256:58e6497a5e1c4dcad8982b80da606084c5e06256b27bb5541664d3a523cf3c7d",
+      "size_bytes": 13079503,
       "user": "101",
       "non_root": true,
-      "created": "2026-10-18T08:38:07.885478545Z"
+      "created": "2026-10-23T23:56:43.500294018Z"
     },
     {
       "service": "shared-frontend",
       "image": "propertyscope/shared-frontend:dev",
-      "id": "sha256:a4c6e6ee1f619360e92bf581e544e644775101f25f28441d23213d73270b8caf",
-      "size_bytes": 14611325,
+      "id": "sha256:875f72e235a3ef5e51a6ea8e36995d1b574eb2643b732315ff7e8a9cc37be7f6",
+      "size_bytes": 14614179,
       "user": "101",
       "non_root": true,
-      "created": "2026-10-18T08:38:07.191882134Z"
+      "created": "2026-10-23T23:56:43.190852132Z"
     }
   ],
   "missing_images": [],
   "unbuilt_azure_services": [],
   "root_images": [],
-  "checked_at": "2026-10-18T08:38:26+00:00"
+  "checked_at": "2026-10-23T23:57:02+00:00"
 }

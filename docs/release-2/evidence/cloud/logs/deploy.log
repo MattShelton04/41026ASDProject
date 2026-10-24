@@ -1,113 +1,113 @@
-[deploy.sh 08:46:20] Running 'deploy' on propertyscope-prod-vm through az vm run-command invoke
+[deploy.sh 00:04:35] Running 'deploy' on propertyscope-prod-vm through az vm run-command invoke
 Enable succeeded: 
 [stdout]
 ainers cannot reach the instance metadata service
-[08:46:29] ACR login with the VM managed identity (AcrPull)
-[08:46:29] Pulling 3c25c083e09e5f170767e63655593c0e5b9f1e27 images
-[08:47:31] Rendered application secrets from Key Vault property-kv-psvfewj5c5m3 (values not logged)
-[08:47:31] Starting the stack (cloud AI: false)
-[08:48:38] Feature 1 data: 5 accepted releases (published through the Feature 1 review)
-[08:48:38] HTTPS edge is serving a trusted certificate for propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com
-PROPERTYSCOPE_IMAGES={"f1-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-backend@sha256:9f92086fe080cd26faff7ab2f55ba0e3c01e4a6e758bae641f939395187e437a","f1-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-db-api@sha256:1172ff6b8b8de55c8e80779c72ad9103ab2acef7d2d788d45b479331117e8c21","f1-db-loader":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-db-loader@sha256:2df5a4077e2777ae34d3aaea4b3c3a4c5613d3548dab8a4d8015d7a231ea18d9","f1-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-frontend@sha256:94f12b3441602f3eaf6f87cdbb72074c05fd103e476cf67979d19c8fdcf56624","f1-postgres":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/mirror/postgis@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5","f1-runner":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-runner@sha256:bd71a458271954bf637b20cfac621351aa6e01c7d253d3657813197b68b3d7a9","f2-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f2-backend@sha256:0a7fb51926d52d9b6bf9a19f210806fa7307ec4b716db4bf44772f00554d16ee","f2-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f2-db-api@sha256:0496a76237bdd351b3c313d26bc3ee4232273503886f350077a06398fa6d7100","f2-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f2-frontend@sha256:929e9488ab1c59bff14f4de2141be45c15c032e0e443f329c08ed2740749a6f4","f3-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f3-backend@sha256:35d3e82d7a31e61cc05cce45fa49eedbfcdc4fc1c18e602f508cd20a47dc87b9","f3-database":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f3-database@sha256:46fe9f8e8dca5537597491449ab8b0ffe9e727d2f1bdf04ee41a084cf48f3511","f3-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f3-frontend@sha256:7cffed40c2885a937a1ab74cd01fe5136302037c473657549db9fa774dc56262","f4-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f4-backend@sha256:bf7172aedcca5fc54d5e24231862827c7cafb2eb85d60b64fbfffaf9b9e9ee4a","f4-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f4-db-api@sha256:151646408abd0f488e9c7f8304e422138a2ab0099c21d14086c84e044e22d924","f4-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f4-frontend@sha256:dadbebf603974ad6f45678537703968bef9191fa034c0147bb8b8b441a6c9c62","f4-postgres":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/mirror/postgis@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5","f5-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f5-backend@sha256:bdccbb65596e3dada5c9954e5aec2e308f8853b1ec1908761a9fc8204ed8c0c3","f5-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f5-db-api@sha256:48b58ef9c9e232236b50100ffcae17ae028fce5425a2ebd2c57b42e312fa77da","f5-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f5-frontend@sha256:dad2134dd5d275367ec5d2bfb0b8b47b19adca7bc7fcc2914afff629531b8137","shared-edge-proxy":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/mirror/caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d","shared-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/shared-frontend@sha256:544b587d332ba5f7a8b409a4fc834a659226f479a2ac72b6b3107d61a2b0d32a"}
-PROPERTYSCOPE_RESULT={"action":"deploy","image_tag":"3c25c083e09e5f170767e63655593c0e5b9f1e27","cloud_ai":"false","containers_running":21,"containers_total":21,"ai_units":{"ai-mode":"inactive","mcp":"inactive","rag":"inactive","multi-agent":"inactive"}}
+[00:04:40] ACR login with the VM managed identity (AcrPull)
+[00:04:40] Pulling 7b3fb43728582d21bb8c9722405c040e3c18cbf2 images
+[00:05:08] Rendered application secrets from Key Vault property-kv-psvfewj5c5m3 (values not logged)
+[00:05:08] Starting the stack (cloud AI: false)
+[00:05:36] Feature 1 data: 6 accepted releases (published through the Feature 1 review)
+[00:05:36] HTTPS edge is serving a trusted certificate for propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com
+PROPERTYSCOPE_IMAGES={"f1-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-backend@sha256:770634a1e970155e0858085e7bbd4056f4bd2d30c135270e5af03ef6a9b0271e","f1-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-db-api@sha256:a2748329ce1c2b9a13ddbb950af89d9af72fb51df33dea24412ce51fb90bb5ea","f1-db-loader":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-db-loader@sha256:a9e5919ea2b0bec730046b60524f30ac1cfd404fdb52d473127c72d3d166cfe9","f1-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-frontend@sha256:352cabc4c6832d8ad4c285a0dc9238f13e57f1ed8cf2a881dcffde5fbe7a1970","f1-postgres":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/mirror/postgis@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5","f1-runner":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f1-runner@sha256:695138c90053fefa0f004c9d3dcf041dcd6d4add6df888c1b3862f7e76765c15","f2-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f2-backend@sha256:d96da8c21f1ec3add2e14d52283bda211b8cf2402427ef7c686127d458d35ccd","f2-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f2-db-api@sha256:dc5361b6ad89ddcf9cba2c32b9cf260cb0941fe7d71275a3ed8113cf992db000","f2-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f2-frontend@sha256:6e1aac861f2cc2219e6273538166e87af7e226d0d22fc014334a1aad45290aa7","f3-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f3-backend@sha256:8e39261ac91f0107e092d8c510cd55e84fb674e39c4bb64a3fca5bca859eb923","f3-database":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f3-database@sha256:4ffe0d2c87f6e59e84b156882d7b199ab57fe78f56ffe345d45b8f662281907f","f3-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f3-frontend@sha256:ff931d3aaa065455680ba1076e818cd721840354773baf3f58af0ffff589c73a","f4-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f4-backend@sha256:a57c75e73e8a0234802494d96bdacc521642ba22807eed048ac7759505c099fb","f4-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f4-db-api@sha256:3bf7b5ad961bcdefe54833594ec2703173aaad18db5f311b842c49ff2b5e3bca","f4-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f4-frontend@sha256:f268258f5b2ed9621814d7c1ba8b4137380adeb92bc39eac075610e6b3603b78","f4-postgres":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/mirror/postgis@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5","f5-backend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f5-backend@sha256:2407b556fc3b9f4128bcedff4089e36fd54d0cb11ed123e78e73e9ececfaa8bf","f5-db-api":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f5-db-api@sha256:dd697cbed4fd2e52310f056065b5dcbce2b54279eb7839c0a0711bbfd6cff3e1","f5-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/f5-frontend@sha256:252af45da603b7d0ca5db39b52618589276c8ffd48bff8db1653b1602fb3390e","shared-edge-proxy":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/mirror/caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d","shared-frontend":"propertyscopeprodpsvfewj5c5m3k.azurecr.io/propertyscope/shared-frontend@sha256:4de19bd04efe62735c30f1f98ecc67576c6191913cd7c051b8826db4705c0ede"}
+PROPERTYSCOPE_RESULT={"action":"deploy","image_tag":"7b3fb43728582d21bb8c9722405c040e3c18cbf2","cloud_ai":"false","containers_running":21,"containers_total":21,"ai_units":{"ai-mode":"inactive","mcp":"inactive","rag":"inactive","multi-agent":"inactive"}}
 PROPERTYSCOPE_EXIT=0
 
 [stderr]
-ng 
- Container ps-azure-shared-frontend-1 Started 
- Container ps-azure-shared-frontend-1 Waiting 
+api-1 Starting 
  Container ps-azure-f5-db-api-1 Started 
  Container ps-azure-f5-db-api-1 Waiting 
+ Container ps-azure-f2-db-api-1 Started 
+ Container ps-azure-f2-db-api-1 Waiting 
  Container ps-azure-f4-db-api-1 Started 
  Container ps-azure-f4-db-api-1 Waiting 
  Container ps-azure-f1-db-api-1 Started 
  Container ps-azure-f1-db-api-1 Waiting 
  Container ps-azure-f1-db-api-1 Waiting 
  Container ps-azure-shared-frontend-1 Healthy 
- Container ps-azure-f2-db-api-1 Healthy 
- Container ps-azure-f2-backend-1 Starting 
  Container ps-azure-f3-database-1 Healthy 
  Container ps-azure-f3-backend-1 Starting 
- Container ps-azure-f5-db-api-1 Healthy 
- Container ps-azure-f5-backend-1 Starting 
- Container ps-azure-f4-db-api-1 Healthy 
- Container ps-azure-f4-backend-1 Starting 
- Container ps-azure-f2-backend-1 Started 
- Container ps-azure-f2-backend-1 Waiting 
  Container ps-azure-f3-backend-1 Started 
  Container ps-azure-f3-backend-1 Waiting 
+ Container ps-azure-f5-db-api-1 Healthy 
+ Container ps-azure-f5-backend-1 Starting 
+ Container ps-azure-f2-db-api-1 Healthy 
+ Container ps-azure-f2-backend-1 Starting 
  Container ps-azure-f5-backend-1 Started 
  Container ps-azure-f5-backend-1 Waiting 
- Container ps-azure-f2-backend-1 Healthy 
- Container ps-azure-f2-frontend-1 Starting 
+ Container ps-azure-f2-backend-1 Started 
+ Container ps-azure-f2-backend-1 Waiting 
+ Container ps-azure-f4-db-api-1 Healthy 
+ Container ps-azure-f4-backend-1 Starting 
  Container ps-azure-f4-backend-1 Started 
  Container ps-azure-f4-backend-1 Waiting 
- Container ps-azure-f2-frontend-1 Started 
  Container ps-azure-f3-backend-1 Healthy 
  Container ps-azure-f3-frontend-1 Starting 
  Container ps-azure-f3-frontend-1 Started 
- Container ps-azure-f5-backend-1 Healthy 
- Container ps-azure-f5-frontend-1 Starting 
- Container ps-azure-f5-frontend-1 Started 
- Container ps-azure-f4-backend-1 Healthy 
- Container ps-azure-f4-frontend-1 Starting 
- Container ps-azure-f4-frontend-1 Started 
  Container ps-azure-f1-db-api-1 Healthy 
  Container ps-azure-f1-db-loader-1 Starting 
  Container ps-azure-f1-db-api-1 Healthy 
  Container ps-azure-f1-backend-1 Starting 
+ Container ps-azure-f5-backend-1 Healthy 
+ Container ps-azure-f5-frontend-1 Starting 
  Container ps-azure-f1-db-loader-1 Started 
+ Container ps-azure-f2-backend-1 Healthy 
+ Container ps-azure-f2-frontend-1 Starting 
  Container ps-azure-f1-backend-1 Started 
  Container ps-azure-f1-backend-1 Waiting 
- Container ps-azure-f1-db-api-1 Waiting 
  Container ps-azure-f1-backend-1 Waiting 
+ Container ps-azure-f1-db-api-1 Waiting 
+ Container ps-azure-f5-frontend-1 Started 
+ Container ps-azure-f2-frontend-1 Started 
  Container ps-azure-f1-db-api-1 Healthy 
- Container ps-azure-f1-backend-1 Healthy 
- Container ps-azure-f1-runner-1 Starting 
+ Container ps-azure-f4-backend-1 Healthy 
+ Container ps-azure-f4-frontend-1 Starting 
+ Container ps-azure-f4-frontend-1 Started 
  Container ps-azure-f1-backend-1 Healthy 
  Container ps-azure-f1-frontend-1 Starting 
- Container ps-azure-f1-runner-1 Started 
+ Container ps-azure-f1-backend-1 Healthy 
+ Container ps-azure-f1-runner-1 Starting 
  Container ps-azure-f1-frontend-1 Started 
- Container ps-azure-f3-database-1 Waiting 
- Container ps-azure-f1-runner-1 Waiting 
- Container ps-azure-f5-db-api-1 Waiting 
- Container ps-azure-f2-db-api-1 Waiting 
- Container ps-azure-f2-backend-1 Waiting 
- Container ps-azure-f2-frontend-1 Waiting 
+ Container ps-azure-f1-runner-1 Started 
+ Container ps-azure-shared-edge-proxy-1 Waiting 
  Container ps-azure-f3-backend-1 Waiting 
+ Container ps-azure-f1-db-api-1 Waiting 
  Container ps-azure-f1-db-loader-1 Waiting 
- Container ps-azure-f1-frontend-1 Waiting 
  Container ps-azure-f3-frontend-1 Waiting 
- Container ps-azure-f5-backend-1 Waiting 
+ Container ps-azure-f1-runner-1 Waiting 
  Container ps-azure-f1-postgres-1 Waiting 
- Container ps-azure-f4-db-api-1 Waiting 
+ Container ps-azure-f2-frontend-1 Waiting 
+ Container ps-azure-f2-backend-1 Waiting 
+ Container ps-azure-f2-db-api-1 Waiting 
+ Container ps-azure-f5-backend-1 Waiting 
+ Container ps-azure-f4-postgres-1 Waiting 
  Container ps-azure-f5-frontend-1 Waiting 
- Container ps-azure-shared-frontend-1 Waiting 
+ Container ps-azure-f4-db-api-1 Waiting 
+ Container ps-azure-f3-database-1 Waiting 
  Container ps-azure-f4-frontend-1 Waiting 
  Container ps-azure-f1-backend-1 Waiting 
- Container ps-azure-f1-db-api-1 Waiting 
- Container ps-azure-shared-edge-proxy-1 Waiting 
+ Container ps-azure-f1-frontend-1 Waiting 
  Container ps-azure-f4-backend-1 Waiting 
- Container ps-azure-f4-postgres-1 Waiting 
- Container ps-azure-f1-postgres-1 Healthy 
- Container ps-azure-f3-database-1 Healthy 
- Container ps-azure-f1-db-api-1 Healthy 
- Container ps-azure-f2-db-api-1 Healthy 
- Container ps-azure-f1-backend-1 Healthy 
- Container ps-azure-f5-db-api-1 Healthy 
- Container ps-azure-shared-frontend-1 Healthy 
+ Container ps-azure-f5-db-api-1 Waiting 
+ Container ps-azure-shared-frontend-1 Waiting 
  Container ps-azure-f5-backend-1 Healthy 
- Container ps-azure-f4-frontend-1 Healthy 
- Container ps-azure-f3-frontend-1 Healthy 
- Container ps-azure-f4-postgres-1 Healthy 
- Container ps-azure-f3-backend-1 Healthy 
- Container ps-azure-f2-frontend-1 Healthy 
- Container ps-azure-f1-db-loader-1 Healthy 
  Container ps-azure-f4-db-api-1 Healthy 
- Container ps-azure-f5-frontend-1 Healthy 
+ Container ps-azure-f4-postgres-1 Healthy 
+ Container ps-azure-f2-db-api-1 Healthy 
  Container ps-azure-f2-backend-1 Healthy 
- Container ps-azure-shared-edge-proxy-1 Healthy 
+ Container ps-azure-f2-frontend-1 Healthy 
+ Container ps-azure-f5-db-api-1 Healthy 
+ Container ps-azure-f1-backend-1 Healthy 
+ Container ps-azure-f1-postgres-1 Healthy 
+ Container ps-azure-f3-frontend-1 Healthy 
+ Container ps-azure-f3-backend-1 Healthy 
+ Container ps-azure-f4-frontend-1 Healthy 
  Container ps-azure-f4-backend-1 Healthy 
+ Container ps-azure-shared-edge-proxy-1 Healthy 
+ Container ps-azure-f1-db-api-1 Healthy 
+ Container ps-azure-f3-database-1 Healthy 
+ Container ps-azure-f5-frontend-1 Healthy 
+ Container ps-azure-f1-db-loader-1 Healthy 
+ Container ps-azure-shared-frontend-1 Healthy 
  Container ps-azure-f1-frontend-1 Healthy 
  Container ps-azure-f1-runner-1 Healthy 
-[deploy.sh 08:48:55] Deployed 3c25c083e09e5f170767e63655593c0e5b9f1e27 to https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com
+[deploy.sh 00:06:08] Deployed 7b3fb43728582d21bb8c9722405c040e3c18cbf2 to https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com

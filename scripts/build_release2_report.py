@@ -85,22 +85,22 @@ STUDENT_EVIDENCE = ("ci", "multi-agent")
 URL_KINDS = {"ci", "cloud-workflow"}
 
 # Targets that, with the cover, add up to no more than the 3,000-word limit. Chapters are matched
-# by their number prefix. Each student-owned chapter reserves room for Students 2-5's TODOs and
-# for their generated table rows growing from "Pending" to a recorded run.
+# by their number prefix. Rebalanced on 24 October once every student's sections and evidence rows
+# were filled; the Section 10 table shows one cited run per student.
 SECTION_WORD_BUDGETS = {
     "1 ": 180,  # Project overview, team, allocation, Release 1 to Release 2
     "2 ": 110,  # Final repository structure
-    "3 ": 360,  # Design flow: shared flows plus about 40 words per student
+    "3 ": 350,  # Design flow: shared flows plus about 40 words per student
     "4 ": 220,  # Azure reference architecture, DevOps flow and deployment scripts
     "5 ": 195,  # Pre-commit security testing (generated summary and slice table)
-    "6 ": 405,  # Post-commit CI: generated run table plus about 60 words per student
+    "6 ": 430,  # Post-commit CI: generated run table plus about 60 words per student
     "7 ": 105,  # Testing review and its latest validation-log entry
     "8 ": 185,  # Local deployment and multi-terminal logs
     "9 ": 195,  # Cloud deployment report, job timings, review and human release decision
-    "10 ": 490,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
+    "10 ": 505,  # Multi-agent evidence: shared, F1 worked example, about 50 words per student
     "11 ": 25,  # GitHub commit log and author-filtered URLs
-    "12 ": 340,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
-    "13 ": 95,  # Bonus claim table B1-B6
+    "12 ": 305,  # Contribution logs (Matthew covers Shared and F1), about 60 words per student
+    "13 ": 100,  # Bonus claim table B1-B6
     "14 ": 40,  # Showcase video and participation
 }
 
@@ -465,22 +465,28 @@ def _run_row(directory: Path) -> str | None:
 
 
 def multi_agent_runs(argument: str) -> list[str]:
-    """Exported runs under ``multi-agent/student-N/``; students without one get a TODO."""
-    students = argument.split() or [f"student-{number}" for number in TEAM]
+    """Exported runs under ``multi-agent/student-N/``; students without one get a TODO.
+
+    Each argument is ``student-N`` (every export) or ``student-N/<run directory>`` (only the run
+    the report cites, with the student's other exports counted beneath the table).
+    """
+    selections = argument.split() or [f"student-{number}" for number in TEAM]
     rows = [
         "| Student | Run | History events | Audit events | Handoffs | Tool calls "
         "| Decisions | Final state |",
         "|---|---|---|---|---|---|---|---|",
     ]
     issues: list[str] = []
-    for student in students:
+    others = 0
+    for selection in selections:
+        student, _, cited = selection.partition("/")
         number = student.removeprefix("student-")
         base = EVIDENCE_DIR / "multi-agent" / student
-        found = [
-            row
-            for row in (_run_row(path.parent) for path in sorted(base.rglob("run.json")))
-            if row is not None
-        ]
+        exports = [path.parent for path in sorted(base.rglob("run.json"))]
+        if cited:
+            others += sum(1 for path in exports if path != base / cited)
+            exports = [path for path in exports if path == base / cited]
+        found = [row for row in (_run_row(path) for path in exports) if row is not None]
         rows += [f"| {number} {row}" for row in found]
         if not found:
             rows.append(f"| {number} | Pending | - | - | - | - | - | - |")
@@ -491,6 +497,8 @@ def multi_agent_runs(argument: str) -> list[str]:
                     f"`uv run multi-agent-server export <run> --out {_shown(base)}/<run> --server`",
                 )
             )
+    if others:
+        rows += ["", f"Other exported runs kept in the evidence folders: {others}."]
     return rows + (["", *issues] if issues else [])
 
 

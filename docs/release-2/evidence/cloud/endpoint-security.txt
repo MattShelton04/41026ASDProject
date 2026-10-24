@@ -1,4 +1,4 @@
-Endpoint security validation for https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com at 2026-10-18T08:49:20Z
+Endpoint security validation for https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com at 2026-10-24T00:06:59Z
 PASS HTTPS serves a publicly trusted certificate for propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com
 INFO certificate issuer: C=US; O=Let's Encrypt; CN=YE1
 PASS TLS 1.1 and older are refused while TLS 1.2+ is served (tls<=1.1:000 tls>=1.2:200)
@@ -27,13 +27,19 @@ PASS anonymous /api/data-platform/v1/artifact-retention requires operator creden
 PASS the viewer login does not open /api/data-platform/v1/artifact-retention (401)
 PASS anonymous /api/data-platform/v1/release-reviews requires operator credentials (401)
 PASS the viewer login does not open /api/data-platform/v1/release-reviews (401)
+PASS anonymous /api/market-intelligence/v1/market-briefs requires operator credentials (401)
+PASS the viewer login does not open /api/market-intelligence/v1/market-briefs (401)
+PASS anonymous /api/due-diligence/v1/evidence-reviews requires operator credentials (401)
+PASS the viewer login does not open /api/due-diligence/v1/evidence-reviews (401)
 PASS anonymous /api/market-intelligence/v1/assistant/turns requires operator credentials (401)
 PASS the viewer login does not open /api/market-intelligence/v1/assistant/turns (401)
 PASS 401 carries a Basic challenge (www-authenticate: Basic realm="PropertyScope operations")
 PASS wrong operator credentials are rejected (401)
 PASS AI health stays readable without operator credentials (503 ai_disabled, or 200 when the bonus tier is on) (503)
 PASS ordinary feature API needs no operator credentials (200)
-PASS edge rate limit (/api/ and /fragments/ zone) answers a burst on /fragments/rate-limit-probe with 429 (     56 404      94 429 )
+PASS the Multi-Agent capabilities probe /api/market-intelligence/v1/market-briefs/capabilities needs no operator credentials (200)
+PASS the Multi-Agent capabilities probe /api/due-diligence/v1/evidence-reviews/capabilities needs no operator credentials (200)
+PASS edge rate limit (/api/ and /fragments/ zone) answers a burst on /fragments/rate-limit-probe with 429 (     51 404      99 429 )
 PASS port 22 is closed to the internet
 PASS port 2375 is closed to the internet
 PASS port 3389 is closed to the internet

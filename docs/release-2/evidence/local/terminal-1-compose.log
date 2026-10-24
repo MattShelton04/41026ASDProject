@@ -1,241 +1,433 @@
 # Terminal 1: Docker Compose stack (project ps-dev)
 # Command: uv run scripts/dev.py stack up; stack logs
-# Source: docker logs --since 2026-10-16T09:01:51+00:00 --timestamps for 20 container(s), merged by timestamp
+# Source: docker logs --since 2026-10-23T23:56:26+00:00 --timestamps for 20 container(s), merged by timestamp
 --- containers at capture start ---
-f1-backend       running  Up 38 minutes (healthy)
-f1-db-api        running  Up 38 minutes (healthy)
-f1-db-loader     running  Up 38 minutes
-f1-frontend      running  Up 38 minutes (healthy)
-f1-postgres      running  Up 38 minutes (healthy)
-f1-runner        running  Up 38 minutes
-f2-backend       running  Up 38 minutes (healthy)
-f2-db-api        running  Up 38 minutes (healthy)
-f2-frontend      running  Up 38 minutes (healthy)
-f3-backend       running  Up 38 minutes (healthy)
-f3-database      running  Up 38 minutes (healthy)
-f3-frontend      running  Up 38 minutes (healthy)
-f4-backend       running  Up 38 minutes (healthy)
-f4-db-api        running  Up 38 minutes (healthy)
-f4-frontend      running  Up 38 minutes (healthy)
-f4-postgres      running  Up 38 minutes (healthy)
-f5-backend       running  Up 38 minutes (healthy)
-f5-db-api        running  Up 38 minutes (healthy)
-f5-frontend      running  Up 38 minutes (healthy)
-shared-frontend  running  Up 38 minutes (healthy)
---- capture window 2026-10-16T09:01:51+00:00 to 2026-10-16T09:02:24+00:00 ---
-f3-frontend      | 2026-10-16T09:01:53.013746387Z 127.0.0.1 - - [16/Oct/2026:09:01:53 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
-f1-frontend      | 2026-10-16T09:01:53.701520747Z 127.0.0.1 - - [16/Oct/2026:09:01:53 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-frontend      | 2026-10-16T09:01:54.410986492Z 127.0.0.1 - - [16/Oct/2026:09:01:54 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:01:54.851329650Z 127.0.0.1 - - [16/Oct/2026:09:01:54 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
-shared-frontend  | 2026-10-16T09:01:55.471500013Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 28930 "-" "propertyscope-local-deployment-capture/1" "-"
-f1-frontend      | 2026-10-16T09:01:55.478589997Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 9275 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
-shared-frontend  | 2026-10-16T09:01:55.478637268Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/data-platform/ HTTP/1.1" 200 9275 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.485247064Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/data-platform HTTP/1.1" 200 254 "-" "propertyscope-local-deployment-capture/1" "-"
-f2-frontend      | 2026-10-16T09:01:55.488765144Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 8811 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
-shared-frontend  | 2026-10-16T09:01:55.488880400Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/market-intelligence/ HTTP/1.1" 200 8811 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.494009857Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/market-intelligence HTTP/1.1" 200 259 "-" "propertyscope-local-deployment-capture/1" "-"
-f3-frontend      | 2026-10-16T09:01:55.499559256Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 13364 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
-shared-frontend  | 2026-10-16T09:01:55.499634330Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/suburb-analytics/ HTTP/1.1" 200 13364 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.504595107Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/suburb-analytics HTTP/1.1" 200 98 "-" "propertyscope-local-deployment-capture/1" "-"
-f4-frontend      | 2026-10-16T09:01:55.509916634Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 7178 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
-shared-frontend  | 2026-10-16T09:01:55.509952596Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/due-diligence/ HTTP/1.1" 200 7178 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.515666106Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/due-diligence HTTP/1.1" 200 245 "-" "propertyscope-local-deployment-capture/1" "-"
-f5-frontend      | 2026-10-16T09:01:55.519876611Z 172.21.0.4 - - [16/Oct/2026:09:01:55 +0000] "GET / HTTP/1.1" 200 12885 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
-shared-frontend  | 2026-10-16T09:01:55.520135340Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /features/buyer-workspaces/ HTTP/1.1" 200 12885 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.525474884Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/shared-health/buyer-workspaces HTTP/1.1" 200 264 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.534396265Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "POST /api/data-platform/v1/sources HTTP/1.1" 201 606 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.540439370Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830 HTTP/1.1" 200 606 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.551983548Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "DELETE /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830 HTTP/1.1" 204 0 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.556973602Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830 HTTP/1.1" 404 188 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.589946259Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/properties/search?q=11+Example+Street&state=NSW&limit=1 HTTP/1.1" 200 147 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.607121075Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/data-platform/v1/properties/search?q=1+Fixture+Street&state=NSW&limit=1 HTTP/1.1" 200 146 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.775379955Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/market-intelligence/v1/properties/a0000000-0000-0000-0000-000000000001/validate HTTP/1.1" 200 75 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.936584736Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "POST /api/market-intelligence/v1/market-cases HTTP/1.1" 201 487 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.941221486Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092 HTTP/1.1" 200 487 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.950428962Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "DELETE /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092 HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.955021910Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092 HTTP/1.1" 404 138 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.974465418Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "POST /api/suburb-analytics/v1/suburb-comparisons HTTP/1.1" 201 389 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.979737563Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815 HTTP/1.1" 200 389 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:55.999578682Z 172.21.0.1 - - [16/Oct/2026:09:01:55 +0000] "DELETE /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815 HTTP/1.1" 200 16 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.004474966Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815 HTTP/1.1" 404 217 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.166402495Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "POST /api/due-diligence/v1/site-reviews HTTP/1.1" 201 421 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.171839518Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d HTTP/1.1" 200 421 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.179268189Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "DELETE /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.184012265Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d HTTP/1.1" 404 138 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.203186168Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "POST /api/buyer-workspaces/v1/buyer-cases HTTP/1.1" 201 271 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.208692120Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0 HTTP/1.1" 200 271 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.226161342Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "DELETE /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0 HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.231651473Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0 HTTP/1.1" 404 318 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.240316570Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/shared-health/ai-mode HTTP/1.1" 200 321 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.258576035Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/data-products HTTP/1.1" 200 17756 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.282458354Z 2026/10/16 09:01:56 [warn] 84#84: *717 an upstream response is buffered to a temporary file /tmp/proxy_temp/0000000002 while reading upstream, client: 172.21.0.1, server: _, request: "GET /api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0 HTTP/1.1", upstream: "http://172.21.0.14:5201/api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0", host: "localhost:5100"
-shared-frontend  | 2026-10-16T09:01:56.282708216Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0 HTTP/1.1" 200 284938 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.302373131Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/dataset-releases?status=candidate&limit=100&offset=0 HTTP/1.1" 200 204912 "-" "propertyscope-local-deployment-capture/1" "-"
-shared-frontend  | 2026-10-16T09:01:56.313037692Z 172.21.0.1 - - [16/Oct/2026:09:01:56 +0000] "GET /api/data-platform/v1/dataset-releases?status=awaiting_review&limit=100&offset=0 HTTP/1.1" 200 56219 "-" "propertyscope-local-deployment-capture/1" "-"
-f1-frontend      | 2026-10-16T09:01:58.746929646Z 127.0.0.1 - - [16/Oct/2026:09:01:58 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-frontend      | 2026-10-16T09:01:59.455495775Z 127.0.0.1 - - [16/Oct/2026:09:01:59 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:01:59.894890118Z 127.0.0.1 - - [16/Oct/2026:09:01:59 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
-f3-frontend      | 2026-10-16T09:02:03.052447221Z 127.0.0.1 - - [16/Oct/2026:09:02:03 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
-f1-frontend      | 2026-10-16T09:02:03.788688308Z 127.0.0.1 - - [16/Oct/2026:09:02:03 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-backend       | 2026-10-16T09:02:04.224249435Z Sales import reconciliation will retry after its durable lease
-f2-backend       | 2026-10-16T09:02:04.224303838Z Traceback (most recent call last):
-f2-backend       | 2026-10-16T09:02:04.224309408Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
-f2-backend       | 2026-10-16T09:02:04.224312709Z     yield
-f2-backend       | 2026-10-16T09:02:04.224315159Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 250, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224317869Z     resp = self._pool.handle_request(req)
-f2-backend       | 2026-10-16T09:02:04.224322389Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224325689Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224328589Z     raise exc from None
-f2-backend       | 2026-10-16T09:02:04.224331280Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224334020Z     response = connection.handle_request(
-f2-backend       | 2026-10-16T09:02:04.224336450Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224339060Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224356211Z     return self._connection.handle_request(request)
-f2-backend       | 2026-10-16T09:02:04.224358931Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224361481Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224364271Z     raise exc
-f2-backend       | 2026-10-16T09:02:04.224366901Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224369702Z     ) = self._receive_response_headers(**kwargs)
-f2-backend       | 2026-10-16T09:02:04.224372312Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224374932Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
-f2-backend       | 2026-10-16T09:02:04.224377632Z     event = self._receive_event(timeout=timeout)
-f2-backend       | 2026-10-16T09:02:04.224380132Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224382712Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 231, in _receive_event
-f2-backend       | 2026-10-16T09:02:04.224385602Z     raise RemoteProtocolError(msg)
-f2-backend       | 2026-10-16T09:02:04.224388293Z httpcore.RemoteProtocolError: Server disconnected without sending a response.
-f2-backend       | 2026-10-16T09:02:04.224390923Z 
-f2-backend       | 2026-10-16T09:02:04.224393593Z The above exception was the direct cause of the following exception:
-f2-backend       | 2026-10-16T09:02:04.224396553Z 
-f2-backend       | 2026-10-16T09:02:04.224399123Z Traceback (most recent call last):
-f2-backend       | 2026-10-16T09:02:04.224401833Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 30, in request
-f2-backend       | 2026-10-16T09:02:04.224431915Z     return self._client.request(
-f2-backend       | 2026-10-16T09:02:04.224434665Z            ^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224438345Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 825, in request
-f2-backend       | 2026-10-16T09:02:04.224441135Z     return self.send(request, auth=auth, follow_redirects=follow_redirects)
-f2-backend       | 2026-10-16T09:02:04.224443436Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224445916Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 914, in send
-f2-backend       | 2026-10-16T09:02:04.224487491Z     response = self._send_handling_auth(
-f2-backend       | 2026-10-16T09:02:04.224497492Z                ^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224501752Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 942, in _send_handling_auth
-f2-backend       | 2026-10-16T09:02:04.224504842Z     response = self._send_handling_redirects(
-f2-backend       | 2026-10-16T09:02:04.224544809Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224579393Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
-f2-backend       | 2026-10-16T09:02:04.224642905Z     response = self._send_single_request(request)
-f2-backend       | 2026-10-16T09:02:04.224729779Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224738700Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1014, in _send_single_request
-f2-backend       | 2026-10-16T09:02:04.224742310Z     response = transport.handle_request(request)
-f2-backend       | 2026-10-16T09:02:04.224744860Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224747360Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 249, in handle_request
-f2-backend       | 2026-10-16T09:02:04.224749941Z     with map_httpcore_exceptions():
-f2-backend       | 2026-10-16T09:02:04.224752491Z          ^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224754961Z   File "/usr/local/lib/python3.12/contextlib.py", line 158, in __exit__
-f2-backend       | 2026-10-16T09:02:04.224757571Z     self.gen.throw(value)
-f2-backend       | 2026-10-16T09:02:04.224760661Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
-f2-backend       | 2026-10-16T09:02:04.224766711Z     raise mapped_exc(message) from exc
-f2-backend       | 2026-10-16T09:02:04.224769462Z httpx.RemoteProtocolError: Server disconnected without sending a response.
-f2-backend       | 2026-10-16T09:02:04.224772232Z 
-f2-backend       | 2026-10-16T09:02:04.224774792Z The above exception was the direct cause of the following exception:
-f2-backend       | 2026-10-16T09:02:04.224777572Z 
-f2-backend       | 2026-10-16T09:02:04.224783522Z Traceback (most recent call last):
-f2-backend       | 2026-10-16T09:02:04.224786382Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 172, in run
-f2-backend       | 2026-10-16T09:02:04.224788853Z     if self.run_once():
-f2-backend       | 2026-10-16T09:02:04.224791123Z        ^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224793483Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 62, in run_once
-f2-backend       | 2026-10-16T09:02:04.224795883Z     operation = self._request("POST", f"{INTERNAL}/claim").get("operation")
-f2-backend       | 2026-10-16T09:02:04.224798593Z                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224802193Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 57, in _request
-f2-backend       | 2026-10-16T09:02:04.224804823Z     response = self.store.request(method, path, **kwargs)
-f2-backend       | 2026-10-16T09:02:04.224807584Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:04.224810364Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 38, in request
-f2-backend       | 2026-10-16T09:02:04.224813144Z     raise DependencyUnavailableError("Market database API is unavailable") from exc
-f2-backend       | 2026-10-16T09:02:04.224815874Z propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable
-f2-frontend      | 2026-10-16T09:02:04.494287577Z 127.0.0.1 - - [16/Oct/2026:09:02:04 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:02:04.946941107Z 127.0.0.1 - - [16/Oct/2026:09:02:04 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
-f1-frontend      | 2026-10-16T09:02:05.938630488Z 172.21.0.1 - - [16/Oct/2026:09:02:05 +0000] "POST /api/data-platform/v1/tools/releases.inspect.v1 HTTP/1.1" 200 216761 "-" "python-httpx/0.28.1" "-"
-f1-frontend      | 2026-10-16T09:02:06.017015157Z 172.21.0.1 - - [16/Oct/2026:09:02:06 +0000] "POST /api/data-platform/v1/tools/releases.list.v1 HTTP/1.1" 200 1649 "-" "python-httpx/0.28.1" "-"
-f1-frontend      | 2026-10-16T09:02:08.829686732Z 127.0.0.1 - - [16/Oct/2026:09:02:08 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-frontend      | 2026-10-16T09:02:09.545677033Z 127.0.0.1 - - [16/Oct/2026:09:02:09 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:02:09.988186285Z 127.0.0.1 - - [16/Oct/2026:09:02:09 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
-f3-frontend      | 2026-10-16T09:02:13.096308707Z 127.0.0.1 - - [16/Oct/2026:09:02:13 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
-f1-frontend      | 2026-10-16T09:02:13.881446124Z 127.0.0.1 - - [16/Oct/2026:09:02:13 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-frontend      | 2026-10-16T09:02:14.613075347Z 127.0.0.1 - - [16/Oct/2026:09:02:14 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:02:15.041040202Z 127.0.0.1 - - [16/Oct/2026:09:02:15 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
-f1-frontend      | 2026-10-16T09:02:18.927717747Z 127.0.0.1 - - [16/Oct/2026:09:02:18 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-frontend      | 2026-10-16T09:02:19.653409242Z 127.0.0.1 - - [16/Oct/2026:09:02:19 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:02:20.125601944Z 127.0.0.1 - - [16/Oct/2026:09:02:20 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
-f2-backend       | 2026-10-16T09:02:20.253054806Z Sales import reconciliation will retry after its durable lease
-f2-backend       | 2026-10-16T09:02:20.253097749Z Traceback (most recent call last):
-f2-backend       | 2026-10-16T09:02:20.253107149Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
-f2-backend       | 2026-10-16T09:02:20.253133811Z     yield
-f2-backend       | 2026-10-16T09:02:20.253137731Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 250, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253141281Z     resp = self._pool.handle_request(req)
-f2-backend       | 2026-10-16T09:02:20.253145221Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253148491Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253151982Z     raise exc from None
-f2-backend       | 2026-10-16T09:02:20.253154912Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253158302Z     response = connection.handle_request(
-f2-backend       | 2026-10-16T09:02:20.253161582Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253164642Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253167883Z     return self._connection.handle_request(request)
-f2-backend       | 2026-10-16T09:02:20.253171113Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253174213Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253177663Z     raise exc
-f2-backend       | 2026-10-16T09:02:20.253180763Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253183873Z     ) = self._receive_response_headers(**kwargs)
-f2-backend       | 2026-10-16T09:02:20.253186884Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253189934Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
-f2-backend       | 2026-10-16T09:02:20.253193334Z     event = self._receive_event(timeout=timeout)
-f2-backend       | 2026-10-16T09:02:20.253196374Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253199474Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 231, in _receive_event
-f2-backend       | 2026-10-16T09:02:20.253202694Z     raise RemoteProtocolError(msg)
-f2-backend       | 2026-10-16T09:02:20.253206045Z httpcore.RemoteProtocolError: Server disconnected without sending a response.
-f2-backend       | 2026-10-16T09:02:20.253209105Z 
-f2-backend       | 2026-10-16T09:02:20.253213315Z The above exception was the direct cause of the following exception:
-f2-backend       | 2026-10-16T09:02:20.253216495Z 
-f2-backend       | 2026-10-16T09:02:20.253219445Z Traceback (most recent call last):
-f2-backend       | 2026-10-16T09:02:20.253222596Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 30, in request
-f2-backend       | 2026-10-16T09:02:20.253225906Z     return self._client.request(
-f2-backend       | 2026-10-16T09:02:20.253228986Z            ^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253233356Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 825, in request
-f2-backend       | 2026-10-16T09:02:20.253243487Z     return self.send(request, auth=auth, follow_redirects=follow_redirects)
-f2-backend       | 2026-10-16T09:02:20.253247047Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253250377Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 914, in send
-f2-backend       | 2026-10-16T09:02:20.253253677Z     response = self._send_handling_auth(
-f2-backend       | 2026-10-16T09:02:20.253256747Z                ^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253259918Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 942, in _send_handling_auth
-f2-backend       | 2026-10-16T09:02:20.253263008Z     response = self._send_handling_redirects(
-f2-backend       | 2026-10-16T09:02:20.253265798Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253268658Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
-f2-backend       | 2026-10-16T09:02:20.253271848Z     response = self._send_single_request(request)
-f2-backend       | 2026-10-16T09:02:20.253274788Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253277819Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1014, in _send_single_request
-f2-backend       | 2026-10-16T09:02:20.253280989Z     response = transport.handle_request(request)
-f2-backend       | 2026-10-16T09:02:20.253284169Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253287259Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 249, in handle_request
-f2-backend       | 2026-10-16T09:02:20.253290509Z     with map_httpcore_exceptions():
-f2-backend       | 2026-10-16T09:02:20.253293629Z          ^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253296750Z   File "/usr/local/lib/python3.12/contextlib.py", line 158, in __exit__
-f2-backend       | 2026-10-16T09:02:20.253299980Z     self.gen.throw(value)
-f2-backend       | 2026-10-16T09:02:20.253303090Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
-f2-backend       | 2026-10-16T09:02:20.253306490Z     raise mapped_exc(message) from exc
-f2-backend       | 2026-10-16T09:02:20.253309620Z httpx.RemoteProtocolError: Server disconnected without sending a response.
-f2-backend       | 2026-10-16T09:02:20.253312650Z 
-f2-backend       | 2026-10-16T09:02:20.253315381Z The above exception was the direct cause of the following exception:
-f2-backend       | 2026-10-16T09:02:20.253364263Z 
-f2-backend       | 2026-10-16T09:02:20.253373544Z Traceback (most recent call last):
-f2-backend       | 2026-10-16T09:02:20.253376914Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 172, in run
-f2-backend       | 2026-10-16T09:02:20.253380534Z     if self.run_once():
-f2-backend       | 2026-10-16T09:02:20.253383624Z        ^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253386645Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 62, in run_once
-f2-backend       | 2026-10-16T09:02:20.253390095Z     operation = self._request("POST", f"{INTERNAL}/claim").get("operation")
-f2-backend       | 2026-10-16T09:02:20.253402225Z                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253406856Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 57, in _request
-f2-backend       | 2026-10-16T09:02:20.253410546Z     response = self.store.request(method, path, **kwargs)
-f2-backend       | 2026-10-16T09:02:20.253413606Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-f2-backend       | 2026-10-16T09:02:20.253416646Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 38, in request
-f2-backend       | 2026-10-16T09:02:20.253419946Z     raise DependencyUnavailableError("Market database API is unavailable") from exc
-f2-backend       | 2026-10-16T09:02:20.253423137Z propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable
-f3-frontend      | 2026-10-16T09:02:23.141052465Z 127.0.0.1 - - [16/Oct/2026:09:02:23 +0000] "GET / HTTP/1.1" 200 13364 "-" "Wget" "-"
-f1-frontend      | 2026-10-16T09:02:23.983039906Z 127.0.0.1 - - [16/Oct/2026:09:02:23 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
-f2-frontend      | 2026-10-16T09:02:24.692518859Z 127.0.0.1 - - [16/Oct/2026:09:02:24 +0000] "GET / HTTP/1.1" 200 8811 "-" "Wget" "-"
-f4-frontend      | 2026-10-16T09:02:25.169713101Z 127.0.0.1 - - [16/Oct/2026:09:02:25 +0000] "GET / HTTP/1.1" 200 7178 "-" "Wget" "-"
+f1-backend       running  Up 22 minutes (healthy)
+f1-db-api        running  Up 22 minutes (healthy)
+f1-db-loader     running  Up 22 minutes
+f1-frontend      running  Up 22 minutes (healthy)
+f1-postgres      running  Up 22 minutes (healthy)
+f1-runner        running  Up 22 minutes
+f2-backend       running  Up 22 minutes (healthy)
+f2-db-api        running  Up 22 minutes (healthy)
+f2-frontend      running  Up 22 minutes (healthy)
+f3-backend       running  Up 22 minutes (healthy)
+f3-database      running  Up 22 minutes (healthy)
+f3-frontend      running  Up 22 minutes (healthy)
+f4-backend       running  Up 22 minutes (healthy)
+f4-db-api        running  Up 22 minutes (healthy)
+f4-frontend      running  Up 22 minutes (healthy)
+f4-postgres      running  Up 22 minutes (healthy)
+f5-backend       running  Up 22 minutes (healthy)
+f5-db-api        running  Up 22 minutes (healthy)
+f5-frontend      running  Up 22 minutes (healthy)
+shared-frontend  running  Up 22 minutes (healthy)
+--- capture window 2026-10-23T23:56:26+00:00 to 2026-10-23T23:57:34+00:00 ---
+f1-frontend      | 2026-10-23T23:56:25.317173812Z 127.0.0.1 - - [23/Oct/2026:23:56:25 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:56:25.540351949Z 127.0.0.1 - - [23/Oct/2026:23:56:25 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:56:27.573022338Z 127.0.0.1 - - [23/Oct/2026:23:56:27 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:27.622089450Z 127.0.0.1 - - [23/Oct/2026:23:56:27 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+shared-frontend  | 2026-10-23T23:56:30.191824321Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 28930 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-23T23:56:30.202248545Z 172.21.0.3 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 9275 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-23T23:56:30.202447065Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /features/data-platform/ HTTP/1.1" 200 9275 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.212039740Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/shared-health/data-platform HTTP/1.1" 200 254 "-" "propertyscope-local-deployment-capture/1" "-"
+f2-frontend      | 2026-10-23T23:56:30.218488938Z 172.21.0.3 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 9644 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-23T23:56:30.218633470Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /features/market-intelligence/ HTTP/1.1" 200 9644 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.226475651Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/shared-health/market-intelligence HTTP/1.1" 200 259 "-" "propertyscope-local-deployment-capture/1" "-"
+f3-frontend      | 2026-10-23T23:56:30.232449444Z 172.21.0.3 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 14650 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-23T23:56:30.232501657Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /features/suburb-analytics/ HTTP/1.1" 200 14650 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.241245658Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/shared-health/suburb-analytics HTTP/1.1" 200 98 "-" "propertyscope-local-deployment-capture/1" "-"
+f4-frontend      | 2026-10-23T23:56:30.250836089Z 172.21.0.3 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 7240 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-23T23:56:30.250931844Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /features/due-diligence/ HTTP/1.1" 200 7240 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.259125878Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/shared-health/due-diligence HTTP/1.1" 200 245 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.267796610Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /features/buyer-workspaces/ HTTP/1.1" 200 13268 "-" "propertyscope-local-deployment-capture/1" "-"
+f5-frontend      | 2026-10-23T23:56:30.268023416Z 172.21.0.3 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 13268 "-" "propertyscope-local-deployment-capture/1" "172.21.0.1"
+shared-frontend  | 2026-10-23T23:56:30.336595632Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/shared-health/buyer-workspaces HTTP/1.1" 200 264 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-23T23:56:30.376586340Z 127.0.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+shared-frontend  | 2026-10-23T23:56:30.404040241Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "POST /api/data-platform/v1/sources HTTP/1.1" 201 606 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.441385550Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54 HTTP/1.1" 200 606 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.470005668Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "PUT /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54 HTTP/1.1" 200 626 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.479273025Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54 HTTP/1.1" 200 626 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.538823886Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "DELETE /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54 HTTP/1.1" 204 0 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:56:30.559083204Z 172.21.0.1 - - [23/Oct/2026:23:56:30 +0000] "GET /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54 HTTP/1.1" 404 188 "-" "propertyscope-local-deployment-capture/1" "-"
+f2-frontend      | 2026-10-23T23:56:32.621794647Z 127.0.0.1 - - [23/Oct/2026:23:56:32 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:32.661900666Z 127.0.0.1 - - [23/Oct/2026:23:56:32 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-postgres      | 2026-10-23T23:56:34.073174016Z 2026-10-23 23:56:34.072 UTC [41] ERROR:  canceling statement due to statement timeout
+f1-postgres      | 2026-10-23T23:56:34.073237769Z 2026-10-23 23:56:34.072 UTC [41] STATEMENT:  
+f1-postgres      | 2026-10-23T23:56:34.073248640Z 	            WITH selected_generations AS MATERIALIZED (
+f1-postgres      | 2026-10-23T23:56:34.073253500Z 	                SELECT accepted.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:34.073257380Z 	                FROM serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:34.073261140Z 	                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:34.073264871Z 	                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+f1-postgres      | 2026-10-23T23:56:34.073268741Z 	                  AND accepted.target_feature='feature-1' AND release.status='accepted'
+f1-postgres      | 2026-10-23T23:56:34.073272401Z 	                ORDER BY CASE WHEN release.dataset_id='gnaf-nsw' THEN 0 ELSE 1 END,
+f1-postgres      | 2026-10-23T23:56:34.073276061Z 	                         accepted.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:34.073279741Z 	            ), accepted_addresses AS MATERIALIZED (
+f1-postgres      | 2026-10-23T23:56:34.073283272Z 	                SELECT COALESCE(address.property_ref,
+f1-postgres      | 2026-10-23T23:56:34.073286792Z 	                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+f1-postgres      | 2026-10-23T23:56:34.073290852Z 	                       address.address_display,address.locality,address.postcode,'NSW' AS state,
+f1-postgres      | 2026-10-23T23:56:34.073294552Z 	                       CASE WHEN address.source_status='CURRENT' THEN 'verified'
+f1-postgres      | 2026-10-23T23:56:34.073298282Z 	                            ELSE 'retired' END AS resolution_status,address.geom,
+f1-postgres      | 2026-10-23T23:56:34.073301922Z 	                       trim(regexp_replace(lower(address.address_display),
+f1-postgres      | 2026-10-23T23:56:34.073305583Z 	                           '[^a-z0-9]+',' ','g')) AS search_text,
+f1-postgres      | 2026-10-23T23:56:34.073309183Z 	                       address.address_display AS matched_address,'canonical' AS match_kind
+f1-postgres      | 2026-10-23T23:56:34.073313003Z 	                FROM selected_generations accepted
+f1-postgres      | 2026-10-23T23:56:34.073316933Z 	                CROSS JOIN LATERAL (
+f1-postgres      | 2026-10-23T23:56:34.073320943Z 	                    SELECT address.* FROM warehouse.gnaf_address address
+f1-postgres      | 2026-10-23T23:56:34.073324674Z 	                    WHERE accepted.dataset_release_id=address.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:34.073329074Z 	                      AND address.published AND trim(regexp_replace(lower(address.address_display), '[^a-z0-9]+',' ','g')) LIKE '%' || $1 || '%'
+f1-postgres      | 2026-10-23T23:56:34.073346895Z 	                    
+f1-postgres      | 2026-10-23T23:56:34.073350035Z 	                    LIMIT $2
+f1-postgres      | 2026-10-23T23:56:34.073352645Z 	                ) address
+f1-postgres      | 2026-10-23T23:56:34.073355035Z 	            ), legacy_documents AS (
+f1-postgres      | 2026-10-23T23:56:34.073357535Z 	                SELECT property.property_ref,property.address_display,property.locality,
+f1-postgres      | 2026-10-23T23:56:34.073361475Z 	                       property.postcode,property.state,property.resolution_status,property.geom,
+f1-postgres      | 2026-10-23T23:56:34.073364166Z 	                       property.address_search AS search_text,
+f1-postgres      | 2026-10-23T23:56:34.073366646Z 	                       property.address_display AS matched_address,'canonical' AS match_kind
+f1-postgres      | 2026-10-23T23:56:34.073369186Z 	                FROM registry.property property
+f1-postgres      | 2026-10-23T23:56:34.073371756Z 	                WHERE property.address_search LIKE '%' || $3 || '%' AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:34.073374216Z 	    SELECT 1 FROM registry.property_identifier warehouse_identifier
+f1-postgres      | 2026-10-23T23:56:34.073376746Z 	    WHERE warehouse_identifier.property_ref=property.property_ref
+f1-postgres      | 2026-10-23T23:56:34.073380166Z 	      AND warehouse_identifier.scheme='gnaf_pid'
+f1-postgres      | 2026-10-23T23:56:34.073382816Z 	) AND EXISTS (
+f1-postgres      | 2026-10-23T23:56:34.073385527Z 	                    SELECT 1 FROM registry.property_identifier identifier
+f1-postgres      | 2026-10-23T23:56:34.073388167Z 	                    JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:34.073390727Z 	                      ON accepted.dataset_release_id=identifier.source_release_id
+f1-postgres      | 2026-10-23T23:56:34.073393387Z 	                    WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+f1-postgres      | 2026-10-23T23:56:34.073395887Z 	                ) AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:34.073398317Z 	                    SELECT 1 FROM warehouse.gnaf_address accepted_address
+f1-postgres      | 2026-10-23T23:56:34.073400977Z 	                    JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:34.073403527Z 	                      ON accepted.dataset_release_id=accepted_address.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:34.073406218Z 	                    WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
+f1-postgres      | 2026-10-23T23:56:34.073408798Z 	                        md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+f1-postgres      | 2026-10-23T23:56:34.073411358Z 	                        =property.property_ref
+f1-postgres      | 2026-10-23T23:56:34.073413938Z 	                )
+f1-postgres      | 2026-10-23T23:56:34.073416358Z 	                UNION ALL
+f1-postgres      | 2026-10-23T23:56:34.073418868Z 	                SELECT property.property_ref,property.address_display,property.locality,
+f1-postgres      | 2026-10-23T23:56:34.073421708Z 	                       property.postcode,property.state,property.resolution_status,property.geom,
+f1-postgres      | 2026-10-23T23:56:34.073430219Z 	                       alias.alias_search,alias.alias_display,'alias'
+f1-postgres      | 2026-10-23T23:56:34.073432989Z 	                FROM registry.address_alias alias
+f1-postgres      | 2026-10-23T23:56:34.073435989Z 	                JOIN registry.property property ON property.property_ref=alias.property_ref
+f1-postgres      | 2026-10-23T23:56:34.073438639Z 	                JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:34.073441149Z 	                  ON accepted.dataset_release_id=alias.source_release_id
+f1-postgres      | 2026-10-23T23:56:34.073443699Z 	                WHERE alias.is_current
+f1-postgres      | 2026-10-23T23:56:34.073446600Z 	                  AND alias.alias_search LIKE '%' || $4 || '%'
+f1-postgres      | 2026-10-23T23:56:34.073449150Z 	                  AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:34.073451710Z 	    SELECT 1 FROM registry.property_identifier warehouse_identifier
+f1-postgres      | 2026-10-23T23:56:34.073454230Z 	    WHERE warehouse_identifier.property_ref=property.property_ref
+f1-postgres      | 2026-10-23T23:56:34.073456720Z 	      AND warehouse_identifier.scheme='gnaf_pid'
+f1-postgres      | 2026-10-23T23:56:34.073459340Z 	)
+f1-postgres      | 2026-10-23T23:56:34.073461740Z 	                  AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:34.073469701Z 	                      SELECT 1 FROM warehouse.gnaf_address accepted_address
+f1-postgres      | 2026-10-23T23:56:34.073472301Z 	                      JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:34.073474981Z 	                        ON accepted.dataset_release_id=accepted_address.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:34.073477671Z 	                      WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
+f1-postgres      | 2026-10-23T23:56:34.073480271Z 	                          md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+f1-postgres      | 2026-10-23T23:56:34.073483511Z 	                          =property.property_ref
+f1-postgres      | 2026-10-23T23:56:34.073486192Z 	                  )
+f1-postgres      | 2026-10-23T23:56:34.073488642Z 	            ), search_documents AS MATERIALIZED (
+f1-postgres      | 2026-10-23T23:56:34.073491132Z 	                SELECT * FROM accepted_addresses
+f1-postgres      | 2026-10-23T23:56:34.073493622Z 	                UNION ALL SELECT * FROM legacy_documents
+f1-postgres      | 2026-10-23T23:56:34.073496162Z 	                LIMIT $5
+f1-postgres      | 2026-10-23T23:56:34.073501052Z 	            ), candidate_documents AS (
+f1-postgres      | 2026-10-23T23:56:34.073503552Z 	                SELECT * FROM search_documents LIMIT $6
+f1-postgres      | 2026-10-23T23:56:34.073506072Z 	            ), candidates AS (
+f1-postgres      | 2026-10-23T23:56:34.073508623Z 	                SELECT document.property_ref,document.address_display,document.locality,
+f1-postgres      | 2026-10-23T23:56:34.073511393Z 	                       document.postcode,document.state,document.resolution_status,
+f1-postgres      | 2026-10-23T23:56:34.073514133Z 	                       ST_X(document.geom) AS longitude,ST_Y(document.geom) AS latitude,
+f1-postgres      | 2026-10-23T23:56:34.073522663Z 	                       document.matched_address,document.match_kind,
+f1-postgres      | 2026-10-23T23:56:34.073525363Z 	                       greatest(
+f1-postgres      | 2026-10-23T23:56:34.073527784Z 	                           similarity(document.search_text,$7),
+f1-postgres      | 2026-10-23T23:56:34.073530284Z 	                           word_similarity($8,document.search_text),
+f1-postgres      | 2026-10-23T23:56:34.073532934Z 	                           CASE WHEN document.search_text=$9 THEN 1 ELSE 0 END
+f1-postgres      | 2026-10-23T23:56:34.073535454Z 	                       ) AS score,
+f1-postgres      | 2026-10-23T23:56:34.073537914Z 	                       CASE
+f1-postgres      | 2026-10-23T23:56:34.073540524Z 	                           WHEN document.search_text=$10 THEN 0
+f1-postgres      | 2026-10-23T23:56:34.073543304Z 	                           WHEN document.search_text LIKE $11 || '%' THEN 1
+f1-postgres      | 2026-10-23T23:56:34.073546174Z 	                           ELSE 2
+f1-postgres      | 2026-10-23T23:56:34.073549285Z 	                       END AS match_rank
+f1-postgres      | 2026-10-23T23:56:34.073552415Z 	                FROM candidate_documents document
+f1-postgres      | 2026-10-23T23:56:34.073555675Z 	                WHERE document.state=$12
+f1-postgres      | 2026-10-23T23:56:34.073559585Z 	            ), best_matches AS (
+f1-postgres      | 2026-10-23T23:56:34.073562585Z 	                SELECT DISTINCT ON (property_ref) * FROM candidates
+f1-postgres      | 2026-10-23T23:56:34.073565185Z 	                ORDER BY property_ref,match_rank,score DESC,
+f1-postgres      | 2026-10-23T23:56:34.073568286Z 	                         CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
+f1-postgres      | 2026-10-23T23:56:34.073571566Z 	            ), summary AS (
+f1-postgres      | 2026-10-23T23:56:34.073574646Z 	                SELECT count(*)::bigint AS total_count,
+f1-postgres      | 2026-10-23T23:56:34.073577846Z 	                       (SELECT count(*)>$13 FROM search_documents) AS total_is_lower_bound
+f1-postgres      | 2026-10-23T23:56:34.073580716Z 	                FROM best_matches
+f1-postgres      | 2026-10-23T23:56:34.073583246Z 	            )
+f1-postgres      | 2026-10-23T23:56:34.073585926Z 	            SELECT page.*,summary.total_count,summary.total_is_lower_bound
+f1-postgres      | 2026-10-23T23:56:34.073589287Z 	            FROM summary LEFT JOIN LATERAL (
+f1-postgres      | 2026-10-23T23:56:34.073592377Z 	                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
+f1-postgres      | 2026-10-23T23:56:34.073595727Z 	                       longitude,latitude,score,matched_address,match_kind,
+f1-postgres      | 2026-10-23T23:56:34.073598697Z 	                       CASE match_rank
+f1-postgres      | 2026-10-23T23:56:34.073601397Z 	                           WHEN 0 THEN 'exact'
+f1-postgres      | 2026-10-23T23:56:34.073603927Z 	                           WHEN 1 THEN 'prefix'
+f1-postgres      | 2026-10-23T23:56:34.073606487Z 	                           ELSE 'contains'
+f1-postgres      | 2026-10-23T23:56:34.073609028Z 	                       END AS match_method
+f1-postgres      | 2026-10-23T23:56:34.073618008Z 	                FROM best_matches
+f1-postgres      | 2026-10-23T23:56:34.073622578Z 	                ORDER BY match_rank,score DESC,address_display,property_ref LIMIT $14 OFFSET $15
+f1-postgres      | 2026-10-23T23:56:34.073625238Z 	            ) page ON true
+f1-postgres      | 2026-10-23T23:56:34.073627738Z 	            
+shared-frontend  | 2026-10-23T23:56:34.083907055Z 172.21.0.1 - - [23/Oct/2026:23:56:34 +0000] "GET /api/data-platform/v1/properties/search?q=1+George+Street&state=NSW&limit=1 HTTP/1.1" 503 271 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-23T23:56:35.420134951Z 127.0.0.1 - - [23/Oct/2026:23:56:35 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:56:35.580924436Z 127.0.0.1 - - [23/Oct/2026:23:56:35 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:56:37.670489876Z 127.0.0.1 - - [23/Oct/2026:23:56:37 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:37.705533951Z 127.0.0.1 - - [23/Oct/2026:23:56:37 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:56:40.462037528Z 127.0.0.1 - - [23/Oct/2026:23:56:40 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:56:42.720559117Z 127.0.0.1 - - [23/Oct/2026:23:56:42 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:42.755928358Z 127.0.0.1 - - [23/Oct/2026:23:56:42 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f2-backend       | 2026-10-23T23:56:43.879113129Z Sales import reconciliation will retry after its durable lease
+f2-backend       | 2026-10-23T23:56:43.879178783Z Traceback (most recent call last):
+f2-backend       | 2026-10-23T23:56:43.879186683Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+f2-backend       | 2026-10-23T23:56:43.879189193Z     yield
+f2-backend       | 2026-10-23T23:56:43.879191083Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 250, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879193163Z     resp = self._pool.handle_request(req)
+f2-backend       | 2026-10-23T23:56:43.879195043Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879196914Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879198904Z     raise exc from None
+f2-backend       | 2026-10-23T23:56:43.879200784Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879203044Z     response = connection.handle_request(
+f2-backend       | 2026-10-23T23:56:43.879204954Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879206804Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879208784Z     return self._connection.handle_request(request)
+f2-backend       | 2026-10-23T23:56:43.879210664Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879212544Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879214544Z     raise exc
+f2-backend       | 2026-10-23T23:56:43.879216405Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879218375Z     ) = self._receive_response_headers(**kwargs)
+f2-backend       | 2026-10-23T23:56:43.879220255Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879222135Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
+f2-backend       | 2026-10-23T23:56:43.879224115Z     event = self._receive_event(timeout=timeout)
+f2-backend       | 2026-10-23T23:56:43.879225965Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879227825Z   File "/app/.venv/lib/python3.12/site-packages/httpcore/_sync/http11.py", line 231, in _receive_event
+f2-backend       | 2026-10-23T23:56:43.879229785Z     raise RemoteProtocolError(msg)
+f2-backend       | 2026-10-23T23:56:43.879231645Z httpcore.RemoteProtocolError: Server disconnected without sending a response.
+f2-backend       | 2026-10-23T23:56:43.879233585Z 
+f2-backend       | 2026-10-23T23:56:43.879235516Z The above exception was the direct cause of the following exception:
+f2-backend       | 2026-10-23T23:56:43.879237486Z 
+f2-backend       | 2026-10-23T23:56:43.879239306Z Traceback (most recent call last):
+f2-backend       | 2026-10-23T23:56:43.879241246Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 68, in request
+f2-backend       | 2026-10-23T23:56:43.879243256Z     return self._client.request(
+f2-backend       | 2026-10-23T23:56:43.879250466Z            ^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879253406Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 825, in request
+f2-backend       | 2026-10-23T23:56:43.879255617Z     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+f2-backend       | 2026-10-23T23:56:43.879257617Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879259537Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 914, in send
+f2-backend       | 2026-10-23T23:56:43.879261527Z     response = self._send_handling_auth(
+f2-backend       | 2026-10-23T23:56:43.879263417Z                ^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879265287Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+f2-backend       | 2026-10-23T23:56:43.879267257Z     response = self._send_handling_redirects(
+f2-backend       | 2026-10-23T23:56:43.879269137Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879271017Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+f2-backend       | 2026-10-23T23:56:43.879272997Z     response = self._send_single_request(request)
+f2-backend       | 2026-10-23T23:56:43.879274928Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879276818Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_client.py", line 1014, in _send_single_request
+f2-backend       | 2026-10-23T23:56:43.879278818Z     response = transport.handle_request(request)
+f2-backend       | 2026-10-23T23:56:43.879280678Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879282568Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 249, in handle_request
+f2-backend       | 2026-10-23T23:56:43.879284578Z     with map_httpcore_exceptions():
+f2-backend       | 2026-10-23T23:56:43.879286448Z          ^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879288388Z   File "/usr/local/lib/python3.12/contextlib.py", line 158, in __exit__
+f2-backend       | 2026-10-23T23:56:43.879290358Z     self.gen.throw(value)
+f2-backend       | 2026-10-23T23:56:43.879292238Z   File "/app/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+f2-backend       | 2026-10-23T23:56:43.879294259Z     raise mapped_exc(message) from exc
+f2-backend       | 2026-10-23T23:56:43.879296139Z httpx.RemoteProtocolError: Server disconnected without sending a response.
+f2-backend       | 2026-10-23T23:56:43.879298079Z 
+f2-backend       | 2026-10-23T23:56:43.879299879Z The above exception was the direct cause of the following exception:
+f2-backend       | 2026-10-23T23:56:43.879301799Z 
+f2-backend       | 2026-10-23T23:56:43.879303609Z Traceback (most recent call last):
+f2-backend       | 2026-10-23T23:56:43.879305469Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 172, in run
+f2-backend       | 2026-10-23T23:56:43.879307599Z     if self.run_once():
+f2-backend       | 2026-10-23T23:56:43.879309469Z        ^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879311329Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 62, in run_once
+f2-backend       | 2026-10-23T23:56:43.879316210Z     operation = self._request("POST", f"{INTERNAL}/claim").get("operation")
+f2-backend       | 2026-10-23T23:56:43.879318500Z                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879320780Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/import_worker.py", line 57, in _request
+f2-backend       | 2026-10-23T23:56:43.879322850Z     response = self.store.request(method, path, **kwargs)
+f2-backend       | 2026-10-23T23:56:43.879324770Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+f2-backend       | 2026-10-23T23:56:43.879326830Z   File "/app/student-2/backend/src/propertyscope_market_intelligence/clients.py", line 76, in request
+f2-backend       | 2026-10-23T23:56:43.879329080Z     raise DependencyUnavailableError("Market database API is unavailable") from exc
+f2-backend       | 2026-10-23T23:56:43.879331110Z propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable
+f1-frontend      | 2026-10-23T23:56:45.516054074Z 127.0.0.1 - - [23/Oct/2026:23:56:45 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:56:45.634730051Z 127.0.0.1 - - [23/Oct/2026:23:56:45 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:56:47.790862955Z 127.0.0.1 - - [23/Oct/2026:23:56:47 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:47.837567903Z 127.0.0.1 - - [23/Oct/2026:23:56:47 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-postgres      | 2026-10-23T23:56:49.637640954Z 2026-10-23 23:56:49.637 UTC [42] ERROR:  canceling statement due to statement timeout
+f1-postgres      | 2026-10-23T23:56:49.637693187Z 2026-10-23 23:56:49.637 UTC [42] STATEMENT:  
+f1-postgres      | 2026-10-23T23:56:49.637699607Z 	            WITH selected_generations AS MATERIALIZED (
+f1-postgres      | 2026-10-23T23:56:49.637702207Z 	                SELECT accepted.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:49.637704187Z 	                FROM serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:49.637706147Z 	                JOIN ops.dataset_release release ON release.id=accepted.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:49.637708158Z 	                WHERE release.dataset_id IN ('gnaf-nsw','fixture-property')
+f1-postgres      | 2026-10-23T23:56:49.637710078Z 	                  AND accepted.target_feature='feature-1' AND release.status='accepted'
+f1-postgres      | 2026-10-23T23:56:49.637712028Z 	                ORDER BY CASE WHEN release.dataset_id='gnaf-nsw' THEN 0 ELSE 1 END,
+f1-postgres      | 2026-10-23T23:56:49.637713988Z 	                         accepted.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:49.637715918Z 	            ), accepted_addresses AS MATERIALIZED (
+f1-postgres      | 2026-10-23T23:56:49.637717808Z 	                SELECT COALESCE(address.property_ref,
+f1-postgres      | 2026-10-23T23:56:49.637719738Z 	                           md5('propertyscope-gnaf:' || address.gnaf_pid)::uuid) AS property_ref,
+f1-postgres      | 2026-10-23T23:56:49.637721748Z 	                       address.address_display,address.locality,address.postcode,'NSW' AS state,
+f1-postgres      | 2026-10-23T23:56:49.637723698Z 	                       CASE WHEN address.source_status='CURRENT' THEN 'verified'
+f1-postgres      | 2026-10-23T23:56:49.637725658Z 	                            ELSE 'retired' END AS resolution_status,address.geom,
+f1-postgres      | 2026-10-23T23:56:49.637727599Z 	                       trim(regexp_replace(lower(address.address_display),
+f1-postgres      | 2026-10-23T23:56:49.637729529Z 	                           '[^a-z0-9]+',' ','g')) AS search_text,
+f1-postgres      | 2026-10-23T23:56:49.637731439Z 	                       address.address_display AS matched_address,'canonical' AS match_kind
+f1-postgres      | 2026-10-23T23:56:49.637733439Z 	                FROM selected_generations accepted
+f1-postgres      | 2026-10-23T23:56:49.637735359Z 	                CROSS JOIN LATERAL (
+f1-postgres      | 2026-10-23T23:56:49.637737339Z 	                    SELECT address.* FROM warehouse.gnaf_address address
+f1-postgres      | 2026-10-23T23:56:49.637739309Z 	                    WHERE accepted.dataset_release_id=address.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:49.637741289Z 	                      AND address.published AND trim(regexp_replace(lower(address.address_display), '[^a-z0-9]+',' ','g')) LIKE '%' || $1 || '%'
+f1-postgres      | 2026-10-23T23:56:49.637743339Z 	                    
+f1-postgres      | 2026-10-23T23:56:49.637810003Z 	                    LIMIT $2
+f1-postgres      | 2026-10-23T23:56:49.637816893Z 	                ) address
+f1-postgres      | 2026-10-23T23:56:49.637819493Z 	            ), legacy_documents AS (
+f1-postgres      | 2026-10-23T23:56:49.637821883Z 	                SELECT property.property_ref,property.address_display,property.locality,
+f1-postgres      | 2026-10-23T23:56:49.637825924Z 	                       property.postcode,property.state,property.resolution_status,property.geom,
+f1-postgres      | 2026-10-23T23:56:49.637828454Z 	                       property.address_search AS search_text,
+f1-postgres      | 2026-10-23T23:56:49.637830744Z 	                       property.address_display AS matched_address,'canonical' AS match_kind
+f1-postgres      | 2026-10-23T23:56:49.637833164Z 	                FROM registry.property property
+f1-postgres      | 2026-10-23T23:56:49.637835444Z 	                WHERE property.address_search LIKE '%' || $3 || '%' AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:49.637837914Z 	    SELECT 1 FROM registry.property_identifier warehouse_identifier
+f1-postgres      | 2026-10-23T23:56:49.637840264Z 	    WHERE warehouse_identifier.property_ref=property.property_ref
+f1-postgres      | 2026-10-23T23:56:49.637842694Z 	      AND warehouse_identifier.scheme='gnaf_pid'
+f1-postgres      | 2026-10-23T23:56:49.637845035Z 	) AND EXISTS (
+f1-postgres      | 2026-10-23T23:56:49.637847285Z 	                    SELECT 1 FROM registry.property_identifier identifier
+f1-postgres      | 2026-10-23T23:56:49.637849655Z 	                    JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:49.637851985Z 	                      ON accepted.dataset_release_id=identifier.source_release_id
+f1-postgres      | 2026-10-23T23:56:49.637854275Z 	                    WHERE identifier.property_ref=property.property_ref AND identifier.is_current
+f1-postgres      | 2026-10-23T23:56:49.637856915Z 	                ) AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:49.637859215Z 	                    SELECT 1 FROM warehouse.gnaf_address accepted_address
+f1-postgres      | 2026-10-23T23:56:49.637861595Z 	                    JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:49.637864306Z 	                      ON accepted.dataset_release_id=accepted_address.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:49.637866896Z 	                    WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
+f1-postgres      | 2026-10-23T23:56:49.637869346Z 	                        md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+f1-postgres      | 2026-10-23T23:56:49.637871766Z 	                        =property.property_ref
+f1-postgres      | 2026-10-23T23:56:49.637874076Z 	                )
+f1-postgres      | 2026-10-23T23:56:49.637876396Z 	                UNION ALL
+f1-postgres      | 2026-10-23T23:56:49.637878736Z 	                SELECT property.property_ref,property.address_display,property.locality,
+f1-postgres      | 2026-10-23T23:56:49.637883777Z 	                       property.postcode,property.state,property.resolution_status,property.geom,
+f1-postgres      | 2026-10-23T23:56:49.637886247Z 	                       alias.alias_search,alias.alias_display,'alias'
+f1-postgres      | 2026-10-23T23:56:49.637895327Z 	                FROM registry.address_alias alias
+f1-postgres      | 2026-10-23T23:56:49.637897867Z 	                JOIN registry.property property ON property.property_ref=alias.property_ref
+f1-postgres      | 2026-10-23T23:56:49.637900297Z 	                JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:49.637902998Z 	                  ON accepted.dataset_release_id=alias.source_release_id
+f1-postgres      | 2026-10-23T23:56:49.637905428Z 	                WHERE alias.is_current
+f1-postgres      | 2026-10-23T23:56:49.637908018Z 	                  AND alias.alias_search LIKE '%' || $4 || '%'
+f1-postgres      | 2026-10-23T23:56:49.637910538Z 	                  AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:49.637912948Z 	    SELECT 1 FROM registry.property_identifier warehouse_identifier
+f1-postgres      | 2026-10-23T23:56:49.637915558Z 	    WHERE warehouse_identifier.property_ref=property.property_ref
+f1-postgres      | 2026-10-23T23:56:49.637918108Z 	      AND warehouse_identifier.scheme='gnaf_pid'
+f1-postgres      | 2026-10-23T23:56:49.637920488Z 	)
+f1-postgres      | 2026-10-23T23:56:49.637922909Z 	                  AND NOT EXISTS (
+f1-postgres      | 2026-10-23T23:56:49.637925359Z 	                      SELECT 1 FROM warehouse.gnaf_address accepted_address
+f1-postgres      | 2026-10-23T23:56:49.637927729Z 	                      JOIN serving.accepted_generation accepted
+f1-postgres      | 2026-10-23T23:56:49.637930219Z 	                        ON accepted.dataset_release_id=accepted_address.dataset_release_id
+f1-postgres      | 2026-10-23T23:56:49.637932709Z 	                      WHERE accepted_address.published AND COALESCE(accepted_address.property_ref,
+f1-postgres      | 2026-10-23T23:56:49.637935029Z 	                          md5('propertyscope-gnaf:' || accepted_address.gnaf_pid)::uuid)
+f1-postgres      | 2026-10-23T23:56:49.637937279Z 	                          =property.property_ref
+f1-postgres      | 2026-10-23T23:56:49.637939529Z 	                  )
+f1-postgres      | 2026-10-23T23:56:49.637941820Z 	            ), search_documents AS MATERIALIZED (
+f1-postgres      | 2026-10-23T23:56:49.637944270Z 	                SELECT * FROM accepted_addresses
+f1-postgres      | 2026-10-23T23:56:49.637946600Z 	                UNION ALL SELECT * FROM legacy_documents
+f1-postgres      | 2026-10-23T23:56:49.637949020Z 	                LIMIT $5
+f1-postgres      | 2026-10-23T23:56:49.637951250Z 	            ), candidate_documents AS (
+f1-postgres      | 2026-10-23T23:56:49.637953570Z 	                SELECT * FROM search_documents LIMIT $6
+f1-postgres      | 2026-10-23T23:56:49.637955940Z 	            ), candidates AS (
+f1-postgres      | 2026-10-23T23:56:49.637958340Z 	                SELECT document.property_ref,document.address_display,document.locality,
+f1-postgres      | 2026-10-23T23:56:49.637960691Z 	                       document.postcode,document.state,document.resolution_status,
+f1-postgres      | 2026-10-23T23:56:49.637963181Z 	                       ST_X(document.geom) AS longitude,ST_Y(document.geom) AS latitude,
+f1-postgres      | 2026-10-23T23:56:49.637966081Z 	                       document.matched_address,document.match_kind,
+f1-postgres      | 2026-10-23T23:56:49.637968591Z 	                       greatest(
+f1-postgres      | 2026-10-23T23:56:49.637976521Z 	                           similarity(document.search_text,$7),
+f1-postgres      | 2026-10-23T23:56:49.637979422Z 	                           word_similarity($8,document.search_text),
+f1-postgres      | 2026-10-23T23:56:49.637982172Z 	                           CASE WHEN document.search_text=$9 THEN 1 ELSE 0 END
+f1-postgres      | 2026-10-23T23:56:49.637984592Z 	                       ) AS score,
+f1-postgres      | 2026-10-23T23:56:49.637986992Z 	                       CASE
+f1-postgres      | 2026-10-23T23:56:49.637989482Z 	                           WHEN document.search_text=$10 THEN 0
+f1-postgres      | 2026-10-23T23:56:49.637991832Z 	                           WHEN document.search_text LIKE $11 || '%' THEN 1
+f1-postgres      | 2026-10-23T23:56:49.637994152Z 	                           ELSE 2
+f1-postgres      | 2026-10-23T23:56:49.637996532Z 	                       END AS match_rank
+f1-postgres      | 2026-10-23T23:56:49.637999123Z 	                FROM candidate_documents document
+f1-postgres      | 2026-10-23T23:56:49.638001463Z 	                WHERE document.state=$12
+f1-postgres      | 2026-10-23T23:56:49.638004363Z 	            ), best_matches AS (
+f1-postgres      | 2026-10-23T23:56:49.638006763Z 	                SELECT DISTINCT ON (property_ref) * FROM candidates
+f1-postgres      | 2026-10-23T23:56:49.638009403Z 	                ORDER BY property_ref,match_rank,score DESC,
+f1-postgres      | 2026-10-23T23:56:49.638011813Z 	                         CASE WHEN match_kind='canonical' THEN 0 ELSE 1 END,matched_address
+f1-postgres      | 2026-10-23T23:56:49.638014133Z 	            ), summary AS (
+f1-postgres      | 2026-10-23T23:56:49.638016393Z 	                SELECT count(*)::bigint AS total_count,
+f1-postgres      | 2026-10-23T23:56:49.638018724Z 	                       (SELECT count(*)>$13 FROM search_documents) AS total_is_lower_bound
+f1-postgres      | 2026-10-23T23:56:49.638021134Z 	                FROM best_matches
+f1-postgres      | 2026-10-23T23:56:49.638023474Z 	            )
+f1-postgres      | 2026-10-23T23:56:49.638025744Z 	            SELECT page.*,summary.total_count,summary.total_is_lower_bound
+f1-postgres      | 2026-10-23T23:56:49.638028134Z 	            FROM summary LEFT JOIN LATERAL (
+f1-postgres      | 2026-10-23T23:56:49.638030404Z 	                SELECT property_ref,address_display,locality,postcode,state,resolution_status,
+f1-postgres      | 2026-10-23T23:56:49.638032674Z 	                       longitude,latitude,score,matched_address,match_kind,
+f1-postgres      | 2026-10-23T23:56:49.638035074Z 	                       CASE match_rank
+f1-postgres      | 2026-10-23T23:56:49.638037344Z 	                           WHEN 0 THEN 'exact'
+f1-postgres      | 2026-10-23T23:56:49.638039665Z 	                           WHEN 1 THEN 'prefix'
+f1-postgres      | 2026-10-23T23:56:49.638042015Z 	                           ELSE 'contains'
+f1-postgres      | 2026-10-23T23:56:49.638044245Z 	                       END AS match_method
+f1-postgres      | 2026-10-23T23:56:49.638046505Z 	                FROM best_matches
+f1-postgres      | 2026-10-23T23:56:49.638048775Z 	                ORDER BY match_rank,score DESC,address_display,property_ref LIMIT $14 OFFSET $15
+f1-postgres      | 2026-10-23T23:56:49.638054765Z 	            ) page ON true
+f1-postgres      | 2026-10-23T23:56:49.638057135Z 	            
+shared-frontend  | 2026-10-23T23:56:49.645750760Z 172.21.0.1 - - [23/Oct/2026:23:56:49 +0000] "GET /api/data-platform/v1/properties/search?q=1+George+Street&state=NSW&limit=1 HTTP/1.1" 503 271 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-23T23:56:50.565112744Z 127.0.0.1 - - [23/Oct/2026:23:56:50 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:56:52.878349917Z 127.0.0.1 - - [23/Oct/2026:23:56:52 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:52.920973421Z 127.0.0.1 - - [23/Oct/2026:23:56:52 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:56:55.611218640Z 127.0.0.1 - - [23/Oct/2026:23:56:55 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:56:55.677360690Z 127.0.0.1 - - [23/Oct/2026:23:56:55 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:56:57.922133366Z 127.0.0.1 - - [23/Oct/2026:23:56:57 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:56:57.970064551Z 127.0.0.1 - - [23/Oct/2026:23:56:57 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:00.654754364Z 127.0.0.1 - - [23/Oct/2026:23:57:00 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:57:02.965805253Z 127.0.0.1 - - [23/Oct/2026:23:57:02 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:03.015149341Z 127.0.0.1 - - [23/Oct/2026:23:57:03 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+shared-frontend  | 2026-10-23T23:57:03.808351230Z 172.21.0.1 - - [23/Oct/2026:23:57:03 +0000] "GET /api/data-platform/v1/properties/search?q=1+George+Street&state=NSW&limit=1 HTTP/1.1" 200 508 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:03.954632913Z 172.21.0.1 - - [23/Oct/2026:23:57:03 +0000] "GET /api/data-platform/v1/properties/search?q=11+Example+Street&state=NSW&limit=1 HTTP/1.1" 200 147 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:03.995890883Z 172.21.0.1 - - [23/Oct/2026:23:57:03 +0000] "GET /api/data-platform/v1/properties/search?q=1+Fixture+Street&state=NSW&limit=1 HTTP/1.1" 200 146 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.163705510Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/market-intelligence/v1/properties/2be2262b-46a1-031d-c5ba-587a73bc8a19/validate HTTP/1.1" 200 75 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.254002272Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "POST /api/market-intelligence/v1/market-cases HTTP/1.1" 201 489 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.262880147Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/market-intelligence/v1/market-cases/eee260bc-5f41-4abf-8af4-67d62c6e85ee HTTP/1.1" 200 489 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.275811650Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "DELETE /api/market-intelligence/v1/market-cases/eee260bc-5f41-4abf-8af4-67d62c6e85ee HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.284551498Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/market-intelligence/v1/market-cases/eee260bc-5f41-4abf-8af4-67d62c6e85ee HTTP/1.1" 404 138 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.307086853Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "POST /api/suburb-analytics/v1/suburb-comparisons HTTP/1.1" 201 389 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.314310755Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/suburb-analytics/v1/suburb-comparisons/078b11e5-3eca-41e6-a550-a3fb4c0b57dd HTTP/1.1" 200 389 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.336262770Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "DELETE /api/suburb-analytics/v1/suburb-comparisons/078b11e5-3eca-41e6-a550-a3fb4c0b57dd HTTP/1.1" 200 16 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.344335160Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/suburb-analytics/v1/suburb-comparisons/078b11e5-3eca-41e6-a550-a3fb4c0b57dd HTTP/1.1" 404 217 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.562039341Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "POST /api/due-diligence/v1/site-reviews HTTP/1.1" 201 423 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.591989412Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/due-diligence/v1/site-reviews/c8918772-14eb-42c6-80a5-d21e8c53e142 HTTP/1.1" 200 423 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.604481579Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "DELETE /api/due-diligence/v1/site-reviews/c8918772-14eb-42c6-80a5-d21e8c53e142 HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.613068176Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/due-diligence/v1/site-reviews/c8918772-14eb-42c6-80a5-d21e8c53e142 HTTP/1.1" 404 138 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.724835987Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "POST /api/buyer-workspaces/v1/buyer-cases HTTP/1.1" 201 271 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.790884221Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/buyer-workspaces/v1/buyer-cases/fcf576e2-87d6-48d6-9add-920fdc6a819f HTTP/1.1" 200 271 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.848725633Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "DELETE /api/buyer-workspaces/v1/buyer-cases/fcf576e2-87d6-48d6-9add-920fdc6a819f HTTP/1.1" 200 51 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.906788898Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/buyer-workspaces/v1/buyer-cases/fcf576e2-87d6-48d6-9add-920fdc6a819f HTTP/1.1" 404 318 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.917602116Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/shared-health/ai-mode HTTP/1.1" 200 321 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.952814985Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/data-platform/v1/data-products HTTP/1.1" 200 17763 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.978375872Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/data-platform/v1/dataset-releases?status=accepted&limit=100&offset=0 HTTP/1.1" 200 284938 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:04.998138640Z 172.21.0.1 - - [23/Oct/2026:23:57:04 +0000] "GET /api/data-platform/v1/dataset-releases?status=candidate&limit=100&offset=0 HTTP/1.1" 200 210025 "-" "propertyscope-local-deployment-capture/1" "-"
+shared-frontend  | 2026-10-23T23:57:05.017179387Z 172.21.0.1 - - [23/Oct/2026:23:57:05 +0000] "GET /api/data-platform/v1/dataset-releases?status=awaiting_review&limit=100&offset=0 HTTP/1.1" 200 56219 "-" "propertyscope-local-deployment-capture/1" "-"
+f1-frontend      | 2026-10-23T23:57:05.732661446Z 127.0.0.1 - - [23/Oct/2026:23:57:05 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:57:05.743210022Z 127.0.0.1 - - [23/Oct/2026:23:57:05 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:57:08.013978085Z 127.0.0.1 - - [23/Oct/2026:23:57:08 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:08.060937479Z 127.0.0.1 - - [23/Oct/2026:23:57:08 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:10.782122304Z 127.0.0.1 - - [23/Oct/2026:23:57:10 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:57:13.057660153Z 127.0.0.1 - - [23/Oct/2026:23:57:13 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:13.110786406Z 127.0.0.1 - - [23/Oct/2026:23:57:13 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:57:15.809188277Z 127.0.0.1 - - [23/Oct/2026:23:57:15 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:15.844612260Z 127.0.0.1 - - [23/Oct/2026:23:57:15 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:15.931143718Z 172.21.0.1 - - [23/Oct/2026:23:57:15 +0000] "POST /api/data-platform/v1/tools/releases.inspect.v1 HTTP/1.1" 200 8070 "-" "python-httpx/0.28.1" "-"
+f1-frontend      | 2026-10-23T23:57:16.004167252Z 172.21.0.1 - - [23/Oct/2026:23:57:16 +0000] "POST /api/data-platform/v1/tools/releases.list.v1 HTTP/1.1" 200 2073 "-" "python-httpx/0.28.1" "-"
+f2-frontend      | 2026-10-23T23:57:18.100505942Z 127.0.0.1 - - [23/Oct/2026:23:57:18 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:18.160529015Z 127.0.0.1 - - [23/Oct/2026:23:57:18 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:20.902668646Z 127.0.0.1 - - [23/Oct/2026:23:57:20 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:57:23.145015235Z 127.0.0.1 - - [23/Oct/2026:23:57:23 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:23.209361243Z 127.0.0.1 - - [23/Oct/2026:23:57:23 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f3-frontend      | 2026-10-23T23:57:25.852346136Z 127.0.0.1 - - [23/Oct/2026:23:57:25 +0000] "GET / HTTP/1.1" 200 14650 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:25.952520881Z 127.0.0.1 - - [23/Oct/2026:23:57:25 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:57:28.189882357Z 127.0.0.1 - - [23/Oct/2026:23:57:28 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:28.256309678Z 127.0.0.1 - - [23/Oct/2026:23:57:28 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"
+f1-frontend      | 2026-10-23T23:57:31.003880784Z 127.0.0.1 - - [23/Oct/2026:23:57:30 +0000] "GET / HTTP/1.1" 200 9275 "-" "Wget" "-"
+f2-frontend      | 2026-10-23T23:57:33.236682586Z 127.0.0.1 - - [23/Oct/2026:23:57:33 +0000] "GET / HTTP/1.1" 200 9644 "-" "Wget" "-"
+f4-frontend      | 2026-10-23T23:57:33.298444482Z 127.0.0.1 - - [23/Oct/2026:23:57:33 +0000] "GET / HTTP/1.1" 200 7240 "-" "Wget" "-"

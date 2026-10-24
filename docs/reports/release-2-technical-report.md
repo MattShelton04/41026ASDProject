@@ -51,7 +51,7 @@ Release 0–1 AI-mode, agentic loop, MCP and RAG servers, and adds:
 | Path | Contents | Release |
 |---|---|---|
 | `student-1/` … `student-5/` | Feature slices: UI, API, database service, tools, corpus | 0–1 |
-| `student-1/config/multi-agent/`, `student-1/tests/endpoints/` | F1 workflow template and endpoint tests | 2 |
+| `student-N/config/multi-agent/`, `student-N/tests/endpoints/` | Each feature's workflow template and endpoint tests | 2 |
 | `ai-services/ai-mode/`, `agent-core/` | AI-mode run API and the shared agentic loop | 0 |
 | `ai-services/mcp-server/`, `rag-server/` | Tool transport and local retrieval | 1 |
 | `ai-services/multi-agent-server/` | Planner, Worker, Reviewer, decisions, JSONL audit, CLI | 2 |
@@ -92,7 +92,10 @@ are read-only.
 
 ### Student 3
 
-[[TODO: James Huang | Describe F3's multi-agent design flow in about 40 words: template, read-only tools and proxy routes]]
+`f3-suburb-comparison-review` checks one saved suburb comparison against its published crime
+evidence. Eight proxy routes under `/api/suburb-analytics/v1/comparison-reviews` fix the template
+server-side and hide other features' runs. Both allowlisted tools, `suburb.comparison.inspect.v1`
+and `crime.saved-comparison-evidence.v1`, are read-only; a review never ranks suburb safety.
 
 ### Student 4
 
@@ -103,7 +106,10 @@ template server-side and hide other features' runs. Both allowlisted tools,
 
 ### Student 5
 
-[[TODO: Derek Song | Describe F5's multi-agent design flow in about 40 words: template, read-only tools and proxy routes]]
+`f5-buyer-case-action-plan` proposes follow-ups from one buyer case's shortlist, notes, tasks and
+research. Eight proxy routes under `/api/buyer-workspaces/v1/buyer-cases/{id}/evidence-reviews`
+recheck case ownership. Its one read-only tool, `buyer.action-plan.context.v1`, takes only a
+section; the backend, not the model, binds the case from the run.
 
 ## 4 Cloud deployment and CI/CD architecture
 
@@ -154,11 +160,6 @@ security: detect-secrets against .secrets.baseline..............Passed
 security: pip-audit of locked dependencies (uv.lock)............Passed
 ```
 
-[[TODO: Matthew Shelton | Regenerate the security report on main at the evidence freeze; the committed one scanned a release-2/wrap-up-shared-f1 branch commit]]
-
-[[TODO: James Huang | Fix or justify F3's pending-owner Ruff S findings, then regenerate the report]]
-
-[[TODO: Derek Song | Fix or justify F5's pending-owner Ruff S findings, then regenerate the report]]
 
 ## 6 Post-commit CI/CD testing
 
@@ -193,7 +194,13 @@ Suburb-map tests also run; two skip without a suburb-boundaries release.
 
 ### Student 3
 
-[[TODO: James Huang | Name F3's two endpoint functions and what each test checks (about 60 words)]]
+`student-3.yml` tests two endpoint functions on the feature origin (:5600):
+
+1. `GET /api/suburb-analytics/v1/suburbs`: `limit=2` returns a bounded page of two NSW suburbs
+   from at least ten seeded; a non-numeric limit returns a `422` Problem Details response.
+2. `POST /api/suburb-analytics/v1/suburb-comparisons`: a valid comparison is persisted at version
+   1, readable at its own URL, then deleted (`404 comparison_not_found`); an unknown measure is
+   refused `422 invalid_request` and writes nothing.
 
 ### Student 4
 
@@ -208,7 +215,14 @@ Suburb-map tests also run; two skip without a suburb-boundaries release.
 
 ### Student 5
 
-[[TODO: Derek Song | Name F5's two endpoint functions and what each test checks (about 60 words)]]
+`student-5.yml` tests two endpoint functions on the feature origin (:5500):
+
+1. `POST /api/buyer-workspaces/v1/buyer-cases`: a valid case is persisted active at version 1,
+   readable at its own URL, echoes the request ID and hides `owner_ref`; an inverted budget is
+   refused `422 validation_failed`.
+2. `POST /api/buyer-workspaces/v1/buyer-cases/{id}/tasks`: a task is persisted incomplete at
+   version 1, readable and listed under its case; an unknown case returns
+   `404 resource_not_found`.
 
 ## 7 Testing review
 
@@ -218,19 +232,14 @@ each review appends to the validation log.
 
 [[REVIEW_SUMMARY testing]]
 
-[[TODO: Matthew Shelton | Re-run the testing review once all five CI records exist; the committed review predates them]]
-
 ## 8 Local deployment evidence
 
 `dev.py stack up` starts the four host AI services, then the Compose application; backends reach
 them through `host.docker.internal`. `capture_local_deployment.py` checks the running system,
-including that each AI service is a host process, not a container. The committed capture recorded
-the host services through managed log files; the freeze recapture runs each in its own foreground
-terminal.
+including that each AI service is a host process, not a container. This capture ran on clean
+`main` with each host service in its own foreground terminal.
 
 [[LOCAL_EVIDENCE]]
-
-[[TODO: Matthew Shelton | Recapture the local deployment report on main at the evidence freeze; this capture ran on a branch commit]]
 
 ## 9 Cloud deployment report and review
 
@@ -241,8 +250,9 @@ which refuses if the evidence changed.
 
 [[CLOUD_SUMMARY]]
 
-Run 39112162750 job timings: `verify-ci` 15 s, `build-validate` 42 s, `deploy` 10 min 39 s
-([run record](../release-2/evidence/cloud/workflow-run.md),
+Run [40041985429](https://github.com/MattShelton04/41026ASDProject/actions/runs/40041985429)
+deployed the submitted code: `verify-ci` 4 min 37 s (waiting for this commit's CI),
+`build-validate` 45 s, `deploy` 9 min 28 s ([run record](../release-2/evidence/cloud/workflow-run.md),
 [step logs](../release-2/evidence/cloud/logs/),
 [`vm-deploy.log`](../release-2/evidence/cloud/vm-deploy.log)). Run
 [39098352903](https://github.com/MattShelton04/41026ASDProject/actions/runs/39098352903) also
@@ -260,7 +270,7 @@ The server keeps runs in SQLite, state transitions in `workflow_history.jsonl`, 
 model and tool calls and decisions, with actor and time, in `coordination_audit.jsonl`;
 `multi-agent-server export` copies a run into the evidence.
 
-[[MULTI_AGENT_RUNS]]
+[[MULTI_AGENT_RUNS student-1/18740ca5-ui student-2/f1c290a2-ui student-3/5338d71c-ui student-4/2956e465-ui student-5/e9600341-d1fd-4836-befb-5607f705f797]]
 
 ### Multi-agent workflow review
 
@@ -292,7 +302,10 @@ synthetic-data disclosure, and Burhan approved it, 0 failed and 11 passed.
 
 ### Student 3
 
-[[TODO: James Huang | Summarise F3's exported run in about 50 words: input, recommendation and human decision]]
+Run `5338d71c` reviewed seeded comparison `comparison-10` (Newcastle and Wollongong, rate). The
+Reviewer recommended correct: coverage was unavailable, the denominator invalid and the seeded-data
+disclosure missing. It was sent back; round two added the disclosure, the Reviewer again recommended
+correct, and it was rejected until counts are used or the missing BOCSAR months are published.
 
 ### Student 4
 
@@ -303,7 +316,10 @@ three, and Michael approved it, noting three questions still to write.
 
 ### Student 5
 
-[[TODO: Derek Song | Summarise F5's exported run in about 50 words: input, recommendation and human decision]]
+Run `e9600341` reviewed seeded case `Wollongong coastal review`. The Reviewer recommended correct:
+the Worker proposed no actions. Derek sent it back; round two still had none, and the Reviewer
+recommended partial (one high, two medium failures). Derek approved it anyway. Template v2 run
+`429fbe07` then produced five grounded actions and was partially accepted.
 
 ## 11 GitHub commit logs
 
@@ -325,6 +341,7 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 | 18 Oct | [b638c86](https://github.com/MattShelton04/41026ASDProject/commit/b638c86), [53a2143](https://github.com/MattShelton04/41026ASDProject/commit/53a2143), [65de8f6](https://github.com/MattShelton04/41026ASDProject/commit/65de8f6), [b71c49c](https://github.com/MattShelton04/41026ASDProject/commit/b71c49c), [3c25c08](https://github.com/MattShelton04/41026ASDProject/commit/3c25c08) | F1 suburb-map API, real data on Azure |
 | 18 Oct | [c1dab31](https://github.com/MattShelton04/41026ASDProject/commit/c1dab31), [3ea2932](https://github.com/MattShelton04/41026ASDProject/commit/3ea2932), [817ef77](https://github.com/MattShelton04/41026ASDProject/commit/817ef77), [0cf5e3f](https://github.com/MattShelton04/41026ASDProject/commit/0cf5e3f) | Cloud AI Tier, cloud and bonus evidence, release decision |
 | 19–21 Oct | [daee27d](https://github.com/MattShelton04/41026ASDProject/commit/daee27d), [70f3b9a](https://github.com/MattShelton04/41026ASDProject/commit/70f3b9a), [cb71215](https://github.com/MattShelton04/41026ASDProject/commit/cb71215) | Report against the rubric, B1–B4 UI captures, edge protection for F2 and F4 workflows |
+| 21–24 Oct | [dedda46](https://github.com/MattShelton04/41026ASDProject/commit/dedda46), [002691e](https://github.com/MattShelton04/41026ASDProject/commit/002691e), [d7602b7](https://github.com/MattShelton04/41026ASDProject/commit/d7602b7), [81c833d](https://github.com/MattShelton04/41026ASDProject/commit/81c833d), [7b3fb43](https://github.com/MattShelton04/41026ASDProject/commit/7b3fb43) | CVE fixes, review bundle limits, CI resilience, cold-start smoke retry, final evidence |
 
 ### Student 2 Burhan Naeem
 
@@ -335,7 +352,10 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 
 ### Student 3 James Huang
 
-[[TODO: James Huang | Add a Date / Commit / Release 2 work table of your identifiable commits (about 60 words)]]
+| Date | Commit | Release 2 work |
+|---|---|---|
+| 22 Oct | [08a9331](https://github.com/MattShelton04/41026ASDProject/commit/08a9331) | Suburb comparison review: workflow template, two read-only tools, eight proxy routes, panel; endpoint tests in `student-3.yml`; edge protection and Azure Multi-Agent settings |
+| 23 Oct | [bc5e46e](https://github.com/MattShelton04/41026ASDProject/commit/bc5e46e) | Suburb boundary and amenity map from Feature 1, saving from the comparison page |
 
 ### Student 4 Michael White
 
@@ -347,13 +367,16 @@ each student's GitHub username filters the same way, and Section 12 lists their 
 
 ### Student 5 Derek Song
 
-[[TODO: Derek Song | Add a Date / Commit / Release 2 work table of your identifiable commits (about 60 words)]]
+| Date | Commit | Release 2 work |
+|---|---|---|
+| 23 Oct | [a400cb0](https://github.com/MattShelton04/41026ASDProject/commit/a400cb0) | Buyer case action plan: workflow template (v1, v2), case-bound read-only tool, eight proxy routes, panel; endpoint tests in `student-5.yml`; Ruff `S` findings cleared; security and multi-agent evidence |
 
 ## 13 Bonus evidence
 
 We claim B1–B6. B1–B4 ran through the public edge in Cloud AI Tier run
 [39119158736](https://github.com/MattShelton04/41026ASDProject/actions/runs/39119158736)
-(`817ef779`, 18 October).
+(`817ef779`, 18 October), and again before the showcase in
+[39720293518](https://github.com/MattShelton04/41026ASDProject/actions/runs/39720293518) (22 October).
 
 | Tier | Result and evidence | Run or source |
 |---|---|---|
@@ -361,8 +384,8 @@ We claim B1–B6. B1–B4 ran through the public edge in Cloud AI Tier run
 | B2 MCP | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | `data.releases.v1` over MCP, same run |
 | B3 RAG | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `56c85266`, 2 citations |
 | B4 Multi-Agent | [PASS](../release-2/evidence/bonus/cloud-ai-probe.md) | Run `2058658b`, rejected in the UI |
-| B5 Endpoint security | [52 PASS, 0 FAIL](../release-2/evidence/bonus/endpoint-security.txt) | Cloud Deployment run 39112162750 |
-| B6 Data security | [43 PASS, 0 FAIL](../release-2/evidence/bonus/data-security.txt) | Laptop, 18 October |
+| B5 Endpoint security | [58 PASS, 0 FAIL](../release-2/evidence/cloud/endpoint-security.txt) | Cloud Deployment run 40041985429 |
+| B6 Data security | [43 PASS, 0 FAIL](../release-2/evidence/cloud/data-security.txt) | Laptop, same deployment, 24 October |
 
 ![Figure 10 B1–B4 through the Azure UI](assets/release-2/screenshots/azure-ai-bonus.png)
 
@@ -396,50 +419,60 @@ evidence:
 - kind: security-report
   section: 5 Pre-commit security testing
   path: docs/release-2/evidence/security/pre-commit-report.md
-  boundary: Local scans of the recorded commit; pending-owner findings are listed per slice.
+  boundary: Local scans of clean main at 7b3fb43; no pending-owner findings.
 - kind: ci
   student: 1
   section: 6 Post-commit CI/CD testing
   path: docs/release-2/evidence/ci/student-1.md
-  boundary: Successful student-1.yml push run on main at 817ef77; AI tier disabled in CI.
+  boundary: Successful student-1.yml push run on main at 7b3fb43; AI tier disabled in CI.
 - kind: ci
   student: 2
   section: 6 Post-commit CI/CD testing
   path: docs/release-2/evidence/ci/student-2.md
-  boundary: Successful student-2.yml push run on main at 4162bbd; AI tier disabled in CI.
+  boundary: Successful student-2.yml push run on main at 7b3fb43; AI tier disabled in CI.
+- kind: ci
+  student: 3
+  section: 6 Post-commit CI/CD testing
+  path: docs/release-2/evidence/ci/student-3.md
+  boundary: Successful student-3.yml push run on main at 7b3fb43; AI tier disabled in CI.
 - kind: ci
   student: 4
   section: 6 Post-commit CI/CD testing
   path: docs/release-2/evidence/ci/student-4.md
-  boundary: Successful student-4.yml push run on main at aa9b866; AI tier disabled in CI.
+  boundary: Successful student-4.yml push run on main at 7b3fb43; AI tier disabled in CI.
+- kind: ci
+  student: 5
+  section: 6 Post-commit CI/CD testing
+  path: docs/release-2/evidence/ci/student-5.md
+  boundary: Successful student-5.yml push run on main at 7b3fb43; AI tier disabled in CI.
 - kind: local-deployment
   section: 8 Local deployment evidence
   path: docs/release-2/evidence/local/local-deployment-report.md
-  boundary: Running local ps-dev stack with real published data; host AI services outside Docker.
+  boundary: Local ps-dev stack on clean main at 7b3fb43 with real published data; host AI services in foreground terminals outside Docker.
 - kind: cloud-deployment
   section: 9 Cloud deployment report and review
   path: docs/release-2/evidence/cloud/cloud-deployment-report.md
-  boundary: Azure production VM at 3c25c08 with the AI tier off; real accepted Feature 1 releases.
+  boundary: Azure production VM at 7b3fb43 with the AI tier off; real accepted Feature 1 releases.
 - kind: cloud-workflow
   section: 9 Cloud deployment report and review
-  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/39112162750
+  url: https://github.com/MattShelton04/41026ASDProject/actions/runs/40041985429
   boundary: Manual dispatch on main, gate passed, production environment approved by a person.
 - kind: cloud-review
   section: 9 Cloud deployment report and review
   path: docs/release-2/evidence/reviews/cloud-review.md
-  boundary: Deterministic shared-loop review of the committed cloud evidence.
+  boundary: Shared-loop review through live AI-mode of the committed cloud evidence.
 - kind: release-decision
   section: 9 Cloud deployment report and review
   path: docs/release-2/evidence/cloud/release-decision.md
-  boundary: Named person's decision on review 44929d5d, bound to the hashed evidence bundle.
+  boundary: Named person's decision on review be5514a8, bound to the hashed evidence bundle.
 - kind: testing-review
   section: 7 Testing review
   path: docs/release-2/evidence/reviews/testing-review.md
-  boundary: Shared loop review of the committed security and CI evidence.
+  boundary: Shared-loop review through live AI-mode of the committed security and CI evidence.
 - kind: multi-agent-review
   section: Multi-agent workflow review
   path: docs/release-2/evidence/reviews/multi-agent-review.md
-  boundary: Shared loop review of the exported workflow histories and audits.
+  boundary: Shared-loop review through live AI-mode of the exported workflow histories and audits.
 - kind: multi-agent
   student: 1
   section: 10 Multi-agent workflow evidence
@@ -451,10 +484,20 @@ evidence:
   path: docs/release-2/evidence/multi-agent/student-2/f1c290a2-ui/summary.md
   boundary: Live local stack, model provider, seeded market case; read-only tools, nothing written.
 - kind: multi-agent
+  student: 3
+  section: 10 Multi-agent workflow evidence
+  path: docs/release-2/evidence/multi-agent/student-3/5338d71c-ui/summary.md
+  boundary: Live local stack, model provider, seeded suburb comparison; read-only tools, nothing written.
+- kind: multi-agent
   student: 4
   section: 10 Multi-agent workflow evidence
   path: docs/release-2/evidence/multi-agent/student-4/2956e465-ui/summary.md
   boundary: Live local stack, model provider with a deterministic round-2 Reviewer fallback, seeded site review; read-only tools, nothing written.
+- kind: multi-agent
+  student: 5
+  section: 10 Multi-agent workflow evidence
+  path: docs/release-2/evidence/multi-agent/student-5/e9600341-d1fd-4836-befb-5607f705f797/summary.md
+  boundary: Live local stack, model provider, seeded buyer case; approved over a partial final recommendation.
 contributions:
 - student: 1
   section: Student 1 Matthew Shelton
@@ -484,16 +527,30 @@ contributions:
   - daee27d
   - 70f3b9a
   - cb71215
+  - dedda46
+  - 002691e
+  - d7602b7
+  - 81c833d
+  - 7b3fb43
 - student: 2
   section: Student 2 Burhan Naeem
   commits:
   - 4162bbd
   - 24e6025
+- student: 3
+  section: Student 3 James Huang
+  commits:
+  - 08a9331
+  - bc5e46e
 - student: 4
   section: Student 4 Michael White
   commits:
   - 58def77
   - aa9b866
   - 37b2ffc
+- student: 5
+  section: Student 5 Derek Song
+  commits:
+  - a400cb0
 attendance: {}
 -->

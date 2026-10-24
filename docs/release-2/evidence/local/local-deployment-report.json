@@ -2,12 +2,12 @@
   "schema_version": 1,
   "tool": "scripts/capture_local_deployment.py",
   "requirement": "R2-41 local deployment report with multi-terminal system-test logs",
-  "started_at": "2026-10-16T09:01:51+00:00",
-  "finished_at": "2026-10-16T09:02:24+00:00",
+  "started_at": "2026-10-23T23:56:26+00:00",
+  "finished_at": "2026-10-23T23:57:34+00:00",
   "source": {
-    "commit": "1a68f0ad11a727e445b9ac453f501f7204112401",
-    "branch": "release-2/wrap-up-shared-f1",
-    "uncommitted_paths": 18,
+    "commit": "7b3fb43728582d21bb8c9722405c040e3c18cbf2",
+    "branch": "main",
+    "uncommitted_paths": 0,
     "compose_project": "ps-dev",
     "edge_url": "http://localhost:5100",
     "platform": "Windows 11",
@@ -18,7 +18,7 @@
       "name": "ps-dev-f1-backend-1",
       "service": "f1-backend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5201/tcp"
     },
@@ -26,7 +26,7 @@
       "name": "ps-dev-f1-db-api-1",
       "service": "f1-db-api",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5202/tcp"
     },
@@ -34,7 +34,7 @@
       "name": "ps-dev-f1-db-loader-1",
       "service": "f1-db-loader",
       "state": "running",
-      "status": "Up 38 minutes",
+      "status": "Up 22 minutes",
       "health": "none",
       "ports": ""
     },
@@ -42,7 +42,7 @@
       "name": "ps-dev-f1-frontend-1",
       "service": "f1-frontend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "127.0.0.1:5200->8080/tcp"
     },
@@ -50,7 +50,7 @@
       "name": "ps-dev-f1-postgres-1",
       "service": "f1-postgres",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5432/tcp"
     },
@@ -58,7 +58,7 @@
       "name": "ps-dev-f1-runner-1",
       "service": "f1-runner",
       "state": "running",
-      "status": "Up 38 minutes",
+      "status": "Up 22 minutes",
       "health": "none",
       "ports": ""
     },
@@ -66,7 +66,7 @@
       "name": "ps-dev-f2-backend-1",
       "service": "f2-backend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5301/tcp"
     },
@@ -74,7 +74,7 @@
       "name": "ps-dev-f2-db-api-1",
       "service": "f2-db-api",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5302/tcp"
     },
@@ -82,7 +82,7 @@
       "name": "ps-dev-f2-frontend-1",
       "service": "f2-frontend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "127.0.0.1:5300->8080/tcp"
     },
@@ -90,7 +90,7 @@
       "name": "ps-dev-f3-backend-1",
       "service": "f3-backend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5301/tcp"
     },
@@ -98,7 +98,7 @@
       "name": "ps-dev-f3-database-1",
       "service": "f3-database",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5302/tcp"
     },
@@ -106,7 +106,7 @@
       "name": "ps-dev-f3-frontend-1",
       "service": "f3-frontend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "127.0.0.1:5600->8080/tcp"
     },
@@ -114,7 +114,7 @@
       "name": "ps-dev-f4-backend-1",
       "service": "f4-backend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5401/tcp"
     },
@@ -122,7 +122,7 @@
       "name": "ps-dev-f4-db-api-1",
       "service": "f4-db-api",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5402/tcp"
     },
@@ -130,7 +130,7 @@
       "name": "ps-dev-f4-frontend-1",
       "service": "f4-frontend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "127.0.0.1:5400->8080/tcp"
     },
@@ -138,7 +138,7 @@
       "name": "ps-dev-f4-postgres-1",
       "service": "f4-postgres",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5432/tcp"
     },
@@ -146,7 +146,7 @@
       "name": "ps-dev-f5-backend-1",
       "service": "f5-backend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5501/tcp"
     },
@@ -154,7 +154,7 @@
       "name": "ps-dev-f5-db-api-1",
       "service": "f5-db-api",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "5502/tcp"
     },
@@ -162,7 +162,7 @@
       "name": "ps-dev-f5-frontend-1",
       "service": "f5-frontend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "127.0.0.1:5500->8080/tcp"
     },
@@ -170,7 +170,7 @@
       "name": "ps-dev-shared-frontend-1",
       "service": "shared-frontend",
       "state": "running",
-      "status": "Up 38 minutes (healthy)",
+      "status": "Up 22 minutes (healthy)",
       "health": "healthy",
       "ports": "127.0.0.1:5100->8080/tcp"
     }
@@ -181,13 +181,13 @@
       "terminal": "terminal-2-ai-mode.log",
       "port": 5005,
       "url": "http://127.0.0.1:5005",
-      "mode": "managed",
-      "pid": 31512,
+      "mode": "foreground",
+      "pid": 9308,
       "listener_pids": [
-        17916
+        9308
       ],
       "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
-      "launcher": ".venv/Scripts/python.exe",
+      "launcher": "",
       "command": [
         "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
         "-m",
@@ -197,7 +197,7 @@
       ],
       "state": "running",
       "health": "ready",
-      "detail": "",
+      "detail": "foreground `ai serve`, PID 9308",
       "capability": {
         "AI_MODE_MCP_ENABLED": "true",
         "AI_MODE_RAG_ENABLED": "true",
@@ -211,13 +211,13 @@
       "terminal": "terminal-3-mcp.log",
       "port": 5011,
       "url": "http://127.0.0.1:5011/mcp",
-      "mode": "managed",
-      "pid": 28304,
+      "mode": "foreground",
+      "pid": 13276,
       "listener_pids": [
-        24956
+        13276
       ],
       "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
-      "launcher": ".venv/Scripts/python.exe",
+      "launcher": "",
       "command": [
         "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
         "-m",
@@ -227,7 +227,7 @@
       ],
       "state": "running",
       "health": "ready",
-      "detail": "29 tools registered",
+      "detail": "foreground `ai serve`, PID 13276; 32 tools registered",
       "capability": {},
       "container_publishes_port": false
     },
@@ -236,13 +236,13 @@
       "terminal": "terminal-4-rag.log",
       "port": 5012,
       "url": "http://127.0.0.1:5012",
-      "mode": "managed",
-      "pid": 31644,
+      "mode": "foreground",
+      "pid": 10052,
       "listener_pids": [
-        30516
+        10052
       ],
       "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
-      "launcher": ".venv/Scripts/python.exe",
+      "launcher": "",
       "command": [
         "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
         "-m",
@@ -252,7 +252,7 @@
       ],
       "state": "running",
       "health": "ready",
-      "detail": "embedding model BAAI/bge-small-en-v1.5",
+      "detail": "foreground `ai serve`, PID 10052; embedding model BAAI/bge-small-en-v1.5",
       "capability": {},
       "container_publishes_port": false
     },
@@ -261,13 +261,13 @@
       "terminal": "terminal-5-multi-agent.log",
       "port": 5013,
       "url": "http://127.0.0.1:5013",
-      "mode": "managed",
-      "pid": 9256,
+      "mode": "foreground",
+      "pid": 11632,
       "listener_pids": [
-        6940
+        11632
       ],
       "executable": "~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
-      "launcher": ".venv/Scripts/python.exe",
+      "launcher": "",
       "command": [
         "~\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
         "-m",
@@ -277,7 +277,7 @@
       ],
       "state": "running",
       "health": "ready",
-      "detail": "",
+      "detail": "foreground `ai serve`, PID 11632",
       "capability": {
         "MULTI_AGENT_MCP_ENABLED": "true"
       },
@@ -293,6 +293,11 @@
         "accepted_records": null,
         "kind": "not loaded",
         "open_releases": [
+          {
+            "id": "b95c0771-bcee-4ebc-b98d-ecc888ed631d",
+            "status": "candidate",
+            "records": 682
+          },
           {
             "id": "e9df11fb-5221-4746-ad0d-d8066405855e",
             "status": "awaiting_review",
@@ -332,6 +337,11 @@
         "accepted_records": 3,
         "kind": "seeded demonstration baseline",
         "open_releases": [
+          {
+            "id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+            "status": "candidate",
+            "records": 10
+          },
           {
             "id": "f4a48747-0a65-40ef-ab82-720266fd6e7c",
             "status": "candidate",
@@ -507,6 +517,18 @@
     ],
     "open_releases": [
       {
+        "id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+        "dataset_id": "fixture-property",
+        "status": "candidate",
+        "record_count": 10
+      },
+      {
+        "id": "b95c0771-bcee-4ebc-b98d-ecc888ed631d",
+        "dataset_id": "abs-cpi",
+        "status": "candidate",
+        "record_count": 682
+      },
+      {
         "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
         "dataset_id": "abs-seifa-2021",
         "status": "candidate",
@@ -629,12 +651,12 @@
     "template": "f1-release-readiness-review",
     "decision_by": "scripted (this capture)",
     "release": {
-      "id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
-      "dataset_id": "abs-seifa-2021",
+      "id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
+      "dataset_id": "fixture-property",
       "status": "candidate",
-      "records": 4320
+      "records": 10
     },
-    "run_id": "56685fcf-6061-4f79-a005-856d6c768d26",
+    "run_id": "fa8aedfd-ec4e-4138-9292-af7aad8e43c0",
     "provider": "openai",
     "provider_mode": "model",
     "models": [
@@ -642,20 +664,20 @@
       "gpt-5.6-terra"
     ],
     "provider_label": "real model provider openai (gpt-5.6-luna, gpt-5.6-terra)",
-    "recommendation": "approve",
+    "recommendation": "correct",
     "decisions": [
       {
         "decision": "reject",
         "actor": "local-deployment-capture",
-        "decided_at": "2026-10-16T09:02:18.744113Z",
+        "decided_at": "2026-10-23T23:57:30.002944Z",
         "resulting_state": "rejected",
         "round": 1
       }
     ],
     "rounds": 1,
     "input": {
-      "dataset_id": "abs-seifa-2021",
-      "release_id": "cb188a6e-613f-4f4e-b7b0-b827dd573869",
+      "dataset_id": "fixture-property",
+      "release_id": "b127980b-46c6-42bb-92cd-9bed875ded4e",
       "reviewer_note": "Local deployment capture (capture_local_deployment.py)"
     },
     "final_state": "rejected",
@@ -676,10 +698,10 @@
       "command": "uv run scripts/dev.py stack up; stack logs",
       "file": "terminal-1-compose.log",
       "source": "docker logs",
-      "bytes": 31362,
+      "bytes": 53647,
       "dropped_bytes": 0,
       "redactions": 0,
-      "correlated_lines": 44
+      "correlated_lines": 49
     },
     {
       "number": 2,
@@ -687,10 +709,10 @@
       "command": "uv run scripts/dev.py ai serve ai-mode",
       "file": "terminal-2-ai-mode.log",
       "source": ".propertyscope-runtime/host/ai-mode.log",
-      "bytes": 10106,
+      "bytes": 8609,
       "dropped_bytes": 0,
       "redactions": 0,
-      "correlated_lines": 1
+      "correlated_lines": 4
     },
     {
       "number": 3,
@@ -698,10 +720,10 @@
       "command": "uv run scripts/dev.py ai serve mcp",
       "file": "terminal-3-mcp.log",
       "source": ".propertyscope-runtime/host/mcp.log",
-      "bytes": 1857,
+      "bytes": 5123,
       "dropped_bytes": 0,
       "redactions": 0,
-      "correlated_lines": 0
+      "correlated_lines": 4
     },
     {
       "number": 4,
@@ -709,10 +731,10 @@
       "command": "uv run scripts/dev.py ai serve rag",
       "file": "terminal-4-rag.log",
       "source": ".propertyscope-runtime/host/rag.log",
-      "bytes": 442,
+      "bytes": 13769,
       "dropped_bytes": 0,
       "redactions": 0,
-      "correlated_lines": 0
+      "correlated_lines": 17
     },
     {
       "number": 5,
@@ -720,10 +742,10 @@
       "command": "uv run scripts/dev.py ai serve multi-agent",
       "file": "terminal-5-multi-agent.log",
       "source": ".propertyscope-runtime/host/multi-agent.log",
-      "bytes": 27740,
+      "bytes": 30620,
       "dropped_bytes": 0,
       "redactions": 0,
-      "correlated_lines": 5
+      "correlated_lines": 9
     },
     {
       "number": 6,
@@ -731,7 +753,7 @@
       "command": "uv run python scripts/capture_local_deployment.py",
       "file": "terminal-6-system-test.log",
       "source": "this script",
-      "bytes": 26136,
+      "bytes": 28840,
       "dropped_bytes": 0,
       "redactions": 0,
       "correlated_lines": 16
@@ -741,7 +763,7 @@
     {
       "file": "terminal-1-compose.log",
       "source": "f2-backend",
-      "tracebacks": 6,
+      "tracebacks": 3,
       "error_lines": 0,
       "last": "propertyscope_market_intelligence.clients.DependencyUnavailableError: Market database API is unavailable"
     }
@@ -758,140 +780,140 @@
       "section": "containers",
       "name": "f1-backend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f1-db-api container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f1-db-loader container",
       "passed": true,
-      "detail": "running, Up 38 minutes",
+      "detail": "running, Up 22 minutes",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f1-frontend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f1-postgres container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f1-runner container",
       "passed": true,
-      "detail": "running, Up 38 minutes",
+      "detail": "running, Up 22 minutes",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f2-backend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f2-db-api container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f2-frontend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f3-backend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f3-database container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f3-frontend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f4-backend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f4-db-api container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f4-frontend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f4-postgres container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f5-backend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f5-db-api container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "f5-frontend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
       "section": "containers",
       "name": "shared-frontend container",
       "passed": true,
-      "detail": "running, Up 38 minutes (healthy)",
+      "detail": "running, Up 22 minutes (healthy)",
       "owner": "shared"
     },
     {
@@ -905,56 +927,56 @@
       "section": "host-services",
       "name": "ai-mode runs as a host process",
       "passed": true,
-      "detail": "listener PID 17916 on port 5005 is in the process tree of managed PID 31512; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5005",
+      "detail": "listener PID 9308 on port 5005 is a foreground host process; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5005",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "ai-mode is ready",
       "passed": true,
-      "detail": "running, ready",
+      "detail": "running, ready (foreground `ai serve`, PID 9308)",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "mcp runs as a host process",
       "passed": true,
-      "detail": "listener PID 24956 on port 5011 is in the process tree of managed PID 28304; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5011",
+      "detail": "listener PID 13276 on port 5011 is a foreground host process; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5011",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "mcp is ready",
       "passed": true,
-      "detail": "running, ready (29 tools registered)",
+      "detail": "running, ready (foreground `ai serve`, PID 13276; 32 tools registered)",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "rag runs as a host process",
       "passed": true,
-      "detail": "listener PID 30516 on port 5012 is in the process tree of managed PID 31644; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5012",
+      "detail": "listener PID 10052 on port 5012 is a foreground host process; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5012",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "rag is ready",
       "passed": true,
-      "detail": "running, ready (embedding model BAAI/bge-small-en-v1.5)",
+      "detail": "running, ready (foreground `ai serve`, PID 10052; embedding model BAAI/bge-small-en-v1.5)",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "multi-agent runs as a host process",
       "passed": true,
-      "detail": "listener PID 6940 on port 5013 is in the process tree of managed PID 9256; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5013",
+      "detail": "listener PID 11632 on port 5013 is a foreground host process; executable ~\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe; no container publishes 5013",
       "owner": "shared"
     },
     {
       "section": "host-services",
       "name": "multi-agent is ready",
       "passed": true,
-      "detail": "running, ready",
+      "detail": "running, ready (foreground `ai serve`, PID 11632)",
       "owner": "shared"
     },
     {
@@ -1052,26 +1074,40 @@
       "section": "crud",
       "name": "CRUD source definition: create (POST /api/data-platform/v1/sources)",
       "passed": true,
-      "detail": "HTTP 201, id 379be7cf-99fc-4647-a592-f3b6a7897830",
+      "detail": "HTTP 201, id 2492bcae-1b81-43ca-8f67-7f523ea30a54",
       "owner": "student-1"
     },
     {
       "section": "crud",
-      "name": "CRUD source definition: read (GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830)",
+      "name": "CRUD source definition: read (GET /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54)",
       "passed": true,
       "detail": "HTTP 200, name matches",
       "owner": "student-1"
     },
     {
       "section": "crud",
-      "name": "CRUD source definition: delete (DELETE /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830)",
+      "name": "CRUD source definition: update (PUT /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54)",
+      "passed": true,
+      "detail": "HTTP 200, notes changed",
+      "owner": "student-1"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD source definition: confirm update (GET /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54)",
+      "passed": true,
+      "detail": "HTTP 200, notes persisted",
+      "owner": "student-1"
+    },
+    {
+      "section": "crud",
+      "name": "CRUD source definition: delete (DELETE /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54)",
       "passed": true,
       "detail": "HTTP 204",
       "owner": "student-1"
     },
     {
       "section": "crud",
-      "name": "CRUD source definition: confirm deleted (GET /api/data-platform/v1/sources/379be7cf-99fc-4647-a592-f3b6a7897830)",
+      "name": "CRUD source definition: confirm deleted (GET /api/data-platform/v1/sources/2492bcae-1b81-43ca-8f67-7f523ea30a54)",
       "passed": true,
       "detail": "HTTP 404 after delete",
       "owner": "student-1"
@@ -1080,26 +1116,26 @@
       "section": "crud",
       "name": "CRUD market case: create (POST /api/market-intelligence/v1/market-cases)",
       "passed": true,
-      "detail": "HTTP 201, id 0b23e36f-306a-4545-b4a4-ed285cc20092",
+      "detail": "HTTP 201, id eee260bc-5f41-4abf-8af4-67d62c6e85ee",
       "owner": "student-2"
     },
     {
       "section": "crud",
-      "name": "CRUD market case: read (GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092)",
+      "name": "CRUD market case: read (GET /api/market-intelligence/v1/market-cases/eee260bc-5f41-4abf-8af4-67d62c6e85ee)",
       "passed": true,
       "detail": "HTTP 200, name matches",
       "owner": "student-2"
     },
     {
       "section": "crud",
-      "name": "CRUD market case: delete (DELETE /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092)",
+      "name": "CRUD market case: delete (DELETE /api/market-intelligence/v1/market-cases/eee260bc-5f41-4abf-8af4-67d62c6e85ee)",
       "passed": true,
       "detail": "HTTP 200",
       "owner": "student-2"
     },
     {
       "section": "crud",
-      "name": "CRUD market case: confirm deleted (GET /api/market-intelligence/v1/market-cases/0b23e36f-306a-4545-b4a4-ed285cc20092)",
+      "name": "CRUD market case: confirm deleted (GET /api/market-intelligence/v1/market-cases/eee260bc-5f41-4abf-8af4-67d62c6e85ee)",
       "passed": true,
       "detail": "HTTP 404 after delete",
       "owner": "student-2"
@@ -1108,26 +1144,26 @@
       "section": "crud",
       "name": "CRUD saved suburb comparison: create (POST /api/suburb-analytics/v1/suburb-comparisons)",
       "passed": true,
-      "detail": "HTTP 201, id b29420c2-106b-473e-8d54-fe7c89878815",
+      "detail": "HTTP 201, id 078b11e5-3eca-41e6-a550-a3fb4c0b57dd",
       "owner": "student-3"
     },
     {
       "section": "crud",
-      "name": "CRUD saved suburb comparison: read (GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815)",
+      "name": "CRUD saved suburb comparison: read (GET /api/suburb-analytics/v1/suburb-comparisons/078b11e5-3eca-41e6-a550-a3fb4c0b57dd)",
       "passed": true,
       "detail": "HTTP 200, name matches",
       "owner": "student-3"
     },
     {
       "section": "crud",
-      "name": "CRUD saved suburb comparison: delete (DELETE /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815)",
+      "name": "CRUD saved suburb comparison: delete (DELETE /api/suburb-analytics/v1/suburb-comparisons/078b11e5-3eca-41e6-a550-a3fb4c0b57dd)",
       "passed": true,
       "detail": "HTTP 200",
       "owner": "student-3"
     },
     {
       "section": "crud",
-      "name": "CRUD saved suburb comparison: confirm deleted (GET /api/suburb-analytics/v1/suburb-comparisons/b29420c2-106b-473e-8d54-fe7c89878815)",
+      "name": "CRUD saved suburb comparison: confirm deleted (GET /api/suburb-analytics/v1/suburb-comparisons/078b11e5-3eca-41e6-a550-a3fb4c0b57dd)",
       "passed": true,
       "detail": "HTTP 404 after delete",
       "owner": "student-3"
@@ -1136,26 +1172,26 @@
       "section": "crud",
       "name": "CRUD site review: create (POST /api/due-diligence/v1/site-reviews)",
       "passed": true,
-      "detail": "HTTP 201, id df2a3ee8-d342-4cb4-afed-054a92810e2d",
+      "detail": "HTTP 201, id c8918772-14eb-42c6-80a5-d21e8c53e142",
       "owner": "student-4"
     },
     {
       "section": "crud",
-      "name": "CRUD site review: read (GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d)",
+      "name": "CRUD site review: read (GET /api/due-diligence/v1/site-reviews/c8918772-14eb-42c6-80a5-d21e8c53e142)",
       "passed": true,
       "detail": "HTTP 200, title matches",
       "owner": "student-4"
     },
     {
       "section": "crud",
-      "name": "CRUD site review: delete (DELETE /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d)",
+      "name": "CRUD site review: delete (DELETE /api/due-diligence/v1/site-reviews/c8918772-14eb-42c6-80a5-d21e8c53e142)",
       "passed": true,
       "detail": "HTTP 200",
       "owner": "student-4"
     },
     {
       "section": "crud",
-      "name": "CRUD site review: confirm deleted (GET /api/due-diligence/v1/site-reviews/df2a3ee8-d342-4cb4-afed-054a92810e2d)",
+      "name": "CRUD site review: confirm deleted (GET /api/due-diligence/v1/site-reviews/c8918772-14eb-42c6-80a5-d21e8c53e142)",
       "passed": true,
       "detail": "HTTP 404 after delete",
       "owner": "student-4"
@@ -1164,26 +1200,26 @@
       "section": "crud",
       "name": "CRUD buyer case: create (POST /api/buyer-workspaces/v1/buyer-cases)",
       "passed": true,
-      "detail": "HTTP 201, id 9e615571-c65a-4690-bc1f-db0bf6a91ab0",
+      "detail": "HTTP 201, id fcf576e2-87d6-48d6-9add-920fdc6a819f",
       "owner": "student-5"
     },
     {
       "section": "crud",
-      "name": "CRUD buyer case: read (GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0)",
+      "name": "CRUD buyer case: read (GET /api/buyer-workspaces/v1/buyer-cases/fcf576e2-87d6-48d6-9add-920fdc6a819f)",
       "passed": true,
       "detail": "HTTP 200, name matches",
       "owner": "student-5"
     },
     {
       "section": "crud",
-      "name": "CRUD buyer case: delete (DELETE /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0)",
+      "name": "CRUD buyer case: delete (DELETE /api/buyer-workspaces/v1/buyer-cases/fcf576e2-87d6-48d6-9add-920fdc6a819f)",
       "passed": true,
       "detail": "HTTP 200",
       "owner": "student-5"
     },
     {
       "section": "crud",
-      "name": "CRUD buyer case: confirm deleted (GET /api/buyer-workspaces/v1/buyer-cases/9e615571-c65a-4690-bc1f-db0bf6a91ab0)",
+      "name": "CRUD buyer case: confirm deleted (GET /api/buyer-workspaces/v1/buyer-cases/fcf576e2-87d6-48d6-9add-920fdc6a819f)",
       "passed": true,
       "detail": "HTTP 404 after delete",
       "owner": "student-5"
@@ -1199,7 +1235,7 @@
       "section": "data",
       "name": "Feature 1 release inventory read through the edge",
       "passed": true,
-      "detail": "16 registered dataset(s), 6 accepted, 18 awaiting a decision. Data: includes published official releases: 12,915,219 records in abs-seifa-2021 (4,320), gnaf-nsw (5,190,134), nsw-psi-sales (7,402,643), bocsar-crime (318,122); still seeded or synthetic: fixture-property, nsw-government-schools",
+      "detail": "16 registered dataset(s), 6 accepted, 20 awaiting a decision. Data: includes published official releases: 12,915,219 records in abs-seifa-2021 (4,320), gnaf-nsw (5,190,134), nsw-psi-sales (7,402,643), bocsar-crime (318,122); still seeded or synthetic: fixture-property, nsw-government-schools",
       "owner": "student-1"
     },
     {
@@ -1234,14 +1270,14 @@
       "section": "ai-probe",
       "name": "mcp: health",
       "passed": true,
-      "detail": "HTTP 200; 29 tools registered",
+      "detail": "HTTP 200; 32 tools registered",
       "owner": "shared"
     },
     {
       "section": "ai-probe",
       "name": "mcp: tools/list",
       "passed": true,
-      "detail": "29 tools exposed",
+      "detail": "32 tools exposed",
       "owner": "shared"
     },
     {
@@ -1262,7 +1298,7 @@
       "section": "ai-probe",
       "name": "mcp: student-3-suburb-analytics tools",
       "passed": true,
-      "detail": "4 listed",
+      "detail": "6 listed",
       "owner": "shared"
     },
     {
@@ -1276,7 +1312,7 @@
       "section": "ai-probe",
       "name": "mcp: student-5-buyer-journey tools",
       "passed": true,
-      "detail": "5 listed",
+      "detail": "6 listed",
       "owner": "shared"
     },
     {
@@ -1416,14 +1452,14 @@
       "section": "ai-probe",
       "name": "multi-agent: accepts the service token",
       "passed": true,
-      "detail": "HTTP 200; readiness healthy; templates: 1 template(s) registered; tool_gateway: mcp: 29 catalogued tools via mcp",
+      "detail": "HTTP 200; readiness healthy; templates: 5 template(s) registered; tool_gateway: mcp: 32 catalogued tools via mcp",
       "owner": "shared"
     },
     {
       "section": "ai-probe",
       "name": "multi-agent: lists workflow templates",
       "passed": true,
-      "detail": "HTTP 200; 1 template(s): f1-release-readiness-review",
+      "detail": "HTTP 200; 5 template(s): f1-release-readiness-review, f2-market-case-brief, f3-suburb-comparison-review, f4-evidence-readiness-review, f5-buyer-case-action-plan",
       "owner": "shared"
     },
     {
@@ -1437,7 +1473,7 @@
       "section": "multi-agent",
       "name": "Agents reached awaiting_human",
       "passed": true,
-      "detail": "run 56685fcf-6061-4f79-a005-856d6c768d26 is awaiting_human",
+      "detail": "run fa8aedfd-ec4e-4138-9292-af7aad8e43c0 is awaiting_human",
       "owner": "shared"
     },
     {
@@ -1472,35 +1508,35 @@
       "section": "evidence",
       "name": "terminal-1-compose.log written",
       "passed": true,
-      "detail": "31,362 bytes, 44 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "detail": "53,647 bytes, 49 line(s) carry this capture's request or run IDs, 0 redaction(s)",
       "owner": "shared"
     },
     {
       "section": "evidence",
       "name": "terminal-2-ai-mode.log written",
       "passed": true,
-      "detail": "10,106 bytes, 1 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "detail": "8,609 bytes, 4 line(s) carry this capture's request or run IDs, 0 redaction(s)",
       "owner": "shared"
     },
     {
       "section": "evidence",
       "name": "terminal-3-mcp.log written",
       "passed": true,
-      "detail": "1,857 bytes, 0 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "detail": "5,123 bytes, 4 line(s) carry this capture's request or run IDs, 0 redaction(s)",
       "owner": "shared"
     },
     {
       "section": "evidence",
       "name": "terminal-4-rag.log written",
       "passed": true,
-      "detail": "442 bytes, 0 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "detail": "13,769 bytes, 17 line(s) carry this capture's request or run IDs, 0 redaction(s)",
       "owner": "shared"
     },
     {
       "section": "evidence",
       "name": "terminal-5-multi-agent.log written",
       "passed": true,
-      "detail": "27,740 bytes, 5 line(s) carry this capture's request or run IDs, 0 redaction(s)",
+      "detail": "30,620 bytes, 9 line(s) carry this capture's request or run IDs, 0 redaction(s)",
       "owner": "shared"
     },
     {
@@ -1512,8 +1548,8 @@
     }
   ],
   "summary": {
-    "total": 109,
-    "passed": 109,
+    "total": 111,
+    "passed": 111,
     "failed": 0,
     "by_section": {
       "containers": {
@@ -1529,7 +1565,7 @@
         "failed": 0
       },
       "crud": {
-        "passed": 20,
+        "passed": 22,
         "failed": 0
       },
       "data": {

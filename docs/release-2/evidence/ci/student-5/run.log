@@ -1,0 +1,66 @@
+feature-5-quality	Run Student 5 endpoint tests	﻿2026-10-23T23:52:46.4582062Z ##[group]Run uv run --locked pytest student-5/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-5-endpoints.xml
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4583146Z uv run --locked pytest student-5/tests/endpoints -m endpoint --no-cov -q -rA --junitxml=endpoint-results/student-5-endpoints.xml
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4644591Z shell: /usr/bin/bash -e {0}
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4644866Z env:
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4645256Z   AI_MODE_MCP_ENABLED: false
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4645538Z   AI_MODE_RAG_ENABLED: false
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4645801Z   AI_MODE_SERVICE_TOKEN: 
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4646054Z   MULTI_AGENT_SERVICE_TOKEN: 
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4646400Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4646774Z   UV_PYTHON: 3.12
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4647046Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4647467Z   PROPERTYSCOPE_ENDPOINT_BASE_URL: http://127.0.0.1:5500
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4647881Z   PROPERTYSCOPE_ENDPOINT_READY_PATH: /health/ready
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:46.4648242Z ##[endgroup]
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7433250Z ....                                                                     [100%]
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7434162Z ==================================== PASSES ====================================
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7435432Z - generated xml file: /home/runner/work/41026ASDProject/41026ASDProject/endpoint-results/student-5-endpoints.xml -
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7436696Z =========================== short test summary info ============================
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7437893Z PASSED student-5/tests/endpoints/test_buyer_case_create_endpoint.py::test_create_buyer_case_and_read_back
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7439501Z PASSED student-5/tests/endpoints/test_buyer_case_create_endpoint.py::test_create_buyer_case_rejects_inverted_budget
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7441449Z PASSED student-5/tests/endpoints/test_case_task_create_endpoint.py::test_create_case_task_and_read_back
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7442930Z PASSED student-5/tests/endpoints/test_case_task_create_endpoint.py::test_create_case_task_rejects_unknown_case
+feature-5-quality	Run Student 5 endpoint tests	2026-10-23T23:52:47.7444280Z 4 passed in 0.54s
+feature-5-quality	Publish endpoint test summary	﻿2026-10-23T23:52:47.8823063Z ##[group]Run uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-5-endpoints.xml --title "Feature 5 endpoint tests" --output endpoint-results/student-5-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8824994Z uv run --locked python -m shared_testkit.junit_summary endpoint-results/student-5-endpoints.xml --title "Feature 5 endpoint tests" --output endpoint-results/student-5-endpoints.md --require-success --min-passed 2 >> "$GITHUB_STEP_SUMMARY"
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8886929Z shell: /usr/bin/bash -e {0}
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8887191Z env:
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8887391Z   AI_MODE_MCP_ENABLED: false
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8887644Z   AI_MODE_RAG_ENABLED: false
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8887879Z   AI_MODE_SERVICE_TOKEN: 
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8888111Z   MULTI_AGENT_SERVICE_TOKEN: 
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8888422Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8888762Z   UV_PYTHON: 3.12
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8889011Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-5-quality	Publish endpoint test summary	2026-10-23T23:52:47.8889349Z ##[endgroup]
+feature-5-quality	Upload endpoint test results	﻿2026-10-23T23:52:48.4912037Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4912481Z with:
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4912695Z   name: student-5-endpoint-tests
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4912976Z   path: endpoint-results/
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4913214Z   if-no-files-found: error
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4913441Z   retention-days: 30
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4913652Z   compression-level: 6
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4913868Z   overwrite: false
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4914078Z   include-hidden-files: false
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4914325Z   archive: true
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4914518Z env:
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4914706Z   AI_MODE_MCP_ENABLED: false
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4914941Z   AI_MODE_RAG_ENABLED: false
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4915171Z   AI_MODE_SERVICE_TOKEN: 
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4915402Z   MULTI_AGENT_SERVICE_TOKEN: 
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4915713Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4916058Z   UV_PYTHON: 3.12
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4916312Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.4916640Z ##[endgroup]
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.6335257Z With the provided path, there will be 2 files uploaded
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.6338493Z Artifact name is valid!
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:48.6339449Z Root directory input is valid!
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:49.0056043Z Uploading artifact: student-5-endpoint-tests.zip
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:49.0094614Z Beginning upload of artifact content to blob storage
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:49.3263844Z Uploaded bytes 843
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:49.4059164Z Finished uploading artifact content to blob storage!
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:49.4061568Z SHA256 digest of uploaded artifact is ce9e56dee71e94844f5fe35196882be1fff58d215ec6cebfaacc36a008c74b07
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:49.4063088Z Finalizing artifact upload
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:50.0487460Z Artifact student-5-endpoint-tests successfully finalized. Artifact ID 12538689644
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:50.0488955Z Artifact student-5-endpoint-tests has been successfully uploaded! Final size is 843 bytes. Artifact ID is 12538689644
+feature-5-quality	Upload endpoint test results	2026-10-23T23:52:50.0492137Z Artifact download URL: https://github.com/MattShelton04/41026ASDProject/actions/runs/40041938534/artifacts/12538689644

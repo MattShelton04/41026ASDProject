@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -263,6 +264,15 @@ def test_multi_agent_runs_and_history_come_from_the_export(evidence: Path) -> No
     block = report.workflow_history("multi-agent/student-1/run-a")
     assert block[0] == "```text" and block[-1] == "```"
     assert "01:21:32 r2 awaiting_human -> partially_accepted" in block[3]
+
+    # Citing one run per student keeps the table to the report's runs and counts the rest.
+    shutil.copytree(export, evidence / "multi-agent" / "student-1" / "run-b")
+    cited = report.multi_agent_runs("student-1/run-a")
+    assert sum(line.startswith("| 1 |") for line in cited) == 1
+    assert "Other exported runs kept in the evidence folders: 1." in cited
+    assert sum(line.startswith("| 1 |") for line in report.multi_agent_runs("student-1")) == 2
+    missing = report.multi_agent_runs("student-1/absent")
+    assert {match["owner"] for match in _todos(missing)} == {report.TEAM["1"]}
 
 
 def test_local_and_cloud_evidence_summarise_their_reports(evidence: Path) -> None:

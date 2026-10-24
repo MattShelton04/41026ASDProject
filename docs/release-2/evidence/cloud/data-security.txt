@@ -1,4 +1,4 @@
-Data security validation for rg-propertyscope-prod at 2026-10-18T08:55:58Z
+Data security validation for rg-propertyscope-prod at 2026-10-24T00:12:16Z
 PASS Key Vault uses RBAC authorisation (no access policies) (true)
 PASS Key Vault soft delete is enabled (true)
 PASS Key Vault purge protection is enabled (true)
