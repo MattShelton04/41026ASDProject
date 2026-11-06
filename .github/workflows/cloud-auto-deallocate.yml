@@ -1,17 +1,10 @@
 name: Cloud Auto-Deallocate
 
-# Nightly cost backstop for the Azure VM (ADR-048). The Bicep auto-shutdown schedule
-# (Microsoft.DevTestLab/schedules) is not offered in every region, newzealandnorth included, so this
-# workflow deallocates the VM from GitHub instead. It also runs where that schedule exists; a VM
-# that is already deallocated is left alone. Deployments start the VM again.
-#
-# GitHub cron is UTC: 12:30 UTC is 23:30 AEDT (October to April) and 22:30 AEST otherwise, and a
-# scheduled run can start some minutes late. Skipped until the repository variable
-# AZURE_SUBSCRIPTION_ID is set. To keep the VM up overnight (a marking window), disable this
-# workflow in the Actions tab and enable it again afterwards.
+# Former nightly cost backstop for the Azure VM (ADR-048). The project was marked in November 2026
+# and the Azure deployment was deleted on 6 November 2026, so the nightly schedule is removed: the
+# workflow now runs only by hand, and skips unless the repository variable AZURE_SUBSCRIPTION_ID is
+# set again for a new deployment (deployment/azure/README.md).
 on:
-  schedule:
-    - cron: "30 12 * * *"
   workflow_dispatch:
 
 # The required cloud baseline keeps AI-mode, MCP, RAG and Multi-Agent off.

@@ -12,11 +12,19 @@ The tutor-approved project uses Python 3.12 and a `uv` monorepo. Frontends, feat
 owned databases run in Docker Compose. AI-mode, its Plan/Act/Observe/Adapt loop, MCP, RAG and the
 Multi-Agent Server run as host processes. Matthew reconfirmed the tutor's OpenAI and
 PostgreSQL/PostGIS approval on 3 October 2026. The Azure deployment is one VM behind a Caddy TLS
-edge, with images in ACR, secrets in Key Vault and the AI tier off by default. It has been
-provisioned since 17 October 2026 (*Azure for Students*, `newzealandnorth`), and GitHub Actions
-deploys it after CI passes. Feature 1's release review page runs its Planner → Worker → Reviewer → human
+edge, with images in ACR, secrets in Key Vault and the AI tier off by default. It ran from
+17 October to 6 November 2026 (*Azure for Students*, `newzealandnorth`), deployed by GitHub
+Actions after CI passed. Feature 1's release review page runs its Planner → Worker → Reviewer → human
 readiness review through the shared [multi-agent panel](shared/frontend/multi-agent/README.md);
 the other features adopt the same panel and proxy contract.
+
+## Project status
+
+The project is complete and has been marked: Group 20 received **full marks (100%) for Spring
+2026**. The Azure deployment was deleted on 6 November 2026, so the hosted site is gone. The cloud
+workflows (Cloud Deployment, Cloud AI Tier and Cloud Auto-Deallocate) are disabled in GitHub
+Actions and no longer have push or scheduled triggers. The code, reports and evidence stay here as
+submitted, and the local Docker stack still runs as described below.
 
 ## Start here
 
