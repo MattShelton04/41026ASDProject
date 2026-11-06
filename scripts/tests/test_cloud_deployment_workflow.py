@@ -29,19 +29,11 @@ def _uploads(job: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def test_cloud_deployment_runs_after_integration_ci_on_main_or_by_hand() -> None:
+def test_cloud_deployment_runs_only_by_hand_after_the_project_shutdown() -> None:
     workflow = _workflow("cloud-deployment.yml")
-    integration = _workflow("integration-ci.yml")
-    # PyYAML's YAML 1.1 loader interprets the Actions `on` key as True.
-    triggers = workflow[True]
-    assert set(triggers) == {"workflow_run", "workflow_dispatch"}
-    assert triggers["workflow_run"] == {
-        "workflows": [integration["name"]],
-        "types": ["completed"],
-        "branches": ["main"],
-    }
-    # Integration CI runs on every push to main, so the deployment fires once per push.
-    assert integration[True]["push"] == {"branches": ["main"]}
+    # PyYAML's YAML 1.1 loader interprets the Actions `on` key as True. The Azure deployment was
+    # deleted on 6 November 2026, so pushes to main no longer trigger a deployment.
+    assert set(workflow[True]) == {"workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
     assert workflow["defaults"]["run"]["shell"] == "bash"  # bash -eo pipefail for the tee'd logs
 
@@ -188,10 +180,10 @@ def test_the_evidence_readme_names_every_artifact_the_workflow_uploads() -> None
     assert "!.propertyscope-runtime/cloud/*.payload.sh" in deploy_upload["with"]["path"]
 
 
-def test_auto_deallocate_runs_nightly_or_by_hand_once_azure_is_configured() -> None:
+def test_auto_deallocate_runs_only_by_hand_once_azure_is_configured() -> None:
     workflow = _workflow("cloud-auto-deallocate.yml")
-    assert set(workflow[True]) == {"schedule", "workflow_dispatch"}
-    assert workflow[True]["schedule"] == [{"cron": "30 12 * * *"}]  # 23:30 AEDT
+    # The nightly schedule went with the Azure deployment (deleted 6 November 2026).
+    assert set(workflow[True]) == {"workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
     assert list(workflow["jobs"]) == ["deallocate"]
     job = workflow["jobs"]["deallocate"]

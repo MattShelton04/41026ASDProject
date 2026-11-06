@@ -16,14 +16,10 @@ name: Cloud Deployment
 #                    starts a quiet period: pushes then stop at build-validate, and only a manual
 #                    run deploys (after the same gate).
 #
-# It is triggered once per push to main, when Integration CI (which runs on every push) completes;
-# the gate then waits for the student workflows of the same push instead of re-triggering on each
-# of them, so one commit is deployed at most once. It can also be run by hand.
+# It used to run after every Integration CI on main. The project was marked in November 2026 and
+# the Azure deployment was deleted on 6 November 2026, so it now runs only by hand (and its deploy
+# job skips while AZURE_SUBSCRIPTION_ID is unset).
 on:
-  workflow_run:
-    workflows: ["Integration CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       provision:

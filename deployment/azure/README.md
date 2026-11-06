@@ -5,13 +5,15 @@ production Compose wiring, the TLS edge, systemd units for the optional cloud AI
 operations script and the bonus security validations. The design and its trade-offs are recorded
 in [ADR-048](../../docs/architecture/decisions/ADR-048-azure-vm-hosting.md).
 
-**Status:** provisioned and deployed since 17 October 2026. The deployment runs on an *Azure for
+**Status:** decommissioned. The deployment ran from 17 October to 6 November 2026 on an *Azure for
 Students* subscription in `newzealandnorth` (the Students region policy blocks `australiaeast`) on a
-`Standard_D4as_v4` VM (no DSv5 quota), with `AZURE_AUTO_SHUTDOWN_TIME=off` and a user-assigned
-managed identity as the GitHub deployer (the tenant blocks app registrations). The URL is
-<https://propertyscope-nsw-g20.newzealandnorth.cloudapp.azure.com>, behind the site-wide login. The first successful CI deployment is
-[run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663), attempt 2. Automatic deployments are paused (`AZURE_AUTO_DEPLOY=false`).
-The VM is deallocated every night. For a new subscription, work through the
+`Standard_D4as_v4` VM (no DSv5 quota), with a user-assigned managed identity as the GitHub deployer
+(the tenant blocks app registrations). After the project was marked, `rg-propertyscope-prod` was
+deleted with every resource in it, the `AZURE_*` repository variables and the `production` and
+`operations` environments were removed, and the three cloud workflows were disabled; Cloud
+Deployment and Cloud Auto-Deallocate now run only by hand. The first successful CI deployment was
+[run 39018442663](https://github.com/MattShelton04/41026ASDProject/actions/runs/39018442663),
+attempt 2. To deploy again on a new subscription, work through the
 [switch-on checklist](#switch-on-checklist) in order.
 
 ## Architecture
